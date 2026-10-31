@@ -45,7 +45,7 @@ jobs:
       cache: true
       cache-mode: max
 
-      sbom: true
+      sbom: false
       sign: true
 
       platforms: linux/amd64,linux/arm64
