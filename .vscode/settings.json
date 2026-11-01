@@ -142,8 +142,8 @@
       "filename": true,
       "format": "png"
     },
-    { "icon": "docker2", "extensions": ["tests/compose.test.ts"], "filename": true },
-    { "icon": "docker2", "extends": "docker" }
+    { "icon": "docker", "extensions": ["tests/compose.test.ts"], "filename": true },
+    { "icon": "docker", "extends": "docker" }
   ],
 
   // Telemetry
