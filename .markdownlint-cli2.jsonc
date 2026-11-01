@@ -1,0 +1,6 @@
+/** @format */
+
+{
+  "config": { "default": true, "MD013": { "stern": true, "line_length": 100 } },
+  "noInlineConfig": true
+}
