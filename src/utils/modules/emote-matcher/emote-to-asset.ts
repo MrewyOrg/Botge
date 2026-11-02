@@ -15,7 +15,11 @@ const TWITCH_CDN = 'static-cdn.jtvnw.net/emoticons/v2' as const;
 
 const EMOTE_SIZE = 2 as const;
 
-export function sevenTVInSetToAsset(emote: SevenTVEmoteInSet, size?: number): AssetInfo {
+export function sevenTVInSetToAsset(
+  emote: SevenTVEmoteInSet,
+  isSevenTVPersonal: boolean,
+  size?: number
+): AssetInfo {
   const { id, name, flags, data, timestamp } = emote;
   const { host, animated } = data;
   const filename = `${size ?? EMOTE_SIZE}x.${animated ? 'gif' : 'png'}`;
@@ -29,7 +33,8 @@ export function sevenTVInSetToAsset(emote: SevenTVEmoteInSet, size?: number): As
     width: file?.width,
     height: file?.height,
     platform: 'sevenInSet',
-    timestamp: timestamp
+    timestamp: timestamp,
+    isSevenTVPersonal: isSevenTVPersonal
   };
 }
 
@@ -49,7 +54,8 @@ export function sevenTVNotInSetToAsset(
     width: file?.width,
     height: file?.height,
     platform: 'sevenNotInSet',
-    timestamp: undefined
+    timestamp: undefined,
+    isSevenTVPersonal: false
   };
 }
 
@@ -65,7 +71,8 @@ export function bttvToAsset(emote: BTTVEmote): AssetInfo {
     width: undefined,
     height: undefined,
     platform: 'bttv',
-    timestamp: undefined
+    timestamp: undefined,
+    isSevenTVPersonal: false
   };
 }
 
@@ -80,7 +87,8 @@ export function ffzToAsset(emote: FFZEmote): AssetInfo {
     width: undefined,
     height: undefined,
     platform: 'ffz',
-    timestamp: undefined
+    timestamp: undefined,
+    isSevenTVPersonal: false
   };
 }
 
@@ -98,6 +106,7 @@ export function twitchToAsset(emote: TwitchEmote): AssetInfo {
     width: undefined,
     height: undefined,
     platform: 'twitch',
-    timestamp: undefined
+    timestamp: undefined,
+    isSevenTVPersonal: false
   };
 }

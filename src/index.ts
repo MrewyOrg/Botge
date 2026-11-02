@@ -61,6 +61,7 @@ import { DATABASE_DIR, TMP_DIR } from './directory-paths.ts';
   type BotgeConfig = {
     readonly UPDATE_CLIPS_ON_STARTUP: boolean;
     readonly JOIN_VOICE_CHANNEL: boolean;
+    readonly AUTOCOMPLETE_ONLY_7TV_PERSONAL: boolean;
   };
 
   const botgeConfig = ((): BotgeConfig => {
@@ -73,6 +74,9 @@ import { DATABASE_DIR, TMP_DIR } from './directory-paths.ts';
 
   process.env['UPDATE_CLIPS_ON_STARTUP'] = String(botgeConfig.UPDATE_CLIPS_ON_STARTUP);
   process.env['JOIN_VOICE_CHANNEL'] = String(botgeConfig.JOIN_VOICE_CHANNEL);
+  process.env['AUTOCOMPLETE_ONLY_7TV_PERSONAL'] = String(
+    botgeConfig.AUTOCOMPLETE_ONLY_7TV_PERSONAL
+  );
 })();
 
 const DATABASE_PATHS = {

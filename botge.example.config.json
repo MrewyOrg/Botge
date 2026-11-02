@@ -3,6 +3,7 @@
 
   "UPDATE_CLIPS_ON_STARTUP": false,
   "JOIN_VOICE_CHANNEL": false,
+  "AUTOCOMPLETE_ONLY_7TV_PERSONAL": false,
 
   "bot": { "name": "Botge" },
 

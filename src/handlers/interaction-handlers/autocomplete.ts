@@ -78,6 +78,8 @@ export function autocompleteHandler(
               undefined,
               undefined,
               MAX_OPTIONS_LENGTH,
+              process.env['AUTOCOMPLETE_ONLY_7TV_PERSONAL'] !== 'true',
+              process.env['AUTOCOMPLETE_ONLY_7TV_PERSONAL'] === 'true',
               true
             ) ?? [];
           const options: readonly ApplicationCommandOptionChoiceData<string>[] = matches.map(

@@ -121,6 +121,7 @@ export type AssetInfo = {
   readonly height: number | undefined;
   readonly platform: Platform;
   readonly timestamp: number | undefined;
+  readonly isSevenTVPersonal: boolean;
 };
 export type DownloadedAsset = {
   readonly filename: string;

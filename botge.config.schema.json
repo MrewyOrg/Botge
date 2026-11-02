@@ -31,6 +31,13 @@
       "description": "Join the configured voice channel when the bot becomes ready."
     },
 
+    "AUTOCOMPLETE_ONLY_7TV_PERSONAL": {
+      "type": "boolean",
+      "default": false,
+
+      "description": "Only show 7TV personal emotes on autocomplete with /emote."
+    },
+
     "bot": {
       "type": "object",
       "additionalProperties": false,
@@ -177,6 +184,7 @@
   "required": [
     "UPDATE_CLIPS_ON_STARTUP",
     "JOIN_VOICE_CHANNEL",
+    "AUTOCOMPLETE_ONLY_7TV_PERSONAL",
     "bot",
     "ollama",
     "chroma",

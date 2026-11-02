@@ -79,7 +79,8 @@ class SuffixTree {
     zeroWidth?: boolean,
     max?: number,
     sortByDateAdded?: boolean,
-    sortByName?: boolean
+    sortByName?: boolean,
+    isSlashEmote?: boolean
   ): readonly AssetInfo[] | undefined {
     return this.#queryArray(
       suffix.toLowerCase(),
@@ -89,7 +90,8 @@ class SuffixTree {
       zeroWidth,
       max,
       sortByDateAdded,
-      sortByName
+      sortByName,
+      isSlashEmote
     );
   }
 
@@ -152,7 +154,8 @@ class SuffixTree {
     zeroWidth?: boolean,
     max?: number,
     sortByDateAdded?: boolean,
-    sortByName?: boolean
+    sortByName?: boolean,
+    isSlashEmote?: boolean
   ): readonly AssetInfo[] | undefined {
     if (normalizedSuffix !== '') {
       const nextChar = normalizedSuffix.charAt(0);
@@ -175,7 +178,12 @@ class SuffixTree {
 
     let assets: AssetInfo[] = [];
     for (const asset of this.#data?.assets ?? []) {
-      if (asset.name.includes(normalizedSuffix) && !assets.includes(asset)) assets.push(asset);
+      if (asset.name.includes(normalizedSuffix) && !assets.includes(asset)) {
+        if (process.env['AUTOCOMPLETE_ONLY_7TV_PERSONAL'] === 'true') {
+          if (isSlashEmote !== undefined && isSlashEmote && asset.isSevenTVPersonal)
+            assets.push(asset);
+        } else assets.push(asset);
+      }
     }
 
     if (platform !== undefined) assets = assets.filter((asset) => asset.platform === platform);
@@ -298,7 +306,7 @@ export class EmoteMatcher {
     let priority = arguments.length;
 
     for (const emote of sevenGlobal.emotes)
-      this.#root.addAllSuffix(sevenTVInSetToAsset(emote), priority);
+      this.#root.addAllSuffix(sevenTVInSetToAsset(emote, false), priority);
     priority--;
 
     try {
@@ -319,7 +327,7 @@ export class EmoteMatcher {
     if (twitchGlobal !== undefined) priority--;
 
     for (const emote of sevenPersonal?.emotes ?? [])
-      this.#root.addAllSuffix(sevenTVInSetToAsset(emote), priority);
+      this.#root.addAllSuffix(sevenTVInSetToAsset(emote, true), priority);
     if (sevenPersonal !== undefined) priority--;
 
     try {
@@ -364,7 +372,8 @@ export class EmoteMatcher {
     zeroWidth?: boolean,
     max?: number,
     sortByDateAdded?: boolean,
-    sortByName?: boolean
+    sortByName?: boolean,
+    isSlashEmote?: boolean
   ): readonly AssetInfo[] | undefined {
     return this.#root.queryArray(
       query,
@@ -374,7 +383,8 @@ export class EmoteMatcher {
       zeroWidth,
       max,
       sortByDateAdded,
-      sortByName
+      sortByName,
+      isSlashEmote
     );
   }
 
