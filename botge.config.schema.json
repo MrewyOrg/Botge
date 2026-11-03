@@ -17,178 +17,301 @@
       "description": "JSON schema reference used by the editor."
     },
 
-    "UPDATE_CLIPS_ON_STARTUP": {
-      "type": "boolean",
-      "default": false,
-
-      "description": "Refresh Twitch clips on startup instead of refreshing creator names and game IDs."
-    },
-
-    "JOIN_VOICE_CHANNEL": {
-      "type": "boolean",
-      "default": false,
-
-      "description": "Join the configured voice channel when the bot becomes ready."
-    },
-
-    "AUTOCOMPLETE_ONLY_7TV_PERSONAL": {
-      "type": "boolean",
-      "default": false,
-
-      "description": "Only show 7TV personal emotes on autocomplete with /emote."
-    },
-
-    "bot": {
+    "general": {
       "type": "object",
       "additionalProperties": false,
 
       "properties": {
-        "name": {
-          "type": "string",
-          "default": "Botge",
-          "description": "Name the bot uses in chat."
+        "updateClipsOnStartup": {
+          "type": "boolean",
+          "default": false,
+
+          "description": "Refresh Twitch clips on startup instead of refreshing creator names and game IDs."
+        },
+
+        "joinVoiceChannels": {
+          "type": "boolean",
+          "default": false,
+
+          "description": "Join the configured voice channel when the bot becomes ready."
+        },
+
+        "autoCompleteOnly7TVPersonal": {
+          "type": "boolean",
+          "default": false,
+
+          "description": "Only show 7TV personal emotes on autocomplete with /emote."
+        },
+
+        "activeSlashCommands": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "emote",
+              "emotes",
+              "emotelist",
+              "clip",
+              "addemote",
+              "chatgpt",
+              "translate",
+              "shortestuniquesubstrings",
+              "transient",
+              "findtheemoji",
+              "pingme",
+              "poe2",
+              "settings",
+              "pinglist",
+              "media",
+              "medialist",
+              "quote",
+              "quotelist",
+              "clear"
+            ]
+          },
+          "default": [
+            "emote",
+            "emotes",
+            "emotelist",
+            "clip",
+            "addemote",
+            "chatgpt",
+            "translate",
+            "shortestuniquesubstrings",
+            "transient",
+            "findtheemoji",
+            "pingme",
+            "poe2",
+            "settings",
+            "pinglist",
+            "media",
+            "medialist",
+            "quote",
+            "quotelist",
+            "clear"
+          ],
+
+          "description": "Slash commands to activate."
+        },
+
+        "activeContextMenuCommands": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "ChatGPT Explain",
+              "Add Media",
+              "Remove Media",
+              "Translate",
+              "Add Quote",
+              "Remove Quote"
+            ]
+          },
+          "default": [
+            "ChatGPT Explain",
+            "Add Media",
+            "Remove Media",
+            "Translate",
+            "Add Quote",
+            "Remove Quote"
+          ],
+
+          "description": "Context menu commands to activate."
         }
       },
 
-      "required": ["name"]
+      "required": [
+        "updateClipsOnStartup",
+        "joinVoiceChannels",
+        "autoCompleteOnly7TVPersonal",
+        "activeSlashCommands",
+        "activeContextMenuCommands"
+      ]
     },
 
     "ollama": {
       "type": "object",
       "additionalProperties": false,
 
+      "$defs": {
+        "promptLines": {
+          "type": "array",
+          "items": { "type": "string" },
+
+          "description": "Prompt lines, joined with newlines. \"{name}\" is replaced by Botge."
+        }
+      },
+
       "properties": {
+        "enabled": {
+          "type": "boolean",
+          "default": false,
+
+          "description": "Enable Ollama-powered chat replies and semantic storage."
+        },
+
+        "botName": {
+          "type": "string",
+          "default": "Botge",
+
+          "description": "Name the bot uses in chat."
+        },
+
         "baseUrl": {
           "type": "string",
           "default": "http://localhost:11434",
+
           "description": "Base URL of the Ollama instance."
         },
+
         "model": { "type": "string", "default": "gemma4:26b", "description": "Chat model." },
+
         "embeddingModel": {
           "type": "string",
           "default": "nomic-embed-text",
+
           "description": "Embedding model. Changing this requires re-running: node backfill.js reset <channelId>"
         },
+
         "options": {
           "type": "object",
           "additionalProperties": false,
+
           "description": "Ollama model options sent with every chat request.",
+
           "properties": {
             "temperature": { "type": "number", "default": 0.85 },
             "num_ctx": { "type": "integer", "default": 8192 },
             "top_p": { "type": "number", "default": 0.9 }
           },
+
           "required": ["temperature", "num_ctx", "top_p"]
         },
+
         "systemPrompts": {
           "type": "object",
           "additionalProperties": false,
+
           "properties": {
             "scoreReplyOpportunity": {
-              "$ref": "#/$defs/promptLines",
+              "$ref": "#/properties/ollama/$defs/promptLines",
               "description": "System prompt for deciding whether to reply. Must ask for JSON with score, should_reply and reason."
             },
+
             "generateReply": {
-              "$ref": "#/$defs/promptLines",
+              "$ref": "#/properties/ollama/$defs/promptLines",
               "description": "System prompt for writing the reply."
             }
           },
+
           "required": ["scoreReplyOpportunity", "generateReply"]
+        },
+
+        "behavior": {
+          "type": "object",
+          "additionalProperties": false,
+
+          "properties": {
+            "replyScoreThreshold": {
+              "type": "number",
+              "default": 2,
+
+              "description": "Minimum score needed to reply."
+            },
+
+            "contextWindow": {
+              "type": "integer",
+              "default": 30,
+
+              "description": "Recent messages sent to the model."
+            },
+
+            "evaluationChance": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1,
+              "default": 0.8,
+
+              "description": "Chance a non-mention message is evaluated."
+            },
+
+            "cooldownSeconds": {
+              "type": "number",
+              "default": 60,
+
+              "description": "Minimum seconds between replies in a channel."
+            },
+
+            "ragResults": {
+              "type": "integer",
+              "default": 5,
+
+              "description": "Semantic search hits to retrieve."
+            },
+
+            "ragWindowSize": {
+              "type": "integer",
+              "default": 2,
+
+              "description": "Messages to include before and after each semantic hit."
+            }
+          },
+
+          "required": [
+            "replyScoreThreshold",
+            "contextWindow",
+            "evaluationChance",
+            "cooldownSeconds",
+            "ragResults",
+            "ragWindowSize"
+          ]
+        },
+
+        "chroma": {
+          "type": "object",
+          "additionalProperties": false,
+
+          "properties": {
+            "url": {
+              "type": "string",
+              "default": "http://chromadb:8000",
+
+              "description": "ChromaDB URL."
+            }
+          },
+
+          "required": ["url"]
+        },
+
+        "activeChatChannels": {
+          "type": "array",
+          "items": { "type": "string" },
+
+          "description": "Channel IDs the bot chats in."
         }
       },
 
-      "required": ["baseUrl", "model", "embeddingModel", "options", "systemPrompts"]
-    },
-
-    "behavior": {
-      "type": "object",
-      "additionalProperties": false,
-
-      "properties": {
-        "replyScoreThreshold": {
-          "type": "number",
-          "default": 2,
-          "description": "Minimum score needed to reply."
-        },
-        "contextWindow": {
-          "type": "integer",
-          "default": 30,
-          "description": "Recent messages sent to the model."
-        },
-        "evaluationChance": {
-          "type": "number",
-          "minimum": 0,
-          "maximum": 1,
-          "default": 0.8,
-          "description": "Chance a non-mention message is evaluated."
-        },
-        "cooldownSeconds": {
-          "type": "number",
-          "default": 60,
-          "description": "Minimum seconds between replies in a channel."
-        },
-        "ragResults": {
-          "type": "integer",
-          "default": 5,
-          "description": "Semantic search hits to retrieve."
-        },
-        "ragWindowSize": {
-          "type": "integer",
-          "default": 2,
-          "description": "Messages to include before and after each semantic hit."
+      "required": ["enabled"],
+      "allOf": [
+        {
+          "if": { "properties": { "enabled": { "const": true } } },
+          "then": {
+            "required": [
+              "botName",
+              "baseUrl",
+              "model",
+              "embeddingModel",
+              "options",
+              "systemPrompts",
+              "behavior",
+              "chroma",
+              "activeChatChannels"
+            ]
+          }
         }
-      },
-
-      "required": [
-        "replyScoreThreshold",
-        "contextWindow",
-        "evaluationChance",
-        "cooldownSeconds",
-        "ragResults",
-        "ragWindowSize"
       ]
-    },
-
-    "chroma": {
-      "type": "object",
-      "additionalProperties": false,
-
-      "properties": {
-        "url": {
-          "type": "string",
-          "default": "http://chromadb:8000",
-          "description": "ChromaDB URL."
-        }
-      },
-
-      "required": ["url"]
-    },
-
-    "activeChatChannels": {
-      "type": "array",
-      "items": { "type": "string" },
-
-      "description": "Channel IDs the bot chats in."
     }
   },
 
-  "$defs": {
-    "promptLines": {
-      "type": "array",
-      "items": { "type": "string" },
-
-      "description": "Prompt lines, joined with newlines. \"{name}\" is replaced by bot.name."
-    }
-  },
-
-  "required": [
-    "UPDATE_CLIPS_ON_STARTUP",
-    "JOIN_VOICE_CHANNEL",
-    "AUTOCOMPLETE_ONLY_7TV_PERSONAL",
-    "bot",
-    "ollama",
-    "chroma",
-    "behavior",
-    "activeChatChannels"
-  ]
+  "required": ["general", "ollama"]
 }

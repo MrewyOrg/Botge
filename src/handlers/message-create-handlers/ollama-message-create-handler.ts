@@ -5,7 +5,7 @@ import type { OmitPartialGroupDMChannel, Message } from 'discord.js';
 import { storeMessage, findSimilarWithContext } from '../../api/vector-store.ts';
 import { scoreReplyOpportunity, generateReply } from '../../api/ollama.ts';
 import { logError } from '../../utils/public/log-error.ts';
-import { config } from '../../api/config/ollama-config.ts';
+import { ollamaConfig } from '../../api/config/ollama-config.ts';
 
 type BufferEntry = {
   readonly author: string;
@@ -38,8 +38,10 @@ async function retrieveContext(
   channelId: string,
   recentHistory: string
 ): Promise<readonly string[]> {
+  if (!ollamaConfig.enabled) throw new Error('Ollama is not enabled.');
+
   try {
-    const { ragResults, ragWindowSize } = config.behavior;
+    const { ragResults, ragWindowSize } = ollamaConfig.behavior;
 
     return await findSimilarWithContext(recentHistory, channelId, ragResults, ragWindowSize);
   } catch (error) {
@@ -61,11 +63,13 @@ function getFormattedHistory(channelId: string): string {
  * Add a message to a channel's rolling buffer.
  */
 function addMessage(channelId: string, authorName: string, content: string): void {
+  if (!ollamaConfig.enabled) throw new Error('Ollama is not enabled.');
+
   const buffer = buffers.get(channelId) ?? [];
 
   buffer.push({ author: authorName, content, timestamp: new Date().toISOString() });
 
-  const { contextWindow } = config.behavior;
+  const { contextWindow } = ollamaConfig.behavior;
 
   if (buffer.length > contextWindow) buffer.splice(0, buffer.length - contextWindow);
   buffers.set(channelId, buffer);
@@ -78,8 +82,10 @@ function getBufferSize(channelId: string): number {
   return buffers.get(channelId)?.length ?? 0;
 }
 function isOnCooldown(channelId: string): boolean {
+  if (!ollamaConfig.enabled) throw new Error('Ollama is not enabled.');
+
   const last = lastReplyTime.get(channelId) ?? 0;
-  return (Date.now() - last) / 1000 < config.behavior.cooldownSeconds;
+  return (Date.now() - last) / 1000 < ollamaConfig.behavior.cooldownSeconds;
 }
 function setLastReplyTime(channelId: string): void {
   lastReplyTime.set(channelId, Date.now());
@@ -89,7 +95,9 @@ export async function ollamaMessageCreateHandler(
   message: OmitPartialGroupDMChannel<Message>,
   clientUserId: string
 ): Promise<void> {
-  if (!config.activeChatChannels.includes(message.channel.id)) return;
+  if (!ollamaConfig.enabled) throw new Error('Ollama is not enabled.');
+
+  if (!ollamaConfig.activeChatChannels.includes(message.channel.id)) return;
 
   const channelId = message.channel.id;
   const authorName = message.author.displayName;
@@ -113,7 +121,7 @@ export async function ollamaMessageCreateHandler(
   setLastReplyTime(channelId);
 
   // 5. Random gate — skip most messages to avoid being annoying
-  if (!direct_mention && Math.random() > config.behavior.evaluationChance) return;
+  if (!direct_mention && Math.random() > ollamaConfig.behavior.evaluationChance) return;
 
   // 6. Score the opportunity using the recent buffer
   const recentHistory = getFormattedHistory(channelId);
@@ -134,7 +142,7 @@ export async function ollamaMessageCreateHandler(
       );
 
       if (!scoring.shouldReply) return false;
-      return scoring.score >= config.behavior.replyScoreThreshold;
+      return scoring.score >= ollamaConfig.behavior.replyScoreThreshold;
     })();
   }
   if (!shouldReply) return;
@@ -194,12 +202,12 @@ export async function ollamaMessageCreateHandler(
     // console.log('OLLAMA: ' + reply);
 
     // Add own reply to the in-memory buffer
-    addMessage(channelId, config.bot.name, reply);
+    addMessage(channelId, ollamaConfig.botName, reply);
 
     // And index own reply in the vector store
     void storeMessage({
       id: `bot_${Date.now()}`,
-      author: config.bot.name,
+      author: ollamaConfig.botName,
       content: reply,
       channelId,
       timestamp: new Date()

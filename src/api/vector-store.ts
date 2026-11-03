@@ -8,7 +8,7 @@ import { DATABASE_DIR } from '../directory-paths.ts';
 
 import type { ReadonlyMetaData } from '../types.ts';
 
-import { config } from './config/ollama-config.ts';
+import { ollamaConfig } from './config/ollama-config.ts';
 
 type StoreMessageParams = {
   readonly id: string;
@@ -24,19 +24,25 @@ type OllamaEmbeddingsResponse = { readonly embedding?: readonly number[] };
 type SeqNums = Record<string, number>;
 
 const SEQ_FILE_PATH: 'data/seqNums.json' = `${DATABASE_DIR}/seqNums.json`;
-const chromaUrl = new URL(config.chroma.url);
-const client: ChromaClient = new ChromaClient({
-  ssl: chromaUrl.protocol === 'https:',
-  host: chromaUrl.hostname,
-  port: Number(chromaUrl.port) || (chromaUrl.protocol === 'https:' ? 443 : 80)
-});
+const client = ((): ChromaClient | undefined => {
+  if (!ollamaConfig.enabled) return undefined;
+
+  const chromaUrl = new URL(ollamaConfig.chroma.url);
+  return new ChromaClient({
+    ssl: chromaUrl.protocol === 'https:',
+    host: chromaUrl.hostname,
+    port: Number(chromaUrl.port) || (chromaUrl.protocol === 'https:' ? 443 : 80)
+  });
+})();
 
 /**
  * Generate a vector embedding for a piece of text using the local Ollama model.
  * Returns a float array representing the text's position in semantic space.
  */
 async function embed(text: string): Promise<readonly number[]> {
-  const { baseUrl, embeddingModel } = config.ollama;
+  if (!ollamaConfig.enabled) throw new Error('Ollama is not enabled.');
+
+  const { baseUrl, embeddingModel } = ollamaConfig;
   const res = await fetch(`${baseUrl}/api/embeddings`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -64,9 +70,11 @@ async function embed(text: string): Promise<readonly number[]> {
 // Discord history — nothing is lost.
 
 function getCollectionName(): string {
+  if (!ollamaConfig.enabled) throw new Error('Ollama is not enabled.');
+
   // ChromaDB rules: 3–63 chars, alphanumeric + hyphens/underscores,
   // must start and end with alphanumeric.
-  const model = config.ollama.embeddingModel;
+  const model = ollamaConfig.embeddingModel;
   const safe = model
     .replace(/[^a-zA-Z0-9_-]/g, '_') // sanitize special chars
     .replace(/[_-]+$/, ''); // strip trailing separators
@@ -76,6 +84,8 @@ function getCollectionName(): string {
 
 // Cached collection promise — avoids race conditions on concurrent first calls
 async function getCollection(): Promise<Collection> {
+  if (client === undefined) throw new Error('Ollama is not enabled.');
+
   let _collectionPromise: Promise<Collection> | null = null;
   _collectionPromise ??= client.getOrCreateCollection({
     name: getCollectionName(),

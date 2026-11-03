@@ -180,8 +180,9 @@ class SuffixTree {
     for (const asset of this.#data?.assets ?? []) {
       if (asset.name.includes(normalizedSuffix) && !assets.includes(asset)) {
         if (process.env['AUTOCOMPLETE_ONLY_7TV_PERSONAL'] === 'true') {
-          if (isSlashEmote !== undefined && isSlashEmote && asset.isSevenTVPersonal)
-            assets.push(asset);
+          if (isSlashEmote !== undefined && isSlashEmote) {
+            if (asset.isSevenTVPersonal) assets.push(asset);
+          } else assets.push(asset);
         } else assets.push(asset);
       }
     }

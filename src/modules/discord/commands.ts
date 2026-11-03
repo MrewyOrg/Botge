@@ -365,37 +365,61 @@ const removeQuote: ReadonlyContextMenuCommandBuilder = new ContextMenuCommandBui
   .setType(ApplicationCommandType.Message)
   .setContexts(InteractionContextType.Guild, InteractionContextType.PrivateChannel);
 
-export const commands: readonly (
+export function getCommands(
+  activeSlashCommandNames: readonly string[],
+  activeContextMenuCommandNames: readonly string[]
+): readonly (
   | Readonly<RESTPostAPIChatInputApplicationCommandsJSONBody>
   | Readonly<RESTPostAPIContextMenuApplicationCommandsJSONBody>
-)[] = [
-  ...[
-    emote.toJSON(),
-    emotes.toJSON(),
-    emoteList.toJSON(),
-    clip.toJSON(),
-    addemote.toJSON(),
-    chatgpt.toJSON(),
-    translate.toJSON(),
-    shortestUniqueSubstrings.toJSON(),
-    transient.toJSON(),
-    findTheEmoji.toJSON(),
-    pingMe.toJSON(),
-    poe2.toJSON(),
-    settings.toJSON(),
-    pingList.toJSON(),
-    media.toJSON(),
-    mediaList.toJSON(),
-    quote.toJSON(),
-    quoteList.toJSON(),
-    clear.toJSON()
-  ],
-  ...[
-    chatGptExplain.toJSON(),
-    addMedia.toJSON(),
-    removeMedia.toJSON(),
-    translateContextMenuCommand.toJSON(),
-    addQuote.toJSON(),
-    removeQuote.toJSON()
-  ]
-];
+)[] {
+  const activeSlashCommands = ((): readonly ReadonlySlashCommandOptionsOnlyBuilder[] => {
+    const activeSlashCommands_: ReadonlySlashCommandOptionsOnlyBuilder[] = [
+      emote,
+      emotes,
+      emoteList,
+      clip,
+      addemote,
+      chatgpt,
+      translate,
+      shortestUniqueSubstrings,
+      transient,
+      findTheEmoji,
+      pingMe,
+      poe2,
+      settings,
+      pingList,
+      media,
+      mediaList,
+      quote,
+      quoteList,
+      clear
+    ];
+
+    return activeSlashCommands_.filter((command) => activeSlashCommandNames.includes(command.name));
+  })();
+
+  const activeContextMenuCommands = ((): readonly ReadonlyContextMenuCommandBuilder[] => {
+    const activeContextMenuCommands_: ReadonlyContextMenuCommandBuilder[] = [
+      chatGptExplain,
+      addMedia,
+      removeMedia,
+      translateContextMenuCommand,
+      addQuote,
+      removeQuote
+    ];
+
+    return activeContextMenuCommands_.filter((command) =>
+      activeContextMenuCommandNames.includes(command.name)
+    );
+  })();
+
+  const commands: readonly (
+    | Readonly<RESTPostAPIChatInputApplicationCommandsJSONBody>
+    | Readonly<RESTPostAPIContextMenuApplicationCommandsJSONBody>
+  )[] = [
+    ...activeSlashCommands.map((command) => command.toJSON()),
+    ...activeContextMenuCommands.map((command) => command.toJSON())
+  ];
+
+  return commands;
+}

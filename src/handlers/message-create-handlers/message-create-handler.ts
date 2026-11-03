@@ -3,6 +3,7 @@
 import type { OmitPartialGroupDMChannel, Message } from 'discord.js';
 
 import type { MediaDatabase } from '../../database/media-database.ts';
+import { ollamaConfig } from '../../api/config/ollama-config.ts';
 import type { CachedUrl } from '../../api/cached-url.ts';
 import { EMOTE_COMMAND_IDENTIFIER, emotesHandler } from '../command-handlers/emote.ts';
 import { logError } from '../../utils/public/log-error.ts';
@@ -33,9 +34,8 @@ export function messageCreateHandler(clientUserId: string | null) {
         await mediaMessageCreateHandler(message, guild, mediaDataBase);
       }
 
-      if (clientUserId !== null) {
+      if (clientUserId !== null && ollamaConfig.enabled)
         await ollamaMessageCreateHandler(message, clientUserId);
-      }
     } catch (error) {
       logError(error, 'Error at messageCreateHandler');
     }

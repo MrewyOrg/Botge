@@ -1,6 +1,6 @@
 /** @format */
 
-import { config } from './config/ollama-config.ts';
+import { ollamaConfig } from './config/ollama-config.ts';
 
 type OllamaChatResponse = { readonly message?: { readonly content?: string } };
 
@@ -20,7 +20,9 @@ type ScoreReplyOpportunityResponse = {
  * Send a chat request to the local Ollama instance.
  */
 async function ollamaChat(systemPrompt: string, userPrompt: string): Promise<string> {
-  const { baseUrl, model, options } = config.ollama;
+  if (!ollamaConfig.enabled) throw new Error('Ollama is not enabled.');
+
+  const { baseUrl, model, options } = ollamaConfig;
   const response = await fetch(`${baseUrl}/api/chat`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -57,9 +59,11 @@ async function ollamaChat(systemPrompt: string, userPrompt: string): Promise<str
 export async function scoreReplyOpportunity(
   chatHistory: string
 ): Promise<ScoreReplyOpportunityResult> {
-  const { name } = config.bot;
-  const systemPrompt = config.ollama.systemPrompts.scoreReplyOpportunity;
-  const userPrompt = `Recent chat:\n${chatHistory}\n\nShould ${name} reply? Respond with JSON only.`;
+  if (!ollamaConfig.enabled) throw new Error('Ollama is not enabled.');
+
+  const { botName } = ollamaConfig;
+  const systemPrompt = ollamaConfig.systemPrompts.scoreReplyOpportunity;
+  const userPrompt = `Recent chat:\n${chatHistory}\n\nShould ${botName} reply? Respond with JSON only.`;
   const raw = await ollamaChat(systemPrompt, userPrompt);
 
   try {
@@ -89,8 +93,10 @@ export async function generateReply(
   recentHistory: string,
   retrievedContext: readonly string[] = []
 ): Promise<string> {
-  const { name } = config.bot;
-  const systemPrompt = config.ollama.systemPrompts.generateReply;
+  if (!ollamaConfig.enabled) throw new Error('Ollama is not enabled.');
+
+  const { botName } = ollamaConfig;
+  const systemPrompt = ollamaConfig.systemPrompts.generateReply;
   // Each element of retrievedContext is a multi-line block of consecutive
   // messages. Separate blocks with a divider so the model understands they
   // are distinct conversation snippets, not one continuous thread.
@@ -98,7 +104,7 @@ export async function generateReply(
     retrievedContext.length > 0 ?
       `[Relevant past conversations — use for context only, do not reference directly]\n${retrievedContext.join('\n---\n')}\n\n`
     : '';
-  const userPrompt = `${ragSection}[Recent chat]\n${recentHistory}\n\nWrite your reply as ${name}. One short message only.`;
+  const userPrompt = `${ragSection}[Recent chat]\n${recentHistory}\n\nWrite your reply as ${botName}. One short message only.`;
 
   return await ollamaChat(systemPrompt, userPrompt);
 }

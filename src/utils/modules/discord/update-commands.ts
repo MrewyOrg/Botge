@@ -6,9 +6,13 @@ import { createHash } from 'node:crypto';
 
 import { REST, Routes } from 'discord.js';
 
-import { commands } from '../../../modules/discord/commands.ts';
+import { getCommands } from '../../../modules/discord/commands.ts';
 
-export async function updateCommands(lockFilePath: string): Promise<void> {
+export async function updateCommands(
+  lockFilePath: string,
+  activeSlashCommandNames: readonly string[],
+  activeContextMenuCommandNames: readonly string[]
+): Promise<void> {
   const { APP_ID, DISCORD_TOKEN } = process.env;
 
   delete process.env['APP_ID'];
@@ -16,6 +20,8 @@ export async function updateCommands(lockFilePath: string): Promise<void> {
 
   if (DISCORD_TOKEN === undefined || APP_ID === undefined || DISCORD_TOKEN === '' || APP_ID === '')
     throw new Error('DISCORD_TOKEN and APP_ID required.');
+
+  const commands = getCommands(activeSlashCommandNames, activeContextMenuCommandNames);
 
   const currentCommands = ((): string | undefined => {
     if (!existsSync(lockFilePath)) return undefined;

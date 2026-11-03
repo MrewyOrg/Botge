@@ -53,31 +53,21 @@ import { User } from './modules/discord/user.ts';
 
 import { updateCommands } from './utils/modules/discord/update-commands.ts';
 
-import type { ReadonlyOpenAI, ReadonlyTranslator } from './types.ts';
+import type { BotgeConfig, ReadonlyOpenAI, ReadonlyTranslator } from './types.ts';
 
 import { DATABASE_DIR, TMP_DIR } from './directory-paths.ts';
 
-((): void => {
-  type BotgeConfig = {
-    readonly UPDATE_CLIPS_ON_STARTUP: boolean;
-    readonly JOIN_VOICE_CHANNEL: boolean;
-    readonly AUTOCOMPLETE_ONLY_7TV_PERSONAL: boolean;
-  };
+const botgeConfig = ((): BotgeConfig => {
+  const BOTGE_CONFIG_PATH = 'botge.config.json' as const;
 
-  const botgeConfig = ((): BotgeConfig => {
-    const BOTGE_CONFIG_PATH = 'botge.config.json' as const;
+  if (!existsSync(BOTGE_CONFIG_PATH)) throw new Error(`No ${BOTGE_CONFIG_PATH} found.`);
 
-    if (!existsSync(BOTGE_CONFIG_PATH)) throw new Error(`No ${BOTGE_CONFIG_PATH} found.`);
-
-    return JSON.parse(readFileSync(BOTGE_CONFIG_PATH, 'utf8')) as BotgeConfig;
-  })();
-
-  process.env['UPDATE_CLIPS_ON_STARTUP'] = String(botgeConfig.UPDATE_CLIPS_ON_STARTUP);
-  process.env['JOIN_VOICE_CHANNEL'] = String(botgeConfig.JOIN_VOICE_CHANNEL);
-  process.env['AUTOCOMPLETE_ONLY_7TV_PERSONAL'] = String(
-    botgeConfig.AUTOCOMPLETE_ONLY_7TV_PERSONAL
-  );
+  return JSON.parse(readFileSync(BOTGE_CONFIG_PATH, 'utf8')) as BotgeConfig;
 })();
+
+process.env['AUTOCOMPLETE_ONLY_7TV_PERSONAL'] = String(
+  botgeConfig.general.autoCompleteOnly7TVPersonal
+);
 
 const DATABASE_PATHS = {
   addedEmotes: `${DATABASE_DIR}/addedEmotes.sqlite`,
@@ -302,10 +292,9 @@ process.on('unhandledRejection', (error): void => {
 });
 
 const refreshClipsOrRefreshUniqueCreatorNamesAndGameIds: readonly Promise<void>[] =
-  process.env['UPDATE_CLIPS_ON_STARTUP'] === 'true' ?
+  botgeConfig.general.updateClipsOnStartup ?
     bot.guilds.map(async (guild) => guild.refreshClips(bot.apiManager.twitchApi))
   : bot.guilds.map(async (guild) => guild.refreshUniqueCreatorNamesAndGameIds());
-delete process.env['UPDATE_CLIPS_ON_STARTUP'];
 
 scheduleJob('0 */4 * * * *', () => {
   bot.messageBuilderManager.cleanupMessageBuilders();
@@ -342,9 +331,13 @@ scheduleJob('12 */12 * * *', async () => {
   await GlobalEmoteMatcherConstructor.instance.refreshGlobalEmotes();
 });
 
-bot.registerListeners();
+bot.registerListeners(botgeConfig.general.joinVoiceChannels);
 await ensureDirs;
-await updateCommands(COMMANDS_PATH);
+await updateCommands(
+  COMMANDS_PATH,
+  botgeConfig.general.activeSlashCommands,
+  botgeConfig.general.activeContextMenuCommands
+);
 await Promise.all(refreshClipsOrRefreshUniqueCreatorNamesAndGameIds);
 await bot.client.login(process.env['DISCORD_TOKEN']);
 delete process.env['DISCORD_TOKEN'];

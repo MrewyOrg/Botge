@@ -42,6 +42,44 @@ export type ReadonlyApplicationCommandOptionChoiceDataString = DeepReadonly<
   ApplicationCommandOptionChoiceData<string>
 >;
 
+export type BotgeConfig = {
+  readonly general: {
+    readonly updateClipsOnStartup: boolean;
+    readonly joinVoiceChannels: boolean;
+    readonly autoCompleteOnly7TVPersonal: boolean;
+    readonly activeSlashCommands: readonly string[];
+    readonly activeContextMenuCommands: readonly string[];
+  };
+  readonly ollama: { readonly enabled: false } | OllamaConfig;
+};
+
+export type OllamaConfig = {
+  readonly enabled: true;
+  readonly botName: string;
+  readonly baseUrl: string;
+  readonly model: string;
+  readonly embeddingModel: string;
+  readonly options: {
+    readonly temperature: number;
+    readonly num_ctx: number;
+    readonly top_p: number;
+  };
+  readonly systemPrompts: {
+    readonly scoreReplyOpportunity: string;
+    readonly generateReply: string;
+  };
+  readonly behavior: {
+    readonly replyScoreThreshold: number;
+    readonly contextWindow: number;
+    readonly evaluationChance: number;
+    readonly cooldownSeconds: number;
+    readonly ragResults: number;
+    readonly ragWindowSize: number;
+  };
+  readonly chroma: { readonly url: string };
+  readonly activeChatChannels: readonly string[];
+};
+
 export type ReadonlyEmbed = DeepReadonly<Embed>;
 export type ReadonlyAttachment = DeepReadonly<Attachment>;
 export type OpenAIResponseInput = OpenAI.Responses.ResponseInput;

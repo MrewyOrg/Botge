@@ -113,13 +113,13 @@ export class Bot {
   }
 
   @once
-  public registerListeners(): void {
-    this.#registerClientReadyListener();
+  public registerListeners(joinVoiceChannels: boolean): void {
+    this.#registerClientReadyListener(joinVoiceChannels);
     this.#registerMessageCreateListener();
     this.#registerInteractionCreateListener();
   }
 
-  #registerClientReadyListener(): void {
+  #registerClientReadyListener(joinVoiceChannels: boolean): void {
     this.#client.on(Events.ClientReady, (): void => {
       const { user, channels } = this.#client;
       if (user === null) throw new Error('Bot client user is empty.');
@@ -128,11 +128,7 @@ export class Bot {
       user.setPresence({ activities: [{ name: 'github.com/MrewyOrg/Botge', state: 'meow' }] });
 
       try {
-        const { JOIN_VOICE_CHANNEL } = process.env;
-
-        delete process.env['JOIN_VOICE_CHANNEL'];
-
-        if (JOIN_VOICE_CHANNEL === 'true') {
+        if (joinVoiceChannels) {
           const cuteDogGeneralChannel = channels.cache.find(
             (channel: { readonly id: string }) => channel.id === GENERAL_CHANNEL_ID_CUTEDOG
           );

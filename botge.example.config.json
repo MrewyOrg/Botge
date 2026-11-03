@@ -1,30 +1,40 @@
 {
   "$schema": "botge.config.schema.json",
 
-  "UPDATE_CLIPS_ON_STARTUP": false,
-  "JOIN_VOICE_CHANNEL": false,
-  "AUTOCOMPLETE_ONLY_7TV_PERSONAL": false,
-
-  "bot": { "name": "Botge" },
-
-  "ollama": {
-    "baseUrl": "http://localhost:11434",
-    "model": "gemma4:26b",
-    "embeddingModel": "nomic-embed-text",
-    "options": { "temperature": 0.85, "num_ctx": 8192, "top_p": 0.9 },
-    "systemPrompts": { "scoreReplyOpportunity": [], "generateReply": [] }
+  "general": {
+    "updateClipsOnStartup": false,
+    "joinVoiceChannels": false,
+    "autoCompleteOnly7TVPersonal": false,
+    "activeSlashCommands": [
+      "emote",
+      "emotes",
+      "emotelist",
+      "clip",
+      "addemote",
+      "chatgpt",
+      "translate",
+      "shortestuniquesubstrings",
+      "transient",
+      "findtheemoji",
+      "pingme",
+      "poe2",
+      "settings",
+      "pinglist",
+      "media",
+      "medialist",
+      "quote",
+      "quotelist",
+      "clear"
+    ],
+    "activeContextMenuCommands": [
+      "ChatGPT Explain",
+      "Add Media",
+      "Remove Media",
+      "Translate",
+      "Add Quote",
+      "Remove Quote"
+    ]
   },
 
-  "behavior": {
-    "replyScoreThreshold": 2,
-    "contextWindow": 30,
-    "evaluationChance": 0.8,
-    "cooldownSeconds": 60,
-    "ragResults": 5,
-    "ragWindowSize": 2
-  },
-
-  "chroma": { "url": "http://chromadb:8000" },
-
-  "activeChatChannels": []
+  "ollama": { "enabled": false }
 }
