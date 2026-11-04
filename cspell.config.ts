@@ -54,6 +54,7 @@ const cSpellSettings: Readonly<CSpellSettings> = defineConfig({
 
     // Lib
     'tpad',
+    'settb',
     'hstack',
     'libwebp',
     'ffprobe',

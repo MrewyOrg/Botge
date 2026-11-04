@@ -2,8 +2,7 @@
 
 import { exec, type ExecException } from 'node:child_process';
 
-export const DEFAULT_DURATION = 1 as const;
-export const DEFAULT_FPS = 25 as const;
+export const DEFAULT_FRAME_COUNT = 1 as const;
 
 export async function getDimension(
   filename: string
@@ -32,7 +31,7 @@ export async function getDimension(
   });
 }
 
-export async function getDuration(filename: string): Promise<number | undefined> {
+export async function getFrameCount(filename: string): Promise<number | undefined> {
   let filename_ = filename;
   if (filename.startsWith('http://') || filename.startsWith('https://'))
     filename_ = `cache:${filename}`;
@@ -47,9 +46,8 @@ export async function getDuration(filename: string): Promise<number | undefined>
         }
 
         const frameCount = stdout.trim();
-        if (frameCount === 'N/A' || frameCount === '')
-          resolve(parseFloat(String(DEFAULT_DURATION)));
-        else resolve(parseFloat(frameCount) / DEFAULT_FPS);
+        if (frameCount === 'N/A' || frameCount === '') resolve(DEFAULT_FRAME_COUNT);
+        else resolve(parseFloat(frameCount));
       }
     );
   });

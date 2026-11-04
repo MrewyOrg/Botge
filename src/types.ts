@@ -171,7 +171,8 @@ export type DownloadedAsset = {
   readonly filename: string;
   readonly width: number;
   readonly height: number;
-  readonly duration: number;
+  // readonly duration: number;
+  readonly frameCount: number;
   readonly animated: boolean;
 };
 

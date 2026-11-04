@@ -9,7 +9,6 @@ import type { ChatInputCommandInteraction, OmitPartialGroupDMChannel, Message } 
 
 import {
   maxPlatformSize,
-  emoteSizeChange,
   assetSizeChange
 } from '../../utils/handlers/command-handlers/emote/size-change.ts';
 import { downloadAsset } from '../../utils/handlers/command-handlers/emote/download-asset.ts';
@@ -31,7 +30,7 @@ import type { User } from '../../modules/discord/user.ts';
 export const EMOTE_COMMAND_IDENTIFIER = '+' as const;
 const EMOTE_SIZE_IDENTIFIER = ':' as const;
 
-const DEFAULT_FPS = 25 as const;
+const DEFAULT_FPS = 20 as const;
 const MAXWIDTH = 192 as const;
 const MAXHEIGHT = 64 as const;
 const DOWNLOAD_ASSET_ERROR_MESSAGE = 'Failed to download asset(s).' as const;
@@ -87,13 +86,13 @@ class SimpleElement implements HorizontalStackElement {
     if (this.#height > this.#asset.height)
       filterString += `pad=h=${this.#height}:x=-1:y=-1:color=black@0.0,`;
     filterString += `scale=${this.#width}:${this.#height}:force_original_aspect_ratio=decrease`;
-    if (this.#animated) filterString += `,fps=${DEFAULT_FPS}`;
-
     if (this.#borderColor !== undefined) {
       filterString += `,pad=iw+8:ih+8:4:4:color=#${this.#borderColor}`;
 
       // if (this.#borderOpacity !== undefined) filterString += `@${this.#borderOpacity}`;
     }
+    if (this.#animated) filterString += `,loop=-1:${this.#asset.frameCount}`;
+    if (this.#animated) filterString += `,settb=1/${DEFAULT_FPS},setpts=N`;
     if (this.#stopDuration !== undefined)
       filterString += `,tpad=stop_mode=clone:stop_duration=${this.#stopDuration}`;
 
@@ -148,7 +147,9 @@ class OverlayElement implements HorizontalStackElement {
     else if (this.#width > this.#layers[layerId].width)
       segments.push(`,pad=w=${this.#width}:x=-1:y=-1:color=black@0.0`);
 
-    if (this.#layers[layerId].animated) segments.push(`,fps=${DEFAULT_FPS}`);
+    if (this.#layers[layerId].animated)
+      segments.push(`,loop=-1:=${this.#layers[layerId].frameCount}`);
+    if (this.#layers[layerId].animated) segments.push(`,settb=1/${DEFAULT_FPS},setpts=N`);
 
     segments.push(`[o${this.#id}];`);
 
@@ -168,8 +169,10 @@ class OverlayElement implements HorizontalStackElement {
 
       segments.push(`[${id}]`);
 
+      if (this.#layers[layerId].animated)
+        segments.push(`,loop=-1:=${this.#layers[layerId].frameCount}`);
       segments.push(`scale=${segmentWidth}:${segmentHeight}`);
-      if (this.#layers[layerId].animated) segments.push(`,fps=${DEFAULT_FPS}`);
+      if (this.#layers[layerId].animated) segments.push(`,settb=1/${DEFAULT_FPS},setpts=N`);
 
       segments.push(`[v${id}];`);
 
@@ -359,42 +362,6 @@ export function emotesHandler(cachedUrl: Readonly<CachedUrl>) {
         return undefined;
       })();
 
-      if (emotes.length === 1 && !enableEmoteBorder && stopDuration === undefined) {
-        const [emote] = emotes;
-        const match = emoteMatcher.matchSingle(emote);
-
-        if (match === undefined) {
-          await defer;
-          try {
-            new URL(emote);
-            if (interaction !== undefined) await interaction.editReply(emoteNotFoundReply);
-          } catch {
-            if (interaction !== undefined) await interaction.editReply(emoteNotFoundReply);
-            else if (message !== undefined) {
-              if (guild.id === GUILD_ID_CUTEDOG) {
-                await message.react('<:HAH1:1236635745570127892>');
-                await message.react('<:HAH2:1236635747449045003>');
-                await message.react('<:HAH3:1236635749290610740>');
-              } else await message.react('❌');
-            }
-          }
-          return;
-        }
-
-        const { url, platform } = match;
-        const reply =
-          fullSize ? emoteSizeChange(url, maxPlatformSize(platform), platform)
-          : size !== undefined ? emoteSizeChange(url, size, platform)
-          : url;
-        // .replace('.gif', '.webp')
-
-        await defer;
-        if (interaction !== undefined) await interaction.editReply(reply);
-        else if (message !== undefined)
-          await message.reply({ content: reply, allowedMentions: { repliedUser: false } });
-        return;
-      }
-
       // dir sync only if multiple emotes
       ensureDirSync(outdir);
 
@@ -571,18 +538,20 @@ export function emotesHandler(cachedUrl: Readonly<CachedUrl>) {
         }
       })();
 
-      const maxDuration = Math.max(...downloadedAssets.map((layer) => layer.duration));
+      const maxFrameCount = Math.max(...downloadedAssets.map((layer) => layer.frameCount));
       const animated = downloadedAssets.some((asset) => asset.animated);
 
       const args: string[] = [];
 
       downloadedAssets.forEach((asset) => {
+        /*
         if (animated && asset.animated) {
           args.push('-stream_loop');
           args.push('-1');
           args.push('-t');
           args.push(`${maxDuration}`);
         }
+        */
 
         args.push('-i');
         if (asset.filename.startsWith('http://') || asset.filename.startsWith('https://'))
@@ -608,6 +577,11 @@ export function emotesHandler(cachedUrl: Readonly<CachedUrl>) {
       */
       args.push(filter.join(''));
 
+      if (animated) {
+        args.push('-frames:v');
+        args.push(maxFrameCount.toString());
+      }
+
       args.push('-c:v');
       if (animated) {
         args.push('libwebp_anim');
@@ -621,7 +595,7 @@ export function emotesHandler(cachedUrl: Readonly<CachedUrl>) {
       args.push('-fs');
       args.push('25M');
 
-      const outfile = join(outdir, `output.${animated ? 'webp' : 'png'}`);
+      const outfile = join(outdir, `botgeEmote.${animated ? 'webp' : 'png'}`);
       args.push(outfile);
 
       const ffmpeg = spawn('ffmpeg', args);

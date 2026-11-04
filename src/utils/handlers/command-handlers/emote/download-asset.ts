@@ -6,7 +6,7 @@ import { writeFile } from 'node:fs/promises';
 
 import type { CachedUrl } from '../../../../api/cached-url.ts';
 import type { AssetInfo, DownloadedAsset } from '../../../../types.ts';
-import { DEFAULT_DURATION, DEFAULT_FPS, getDimension, getDuration } from './ffprobe-utils.ts';
+import { DEFAULT_FRAME_COUNT, getDimension, getFrameCount } from './ffprobe-utils.ts';
 
 export async function downloadAsset(
   outdir: string,
@@ -15,7 +15,7 @@ export async function downloadAsset(
   cachedUrl: Readonly<CachedUrl>
 ): Promise<DownloadedAsset | undefined> {
   if (typeof asset === 'object') {
-    const { animated, width, height, frameCount, url } = asset;
+    const { animated, width, height, url } = asset;
 
     const [localUrl, ok] = cachedUrl.get(url);
     let filename = localUrl;
@@ -28,28 +28,31 @@ export async function downloadAsset(
     }
 
     const hasWidthAndHeight = width !== undefined && height !== undefined;
-    let duration: Promise<number | undefined> | number | undefined;
+
+    let frameCount: Promise<number | undefined> | number | undefined;
     if (animated) {
-      if (frameCount !== undefined) duration = frameCount / DEFAULT_FPS;
-      else duration = getDuration(filename);
+      const frameCount_ = asset.frameCount;
+
+      if (frameCount_ !== undefined) frameCount = frameCount_;
+      else frameCount = getFrameCount(filename);
     } else {
-      duration = DEFAULT_DURATION;
+      frameCount = DEFAULT_FRAME_COUNT;
     }
 
     let widthAndHeight:
       Promise<readonly [number, number] | undefined> | readonly [number, number] | undefined =
       hasWidthAndHeight ? [width, height] : getDimension(filename);
 
-    duration = await duration;
+    frameCount = await frameCount;
     widthAndHeight = await widthAndHeight;
-    if (duration === undefined || widthAndHeight === undefined) return undefined;
+    if (frameCount === undefined || widthAndHeight === undefined) return undefined;
 
     return {
       filename: filename,
       width: widthAndHeight[0],
       height: widthAndHeight[1],
-      duration: duration,
-      animated: duration !== DEFAULT_DURATION
+      frameCount: frameCount,
+      animated: frameCount !== DEFAULT_FRAME_COUNT
     };
   }
 
@@ -59,19 +62,19 @@ export async function downloadAsset(
   const filename = join(outdir, `${i}_${i}.${format}`);
   await writeFile(filename, buffer);
 
-  const _getDuration_ = getDuration(filename);
+  const _getFrameCount_ = getFrameCount(filename);
   const _getDimension_ = getDimension(filename);
 
-  const duration = await _getDuration_;
+  const frameCount = await _getFrameCount_;
   const widthAndHeight = await _getDimension_;
 
-  if (duration === undefined || widthAndHeight === undefined) return undefined;
+  if (frameCount === undefined || widthAndHeight === undefined) return undefined;
 
   return {
     filename: filename,
     width: widthAndHeight[0],
     height: widthAndHeight[1],
-    duration: duration,
-    animated: duration !== DEFAULT_DURATION
+    frameCount: frameCount,
+    animated: frameCount !== DEFAULT_FRAME_COUNT
   };
 }
