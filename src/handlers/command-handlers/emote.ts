@@ -148,7 +148,7 @@ class OverlayElement implements HorizontalStackElement {
       segments.push(`,pad=w=${this.#width}:x=-1:y=-1:color=black@0.0`);
 
     if (this.#layers[layerId].animated)
-      segments.push(`,loop=-1:=${this.#layers[layerId].frameCount}`);
+      segments.push(`,loop=-1:${this.#layers[layerId].frameCount}`);
     if (this.#layers[layerId].animated) segments.push(`,settb=1/${DEFAULT_FPS},setpts=N`);
 
     segments.push(`[o${this.#id}];`);
@@ -169,9 +169,9 @@ class OverlayElement implements HorizontalStackElement {
 
       segments.push(`[${id}]`);
 
-      if (this.#layers[layerId].animated)
-        segments.push(`,loop=-1:=${this.#layers[layerId].frameCount}`);
       segments.push(`scale=${segmentWidth}:${segmentHeight}`);
+      if (this.#layers[layerId].animated)
+        segments.push(`,loop=-1:${this.#layers[layerId].frameCount}`);
       if (this.#layers[layerId].animated) segments.push(`,settb=1/${DEFAULT_FPS},setpts=N`);
 
       segments.push(`[v${id}];`);
