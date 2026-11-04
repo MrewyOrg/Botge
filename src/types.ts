@@ -3,7 +3,7 @@
 import type { DeepReadonly } from 'ts-essentials';
 import type OpenAI from 'openai';
 import type { Hit, RecordAny } from 'meilisearch';
-import type { Translator } from 'deepl-node';
+import type { DeepLClient } from 'deepl-node';
 import type { Metadata } from 'chromadb';
 
 import type {
@@ -23,7 +23,7 @@ import type {
 } from 'discord.js';
 
 export type ReadonlyOpenAI = DeepReadonly<OpenAI>;
-export type ReadonlyTranslator = DeepReadonly<Translator>;
+export type ReadonlyDeepLClient = DeepReadonly<DeepLClient>;
 export type ReadonlyHit = DeepReadonly<Hit>;
 export type ReadonlyRecordAny = DeepReadonly<RecordAny>;
 export type ReadonlyRegExpExecArray = DeepReadonly<RegExpExecArray>;

@@ -19,7 +19,7 @@ import { join } from 'node:path';
 import { ensureDir, type Dirent } from 'fs-extra';
 
 import { Meilisearch } from 'meilisearch';
-import { Translator } from 'deepl-node';
+import { DeepLClient } from 'deepl-node';
 import OpenAI from 'openai';
 import { Client, GatewayIntentBits } from 'discord.js';
 import { getVoiceConnections } from '@discordjs/voice';
@@ -53,7 +53,7 @@ import { User } from './modules/discord/user.ts';
 
 import { updateCommands } from './utils/modules/discord/update-commands.ts';
 
-import type { BotgeConfig, ReadonlyOpenAI, ReadonlyTranslator } from './types.ts';
+import type { BotgeConfig, ReadonlyOpenAI, ReadonlyDeepLClient } from './types.ts';
 
 import { DATABASE_DIR, TMP_DIR } from './directory-paths.ts';
 
@@ -159,8 +159,8 @@ const bot = await (async (): Promise<Readonly<Bot>> => {
 
   const cachedUrl: Readonly<CachedUrl> = new CachedUrl(LOCAL_CACHE_BASE);
 
-  const translator: ReadonlyTranslator | undefined =
-    DEEPL_API_KEY !== undefined ? new Translator(DEEPL_API_KEY) : undefined;
+  const deepLClient: ReadonlyDeepLClient | undefined =
+    DEEPL_API_KEY !== undefined ? new DeepLClient(DEEPL_API_KEY) : undefined;
   const openai: ReadonlyOpenAI | undefined =
     OPENAI_API_KEY !== undefined ? new OpenAI({ apiKey: OPENAI_API_KEY }) : undefined;
 
@@ -169,7 +169,7 @@ const bot = await (async (): Promise<Readonly<Bot>> => {
     // await redditApi,
     await twitchApi,
     cachedUrl,
-    translator,
+    deepLClient,
     openai
   );
 

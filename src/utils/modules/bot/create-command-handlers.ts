@@ -60,7 +60,7 @@ export function createCommandHandlers(
       quoteListHandler(databaseManager.quoteDatabase, messageBuilderManager.quoteMessageBuilders)
     ],
     [SLASH_COMMAND_NAMES.transient, transientHandler()],
-    [SLASH_COMMAND_NAMES.translate, translateHandler(apiManager.translator)],
+    [SLASH_COMMAND_NAMES.translate, translateHandler(apiManager.deepLClient)],
     [
       SLASH_COMMAND_NAMES.pingList,
       pingListHandler(

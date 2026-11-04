@@ -303,9 +303,9 @@ export function messageContextMenuCommandHandler(
           flags: MessageFlags.Ephemeral
         });
       } else if (interaction.commandName === CONTEXT_MENU_COMMAND_NAMES.translate) {
-        const { translator } = apiManager;
+        const { deepLClient } = apiManager;
 
-        if (translator === undefined) {
+        if (deepLClient === undefined) {
           await defer;
           await interaction.editReply('Translate is not available right now.');
           return;
@@ -313,7 +313,7 @@ export function messageContextMenuCommandHandler(
 
         const { content } = interaction.targetMessage;
 
-        const textResult = await translator.translateText(content, null, 'en-US', {
+        const textResult = await deepLClient.translateText(content, null, 'en-US', {
           modelType: 'prefer_quality_optimized',
           formality: 'default'
         });

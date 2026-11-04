@@ -5,14 +5,14 @@ import type { TwitchClipsMeilisearch } from '../../api/twitch-clips-meilisearch.
 import type { TwitchApi } from '../../api/twitch-api.ts';
 import type { CachedUrl } from '../../api/cached-url.ts';
 
-import type { ReadonlyTranslator, ReadonlyOpenAI } from '../../types.ts';
+import type { ReadonlyDeepLClient, ReadonlyOpenAI } from '../../types.ts';
 
 export class ApiManager {
   readonly #twitchClipsMeilisearch: Readonly<TwitchClipsMeilisearch> | undefined;
   // readonly #redditApi: Readonly<RedditApi> | undefined;
   readonly #twitchApi: Readonly<TwitchApi> | undefined;
   readonly #cachedUrl: Readonly<CachedUrl>;
-  readonly #translator: ReadonlyTranslator | undefined;
+  readonly #deepLClient: ReadonlyDeepLClient | undefined;
   readonly #openai: ReadonlyOpenAI | undefined;
 
   public constructor(
@@ -20,14 +20,14 @@ export class ApiManager {
     // redditApi: Readonly<RedditApi> | undefined,
     twitchApi: Readonly<TwitchApi> | undefined,
     cachedUrl: Readonly<CachedUrl>,
-    translator: ReadonlyTranslator | undefined,
+    deepLClient: ReadonlyDeepLClient | undefined,
     openai: ReadonlyOpenAI | undefined
   ) {
     this.#twitchClipsMeilisearch = twitchClipsMeiliSearch;
     /// this.#redditApi = redditApi;
     this.#twitchApi = twitchApi;
     this.#cachedUrl = cachedUrl;
-    this.#translator = translator;
+    this.#deepLClient = deepLClient;
     this.#openai = openai;
   }
 
@@ -45,8 +45,8 @@ export class ApiManager {
   public get cachedUrl(): Readonly<CachedUrl> {
     return this.#cachedUrl;
   }
-  public get translator(): ReadonlyTranslator | undefined {
-    return this.#translator;
+  public get deepLClient(): ReadonlyDeepLClient | undefined {
+    return this.#deepLClient;
   }
   public get openai(): ReadonlyOpenAI | undefined {
     return this.#openai;
