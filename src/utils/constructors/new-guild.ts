@@ -14,7 +14,9 @@ export async function newGuild(
   broadcasterName: string | null,
   personalEmoteSets: PersonalEmoteSets | undefined,
   databaseManager: Readonly<DatabaseManager>,
-  apiManager: Readonly<ApiManager>
+  apiManager: Readonly<ApiManager>,
+  loadBTTVEmotes: boolean,
+  loadFFZEmotes: boolean
 ): Promise<Readonly<Guild>> {
   const { permittedRoleIdsDatabase, addedEmotesDatabase } = databaseManager;
   const { twitchClipsMeilisearch } = apiManager;
@@ -28,7 +30,9 @@ export async function newGuild(
 
   const personalEmoteMatcherConstructor = PersonalEmoteMatcherConstructor.create(
     guildId,
-    personalEmoteSets
+    personalEmoteSets,
+    loadBTTVEmotes,
+    loadFFZEmotes
   );
   const emoteMatcher = (await personalEmoteMatcherConstructor).constructEmoteMatcher();
   const twitchClipsMeilisearchIndex = twitchClipsMeilisearch?.getOrCreateIndex(guildId);

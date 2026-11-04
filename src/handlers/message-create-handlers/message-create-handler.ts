@@ -29,7 +29,7 @@ export function messageCreateHandler(clientUserId: string | null) {
       if (content[EMOTE_COMMAND_IDENTIFIER.length] === ' ') return;
 
       if (content.startsWith(EMOTE_COMMAND_IDENTIFIER)) {
-        await emotesHandler(cachedUrl)(guild, users, undefined, message);
+        await emotesHandler(cachedUrl)(guild, users, false, undefined, message);
       } else if (content.startsWith(MEDIA_COMMAND_IDENTIFIER)) {
         await mediaMessageCreateHandler(message, guild, mediaDataBase);
       }

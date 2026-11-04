@@ -47,6 +47,10 @@ export type BotgeConfig = {
     readonly updateClipsOnStartup: boolean;
     readonly joinVoiceChannels: boolean;
     readonly autoCompleteOnly7TVPersonal: boolean;
+    readonly load7TVGlobalEmotes: boolean;
+    readonly loadBTTVEmotes: boolean;
+    readonly loadFFZEmotes: boolean;
+    readonly loadTwitchEmotes: boolean;
     readonly activeSlashCommands: readonly string[];
     readonly activeContextMenuCommands: readonly string[];
   };
@@ -93,6 +97,7 @@ export type SevenTVEmoteFile = {
   readonly name: string;
   readonly width: number;
   readonly height: number;
+  readonly frame_count: number;
   readonly format: string;
 };
 export type SevenTVEmoteInSet = {
@@ -157,6 +162,7 @@ export type AssetInfo = {
   readonly animated: boolean;
   readonly width: number | undefined;
   readonly height: number | undefined;
+  readonly frameCount: number | undefined;
   readonly platform: Platform;
   readonly timestamp: number | undefined;
   readonly isSevenTVPersonal: boolean;

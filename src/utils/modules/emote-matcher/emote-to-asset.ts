@@ -22,7 +22,7 @@ export function sevenTVInSetToAsset(
 ): AssetInfo {
   const { id, name, flags, data, timestamp } = emote;
   const { host, animated } = data;
-  const filename = `${size ?? EMOTE_SIZE}x.${animated ? 'gif' : 'png'}`;
+  const filename = `${size ?? EMOTE_SIZE}x.${animated ? 'webp' : 'png'}`;
   const file = host.files.find((f: SevenTVEmoteFile) => f.name === filename);
   return {
     id: id,
@@ -32,6 +32,7 @@ export function sevenTVInSetToAsset(
     animated: animated,
     width: file?.width,
     height: file?.height,
+    frameCount: file?.frame_count,
     platform: 'sevenInSet',
     timestamp: timestamp,
     isSevenTVPersonal: isSevenTVPersonal
@@ -43,7 +44,7 @@ export function sevenTVNotInSetToAsset(
   size?: number
 ): AssetInfo {
   const { id, name, flags, host, animated } = emote;
-  const filename = `${size ?? EMOTE_SIZE}x.${animated ? 'gif' : 'png'}`;
+  const filename = `${size ?? EMOTE_SIZE}x.${animated ? 'webp' : 'png'}`;
   const file = host.files.find((f: SevenTVEmoteFile) => f.name === filename);
   return {
     id: id,
@@ -53,6 +54,7 @@ export function sevenTVNotInSetToAsset(
     animated: animated,
     width: file?.width,
     height: file?.height,
+    frameCount: file?.frame_count,
     platform: 'sevenNotInSet',
     timestamp: undefined,
     isSevenTVPersonal: false
@@ -61,7 +63,7 @@ export function sevenTVNotInSetToAsset(
 
 export function bttvToAsset(emote: BTTVEmote): AssetInfo {
   const { id, code, animated } = emote;
-  const filename = `${EMOTE_SIZE}x.${animated ? 'gif' : 'png'}`;
+  const filename = `${EMOTE_SIZE}x.${animated ? 'webp' : 'png'}`;
   return {
     id: id,
     name: code,
@@ -70,6 +72,7 @@ export function bttvToAsset(emote: BTTVEmote): AssetInfo {
     animated: animated,
     width: undefined,
     height: undefined,
+    frameCount: undefined,
     platform: 'bttv',
     timestamp: undefined,
     isSevenTVPersonal: false
@@ -86,6 +89,7 @@ export function ffzToAsset(emote: FFZEmote): AssetInfo {
     animated: false,
     width: undefined,
     height: undefined,
+    frameCount: undefined,
     platform: 'ffz',
     timestamp: undefined,
     isSevenTVPersonal: false
@@ -105,6 +109,7 @@ export function twitchToAsset(emote: TwitchEmote): AssetInfo {
     animated: animated,
     width: undefined,
     height: undefined,
+    frameCount: undefined,
     platform: 'twitch',
     timestamp: undefined,
     isSevenTVPersonal: false

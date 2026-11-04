@@ -6,7 +6,7 @@ import type { ChatInputCommandInteraction, Client } from 'discord.js';
 
 import { shortestUniqueSubstringsHandler } from '../../../handlers/command-handlers/shortest-unique-substrings.ts';
 import { addEmoteHandlerSevenTVNotInSet } from '../../../handlers/command-handlers/add-emote.ts';
-import { emoteHandler, emoteListHandler } from '../../../handlers/command-handlers/emote.ts';
+import { emoteListHandler } from '../../../handlers/command-handlers/emote.ts';
 import { findTheEmojiHandler } from '../../../handlers/command-handlers/find-the-emoji.ts';
 import { mediaListHandler } from '../../../handlers/command-handlers/media-list.ts';
 import { quoteListHandler } from '../../../handlers/command-handlers/quote-list.ts';
@@ -49,7 +49,6 @@ export function createCommandHandlers(
       SLASH_COMMAND_NAMES.addEmote,
       addEmoteHandlerSevenTVNotInSet(databaseManager.addedEmotesDatabase)
     ],
-    [SLASH_COMMAND_NAMES.emote, emoteHandler()],
     [SLASH_COMMAND_NAMES.emoteList, emoteListHandler(messageBuilderManager.emoteMessageBuilders)],
     [SLASH_COMMAND_NAMES.findTheEmoji, findTheEmojiHandler()],
     [

@@ -202,7 +202,14 @@ const bot = await (async (): Promise<Readonly<Bot>> => {
 
   //guilds
   // ! needed for newGuild
-  await GlobalEmoteMatcherConstructor.createInstance(await twitchApi, addedEmotesDatabase);
+  await GlobalEmoteMatcherConstructor.createInstance(
+    await twitchApi,
+    addedEmotesDatabase,
+    botgeConfig.general.load7TVGlobalEmotes,
+    botgeConfig.general.loadBTTVEmotes,
+    botgeConfig.general.loadFFZEmotes,
+    botgeConfig.general.loadTwitchEmotes
+  );
 
   const guilds: readonly Readonly<Guild>[] = await Promise.all(
     broadcasterNameAndPersonalEmoteSetsDatabase
@@ -214,7 +221,15 @@ const bot = await (async (): Promise<Readonly<Bot>> => {
           string,
           readonly [string | null, PersonalEmoteSets]
         ]) => {
-          return newGuild(guildId, broadcasterName, personalEmoteSets, databaseManager, apiManager);
+          return newGuild(
+            guildId,
+            broadcasterName,
+            personalEmoteSets,
+            databaseManager,
+            apiManager,
+            botgeConfig.general.loadBTTVEmotes,
+            botgeConfig.general.loadFFZEmotes
+          );
         }
       )
   );

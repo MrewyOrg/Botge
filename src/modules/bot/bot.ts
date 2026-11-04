@@ -168,7 +168,9 @@ export class Bot {
             null,
             undefined,
             this.#databaseManager,
-            this.#apiManager
+            this.#apiManager,
+            true,
+            true
           );
           this.#guilds.push(newGuildWithoutPersonalEmotes_);
 
@@ -211,7 +213,9 @@ export class Bot {
                 null,
                 undefined,
                 this.#databaseManager,
-                this.#apiManager
+                this.#apiManager,
+                true,
+                true
               );
               this.#guilds.push(newGuildWithoutPersonalEmotes_);
 
@@ -294,8 +298,13 @@ export class Bot {
 
       if (guild === undefined) return;
 
+      if (interaction.commandName === SLASH_COMMAND_NAMES.emote) {
+        void emotesHandler(this.#apiManager.cachedUrl)(guild, this.#users, true, interaction);
+        return;
+      }
+
       if (interaction.commandName === SLASH_COMMAND_NAMES.emotes) {
-        void emotesHandler(this.#apiManager.cachedUrl)(guild, this.#users, interaction);
+        void emotesHandler(this.#apiManager.cachedUrl)(guild, this.#users, false, interaction);
         return;
       }
 

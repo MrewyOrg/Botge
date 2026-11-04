@@ -294,9 +294,9 @@ export class EmoteMatcher {
   readonly #priority: number;
 
   public constructor(
-    sevenGlobal: SevenTVEmotes,
-    bttvGlobal: readonly BTTVEmote[],
-    ffzGlobal: FFZGlobalEmotes,
+    sevenGlobal: SevenTVEmotes | undefined,
+    bttvGlobal: readonly BTTVEmote[] | undefined,
+    ffzGlobal: FFZGlobalEmotes | undefined,
     twitchGlobal: TwitchGlobalEmotes | undefined,
     sevenPersonal: SevenTVEmotes | undefined,
     bttvPersonal: BTTVPersonalEmotes | undefined,
@@ -306,20 +306,20 @@ export class EmoteMatcher {
     this.#root = new SuffixTree();
     let priority = arguments.length;
 
-    for (const emote of sevenGlobal.emotes)
+    for (const emote of sevenGlobal?.emotes ?? [])
       this.#root.addAllSuffix(sevenTVInSetToAsset(emote, false), priority);
-    priority--;
+    if (sevenGlobal !== undefined) priority--;
 
     try {
-      for (const emote of bttvGlobal) this.#root.addAllSuffix(bttvToAsset(emote), priority);
+      for (const emote of bttvGlobal ?? []) this.#root.addAllSuffix(bttvToAsset(emote), priority);
     } catch {}
-    priority--;
+    if (bttvGlobal !== undefined) priority--;
 
     try {
-      for (const emote of ffzGlobal.sets[`${FFZ_GLOBAL_SETS_KEY}`].emoticons)
+      for (const emote of ffzGlobal?.sets[`${FFZ_GLOBAL_SETS_KEY}`].emoticons ?? [])
         this.#root.addAllSuffix(ffzToAsset(emote), priority);
     } catch {}
-    priority--;
+    if (ffzGlobal !== undefined) priority--;
 
     try {
       for (const emote of twitchGlobal?.data ?? [])

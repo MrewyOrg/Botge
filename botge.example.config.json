@@ -4,7 +4,14 @@
   "general": {
     "updateClipsOnStartup": false,
     "joinVoiceChannels": false,
+
     "autoCompleteOnly7TVPersonal": false,
+
+    "load7TVGlobalEmotes": true,
+    "loadBTTVEmotes": true,
+    "loadFFZEmotes": true,
+    "loadTwitchEmotes": true,
+
     "activeSlashCommands": [
       "emote",
       "emotes",
@@ -26,6 +33,7 @@
       "quotelist",
       "clear"
     ],
+
     "activeContextMenuCommands": [
       "ChatGPT Explain",
       "Add Media",

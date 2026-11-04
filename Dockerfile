@@ -1,6 +1,6 @@
 # check=error=true
 
-FROM dhi.io/node@sha256:457e77bf0857229659361c243dadfef8a67720ec7d0b8d195bb6940cdf4541a3 AS base
+FROM dhi.io/node@sha256:f7682a46000334303d5853fcfaf79fea0a60162b83dda194e78e0ce97450bc5a AS base
 
 FROM base AS ci-dependencies
 WORKDIR /app
@@ -40,7 +40,10 @@ LABEL org.opencontainers.image.authors="Mrewy" \
   org.opencontainers.image.vendor="MrewyOrg"
 
 RUN apk upgrade --no-cache \
-  && apk add --no-cache ffmpeg
+  && apk add --no-cache \
+    --repository=https://dl-cdn.alpinelinux.org/alpine/edge/main \
+    --repository=https://dl-cdn.alpinelinux.org/alpine/edge/community \
+    ffmpeg
 
 COPY --from=node-dependencies /app/node_modules ./node_modules
 COPY --from=build /app/dist ./dist

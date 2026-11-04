@@ -26,6 +26,10 @@ const GLOBAL_EMOTE_ENDPOINTS = {
 
 export class GlobalEmoteMatcherConstructor {
   static #instance: Readonly<GlobalEmoteMatcherConstructor> | undefined = undefined;
+  readonly #load7TVGlobalEmotes: boolean;
+  readonly #loadBTTVEmotes: boolean;
+  readonly #loadFFZEmotes: boolean;
+  readonly #loadTwitchEmotes: boolean;
   readonly #twitchApi: Readonly<TwitchApi> | undefined = undefined;
   readonly #addedEmotesDatabase: Readonly<AddedEmotesDatabase>;
   #sevenTVGlobal: SevenTVEmotes | undefined = undefined;
@@ -35,10 +39,19 @@ export class GlobalEmoteMatcherConstructor {
 
   private constructor(
     twitchApi: Readonly<TwitchApi> | undefined,
-    addedEmotesDatabase: Readonly<AddedEmotesDatabase>
+    addedEmotesDatabase: Readonly<AddedEmotesDatabase>,
+    load7TVGlobalEmotes: boolean,
+    loadBTTVEmotes: boolean,
+    loadFFZEmotes: boolean,
+    loadTwitchEmotes: boolean
   ) {
     this.#twitchApi = twitchApi;
     this.#addedEmotesDatabase = addedEmotesDatabase;
+
+    this.#load7TVGlobalEmotes = load7TVGlobalEmotes;
+    this.#loadBTTVEmotes = loadBTTVEmotes;
+    this.#loadFFZEmotes = loadFFZEmotes;
+    this.#loadTwitchEmotes = loadTwitchEmotes;
   }
 
   public static get instance(): Readonly<GlobalEmoteMatcherConstructor> {
@@ -70,20 +83,37 @@ export class GlobalEmoteMatcherConstructor {
   @once
   public static async createInstance(
     twitchApi: Readonly<TwitchApi> | undefined,
-    addedEmotesDatabase: Readonly<AddedEmotesDatabase>
+    addedEmotesDatabase: Readonly<AddedEmotesDatabase>,
+    load7TVGlobalEmotes: boolean,
+    loadBTTVEmotes: boolean,
+    loadFFZEmotes: boolean,
+    loadTwitchEmotes: boolean
   ): Promise<void> {
     GlobalEmoteMatcherConstructor.#instance = new GlobalEmoteMatcherConstructor(
       twitchApi,
-      addedEmotesDatabase
+      addedEmotesDatabase,
+      load7TVGlobalEmotes,
+      loadBTTVEmotes,
+      loadFFZEmotes,
+      loadTwitchEmotes
     );
     await GlobalEmoteMatcherConstructor.#instance.refreshGlobalEmotes();
   }
 
   public async refreshGlobalEmotes(): Promise<void> {
-    const sevenTVGlobal = fetchAndJson(GLOBAL_EMOTE_ENDPOINTS.sevenTV) as Promise<SevenTVEmotes>;
-    const bttvGlobal = fetchAndJson(GLOBAL_EMOTE_ENDPOINTS.bttv) as Promise<readonly BTTVEmote[]>;
-    const ffzGlobal = fetchAndJson(GLOBAL_EMOTE_ENDPOINTS.ffz) as Promise<FFZGlobalEmotes>;
-    const twitchGlobal = this.#twitchApi?.emotesGlobal();
+    const sevenTVGlobal =
+      this.#load7TVGlobalEmotes ?
+        (fetchAndJson(GLOBAL_EMOTE_ENDPOINTS.sevenTV) as Promise<SevenTVEmotes>)
+      : undefined;
+    const bttvGlobal =
+      this.#loadBTTVEmotes ?
+        (fetchAndJson(GLOBAL_EMOTE_ENDPOINTS.bttv) as Promise<readonly BTTVEmote[]>)
+      : undefined;
+    const ffzGlobal =
+      this.#loadFFZEmotes ?
+        (fetchAndJson(GLOBAL_EMOTE_ENDPOINTS.ffz) as Promise<FFZGlobalEmotes>)
+      : undefined;
+    const twitchGlobal = this.#loadTwitchEmotes ? this.#twitchApi?.emotesGlobal() : undefined;
 
     this.#sevenTVGlobal = await sevenTVGlobal;
     this.#bttvGlobal = await bttvGlobal;
@@ -94,15 +124,25 @@ export class GlobalEmoteMatcherConstructor {
 
 export class PersonalEmoteMatcherConstructor {
   readonly #guildId: string;
+  readonly #loadBTTVEmotes: boolean;
+  readonly #loadFFZEmotes: boolean;
   #personalEmoteSets: PersonalEmoteSets | undefined;
   #sevenTVPersonal: SevenTVEmotes | undefined = undefined;
   #bttvPersonal: BTTVPersonalEmotes | undefined = undefined;
   #ffzPersonal: FFZPersonalEmotes | undefined = undefined;
   #addedEmotes: SevenTVEmoteNotInSet[] | undefined = undefined;
 
-  private constructor(guildId: string, personalEmoteSets: PersonalEmoteSets | undefined) {
+  private constructor(
+    guildId: string,
+    personalEmoteSets: PersonalEmoteSets | undefined,
+    loadBTTVEmotes: boolean,
+    loadFFZEmotes: boolean
+  ) {
     this.#guildId = guildId;
     this.#personalEmoteSets = personalEmoteSets;
+
+    this.#loadBTTVEmotes = loadBTTVEmotes;
+    this.#loadFFZEmotes = loadFFZEmotes;
   }
 
   public get personalEmoteSets(): PersonalEmoteSets | undefined {
@@ -111,11 +151,15 @@ export class PersonalEmoteMatcherConstructor {
 
   public static async create(
     guildId: string,
-    personalEmoteSets: PersonalEmoteSets | undefined
+    personalEmoteSets: PersonalEmoteSets | undefined,
+    loadBTTVEmotes: boolean,
+    loadFFZEmotes: boolean
   ): Promise<Readonly<PersonalEmoteMatcherConstructor>> {
     const personalEmoteMatcherConstructor = new PersonalEmoteMatcherConstructor(
       guildId,
-      personalEmoteSets
+      personalEmoteSets,
+      loadBTTVEmotes,
+      loadFFZEmotes
     );
 
     const refreshBTTVAndFFZPersonalEmotes_ =
@@ -160,13 +204,6 @@ export class PersonalEmoteMatcherConstructor {
   public async constructEmoteMatcher(): Promise<Readonly<EmoteMatcher>> {
     const globalEmoteMatcherConstructor = GlobalEmoteMatcherConstructor.instance;
 
-    if (
-      globalEmoteMatcherConstructor.sevenTVGlobal === undefined
-      || globalEmoteMatcherConstructor.bttvGlobal === undefined
-      || globalEmoteMatcherConstructor.ffzGlobal === undefined
-    )
-      throw new Error('Global emotes not assigned.');
-
     const sevenTVPersonal =
       this.#personalEmoteSets !== undefined && this.#personalEmoteSets.sevenTv !== null ?
         (fetchAndJson(this.#personalEmoteSets.sevenTv) as Promise<SevenTVEmotes>)
@@ -189,11 +226,11 @@ export class PersonalEmoteMatcherConstructor {
     if (this.#personalEmoteSets === undefined) return;
 
     const bttvPersonal =
-      this.#personalEmoteSets.bttv !== null ?
+      this.#loadBTTVEmotes && this.#personalEmoteSets.bttv !== null ?
         (fetchAndJson(this.#personalEmoteSets.bttv) as Promise<BTTVPersonalEmotes>)
       : undefined;
     const ffzPersonal =
-      this.#personalEmoteSets.ffz !== null ?
+      this.#loadFFZEmotes && this.#personalEmoteSets.ffz !== null ?
         (fetchAndJson(this.#personalEmoteSets.ffz) as Promise<FFZPersonalEmotes>)
       : undefined;
 

@@ -2,7 +2,8 @@
 
 import { exec, type ExecException } from 'node:child_process';
 
-export const DEFAULT_DURATION = 0 as const;
+export const DEFAULT_DURATION = 1 as const;
+export const DEFAULT_FPS = 25 as const;
 
 export async function getDimension(
   filename: string
@@ -38,20 +39,17 @@ export async function getDuration(filename: string): Promise<number | undefined>
 
   return new Promise((resolve) => {
     exec(
-      `ffprobe -v error -select_streams v:0 -show_entries stream=duration -of default=noprint_wrappers=1:nokey=1 "${filename_}"`,
+      `ffprobe -v error -select_streams v:0 -count_frames -show_entries stream=nb_read_frames -of default=noprint_wrappers=1:nokey=1 "${filename_}"`,
       (error: ExecException | null, stdout) => {
         if (error) {
           resolve(undefined);
           return;
         }
-        const duration = stdout.trim();
-        // Check if duration is "N/A" or empty, and use a default value
-        if (duration === 'N/A' || duration === '') {
+
+        const frameCount = stdout.trim();
+        if (frameCount === 'N/A' || frameCount === '')
           resolve(parseFloat(String(DEFAULT_DURATION)));
-          // ? reject(new Error('Duration is either N/A or empty.')); // or any default value you prefer
-        } else {
-          resolve(parseFloat(duration));
-        }
+        else resolve(parseFloat(frameCount) / DEFAULT_FPS);
       }
     );
   });

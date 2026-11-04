@@ -5,7 +5,7 @@ services:
   nginx:
     image: nginx:mainline-alpine
     mem_limit: 256m
-    restart: always
+    restart: unless-stopped
     volumes:
       - ./nginx/cache:/var/www/cache:rw
       - ./nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
@@ -13,7 +13,7 @@ services:
   meilisearch:
     image: getmeili/meilisearch:latest
     mem_limit: 512m
-    restart: always
+    restart: unless-stopped
     env_file:
       - .env
     environment:
@@ -24,7 +24,7 @@ services:
   chromadb:
     image: chromadb/chroma:latest
     mem_limit: 1g
-    restart: always
+    restart: unless-stopped
     environment:
       - IS_PERSISTENT=TRUE
       - ANONYMIZED_TELEMETRY=FALSE
@@ -39,7 +39,7 @@ services:
     build:
       context: .
     mem_limit: 512m
-    restart: always
+    restart: unless-stopped
     volumes:
       - ./data:/app/data
       - ./botge.config.json:/app/botge.config.json

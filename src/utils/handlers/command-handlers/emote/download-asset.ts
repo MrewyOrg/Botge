@@ -6,7 +6,7 @@ import { writeFile } from 'node:fs/promises';
 
 import type { CachedUrl } from '../../../../api/cached-url.ts';
 import type { AssetInfo, DownloadedAsset } from '../../../../types.ts';
-import { DEFAULT_DURATION, getDimension, getDuration } from './ffprobe-utils.ts';
+import { DEFAULT_DURATION, DEFAULT_FPS, getDimension, getDuration } from './ffprobe-utils.ts';
 
 export async function downloadAsset(
   outdir: string,
@@ -15,7 +15,7 @@ export async function downloadAsset(
   cachedUrl: Readonly<CachedUrl>
 ): Promise<DownloadedAsset | undefined> {
   if (typeof asset === 'object') {
-    const { animated, width, height, url } = asset;
+    const { animated, width, height, frameCount, url } = asset;
 
     const [localUrl, ok] = cachedUrl.get(url);
     let filename = localUrl;
@@ -28,8 +28,14 @@ export async function downloadAsset(
     }
 
     const hasWidthAndHeight = width !== undefined && height !== undefined;
-    let duration: Promise<number | undefined> | number | undefined =
-      animated ? getDuration(filename) : DEFAULT_DURATION;
+    let duration: Promise<number | undefined> | number | undefined;
+    if (animated) {
+      if (frameCount !== undefined) duration = frameCount / DEFAULT_FPS;
+      else duration = getDuration(filename);
+    } else {
+      duration = DEFAULT_DURATION;
+    }
+
     let widthAndHeight:
       Promise<readonly [number, number] | undefined> | readonly [number, number] | undefined =
       hasWidthAndHeight ? [width, height] : getDimension(filename);
@@ -49,7 +55,7 @@ export async function downloadAsset(
 
   const response = await fetch(asset);
   const buffer: Readonly<Buffer> = Buffer.from(await response.arrayBuffer());
-  const format = asset.includes('png') ? 'png' : 'gif';
+  const format = asset.includes('png') ? 'png' : 'gif'; // ? webp?
   const filename = join(outdir, `${i}_${i}.${format}`);
   await writeFile(filename, buffer);
 

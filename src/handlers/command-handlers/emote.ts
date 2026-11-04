@@ -90,7 +90,7 @@ class SimpleElement implements HorizontalStackElement {
     if (this.#animated) filterString += `,fps=${DEFAULT_FPS}`;
 
     if (this.#borderColor !== undefined) {
-      filterString += `,pad=iw+6:ih+6:3:3:color=#${this.#borderColor}`;
+      filterString += `,pad=iw+8:ih+8:4:4:color=#${this.#borderColor}`;
 
       // if (this.#borderOpacity !== undefined) filterString += `@${this.#borderOpacity}`;
     }
@@ -187,52 +187,6 @@ function onlyUnique(value: string, index: number, array: readonly string[]): boo
   return array.indexOf(value) === index;
 }
 
-export function emoteHandler() {
-  return async (
-    interaction: ChatInputCommandInteraction,
-    guild: Readonly<Guild>
-  ): Promise<void> => {
-    const { emoteMatcher } = guild;
-
-    const emote = getOptionValueWithoutUndefined<string>(interaction, 'name');
-    if (emote.split(/\s+/).length > 1) {
-      await interaction.reply({
-        content: 'Please use /emotes for combined emotes.',
-        flags: 'Ephemeral'
-      });
-      return;
-    }
-
-    const defer = interaction.deferReply();
-    try {
-      const emoteNotFoundReply =
-        interaction.guildId === GUILD_ID_CUTEDOG ? 'jij' : 'emote not found';
-
-      const size = getOptionValue(interaction, 'size', Number);
-
-      const match = emoteMatcher.matchSingle(emote);
-
-      if (match === undefined) {
-        await defer;
-        await interaction.editReply(emoteNotFoundReply);
-        return;
-      }
-
-      const { url, platform } = match;
-
-      await defer;
-      if (size !== undefined)
-        await interaction.editReply(emoteSizeChange(url, size, platform)); // .replace('.gif', '.webp')
-      else await interaction.editReply(url); // .replace('.gif', '.webp')
-    } catch (error) {
-      logError(error, 'Error at emoteSingleHandler');
-
-      await defer;
-      await interaction.editReply(SOMETHING_WENT_WRONG_REPLY_MESSAGE);
-    }
-  };
-}
-
 export function emoteListHandler(emoteMessageBuilders: Readonly<EmoteMessageBuilder>[]) {
   return async (
     interaction: ChatInputCommandInteraction,
@@ -293,13 +247,16 @@ export function emotesHandler(cachedUrl: Readonly<CachedUrl>) {
   return async (
     guild: Readonly<Guild>,
     users: readonly Readonly<User>[],
+    isSlashEmote: boolean,
     interaction?: ChatInputCommandInteraction,
     message?: OmitPartialGroupDMChannel<Message>
   ): Promise<void> => {
     const { emoteMatcher } = guild;
 
     const ephemeral =
-      interaction !== undefined ? Boolean(interaction.options.get('ephemeral')?.value) : false;
+      interaction !== undefined && !isSlashEmote ?
+        Boolean(interaction.options.get('ephemeral')?.value)
+      : false;
     const defer =
       interaction !== undefined ?
         ephemeral ? interaction.deferReply({ flags: 'Ephemeral' })
@@ -322,7 +279,10 @@ export function emotesHandler(cachedUrl: Readonly<CachedUrl>) {
 
       const emotes = ((): readonly string[] => {
         if (interaction !== undefined) {
-          return getOptionValueWithoutUndefined<string>(interaction, 'emotes').split(/\s+/);
+          return getOptionValueWithoutUndefined<string>(
+            interaction,
+            isSlashEmote ? 'name' : 'emotes'
+          ).split(/\s+/);
         } else if (message !== undefined) {
           const emotes_: readonly string[] = message.content
             .trim()
@@ -337,8 +297,15 @@ export function emotesHandler(cachedUrl: Readonly<CachedUrl>) {
 
         throw new Error('Interaction and Message undefined.');
       })();
+
+      if (emotes.length > 1 && isSlashEmote) {
+        await defer;
+        await interaction?.editReply('Please use /emotes for combined emotes.');
+        return;
+      }
+
       const size = ((): number | undefined => {
-        if (interaction !== undefined) {
+        if (interaction !== undefined && !isSlashEmote) {
           return getOptionValue(interaction, 'size', Number);
         } else if (message !== undefined) {
           const message_ = message.content
@@ -354,7 +321,7 @@ export function emotesHandler(cachedUrl: Readonly<CachedUrl>) {
         return undefined;
       })();
       const fullSize = ((): boolean => {
-        if (interaction !== undefined) {
+        if (interaction !== undefined && !isSlashEmote) {
           return getOptionValue(interaction, 'fullsize', Boolean) ?? false;
         } else if (message !== undefined) {
           if (size !== undefined && size === 4) return true;
@@ -365,7 +332,7 @@ export function emotesHandler(cachedUrl: Readonly<CachedUrl>) {
         return false;
       })();
       const stretch =
-        interaction !== undefined ?
+        interaction !== undefined && !isSlashEmote ?
           (getOptionValue(interaction, 'stretch', Boolean) ?? false)
         : false;
 
@@ -385,9 +352,9 @@ export function emotesHandler(cachedUrl: Readonly<CachedUrl>) {
 
         if (match === undefined) return undefined;
 
-        if (match.url === 'https://cdn.7tv.app/emote/01HQPVVAYR0007V5J7WCNKMP48/2x.gif')
+        if (match.url === 'https://cdn.7tv.app/emote/01HQPVVAYR0007V5J7WCNKMP48/2x.webp')
           return '1.08';
-        else if (match.url === 'https://cdn.7tv.app/emote/01GWBD2YR00002CCPRV6KPX758/2x.gif')
+        else if (match.url === 'https://cdn.7tv.app/emote/01GWBD2YR00002CCPRV6KPX758/2x.webp')
           return '0.40';
         return undefined;
       })();
@@ -400,8 +367,7 @@ export function emotesHandler(cachedUrl: Readonly<CachedUrl>) {
           await defer;
           try {
             new URL(emote);
-            if (interaction !== undefined)
-              await interaction.editReply('posting link through Botge wtf');
+            if (interaction !== undefined) await interaction.editReply(emoteNotFoundReply);
           } catch {
             if (interaction !== undefined) await interaction.editReply(emoteNotFoundReply);
             else if (message !== undefined) {
@@ -627,19 +593,21 @@ export function emotesHandler(cachedUrl: Readonly<CachedUrl>) {
       args.push('-filter_complex');
       const filter: string[] = elements.map((element) => element.filterString());
 
-      // hstack
       if (elements.length > 1) {
         filter.push(elements.map((element) => `[o${element.id}]`).join(''));
         filter.push(`hstack=inputs=${elements.length}`);
+
+        if (enableEmoteBorder) filter.push(`,pad=iw+8:ih+8:4:4:color=#${user.emoteBorderColor}`);
       } else {
-        filter.push(`[o0]scale`); // only to point the output stream
+        filter.push(`[o0]scale`);
       }
 
+      /*
       if (animated)
         filter.push(',split=2[stacked][palette];[palette]palettegen[p];[stacked][p]paletteuse');
+      */
       args.push(filter.join(''));
 
-      /*
       args.push('-c:v');
       if (animated) {
         args.push('libwebp_anim');
@@ -648,13 +616,12 @@ export function emotesHandler(cachedUrl: Readonly<CachedUrl>) {
       } else {
         args.push('libwebp');
       }
-      */
 
       args.push('-y');
       args.push('-fs');
       args.push('25M');
 
-      const outfile = join(outdir, `output.${animated ? 'gif' : 'png'}`);
+      const outfile = join(outdir, `output.${animated ? 'webp' : 'png'}`);
       args.push(outfile);
 
       const ffmpeg = spawn('ffmpeg', args);

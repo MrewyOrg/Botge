@@ -43,10 +43,40 @@
           "description": "Only show 7TV personal emotes on autocomplete with /emote."
         },
 
+        "load7TVGlobalEmotes": {
+          "type": "boolean",
+          "default": true,
+
+          "description": "Whether to load 7TV global emotes for usage."
+        },
+
+        "loadBTTVEmotes": {
+          "type": "boolean",
+          "default": true,
+
+          "description": "Whether to load BTTV emotes for usage (both personal and global)."
+        },
+
+        "loadFFZEmotes": {
+          "type": "boolean",
+          "default": true,
+
+          "description": "Whether to load FFZ emotes for usage (both personal and global)."
+        },
+
+        "loadTwitchEmotes": {
+          "type": "boolean",
+          "default": true,
+
+          "description": "Whether to load Twitch emotes for usage (both personal and global)."
+        },
+
         "activeSlashCommands": {
           "type": "array",
+
           "items": {
             "type": "string",
+
             "enum": [
               "emote",
               "emotes",
@@ -69,6 +99,7 @@
               "clear"
             ]
           },
+
           "default": [
             "emote",
             "emotes",
@@ -96,8 +127,10 @@
 
         "activeContextMenuCommands": {
           "type": "array",
+
           "items": {
             "type": "string",
+
             "enum": [
               "ChatGPT Explain",
               "Add Media",
@@ -107,6 +140,7 @@
               "Remove Quote"
             ]
           },
+
           "default": [
             "ChatGPT Explain",
             "Add Media",
@@ -124,6 +158,10 @@
         "updateClipsOnStartup",
         "joinVoiceChannels",
         "autoCompleteOnly7TVPersonal",
+        "load7TVGlobalEmotes",
+        "loadBTTVEmotes",
+        "loadFFZEmotes",
+        "loadTwitchEmotes",
         "activeSlashCommands",
         "activeContextMenuCommands"
       ]
