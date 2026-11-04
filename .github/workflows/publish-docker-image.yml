@@ -15,7 +15,6 @@ on:
       - 'node.config.json'
       - 'package-lock.json'
       - 'package.json'
-  workflow_dispatch:
 
 jobs:
   build:

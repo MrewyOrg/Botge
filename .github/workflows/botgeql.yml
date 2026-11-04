@@ -1,0 +1,49 @@
+# @format
+
+name: BotgeQL
+
+on:
+  pull_request:
+
+jobs:
+  botgeql:
+    name: BotgeQL
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+
+      - name: Set up Node
+        uses: actions/setup-node@v7.1.0
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Prettier
+        run: npx prettier . --check
+
+      - name: Commitlint
+        run: |
+          npx commitlint \
+          --from="${{ github.event.pull_request.base.sha }}" \
+          --to="${{ github.event.pull_request.head.sha }}" \
+          --verbose
+
+      - name: Lint-staged
+        run: |
+          npx lint-staged \
+          --diff="${{ github.event.pull_request.base.sha }}...${{ github.event.pull_request.head.sha }}" \
+          --no-stash
+
+      - name: Build
+        run: npx tsc --build --noEmit src

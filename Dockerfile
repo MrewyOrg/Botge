@@ -37,6 +37,7 @@ LABEL org.opencontainers.image.authors="Mrewy" \
   org.opencontainers.image.licenses="MIT" \
   org.opencontainers.image.source="https://github.com/MrewyOrg/Botge" \
   org.opencontainers.image.title="Botge" \
+  org.opencontainers.image.url="https://github.com/MrewyOrg/Botge" \
   org.opencontainers.image.vendor="MrewyOrg"
 
 RUN apk upgrade --no-cache \

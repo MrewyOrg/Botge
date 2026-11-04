@@ -1,12 +1,8 @@
 <!-- @format -->
 
-# PRE-COMMIT
+# Contributing
 
-```text
-npm install -g npm
-npm install
-npm run prettier
-npx lint-staged --no-stash
-npm run build
-npm test
-```
+Git hooks run the project checks automatically:
+
+- [.husky/commit-msg](../.husky/commit-msg)
+- [.husky/pre-commit](../.husky/pre-commit)

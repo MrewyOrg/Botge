@@ -75,6 +75,7 @@
   "files.associations": {
     "commit-msg": "shellscript",
     "pre-commit": "shellscript",
+    "post-merge": "shellscript",
     "check-package-version": "shellscript",
     "Dockerfile.rego": "rego"
   },

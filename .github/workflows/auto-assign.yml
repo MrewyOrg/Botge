@@ -2,9 +2,9 @@
 
 name: Auto-assign
 on:
-  issues:
-    types: [opened]
   pull_request:
+    types: [opened]
+  issues:
     types: [opened]
 
 jobs:
@@ -13,8 +13,8 @@ jobs:
     runs-on: ubuntu-latest
 
     permissions:
-      issues: write
       pull-requests: write
+      issues: write
 
     steps:
       - name: Auto-assign

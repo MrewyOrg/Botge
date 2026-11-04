@@ -89,6 +89,16 @@
     "node": ">=26.13.0",
     "npm": ">=11.20.0"
   },
+  "devEngines": {
+    "runtime": {
+      "name": "node",
+      "onFail": "error"
+    },
+    "packageManager": {
+      "name": "npm",
+      "onFail": "error"
+    }
+  },
   "os": [
     "linux",
     "darwin",

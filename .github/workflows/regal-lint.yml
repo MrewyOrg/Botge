@@ -3,17 +3,7 @@
 name: Regal Lint
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - '.github/workflows/regal-lint.yml'
-      - '.regal/config.yaml'
-      - '**/*.rego'
   pull_request:
-    paths:
-      - '.github/workflows/regal-lint.yml'
-      - '.regal/config.yaml'
-      - '**/*.rego'
 
 jobs:
   regal-lint:
@@ -26,11 +16,25 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
 
-      - name: Setup Regal
+      - name: Filter paths
+        uses: dorny/paths-filter@v4.0.3
+        id: changes
+        with:
+          filters: |
+            regal:
+              - '.github/workflows/regal-lint.yml'
+              - '.regal/config.yaml'
+              - '**/*.rego'
+
+      - name: Set up Regal
+        if: steps.changes.outputs['regal'] == 'true'
         uses: open-policy-agent/setup-regal@v2.0.0
         with:
           version: latest
 
       - name: Regal lint
+        if: steps.changes.outputs['regal'] == 'true'
         run: regal lint . --format github
