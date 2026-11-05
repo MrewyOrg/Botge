@@ -32,7 +32,12 @@ jobs:
       - name: Prettier
         run: npx prettier . --check
 
-      - name: Commitlint
+      - name: Commitlint PR
+        env:
+          PR_TITLE: ${{ github.event.pull_request.title }}
+        run: printf '%s\n' "$PR_TITLE" | npx commitlint
+
+      - name: Commitlint commit
         run: |
           npx commitlint \
           --from="${{ github.event.pull_request.base.sha }}" \

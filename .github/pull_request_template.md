@@ -1,5 +1,19 @@
 <!-- @format -->
 
+# Summary
+
+<!-- Describe what changed. -->
+
+## Changes
+
+<!-- List the main implementation or documentation changes. -->
+
+## Fixes
+
+<!--
+Use "Fixes #42" when the pull request should automatically close an issue.
+-->
+
 <!--
 Thank you for submitting a pull request!
 
@@ -15,5 +29,3 @@ Refer to CONTRIBUTING.MD for more details.
   https://github.com/MrewyOrg/Botge/blob/main/.github/CONTRIBUTING.md
 
 -->
-
-# Fixes
