@@ -5,6 +5,9 @@ name: CodeQL
 on:
   schedule:
     - cron: '49 12 * * 1'
+  push:
+    branches:
+      - main
   pull_request:
 
 jobs:
@@ -18,7 +21,9 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        language: [typescript, actions]
+        include:
+          - language: actions
+          - language: typescript
 
     steps:
       - name: Checkout repository
