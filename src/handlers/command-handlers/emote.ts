@@ -308,7 +308,7 @@ export function emotesHandler(cachedUrl: Readonly<CachedUrl>) {
       }
 
       const size = ((): number | undefined => {
-        if (interaction !== undefined && !isSlashEmote) {
+        if (interaction !== undefined) {
           return getOptionValue(interaction, 'size', Number);
         } else if (message !== undefined) {
           const message_ = message.content
@@ -324,7 +324,8 @@ export function emotesHandler(cachedUrl: Readonly<CachedUrl>) {
         return undefined;
       })();
       const fullSize = ((): boolean => {
-        if (interaction !== undefined && !isSlashEmote) {
+        if (interaction !== undefined) {
+          if (isSlashEmote && size === 4) return true;
           return getOptionValue(interaction, 'fullsize', Boolean) ?? false;
         } else if (message !== undefined) {
           if (size !== undefined && size === 4) return true;
