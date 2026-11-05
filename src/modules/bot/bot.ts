@@ -1,6 +1,7 @@
 /** @format */
 
 import type { Job } from 'node-schedule';
+// import { readFileSync } from 'node:fs';
 
 import { Events, type Client } from 'discord.js';
 import { joinVoiceChannel } from '@discordjs/voice';
@@ -126,6 +127,15 @@ export class Bot {
 
       user.setStatus('online');
       user.setPresence({ activities: [{ name: 'github.com/MrewyOrg/Botge', state: 'meow' }] });
+
+      /*
+      try {
+        const banner = readFileSync('assets/banner.webp');
+        void user.setBanner(banner);
+      } catch (error) {
+        logError(error, 'Error at setting bot banner');
+      }
+      */
 
       try {
         if (joinVoiceChannels) {
