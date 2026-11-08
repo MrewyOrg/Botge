@@ -1,9 +1,14 @@
-# @format
-
 rules:
   idiomatic:
     directory-package-mismatch:
-      level: ignore
+      level: error
+      ignore:
+        # Buildx requires the policy beside Dockerfile, despite its docker package.
+        files:
+          - Dockerfile.rego
+  style:
+    line-length:
+      max-line-length: 100
   custom:
     disallow-rego-v1:
       level: error

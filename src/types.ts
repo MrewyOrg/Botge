@@ -1,45 +1,16 @@
-/** @format */
-
-import type { DeepReadonly } from 'ts-essentials';
-import type OpenAI from 'openai';
-import type { Hit, RecordAny } from 'meilisearch';
 import type { DeepLClient } from 'deepl-node';
-import type { Metadata } from 'chromadb';
+import type { ActionRowBuilder, EmbedBuilder, MessageActionRowComponentBuilder } from 'discord.js';
+import type OpenAI from 'openai';
+import type { DeepReadonly } from 'ts-essentials';
 
-import type {
-  SlashCommandOptionsOnlyBuilder,
-  SlashCommandStringOption,
-  SlashCommandBooleanOption,
-  SlashCommandAttachmentOption,
-  SlashCommandIntegerOption,
-  EmbedBuilder,
-  ActionRowBuilder,
-  MessageActionRowComponentBuilder,
-  ModalBuilder,
-  ApplicationCommandOptionChoiceData,
-  ContextMenuCommandBuilder,
-  Embed,
-  Attachment
-} from 'discord.js';
+/** An array intentionally modified by its consumer, such as a shared registry or shuffle input. */
+export type MutableArray<T> = T[];
 
 export type ReadonlyOpenAI = DeepReadonly<OpenAI>;
 export type ReadonlyDeepLClient = DeepReadonly<DeepLClient>;
-export type ReadonlyHit = DeepReadonly<Hit>;
-export type ReadonlyRecordAny = DeepReadonly<RecordAny>;
-export type ReadonlyRegExpExecArray = DeepReadonly<RegExpExecArray>;
-export type ReadonlySlashCommandStringOption = DeepReadonly<SlashCommandStringOption>;
-export type ReadonlySlashCommandBooleanOption = DeepReadonly<SlashCommandBooleanOption>;
-export type ReadonlySlashCommandAttachmentOption = DeepReadonly<SlashCommandAttachmentOption>;
-export type ReadonlySlashCommandIntegerOption = DeepReadonly<SlashCommandIntegerOption>;
-export type ReadonlySlashCommandOptionsOnlyBuilder = DeepReadonly<SlashCommandOptionsOnlyBuilder>;
-export type ReadonlyContextMenuCommandBuilder = DeepReadonly<ContextMenuCommandBuilder>;
-export type ReadonlyEmbedBuilder = DeepReadonly<EmbedBuilder>;
+type ReadonlyEmbedBuilder = DeepReadonly<EmbedBuilder>;
 export type ReadonlyActionRowBuilderMessageActionRowComponentBuilder = DeepReadonly<
   ActionRowBuilder<MessageActionRowComponentBuilder>
->;
-export type ReadonlyModalBuilder = DeepReadonly<ModalBuilder>;
-export type ReadonlyApplicationCommandOptionChoiceDataString = DeepReadonly<
-  ApplicationCommandOptionChoiceData<string>
 >;
 
 export type BotgeConfig = {
@@ -47,16 +18,27 @@ export type BotgeConfig = {
     readonly updateClipsOnStartup: boolean;
     readonly joinVoiceChannels: boolean;
     readonly autoCompleteOnly7TVPersonal: boolean;
-    readonly load7TVGlobalEmotes: boolean;
-    readonly loadBTTVEmotes: boolean;
-    readonly loadFFZEmotes: boolean;
-    readonly loadTwitchEmotes: boolean;
+    readonly use7TVGlobalEmotes: boolean;
+    readonly use7TVPersonalEmotes: boolean;
+    readonly use7TVAddedEmotes: boolean;
+    readonly useBTTVEmotes: boolean;
+    readonly useFFZEmotes: boolean;
+    readonly useTwitchEmotes: boolean;
     readonly activeSlashCommands: readonly string[];
     readonly activeContextMenuCommands: readonly string[];
   };
-  readonly ollama: { readonly enabled: false } | OllamaConfig;
+  readonly ollama: { readonly enabled: false } | OllamaConfigJson;
 };
 
+/** Ollama configuration as stored in JSON, before prompt lines are joined and substituted. */
+export type OllamaConfigJson = Omit<OllamaConfig, 'systemPrompts'> & {
+  readonly systemPrompts: {
+    readonly scoreReplyOpportunity: readonly string[];
+    readonly generateReply: readonly string[];
+  };
+};
+
+/** Enabled Ollama configuration with resolved system prompts, ready for API requests. */
 export type OllamaConfig = {
   readonly enabled: true;
   readonly botName: string;
@@ -84,12 +66,7 @@ export type OllamaConfig = {
   readonly activeChatChannels: readonly string[];
 };
 
-export type ReadonlyEmbed = DeepReadonly<Embed>;
-export type ReadonlyAttachment = DeepReadonly<Attachment>;
 export type OpenAIResponseInput = OpenAI.Responses.ResponseInput;
-export type OpenAIResponseInputImage = OpenAI.Responses.ResponseInputImage;
-
-export type ReadonlyMetaData = DeepReadonly<Metadata>;
 
 export type Platform = 'sevenInSet' | 'sevenNotInSet' | 'bttv' | 'ffz' | 'twitch';
 
@@ -121,9 +98,9 @@ export type SevenTVEmoteNotInSet = {
 
 export type BTTVEmote = { readonly id: string; readonly code: string; readonly animated: boolean };
 export type FFZEmote = {
-  readonly id: string;
+  readonly id: number;
   readonly name: string;
-  readonly urls: Readonly<Record<string, string>>;
+  readonly urls: Readonly<Partial<Record<string, string>>>;
 };
 export type TwitchEmote = {
   readonly id: string;
@@ -133,9 +110,10 @@ export type TwitchEmote = {
 };
 
 export type SevenTVEmotes = {
+  readonly id: string;
   readonly error?: string;
   readonly emotes: readonly SevenTVEmoteInSet[];
-  readonly owner: { readonly username: string };
+  readonly owner: { readonly username: string } | null;
 };
 export type BTTVPersonalEmotes = {
   readonly message?: string;
@@ -171,7 +149,6 @@ export type DownloadedAsset = {
   readonly filename: string;
   readonly width: number;
   readonly height: number;
-  // readonly duration: number;
   readonly frameCount: number;
   readonly animated: boolean;
 };
@@ -253,7 +230,8 @@ export type PingForPingMeMessageBuilderReplies = {
   readonly deletionEvent: boolean;
 };
 
-// ! Needed for @twemoji/api.parse, but we only parse string.
+// The upstream declaration references a DOM type, but this Node project only parses strings.
+// Keep the workaround scoped to @twemoji/api rather than adding the DOM library globally.
 declare module '@twemoji/api' {
   type HTMLElement = string;
 }

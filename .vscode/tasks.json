@@ -1,6 +1,10 @@
+// cspell:words relock
+
 {
   "version": "2.0.0",
   "type": "shell",
+  "options": { "cwd": "${workspaceFolder}" },
+  "problemMatcher": [],
 
   "windows": {
     "options": { "shell": { "executable": "${env:ProgramFiles}/Git/bin/bash.exe", "args": ["-c"] } }
@@ -90,13 +94,14 @@
       "dependsOrder": "sequence",
 
       "type": "shell",
-      "command": "devcontainer upgrade"
+      "command": "devcontainer",
+      "args": ["upgrade"]
     },
 
     // 4-1
     {
-      "label": "Check gh actions-lock version",
-      "detail": "Checks gh actions-lock version.",
+      "label": "Upgrade gh actions-lock",
+      "detail": "Upgrades the gh actions-lock extension.",
 
       "type": "shell",
       "command": "gh",
@@ -110,7 +115,7 @@
       "label": "gh actions-lock",
       "detail": "Runs gh actions-lock.",
 
-      "dependsOn": ["Check gh actions-lock version"],
+      "dependsOn": ["Upgrade gh actions-lock"],
       "dependsOrder": "sequence",
 
       "type": "shell",

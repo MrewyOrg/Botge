@@ -30,14 +30,16 @@
 
     // Interop Constraints
     "erasableSyntaxOnly": true,
+    "forceConsistentCasingInFileNames": true,
     "verbatimModuleSyntax": true,
     "isolatedDeclarations": true,
 
     // Type Checking
     "strict": true,
+    "noUncheckedIndexedAccess": true,
 
-    "noUnusedLocals": false, // duplicate with eslint. allow build with unused locals.
-    "noUnusedParameters": false,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
 
     "noImplicitReturns": true,
     "noImplicitOverride": true,

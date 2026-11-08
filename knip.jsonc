@@ -1,0 +1,8 @@
+{
+  "$schema": "./node_modules/knip/schema.json",
+  // Startup is discovered through package.json's main field and source mapping.
+  // Keep the dormant Reddit factory as an additional entry point.
+  "entry": ["src/api/reddit/new-reddit-api.ts"],
+  // Supplied by the container/host, rather than npm.
+  "ignoreBinaries": ["actionlint", "ffmpeg", "ffprobe", "shellcheck"]
+}

@@ -1,31 +1,11 @@
-<!-- @format -->
-
 # Summary
 
-<!-- Describe what changed. -->
+<!-- Describe the problem and resulting behavior. -->
 
-## Changes
+## Validation
 
-<!-- List the main implementation or documentation changes. -->
+<!-- List checks run and any failures or checks skipped, with reasons. -->
 
-## Fixes
+## Related issues
 
-<!--
-Use "Fixes #42" when the pull request should automatically close an issue.
--->
-
-<!--
-Thank you for submitting a pull request!
-
-Please verify that:
-* [ ] Code is up-to-date with the `main` branch
-* [ ] You've successfully run `npm install` locally
-* [ ] You've successfully run `npm run prettier` locally
-* [ ] You've successfully run `npx lint-staged --no-stash` locally
-* [ ] You've successfully run `npm run build` locally
-* [ ] You've successfully run `npm test` locally
-
-Refer to CONTRIBUTING.MD for more details.
-  https://github.com/MrewyOrg/Botge/blob/main/.github/CONTRIBUTING.md
-
--->
+<!-- Use "Fixes #42" to close an issue when merged. -->

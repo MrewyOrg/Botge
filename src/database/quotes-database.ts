@@ -1,142 +1,43 @@
-/** @format */
-
 import type { Quote } from '../types.ts';
-import { BaseDatabase } from './base-database.ts';
+import { NamedEntriesDatabase } from './named-entries-database.ts';
 
-const TABLE_NAME = 'quote' as const;
+type QuoteOnlyNameAndContent = Pick<Quote, 'name' | 'content'>;
 
-function getTableName(userId: string): string {
-  return `${TABLE_NAME}_${userId}`;
-}
-
-type QuoteOnlyNameAndContent = Omit<Quote, 'dateAdded'>;
-type DatabaseQuote = QuoteOnlyNameAndContent & { readonly dateAdded: number };
-
-export class QuotesDatabase extends BaseDatabase {
+export class QuotesDatabase extends NamedEntriesDatabase {
   public constructor(filepath: string) {
-    super(filepath);
+    super(filepath, 'quote', 'content');
   }
 
   public insert(userId: string, quote: Quote): void {
-    const tableName = getTableName(userId);
-    if (!this.#tableExists(tableName)) this.#createTable(userId);
-
-    const { content, name, dateAdded } = quote;
-    const statement = this.databaseSync.prepare(
-      `INSERT INTO ${tableName} (name, content, dateAdded) VALUES (?, ?, ?)`
-    );
-    statement.run(name, content, dateAdded.getTime());
-  }
-
-  public delete(userId: string, quote: QuoteOnlyNameAndContent): void {
-    const tableName = getTableName(userId);
-    if (!this.#tableExists(tableName)) return;
-
-    const { content, name } = quote;
-    const statement = this.databaseSync.prepare(
-      `DELETE FROM ${tableName} WHERE content = (?) AND name = (?)`
-    );
-    statement.run(content, name);
-  }
-
-  public rename(userId: string, content: string, name: string): void {
-    const tableName = getTableName(userId);
-    if (!this.#tableExists(tableName)) return;
-
-    const statement = this.databaseSync.prepare(
-      `UPDATE ${tableName} SET name = (?) WHERE content = (?)`
-    );
-    statement.run(name, content);
-  }
-
-  public getQuoteName(userId: string, content: string): string | undefined {
-    const tableName = getTableName(userId);
-    if (!this.#tableExists(tableName)) return undefined;
-
-    const statement = this.databaseSync.prepare(
-      `SELECT name FROM ${tableName} WHERE content = (?)`
-    );
-    const row = statement.get(content) as { readonly name: string } | undefined;
-
-    if (row !== undefined) return row.name;
-    return undefined;
-  }
-
-  public getQuoteContent(userId: string, name: string): string | undefined {
-    const tableName = getTableName(userId);
-    if (!this.#tableExists(tableName)) return undefined;
-
-    const statement = this.databaseSync.prepare(
-      `SELECT content, dateAdded FROM ${tableName} WHERE name LIKE '%' || (?) || '%'`
-    );
-    const quoteArray = statement.all(name) as Omit<DatabaseQuote, 'name'>[];
-
-    if (quoteArray.length === 0) return undefined;
-    return [...quoteArray].sort((a, b) => b.dateAdded - a.dateAdded)[0].content;
-  }
-
-  public getAllQuote(userId: string): readonly Quote[] {
-    const tableName = getTableName(userId);
-    if (!this.#tableExists(tableName)) return [];
-
-    const statement = this.databaseSync.prepare(
-      `SELECT name, content, dateAdded FROM ${tableName}`
-    );
-    const databaseQuoteArray = statement.all() as DatabaseQuote[];
-
-    const quoteArray: Quote[] = databaseQuoteArray.map((databaseQuote) => {
-      return {
-        name: databaseQuote.name,
-        content: databaseQuote.content,
-        dateAdded: new Date(databaseQuote.dateAdded)
-      };
+    this.insertEntry(userId, {
+      name: quote.name,
+      value: quote.content,
+      dateAdded: quote.dateAdded
     });
-    return [...quoteArray].sort((a, b) => b.dateAdded.getTime() - a.dateAdded.getTime());
   }
-
+  public delete(userId: string, quote: QuoteOnlyNameAndContent): void {
+    this.deleteEntry(userId, quote.name, quote.content);
+  }
+  public rename(userId: string, content: string, name: string): void {
+    this.renameEntry(userId, content, name);
+  }
+  public getQuoteName(userId: string, content: string): string | undefined {
+    return this.getEntryName(userId, content);
+  }
+  public getQuoteContent(userId: string, name: string): string | undefined {
+    return this.findEntryValue(userId, name);
+  }
+  public getAllQuote(userId: string): readonly Quote[] {
+    return this.getEntries(userId).map((entry) => ({
+      name: entry.name,
+      content: entry.value,
+      dateAdded: entry.dateAdded
+    }));
+  }
   public quoteContentExists(userId: string, content: string): boolean {
-    const tableName = getTableName(userId);
-    if (!this.#tableExists(tableName)) return false;
-
-    const statement = this.databaseSync.prepare(
-      `SELECT content FROM ${tableName} WHERE content = (?)`
-    );
-    const row = statement.get(content);
-
-    if (row !== undefined) return true;
-    return false;
+    return this.entryValueExists(userId, content);
   }
-
   public quoteNameExists(userId: string, name: string): boolean {
-    const tableName = getTableName(userId);
-    if (!this.#tableExists(tableName)) return false;
-
-    const statement = this.databaseSync.prepare(`SELECT name FROM ${tableName} WHERE name = (?)`);
-    const row = statement.get(name);
-
-    if (row !== undefined) return true;
-    return false;
-  }
-
-  #createTable(userId: string): void {
-    const tableName = getTableName(userId);
-
-    this.databaseSync.exec(`
-      CREATE TABLE ${tableName} (
-        name TEXT NOT NULL PRIMARY KEY,
-        content TEXT NOT NULL,
-        dateAdded INTEGER NOT NULL
-      ) STRICT;
-    `);
-  }
-
-  #tableExists(tableName: string): boolean {
-    const statement = this.databaseSync.prepare(
-      `SELECT name FROM sqlite_master WHERE type = 'table' AND name = (?)`
-    );
-    const row = statement.get(tableName);
-
-    if (row !== undefined) return true;
-    return false;
+    return this.entryNameExists(userId, name);
   }
 }

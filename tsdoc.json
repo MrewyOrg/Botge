@@ -1,6 +1,5 @@
 {
   "$schema": "https://developer.microsoft.com/json-schemas/tsdoc/v0/tsdoc.schema.json",
   "reportUnsupportedHtmlElements": true,
-  "supportedHtmlElements": [],
-  "tagDefinitions": [{ "tagName": "@format", "syntaxKind": "block" }]
+  "supportedHtmlElements": []
 }

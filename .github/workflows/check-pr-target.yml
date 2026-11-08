@@ -1,0 +1,25 @@
+name: Check PR Target
+
+on:
+  workflow_call:
+
+permissions: {}
+
+jobs:
+  check-pr-target:
+    name: Check PR target
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Enforce the dev to main promotion path
+        env:
+          HEAD_REPO: ${{ github.event.pull_request.head.repo.full_name }}
+          BASE_REPO: ${{ github.repository }}
+          HEAD_BRANCH: ${{ github.event.pull_request.head.ref }}
+          BASE_BRANCH: ${{ github.event.pull_request.base.ref }}
+        shell: bash
+        run: |
+          if [[ "$BASE_BRANCH" == main && ( "$HEAD_REPO" != "$BASE_REPO" || "$HEAD_BRANCH" != dev ) ]]; then
+            echo 'Pull requests to main must come from the dev branch in this repository.' >&2
+            exit 1
+          fi

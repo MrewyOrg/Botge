@@ -1,52 +1,32 @@
-/** @format */
-
 import type { AddedEmote } from '../types.ts';
-import { BaseDatabase } from './base-database.ts';
+import { ScopedDatabase } from './scoped-database.ts';
 
-const TABLE_NAME = 'addedEmotes' as const;
-
-function getTableName(guildId: string): string {
-  return `${TABLE_NAME}_${guildId}`;
-}
-
-export class AddedEmotesDatabase extends BaseDatabase {
+export class AddedEmotesDatabase extends ScopedDatabase {
   public constructor(filepath: string) {
-    super(filepath);
+    super(filepath, 'addedEmotes', 'url TEXT NOT NULL PRIMARY KEY, alias TEXT');
   }
 
   public insert(addedEmote: AddedEmote, guildId: string): void {
-    const { url, alias } = addedEmote;
-
-    const statement = this.databaseSync.prepare(
-      `INSERT INTO ${getTableName(guildId)} (url, alias) VALUES (?, ?)`
+    this.ensureTable(guildId);
+    this.execute(
+      `INSERT INTO ${this.tableName(guildId)} (url, alias) VALUES (?, ?)`,
+      addedEmote.url,
+      addedEmote.alias
     );
-    statement.run(url, alias);
   }
-
   public delete(addedEmote: AddedEmote, guildId: string): void {
-    const { url, alias } = addedEmote;
-
-    const statement = this.databaseSync.prepare(
-      `DELETE FROM ${getTableName(guildId)} WHERE url = (?) AND (alias = (?) OR alias IS NULL)`
+    if (!this.scopeExists(guildId)) return;
+    this.execute(
+      `DELETE FROM ${this.tableName(guildId)} WHERE url = ? AND (alias IS ? OR alias IS NULL)`,
+      addedEmote.url,
+      addedEmote.alias
     );
-    statement.run(url, alias);
   }
-
   public getAll(guildId: string): readonly AddedEmote[] {
-    const statement = this.databaseSync.prepare(`SELECT url, alias FROM ${getTableName(guildId)}`);
-    const addedEmotes = statement.all() as AddedEmote[];
-
-    return addedEmotes;
+    if (!this.scopeExists(guildId)) return [];
+    return this.getRows<AddedEmote>(`SELECT url, alias FROM ${this.tableName(guildId)}`);
   }
-
   public createTable(guildId: string): void {
-    const tableName = getTableName(guildId);
-
-    this.databaseSync.exec(`
-      CREATE TABLE IF NOT EXISTS ${tableName} (
-        url TEXT NOT NULL PRIMARY KEY,
-        alias TEXT
-      ) STRICT;
-    `);
+    this.ensureTable(guildId);
   }
 }

@@ -1,6 +1,4 @@
-/** @format */
-
-import { defineConfig, type CSpellSettings } from 'cspell';
+import { type CSpellSettings, defineConfig } from 'cspell';
 
 const cSpellSettings: Readonly<CSpellSettings> = defineConfig({
   version: '0.2',
@@ -10,13 +8,11 @@ const cSpellSettings: Readonly<CSpellSettings> = defineConfig({
 
   useGitignore: true,
   enableGlobDot: true,
-  caseSensitive: false,
   allowCompoundWords: true,
   validateDirectives: true,
-  ignoreRandomStrings: true,
-
-  dictionaries: [],
+  // Keep commit messages available to the commit-msg hook.
   ignorePaths: [
+    '.git/worktrees',
     '.git/gk',
     '.git/hooks',
     '.git/info',
@@ -32,98 +28,50 @@ const cSpellSettings: Readonly<CSpellSettings> = defineConfig({
     '.git/packed-refs'
   ],
 
+  // Shared by multiple files; keep file-specific vocabulary in each file's header.
   words: [
-    // Words
-    'metadatas',
-    'unforgeable',
-    'gpt',
-    'relock',
-
-    // Names
-    'Botge',
-    'Mrewy',
-    'gentlebob',
-    'widepogcrazy',
-    'TimotronPrime',
-
-    'CuteDog',
-    'zackrawrr',
-
-    'pozil',
-    'dorny',
-
-    // Lib
-    'tpad',
-    'settb',
-    'hstack',
-    'libwebp',
-    'ffprobe',
-    'noprint',
-    'nokey',
-
-    'nomic',
-    'mxbai',
-    'hnsw',
-
-    'webp',
-    'rego',
-
-    // Extensions
-    'moby',
-    'eamodio',
-    'buildx',
-    'esbenp',
-    'jmrog',
-    'alefragnani',
-    'Anson',
-    'dbaeumer',
-    'ahmadalli',
-    'joshbolduc',
-    'vsicons',
-    'sarif',
-    'xlaoyu',
-    'kohler',
-    'tsandall',
-
-    // Other
-    'FrankerFaceZ',
-    'BetterTTV',
-    'Meilisearch',
-    'getmeili',
-    'Meili',
-    'DeepL',
-    'BTTV',
-    'Ollama',
-    'ARPG',
-    'chromadb',
-    'CNTREC',
-    'RRGGBB',
-    'tsdoc',
+    'frankerfacez',
+    'NOCASE',
+    'seventv',
+    'unaliased',
+    'unstub',
+    'upserts',
     'vitest',
-    'nvmrc',
-    'syft',
-    'botgeql'
-  ],
-  ignoreWords: [
-    // ? Ge - rename later
+    'ahmadalli',
+    'Anson',
+    'BetterTTV',
+    'Botge',
+    'BTTV',
+    'buildx',
+    'chromadb',
+    'dbaeumer',
+    'DeepL',
+    'dorny',
+    'eamodio',
+    'esac',
+    'esbenp',
+    'EUID',
+    'ffprobe',
+    'getent',
+    'getmeili',
     'guildge',
-    'clipsge',
-    'namege',
-    'testge',
-    'userge',
-
-    // Random
-    'KHTML',
+    'joshbolduc',
     'jtvnw',
-    '01FDMJPSF8000CJ4MDR2FNZEQ3',
-
-    // Other
+    'Knip',
+    'Meili',
+    'Meilisearch',
+    'Mrewy',
+    'namege',
+    'nomic',
+    'nvmrc',
+    'Ollama',
     'pingme',
-    'doesnt',
-    'nums',
-
-    // Incorrect
-    'strartup'
+    'rego',
+    'RRGGBB',
+    'sarif',
+    'socat',
+    'tsandall',
+    'xlaoyu'
   ]
 });
 

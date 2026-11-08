@@ -1,0 +1,174 @@
+# cspell:words botgeql
+
+name: Build and Deploy
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened, edited, ready_for_review]
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  validate:
+    name: Validate
+    uses: $/.github/workflows/botgeql.yml
+    permissions:
+      contents: read
+
+  filter-paths:
+    name: Filter image paths
+    needs: validate
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      pull-requests: read
+    steps:
+      - name: Filter paths
+        uses: dorny/paths-filter@v4.0.3
+        id: changes
+        with:
+          filters: |
+            build:
+              - '.github/workflows/build-and-deploy.yml'
+              - 'src/**'
+              - 'docs/**'
+              - '.dockerignore'
+              - '.husky/install.ts'
+              - '.npmrc'
+              - 'Dockerfile'
+              - 'LICENSE.txt'
+              - 'README.md'
+              - 'botge.config.schema.json'
+              - 'node.config.json'
+              - 'package-lock.json'
+              - 'package.json'
+              - 'tsconfig.base.json'
+    outputs:
+      build: ${{ steps.changes.outputs.build }}
+
+  build:
+    name: Build candidate
+    needs: [validate, filter-paths]
+    if: needs.filter-paths.outputs.build == 'true' && !github.event.pull_request.draft
+    uses: docker/github-builder/.github/workflows/build.yml@a31d2311da4d55e21b978c1c52bab82ba97d51ee
+    permissions:
+      contents: read
+      id-token: write
+    with:
+      output: image
+      push: true
+      meta-images: mrewy/botge
+      meta-tags: type=raw,value=pr-${{ github.event.number }}-${{ github.sha }}
+      meta-flavor: latest=false
+      set-meta-annotations: true
+      set-meta-labels: true
+      cache: true
+      cache-mode: max
+      platforms: linux/amd64,linux/arm64
+      sbom: true
+    secrets:
+      registry-auths: |
+        - registry: docker.io
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+  deploy:
+    name: Deploy
+    needs: [validate, filter-paths, build]
+    if: >-
+      always() && !cancelled() && github.event.action != 'edited' &&
+      !github.event.pull_request.draft && needs.validate.result == 'success' &&
+      needs.filter-paths.result == 'success' && (needs.build.result == 'success' ||
+      needs.build.result == 'skipped')
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment: production
+    # Serialize promotion and the remote update together. Never cancel an active deployment.
+    concurrency:
+      group: botge-production
+      cancel-in-progress: false
+    permissions:
+      contents: read
+      pull-requests: read
+      id-token: write
+    steps:
+      - name: Reject stale pull requests and changed targets
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.number }}
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha }}
+          EXPECTED_MERGE: ${{ github.sha }}
+        run: |
+          gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER" |
+            jq --exit-status --arg head "$EXPECTED_HEAD" --arg merge "$EXPECTED_MERGE" \
+              --arg repo "$GITHUB_REPOSITORY" '
+                .state == "open" and .base.ref == "main" and .head.ref == "dev" and
+                .head.repo.full_name == $repo and .head.sha == $head and .merge_commit_sha == $merge
+              ' > /dev/null
+
+      - name: Record a change without a new image
+        if: needs.filter-paths.outputs.build != 'true'
+        run:
+          echo 'No image-affecting changes; the existing production image is retained.' >>
+          "$GITHUB_STEP_SUMMARY"
+
+      - name: Checkout the tested candidate
+        if: needs.filter-paths.outputs.build == 'true'
+        uses: actions/checkout@v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+
+      - name: Authenticate to Google Cloud
+        if: needs.filter-paths.outputs.build == 'true'
+        uses: google-github-actions/auth@v3.0.0
+        with:
+          workload_identity_provider: ${{ secrets.GCLOUD_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ secrets.GCLOUD_SERVICE_ACCOUNT }}
+          project_id: ${{ secrets.GCLOUD_PROJECT_ID }}
+
+      - name: Set up Google Cloud
+        if: needs.filter-paths.outputs.build == 'true'
+        uses: google-github-actions/setup-gcloud@v3.0.1
+
+      - name: Promote the approved candidate to latest
+        if: needs.filter-paths.outputs.build == 'true'
+        env:
+          IMAGE_DIGEST: ${{ needs.build.outputs.digest }}
+          DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
+          DOCKER_PASSWORD: ${{ secrets.DOCKER_PASSWORD }}
+        run: |
+          [[ "$IMAGE_DIGEST" =~ ^sha256:[a-f0-9]{64}$ ]] || {
+            echo 'The build did not return a valid image digest.' >&2
+            exit 1
+          }
+          DOCKER_CONFIG="$(mktemp -d "$RUNNER_TEMP/docker-auth.XXXXXX")"
+          export DOCKER_CONFIG
+          trap 'rm -rf "$DOCKER_CONFIG"' EXIT
+          printf '%s' "$DOCKER_PASSWORD" | docker login --username "$DOCKER_USERNAME" --password-stdin
+          docker buildx imagetools create --tag mrewy/botge:latest "mrewy/botge@$IMAGE_DIGEST"
+
+      - name: Deploy Botge
+        if: needs.filter-paths.outputs.build == 'true'
+        env:
+          GCLOUD_INSTANCE: ${{ secrets.GCLOUD_INSTANCE }}
+          GCLOUD_PROJECT_ID: ${{ secrets.GCLOUD_PROJECT_ID }}
+          GCLOUD_ZONE: ${{ secrets.GCLOUD_ZONE }}
+          BOTGE_CONTROL_SOCKET: ${{ secrets.BOTGE_CONTROL_SOCKET }}
+          IMAGE_DIGEST: ${{ needs.build.outputs.digest }}
+        run: |
+          gcloud compute ssh "$GCLOUD_INSTANCE" \
+            --project="$GCLOUD_PROJECT_ID" \
+            --zone="$GCLOUD_ZONE" \
+            --tunnel-through-iap \
+            --quiet \
+            --command="BOTGE_CONTROL_SOCKET=$(printf '%q' "$BOTGE_CONTROL_SOCKET") bash -s -- deploy" \
+              < scripts/botge-control
+          printf 'Deployed candidate: mrewy/botge@%s\n' "$IMAGE_DIGEST" >> "$GITHUB_STEP_SUMMARY"

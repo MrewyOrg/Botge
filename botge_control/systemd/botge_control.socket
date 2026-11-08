@@ -1,0 +1,13 @@
+[Unit]
+Description=Restricted Botge control socket
+
+[Socket]
+ListenStream=/run/@BOTGE_CONTROL_NAME@.sock
+Accept=yes
+SocketUser=@BOTGE_CONTROL_USER@
+SocketGroup=@BOTGE_CONTROL_GROUP@
+SocketMode=0660
+RemoveOnStop=yes
+
+[Install]
+WantedBy=sockets.target

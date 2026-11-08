@@ -2,6 +2,8 @@
   "extends": "./tsconfig.base",
   "files": [
     ".husky/install.ts",
+    "scripts/lint-shell.ts",
+    "scripts/lint-workflows.ts",
     "commitlint.config.ts",
     "cspell.config.ts",
     "eslint.config.ts",
@@ -9,9 +11,10 @@
     "prettier.config.ts",
     "vitest.config.ts"
   ],
-  "references": [{ "path": "./src" }, { "path": "./tests" }],
+  "references": [{ "path": "./src" }],
   "compilerOptions": {
     // Emit
-    "noEmit": true // files field
+    "noEmit": true,
+    "tsBuildInfoFile": "./dist/root.tsbuildinfo"
   }
 }

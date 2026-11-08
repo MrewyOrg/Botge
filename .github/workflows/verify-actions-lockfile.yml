@@ -1,20 +1,30 @@
-# @format
-
 name: Verify Actions Lockfile
 
 on:
   pull_request:
 
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 jobs:
+  check-pr-target:
+    uses: $/.github/workflows/check-pr-target.yml
+
+    permissions: {}
+
   verify-actions-lockfile:
     name: Verify actions lockfile
+    needs: check-pr-target
     runs-on: ubuntu-latest
+    timeout-minutes: 20
 
     permissions:
       contents: read
-
-    env:
-      GH_TOKEN: ${{ github.token }}
+      pull-requests: read
 
     steps:
       - name: Checkout repository
@@ -34,5 +44,7 @@ jobs:
       - name: Verify
         if: steps.changes.outputs['actions'] == 'true'
         run: |
-          gh extension install github/gh-actions-lock
+          gh extension install github/gh-actions-lock --pin v0.4.1
           gh actions-lock --verify
+        env:
+          GH_TOKEN: ${{ github.token }}
