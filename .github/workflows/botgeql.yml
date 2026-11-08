@@ -71,7 +71,9 @@ jobs:
         run: npm run check:static
 
       - name: Tests and coverage
-        run: npm run test:coverage
+        run: |
+          cp botge.example.config.jsonc botge.config.json
+          npm run test:coverage
 
   tooling-lint:
     name: Shell and workflow lint

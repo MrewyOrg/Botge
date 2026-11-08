@@ -10,6 +10,9 @@ PRs to `main`. It checks formatting, documentation, commit conventions, types, E
 test coverage, ShellCheck, and actionlint. Coverage appears in the job log. PR title edits rerun
 validation.
 
+Before testing, CI copies `botge.example.config.jsonc` to `botge.config.json`. Tests use the example
+defaults and mocked services; no deployment configuration or credentials are needed.
+
 [Build and Deploy](build-and-deploy.yml) calls that validation before building an image. Draft PRs
 are validated but do not build or deploy until marked ready. Each image has a candidate tag derived
 from its PR and merge commit. Builds leave `latest` unchanged.
