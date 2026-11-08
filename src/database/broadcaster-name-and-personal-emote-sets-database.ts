@@ -1,118 +1,62 @@
-/** @format */
-
-import { PersonalEmoteSets } from '../modules/emote-matcher/personal-emote-sets.ts';
+import type { PersonalEmoteSets } from '../emotes/personal-emote-sets.ts';
 import { BaseDatabase } from './base-database.ts';
 
-type DatabaseBroadcasterNamesAndPersonalEmoteSets = {
+type StoredEmoteSets = {
   readonly guildId: string;
   readonly broadcasterName: string | null;
   readonly sevenTv: string | null;
   readonly bttv: string | null;
   readonly ffz: string | null;
 };
+type GuildEmoteSettings = readonly [string | null, PersonalEmoteSets | undefined];
 
-const TABLE_NAME = 'assignedEmoteSets' as const;
+const SCHEMA = `CREATE TABLE IF NOT EXISTS assignedEmoteSets (
+  guildId TEXT NOT NULL PRIMARY KEY, broadcasterName TEXT, sevenTv TEXT, bttv TEXT, ffz TEXT
+) STRICT`;
+
+function toSettings(row: StoredEmoteSets): GuildEmoteSettings {
+  const { broadcasterName, sevenTv, bttv, ffz } = row;
+  return [
+    broadcasterName,
+    sevenTv === null && bttv === null && ffz === null ? undefined : { sevenTv, bttv, ffz }
+  ];
+}
 
 export class BroadcasterNameAndPersonalEmoteSetsDatabase extends BaseDatabase {
   public constructor(filepath: string) {
-    super(filepath);
-
-    this.#createTable();
+    super(filepath, SCHEMA);
   }
 
   public changePersonalEmoteSets(guildId: string, personalEmoteSets: PersonalEmoteSets): void {
-    const { sevenTv, bttv, ffz } = personalEmoteSets;
-    if (this.#rowExists(guildId)) {
-      const statement = this.databaseSync.prepare(
-        `UPDATE ${TABLE_NAME} SET sevenTv = (?), bttv = (?), ffz = (?) WHERE guildId = (?)`
-      );
-      statement.run(sevenTv, bttv, ffz, guildId);
-    } else {
-      const statement = this.databaseSync.prepare(
-        `INSERT INTO ${TABLE_NAME} VALUES (?, ?, ?, ?, ?)`
-      );
-      statement.run(guildId, null, sevenTv, bttv, ffz);
-    }
+    this.execute(
+      `INSERT INTO assignedEmoteSets (guildId, sevenTv, bttv, ffz) VALUES (?, ?, ?, ?)
+      ON CONFLICT(guildId) DO UPDATE SET sevenTv = excluded.sevenTv, bttv = excluded.bttv, ffz = excluded.ffz`,
+      guildId,
+      personalEmoteSets.sevenTv,
+      personalEmoteSets.bttv,
+      personalEmoteSets.ffz
+    );
   }
-
   public changeBroadcasterName(guildId: string, broadcasterName: string): void {
-    if (this.#rowExists(guildId)) {
-      const statement = this.databaseSync.prepare(
-        `UPDATE ${TABLE_NAME} SET broadcasterName = (?) WHERE guildId = (?)`
-      );
-      statement.run(broadcasterName, guildId);
-    } else {
-      const statement = this.databaseSync.prepare(
-        `INSERT INTO ${TABLE_NAME} VALUES (?, ?, ?, ?, ?)`
-      );
-      statement.run(guildId, broadcasterName, null, null, null);
-    }
-  }
-
-  public getPersonalEmoteSets(guildId: string): readonly [string | null, PersonalEmoteSets] {
-    const statement = this.databaseSync.prepare(
-      `SELECT broadcasterName, sevenTv, bttv, ffz FROM ${TABLE_NAME} WHERE guildId = (?)`
+    this.execute(
+      `INSERT INTO assignedEmoteSets (guildId, broadcasterName) VALUES (?, ?)
+      ON CONFLICT(guildId) DO UPDATE SET broadcasterName = excluded.broadcasterName`,
+      guildId,
+      broadcasterName
     );
-    const databaseBroadcasterNamesAndPersonalEmoteSets = statement.get(guildId) as Omit<
-      DatabaseBroadcasterNamesAndPersonalEmoteSets,
-      'guildId'
-    >;
-
-    return [
-      databaseBroadcasterNamesAndPersonalEmoteSets.broadcasterName,
-      new PersonalEmoteSets(
-        databaseBroadcasterNamesAndPersonalEmoteSets.sevenTv,
-        databaseBroadcasterNamesAndPersonalEmoteSets.bttv,
-        databaseBroadcasterNamesAndPersonalEmoteSets.ffz
-      )
-    ];
   }
-
-  public getAllBroadcasterNamesAndPersonalEmoteSets(): Readonly<
-    Map<string, readonly [string | null, PersonalEmoteSets]>
-  > {
-    const statement = this.databaseSync.prepare(
-      `SELECT guildId, broadcasterName, sevenTv, bttv, ffz FROM ${TABLE_NAME}`
+  public getPersonalEmoteSets(guildId: string): GuildEmoteSettings {
+    const row = this.getRow<StoredEmoteSets>(
+      'SELECT guildId, broadcasterName, sevenTv, bttv, ffz FROM assignedEmoteSets WHERE guildId = ?',
+      guildId
     );
-    const databaseBroadcasterNamesAndPersonalEmoteSetsArray =
-      statement.all() as DatabaseBroadcasterNamesAndPersonalEmoteSets[];
-    const map = new Map<string, readonly [string | null, PersonalEmoteSets]>();
-
-    databaseBroadcasterNamesAndPersonalEmoteSetsArray.forEach(
-      (databaseBroadcasterNamesAndPersonalEmoteSets) => {
-        map.set(databaseBroadcasterNamesAndPersonalEmoteSets.guildId, [
-          databaseBroadcasterNamesAndPersonalEmoteSets.broadcasterName,
-          new PersonalEmoteSets(
-            databaseBroadcasterNamesAndPersonalEmoteSets.sevenTv,
-            databaseBroadcasterNamesAndPersonalEmoteSets.bttv,
-            databaseBroadcasterNamesAndPersonalEmoteSets.ffz
-          )
-        ]);
-      }
-    );
-
-    return map;
+    return row === undefined ? [null, undefined] : toSettings(row);
   }
-
-  #createTable(): void {
-    this.databaseSync.exec(`
-      CREATE TABLE IF NOT EXISTS ${TABLE_NAME} (
-        guildId TEXT NOT NULL PRIMARY KEY,
-        broadcasterName TEXT,
-        sevenTv TEXT,
-        bttv TEXT,
-        ffz TEXT
-      ) STRICT;
-    `);
-  }
-
-  #rowExists(guildId: string): boolean {
-    const statement = this.databaseSync.prepare(
-      `SELECT guildId FROM ${TABLE_NAME} WHERE guildId = (?)`
+  public getAllBroadcasterNamesAndPersonalEmoteSets(): ReadonlyMap<string, GuildEmoteSettings> {
+    return new Map(
+      this.getRows<StoredEmoteSets>(
+        'SELECT guildId, broadcasterName, sevenTv, bttv, ffz FROM assignedEmoteSets'
+      ).map((row) => [row.guildId, toSettings(row)])
     );
-    const row = statement.get(guildId);
-
-    if (row !== undefined) return true;
-    return false;
   }
 }
