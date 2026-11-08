@@ -1,18 +1,40 @@
-# @format
+# cspell:words botgeql GOBIN rhysd
 
 name: BotgeQL
 
 on:
+  push:
+    branches: [dev, main]
   pull_request:
+    branches: [dev]
+    types: [opened, synchronize, reopened, edited, ready_for_review]
+  workflow_call:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: quality-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    shell: bash
 
 jobs:
+  check-pr-target:
+    if: github.event_name == 'pull_request'
+    uses: $/.github/workflows/check-pr-target.yml
+    permissions: {}
+
   botgeql:
     name: BotgeQL
+    needs: check-pr-target
+    if: >-
+      always() && !cancelled() && (needs.check-pr-target.result == 'success' ||
+      needs.check-pr-target.result == 'skipped')
     runs-on: ubuntu-latest
-
-    permissions:
-      contents: read
-
+    timeout-minutes: 20
     steps:
       - name: Checkout repository
         uses: actions/checkout@v7.0.1
@@ -29,26 +51,58 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Prettier
-        run: npx prettier . --check
+      - name: Check formatting and documentation
+        run: |
+          npx prettier . --check
+          npm run markdownlint
+          npm run cspell
 
-      - name: Commitlint PR
+      - name: Check PR title and commits
+        if: github.event_name == 'pull_request'
         env:
           PR_TITLE: ${{ github.event.pull_request.title }}
-        run: printf '%s\n' "$PR_TITLE" | npx commitlint
-
-      - name: Commitlint commit
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
-          npx commitlint \
-          --from="${{ github.event.pull_request.base.sha }}" \
-          --to="${{ github.event.pull_request.head.sha }}" \
-          --verbose
+          printf '%s\n' "$PR_TITLE" | npx commitlint
+          npx commitlint --from="$BASE_SHA" --to="$HEAD_SHA" --verbose
 
-      - name: Lint-staged
+      - name: Types, lint, and unused code
+        run: npm run check:static
+
+      - name: Tests and coverage
+        run: npm run test:coverage
+
+  tooling-lint:
+    name: Shell and workflow lint
+    needs: check-pr-target
+    if: >-
+      always() && !cancelled() && (needs.check-pr-target.result == 'success' ||
+      needs.check-pr-target.result == 'skipped')
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Node
+        uses: actions/setup-node@v7.1.0
+        with:
+          node-version-file: .nvmrc
+
+      - name: Install ShellCheck and actionlint
+        shell: bash
         run: |
-          npx lint-staged \
-          --diff="${{ github.event.pull_request.base.sha }}...${{ github.event.pull_request.head.sha }}" \
-          --no-stash
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends shellcheck
+          mkdir -p "$RUNNER_TEMP/botge-linters"
+          GOBIN="$RUNNER_TEMP/botge-linters" go install github.com/rhysd/actionlint/cmd/actionlint@v1.7.12
+          echo "$RUNNER_TEMP/botge-linters" >> "$GITHUB_PATH"
 
-      - name: Build
-        run: npx tsc --build --noEmit src
+      - name: Check shell scripts
+        run: npm run lint:shell
+
+      - name: Check workflows and inline shell
+        run: npm run lint:workflows

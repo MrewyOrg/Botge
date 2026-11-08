@@ -1,17 +1,30 @@
-# @format
-
 name: Regal Lint
 
 on:
   pull_request:
 
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 jobs:
+  check-pr-target:
+    uses: $/.github/workflows/check-pr-target.yml
+
+    permissions: {}
+
   regal-lint:
     name: Regal lint
+    needs: check-pr-target
     runs-on: ubuntu-latest
+    timeout-minutes: 20
 
     permissions:
       contents: read
+      pull-requests: read
 
     steps:
       - name: Checkout repository
