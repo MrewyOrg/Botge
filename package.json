@@ -1,6 +1,6 @@
 {
   "name": "botge",
-  "version": "3.2.0",
+  "version": "4.0.0",
   "private": true,
   "description": "Search emotes, clips, use zero-width emotes and other such commands.",
   "keywords": [
@@ -9,6 +9,7 @@
     "discord-bot",
     "emotes"
   ],
+  "homepage": "https://github.com/MrewyOrg/Botge#readme",
   "bugs": {
     "url": "https://github.com/MrewyOrg/Botge/issues"
   },
@@ -31,14 +32,22 @@
     "build": "tsc --build src",
     "build:clean": "tsc --build --clean src",
     "build:production": "tsc --project src/tsconfig.production.json",
+    "check": "npm run check:static && npm run test:run",
+    "check:static": "npm run typecheck && npm run eslint && npm run knip",
     "cspell": "cspell . --verbose",
     "eslint": "eslint \"**/*.ts\" --flag unstable_native_nodejs_ts_config --concurrency=auto",
+    "knip": "knip --no-progress",
+    "lint:shell": "node scripts/lint-shell.ts",
+    "lint:workflows": "node scripts/lint-workflows.ts",
     "markdownlint": "markdownlint-cli2 \"**/*.md\" \"#node_modules\"",
     "prepare": "node .husky/install.ts",
     "prettier": "prettier . --write",
     "start": "docker image prune --force && docker compose up --build",
     "stop": "docker compose stop",
-    "test": "vitest tests"
+    "test": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "test:run": "vitest run",
+    "typecheck": "tsc --build && tsc --project tests --noEmit"
   },
   "allowScripts": {
     "cpu-features": true,
@@ -52,12 +61,11 @@
     "chromadb": "^3.5.0",
     "deepl-node": "^1.29.0",
     "discord.js": "^14.28.1",
-    "fs-extra": "^11.4.1",
     "helpful-decorators": "^2.1.0",
+    "jsonc-parser": "^3.3.1",
     "meilisearch": "^0.62.0",
-    "node-fetch": "^3.3.2",
     "node-schedule": "^2.1.2",
-    "openai": "^7.50.0",
+    "openai": "^7.53.0",
     "timezones-list": "^3.1.0"
   },
   "devDependencies": {
@@ -66,15 +74,15 @@
     "@commitlint/format": "^21.2.3",
     "@commitlint/types": "^21.2.3",
     "@eslint/js": "^10.0.1",
-    "@microsoft/tsdoc-config": "^0.18.3",
-    "@types/fs-extra": "^11.0.4",
     "@types/node": "^26.6.6",
     "@types/node-schedule": "^2.1.8",
     "@typescript/native": "npm:typescript@^7.1.0-beta",
-    "cspell": "^10.4.0",
+    "@vitest/coverage-v8": "^5.1.0",
+    "cspell": "^10.4.1",
     "eslint": "^10.14.0",
     "eslint-plugin-tsdoc": "^0.5.4",
     "husky": "^9.1.7",
+    "knip": "^6.44.2",
     "lint-staged": "^17.6.0",
     "markdownlint-cli2": "^0.24.0",
     "prettier": "^3.9.10",

@@ -1,170 +1,271 @@
+// cspell:words botgeql vsicons
+
 {
-  // Terminal
-  "terminal.integrated.shellIntegration.enabled": true,
-
-  "terminal.integrated.suggest.insertTrailingSpace": false,
-  "terminal.integrated.suggest.showStatusBar": true,
-  "terminal.integrated.suggest.enabled": true,
-  "terminal.integrated.suggest.quickSuggestions": {
-    "commands": "on",
-    "arguments": "on",
-    "unknown": "off"
-  },
-
-  "terminal.integrated.tabs.showActions": "singleTerminalOrNarrow",
-  "terminal.integrated.tabs.title": "botge${separator}${process}",
-  "terminal.integrated.tabs.showActiveTerminal": "always",
-
-  "terminal.integrated.persistentSessionReviveProcess": "never",
-  "terminal.integrated.enablePersistentSessions": false,
-
-  "terminal.integrated.gpuAcceleration": "auto",
-  "terminal.integrated.enableImages": false,
-
-  "terminal.integrated.smoothScrolling": true,
-
-  "terminal.integrated.initialHint": false,
-
-  // TypeScript
-  "js/ts.experimental.useTsgo": true,
-
-  "js/ts.preferences.autoImportEntrypointDirectorySearch": true,
-  "js/ts.preferences.importModuleSpecifierEnding": "js",
-  "js/ts.preferences.preferTypeOnlyAutoImports": true,
-  "js/ts.preferences.quoteStyle": "single",
-
-  "js/ts.implicitProjectConfig.module": "NodeNext",
-  "js/ts.implicitProjectConfig.target": "ESNext",
-
-  "js/ts.updateImportsOnFileMove.enabled": "prompt",
-
-  "js/ts.format.semicolons": "insert",
-
   // Editor
   "editor.defaultFormatter": "esbenp.prettier-vscode",
+  "editor.detectIndentation": false,
   "editor.formatOnPaste": true,
   "editor.formatOnSave": true,
-
-  "editor.detectIndentation": false,
+  "editor.formatOnSaveMode": "file",
   "editor.insertSpaces": true,
+  "editor.smoothScrolling": true,
   "editor.tabSize": 2,
 
-  "editor.experimentalGpuAcceleration": "on",
-
-  "editor.smoothScrolling": true,
-
   // Files
+  "files.associations": {
+    ".dockerignore": "ignore",
+    "*.service": "ini",
+    "*.socket": "ini",
+    "**/.husky/commit-msg": "shellscript",
+    "**/.husky/post-merge": "shellscript",
+    "**/.husky/pre-commit": "shellscript",
+    "**/botge_control/bin/botge_control": "shellscript",
+    "**/botge_control/config": "shellscript",
+    "**/botge_control/import_data": "shellscript",
+    "**/botge_control/inspect": "shellscript",
+    "**/botge_control/setup": "shellscript",
+    "**/botge_control/setup_docker": "shellscript",
+    "**/botge_control/teardown": "shellscript",
+    "**/scripts/botge-control": "shellscript",
+    "**/scripts/check-package-version": "shellscript",
+    "botge.config.json": "jsonc",
+    "Dockerfile.rego": "rego"
+  },
+  "files.autoSave": "onFocusChange",
+  "files.encoding": "utf8",
+  "files.eol": "\n",
+  "files.insertFinalNewline": true,
+  // Generated files, dependency contents, and runtime output stay read-only in the editor.
   "files.readonlyInclude": {
     ".devcontainer/devcontainer-lock.json": true,
     ".github/codeql/database/**/*": true,
-    ".github/codeql/output/*": true,
+    ".github/codeql/output/**/*": true,
     ".github/workflows/actions.lock": true,
-    ".husky/_/*": true,
+    ".husky/_/**/*": true,
+    "**/*.tsbuildinfo": true,
+    "coverage/**/*": true,
     "data/**/*": true,
     "dist/**/*": true,
     "nginx/cache/**/*": true,
     "node_modules/**/*": true,
-    "package-lock.json": true
+    "package-lock.json": true,
+    "tmp/**/*": true
   },
+  "files.trimFinalNewlines": true,
   "files.trimTrailingWhitespace": true,
-  "files.autoSave": "onFocusChange",
-  "files.insertFinalNewline": true,
-  "files.encoding": "utf8",
-  "files.eol": "\n",
-
-  "files.associations": {
-    "commit-msg": "shellscript",
-    "pre-commit": "shellscript",
-    "post-merge": "shellscript",
-    "check-package-version": "shellscript",
-    "Dockerfile.rego": "rego"
+  // Avoid watching generated files and runtime data; retain VS Code’s default exclusions.
+  "files.watcherExclude": {
+    "**/.github/codeql/database/**": true,
+    "**/.github/codeql/output/**": true,
+    "**/.husky/_/**": true,
+    "**/*.tsbuildinfo": true,
+    "**/coverage/**": true,
+    "**/data/**": true,
+    "**/dist/**": true,
+    "**/nginx/cache/**": true,
+    "**/tmp/**": true
   },
 
-  "[markdown]": { "files.trimTrailingWhitespace": false },
+  // Search
+  "search.exclude": {
+    "**/.github/codeql/database/**": true,
+    "**/.github/codeql/output/**": true,
+    "**/.husky/_/**": true,
+    "**/*.tsbuildinfo": true,
+    "**/coverage/**": true,
+    "**/data/**": true,
+    "**/dist/**": true,
+    "**/nginx/cache/**": true,
+    "**/tmp/**": true
+  },
+  "search.useIgnoreFiles": true,
 
-  // Source Control
-  "scm.repositories.selectionMode": "single",
-  "scm.repositories.explorer": true,
-
-  "scm.showInputActionButton": false,
-
-  "scm.graph.badges": "all",
+  // Diff editor
+  "diffEditor.ignoreTrimWhitespace": false,
 
   // Workbench
-  "workbench.list.smoothScrolling": true,
   "workbench.iconTheme": "vscode-icons",
+  "workbench.list.smoothScrolling": true,
   "workbench.startupEditor": "none",
 
+  // Source control
+  "scm.graph.badges": "all",
+  "scm.repositories.explorer": true,
+  "scm.repositories.selectionMode": "single",
+  "scm.showInputActionButton": false,
+
   // Git
-  "git.enableCommitSigning": true,
   "git.alwaysSignOff": false,
   "git.autofetch": true,
+  "git.enableCommitSigning": true,
 
-  // YAML
-  "redhat.telemetry.enabled": false,
-  "yaml.format.printWidth": 100,
-  "yaml.format.singleQuote": true,
+  // Terminal
+  "terminal.integrated.enableImages": false,
+  "terminal.integrated.enablePersistentSessions": false,
+  "terminal.integrated.gpuAcceleration": "auto",
+  "terminal.integrated.initialHint": false,
+  "terminal.integrated.persistentSessionReviveProcess": "never",
+  "terminal.integrated.shellIntegration.enabled": true,
+  "terminal.integrated.smoothScrolling": true,
+  "terminal.integrated.suggest.enabled": true,
+  "terminal.integrated.suggest.insertTrailingSpace": false,
+  "terminal.integrated.suggest.quickSuggestions": {
+    "arguments": "on",
+    "commands": "on",
+    "unknown": "off"
+  },
+  "terminal.integrated.suggest.showStatusBar": true,
+  "terminal.integrated.tabs.showActions": "singleTerminalOrNarrow",
+  "terminal.integrated.tabs.showActiveTerminal": "always",
+  "terminal.integrated.tabs.title": "botge${separator}${process}",
 
-  // Prettier
-  "prettier.requireConfig": true,
-  "prettier.configPath": "prettier.config.ts",
-  "prettier.ignorePath": ".prettierignore",
-
-  // ESLint
-  "eslint.runtime": "node",
-  "eslint.options": { "flags": ["unstable_native_nodejs_ts_config"] },
+  // TypeScript
+  "js/ts.experimental.useTsgo": true,
+  "js/ts.format.enabled": false,
+  "js/ts.implicitProjectConfig.module": "NodeNext",
+  "js/ts.implicitProjectConfig.target": "ESNext",
+  // Avoid recursive scanning of packages that do not declare exports.
+  "js/ts.preferences.autoImportEntrypointDirectorySearch": false,
+  "js/ts.preferences.autoImportFileExcludePatterns": [
+    "**/coverage/**",
+    "**/data/**",
+    "**/dist/**",
+    "**/nginx/cache/**"
+  ],
+  // The “js” option includes .ts extensions when rewriteRelativeImportExtensions is enabled.
+  "js/ts.preferences.importModuleSpecifierEnding": "js",
+  "js/ts.preferences.organizeImports": {
+    "caseSensitivity": "caseInsensitive",
+    "typeOrder": "inline"
+  },
+  "js/ts.preferences.preferTypeOnlyAutoImports": true,
+  "js/ts.preferences.quoteStyle": "single",
+  "js/ts.trace.server": "off",
+  "js/ts.tsdk.path": "./node_modules/@typescript/native",
+  "js/ts.updateImportsOnFileMove.enabled": "always",
 
   // npm
   "npm.packageManager": "npm",
   "npm.scriptRunner": "npm",
 
+  // Prettier
+  "prettier.configPath": "prettier.config.ts",
+  // Docker and GitHub Actions use custom language IDs for YAML files.
+  "prettier.documentSelectors": ["**/compose*.{yml,yaml}", "**/.github/workflows/*.{yml,yaml}"],
+  "prettier.ignorePath": ".prettierignore",
+  "prettier.requireConfig": true,
+
+  // ESLint
+  // Inline ESLint configuration is disabled in eslint.config.ts.
+  "eslint.codeAction.disableRuleComment": { "enable": false },
+  "eslint.format.enable": false,
+  "eslint.options": { "flags": ["unstable_native_nodejs_ts_config"] },
+  "eslint.run": "onSave",
+  "eslint.runtime": "node",
+  "eslint.validate": ["typescript"],
+  "eslint.workingDirectories": ["."],
+
+  // Markdownlint
+  "markdownlint.configFile": ".markdownlint-cli2.jsonc",
+  "markdownlint.run": "onSave",
+
+  // Spell checking
+  "cSpell.mergeCSpellSettings": false,
+
+  // Commitlint
+  "commitlint.config.file": "commitlint.config.ts",
+  "commitlint.preferBundledLibraries": false,
+
+  // JSON schemas
+  "json.schemaDownload.trustedDomains": {
+    "https://developer.microsoft.com/json-schemas/": true,
+    "https://json-schema.org/": true,
+    "https://json.schemastore.org/": true,
+    "https://nodejs.org/docs/v26.13.0/node-config-schema.json": true,
+    "https://raw.githubusercontent.com/devcontainers/spec/": true,
+    "https://raw.githubusercontent.com/microsoft/vscode/": true,
+    "https://schemastore.azurewebsites.net/": true,
+    "https://www.schemastore.org/": true
+  },
+
+  // YAML
+  "redhat.telemetry.enabled": false,
+  "yaml.format.enable": false,
+  "yaml.kubernetesCRDStore.enable": false,
+
+  // OPA / Rego
+  // Dockerfile.rego is a standalone policy; the workspace is not an OPA data bundle.
+  "opa.bundleMode": false,
+  "opa.checkOnSave": true,
+  "opa.formatter": "opa-fmt",
+  "opa.strictMode": true,
+
   // Docker
   "docker.lsp.telemetry": "off",
+
+  // GitHub
+  "github-actions.workflows.pinned.workflows": [
+    ".github/workflows/botgeql.yml",
+    ".github/workflows/build-and-deploy.yml"
+  ],
+  // Keep the long-lived dev/main branches when finishing a pull request.
+  "githubPullRequests.defaultDeletionMethod.selectLocalBranch": false,
+  "githubPullRequests.defaultDeletionMethod.selectRemote": false,
+
+  // GitLens
+  "gitlens.ai.enabled": false,
+  "gitlens.plusFeatures.enabled": false,
+  "gitlens.telemetry.enabled": false,
+  "gitlens.virtualRepositories.enabled": false,
 
   // CodeQL
   "codeQL.githubDatabase.download": "never",
 
-  // Sarif
+  // SARIF viewer
   "sarif-viewer.connectToGithubCodeScanning": "off",
 
-  // GitLens
-  "gitlens.telemetry.enabled": false,
-
-  "gitlens.virtualRepositories.enabled": false,
-  "gitlens.plusFeatures.enabled": false,
-  "gitlens.ai.enabled": false,
-
-  // vscode-icons
-  "vsicons.customIconFolderPath": "assets",
+  // File icons
   "vsicons.associations.files": [
     {
-      "icon": "catSmile",
-      "extensions": ["index.ts", "botge.config.json", "botge.example.config.json", "README.md"],
+      "extensions": ["index.ts", "botge.config.json", "botge.example.config.jsonc", "README.md"],
       "filename": true,
-      "format": "png"
+      "format": "png",
+      "icon": "botge"
     },
-    { "icon": "docker", "extensions": ["tests/compose.test.ts"], "filename": true },
-    { "icon": "docker", "extends": "docker" }
+    { "extensions": ["compose.test.ts"], "filename": true, "icon": "docker" }
   ],
+  "vsicons.associations.folders": [
+    { "extensions": ["botge_control"], "icon": "server" },
+    { "extensions": ["discord"], "format": "svg", "icon": "discord" },
+    { "extensions": ["message-builders"], "icon": "template" }
+  ],
+  "vsicons.customIconFolderPath": "assets",
 
-  // Telemetry
+  // Privacy and chat
+  "chat.disableAIFeatures": false,
   "telemetry.editStats.enabled": false,
   "telemetry.feedback.enabled": false,
 
-  // Other
-  "json.schemaDownload.trustedDomains": {
-    "https://schemastore.azurewebsites.net/": true,
-    "https://raw.githubusercontent.com/microsoft/vscode/": true,
-    "https://raw.githubusercontent.com/devcontainers/spec/": true,
-    "https://www.schemastore.org/": true,
-    "https://json.schemastore.org/": true,
-    "https://json-schema.org/": true,
-    "https://developer.microsoft.com/json-schemas/": true,
-    "https://nodejs.org/docs/v26.13.0/node-config-schema.json": true,
-    "botge.config.schema.json": true
+  // Language overrides
+  "[dockerfile][dotenv][ini][npmrc]": {
+    "editor.formatOnPaste": false,
+    "editor.formatOnSave": false
   },
-
-  "diffEditor.ignoreTrimWhitespace": false,
-
-  "chat.disableAIFeatures": false
+  "[markdown]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode",
+    "files.trimTrailingWhitespace": false
+  },
+  "[nginx]": { "editor.defaultFormatter": "ahmadalli.vscode-nginx-conf" },
+  "[rego]": { "editor.defaultFormatter": "tsandall.opa" },
+  // Fix on explicit save; preserve import groups and intentional side-effect imports.
+  "[typescript]": {
+    "editor.codeActionsOnSave": {
+      "source.fixAll.eslint": "explicit",
+      "source.organizeImports": "never"
+    },
+    "editor.defaultFormatter": "esbenp.prettier-vscode"
+  },
+  "[yaml][dockercompose][github-actions-workflow]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode"
+  }
 }

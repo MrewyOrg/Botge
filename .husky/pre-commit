@@ -1,5 +1,7 @@
-npm install
+#!/bin/sh
+set -eu
 
-npm run prettier
+npm install --no-save
+
 npx lint-staged --no-stash
 npm run build

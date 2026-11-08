@@ -1,2 +1,5 @@
+#!/bin/sh
+set -eu
+
 npx commitlint --edit "$1"
 npx cspell --no-summary --no-progress --language-id commit-msg "$1"

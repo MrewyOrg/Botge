@@ -1,3 +1,5 @@
+// cspell:words moby
+
 // For format details, see https://aka.ms/devcontainer.json. For config options, see the
 // README at: https://github.com/devcontainers/templates/tree/main/src/typescript-node
 
@@ -6,51 +8,61 @@
   "image": "mcr.microsoft.com/devcontainers/typescript-node",
 
   "features": {
-    "ghcr.io/devcontainers/features/docker-in-docker:": {
+    "ghcr.io/devcontainers/features/docker-in-docker": {
       "moby": false,
       "installDockerBuildx": true,
       "azureDnsAutoDetection": false,
       "installDockerComposeSwitch": true
     },
-    "ghcr.io/devcontainers/features/github-cli:": { "extensions": "github/gh-actions-lock" },
-    "ghcr.io/devcontainers/features/node:": { "version": "v26.13.0", "nodeGypDependencies": false }
+    "ghcr.io/devcontainers/features/github-cli": { "extensions": "github/gh-actions-lock" },
+    "ghcr.io/devcontainers/features/node": {
+      "version": "v26.13.0",
+      "npmVersion": "latest",
+      "nodeGypDependencies": false
+    }
   },
 
   "postCreateCommand": {
-    "global-npm-packages": "npm install -g npm && npm install -g npm-check-updates && npm install -g sort-package-json && npm install -g @devcontainers/cli",
-    "install-and-build": "npm install && npm run build",
-    "directories": "mkdir -p data/tmp nginx/cache/tmp && sudo chmod -R a+rwx data && sudo chmod -R a+rx nginx/cache"
+    "global-npm-packages": "npm install -g npm-check-updates sort-package-json @devcontainers/cli",
+    "install-and-build": "npm install --no-save && npm run build"
   },
 
   "customizations": {
     "codespaces": { "openFiles": ["package.json", "tsconfig.json", "src/index.ts"] },
     "vscode": {
       "extensions": [
-        // Project
-        "TypeScriptTeam.native-preview",
-        "EditorConfig.EditorConfig",
-        "esbenp.prettier-vscode",
+        // Development environment
         "actboy168.tasks",
         "docker.docker",
 
-        // Syntax
-        "streetsidesoftware.code-spell-checker",
-        "DavidAnson.vscode-markdownlint",
-        "github.vscode-github-actions",
+        // Languages and configuration
         "ahmadalli.vscode-nginx-conf",
-        "dbaeumer.vscode-eslint",
-        "joshbolduc.commitlint",
-        "GitHub.vscode-codeql",
-        "xlaoyu.npmrc-helper",
+        "dotenv.dotenv-vscode",
         "redhat.vscode-yaml",
         "tsandall.opa",
+        "TypeScriptTeam.native-preview",
+        "xlaoyu.npmrc-helper",
 
-        // Extras
+        // Formatting and validation
+        "DavidAnson.vscode-markdownlint",
+        "dbaeumer.vscode-eslint",
+        "EditorConfig.EditorConfig",
+        "esbenp.prettier-vscode",
+        "joshbolduc.commitlint",
+        "streetsidesoftware.code-spell-checker",
+
+        // Git and GitHub
+        "eamodio.gitlens",
+        "github.vscode-github-actions",
         "GitHub.vscode-pull-request-github",
-        "vscode-icons-team.vscode-icons",
+
+        // Security analysis
+        "GitHub.vscode-codeql",
         "MS-SarifVSCode.sarif-viewer",
+
+        // Appearance
         "aaron-bond.better-comments",
-        "eamodio.gitlens"
+        "vscode-icons-team.vscode-icons"
       ]
     }
   }

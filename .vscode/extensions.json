@@ -1,32 +1,40 @@
+// cspell:words kohler
+
 {
   "recommendations": [
-    // Project
-    "ms-vscode-remote.remote-containers",
-
-    "TypeScriptTeam.native-preview",
-    "EditorConfig.EditorConfig",
-    "esbenp.prettier-vscode",
+    // Development environment
     "actboy168.tasks",
     "docker.docker",
+    "ms-vscode-remote.remote-containers",
 
-    // Syntax
-    "streetsidesoftware.code-spell-checker",
-    "DavidAnson.vscode-markdownlint",
-    "github.vscode-github-actions",
+    // Languages and configuration
     "ahmadalli.vscode-nginx-conf",
-    "dbaeumer.vscode-eslint",
-    "joshbolduc.commitlint",
-    "GitHub.vscode-codeql",
-    "xlaoyu.npmrc-helper",
+    "dotenv.dotenv-vscode",
     "redhat.vscode-yaml",
     "tsandall.opa",
+    "TypeScriptTeam.native-preview",
+    "xlaoyu.npmrc-helper",
 
-    // Extras
+    // Formatting and validation
+    "DavidAnson.vscode-markdownlint",
+    "dbaeumer.vscode-eslint",
+    "EditorConfig.EditorConfig",
+    "esbenp.prettier-vscode",
+    "joshbolduc.commitlint",
+    "streetsidesoftware.code-spell-checker",
+
+    // Git and GitHub
+    "eamodio.gitlens",
+    "github.vscode-github-actions",
     "GitHub.vscode-pull-request-github",
-    "vscode-icons-team.vscode-icons",
+
+    // Security analysis
+    "GitHub.vscode-codeql",
     "MS-SarifVSCode.sarif-viewer",
+
+    // Appearance
     "aaron-bond.better-comments",
-    "eamodio.gitlens"
+    "vscode-icons-team.vscode-icons"
   ],
   "unwantedRecommendations": ["christian-kohler.npm-intellisense"]
 }

@@ -3,6 +3,10 @@
   "references": [{ "path": "../src" }],
   "compilerOptions": {
     // Modules
-    "paths": { "src/*": ["../src/*"] }
+    "paths": { "src/*": ["../src/*"] },
+
+    // Emit
+    "noEmit": true,
+    "tsBuildInfoFile": "../dist/tests.tsbuildinfo"
   }
 }

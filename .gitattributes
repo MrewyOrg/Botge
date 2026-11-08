@@ -1,4 +1,8 @@
+# cspell:words webp
+
 * text=auto eol=lf
+
+*.md diff=markdown
 
 *.webp binary
 *.png binary
