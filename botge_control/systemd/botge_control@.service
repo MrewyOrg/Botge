@@ -1,0 +1,19 @@
+[Unit]
+Description=Botge control handler (%i)
+
+[Service]
+Type=exec
+User=@BOTGE_CONTROL_USER@
+Group=@BOTGE_CONTROL_USER@
+WorkingDirectory=@BOTGE_DIR@
+
+Environment=BOTGE_CONTROL_LOCK=@BOTGE_RUNTIME_DIR@/@BOTGE_CONTROL_NAME@.lock
+Environment=BOTGE_DIR=@BOTGE_DIR@
+Environment=BOTGE_RUNTIME_DIR=@BOTGE_RUNTIME_DIR@
+
+ExecStart=/usr/local/bin/@BOTGE_CONTROL_NAME@
+StandardInput=socket
+StandardOutput=inherit
+StandardError=journal
+NoNewPrivileges=yes
+RuntimeMaxSec=15min
