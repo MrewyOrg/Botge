@@ -1,19 +1,36 @@
-/** @format */
-
 import type {
+  AssetInfo,
+  BTTVEmote,
+  FFZEmote,
   SevenTVEmoteFile,
   SevenTVEmoteInSet,
   SevenTVEmoteNotInSet,
-  BTTVEmote,
-  FFZEmote,
-  TwitchEmote,
-  AssetInfo
-} from '../../../types.ts';
+  TwitchEmote
+} from '../types.ts';
 
 const BTTV_CDN = 'cdn.betterttv.net/emote' as const;
 const TWITCH_CDN = 'static-cdn.jtvnw.net/emoticons/v2' as const;
 
 const EMOTE_SIZE = 2 as const;
+
+function sevenTVFile(
+  files: readonly SevenTVEmoteFile[],
+  animated: boolean,
+  size: number
+): SevenTVEmoteFile {
+  const preferred = `${size}x.${animated ? 'webp' : 'png'}`;
+  const file =
+    files.find((candidate) => candidate.name === preferred)
+    ?? files.find((candidate) => candidate.name.startsWith(`${size}x.`))
+    ?? files.find((candidate) => candidate.name.endsWith(animated ? '.webp' : '.png'))
+    ?? files.at(0);
+  if (file === undefined) throw new Error('7TV emote has no usable image files.');
+  return file;
+}
+
+function cdnUrl(host: string, file: string): string {
+  return `${host.startsWith('//') ? 'https:' : ''}${host}/${file}`;
+}
 
 export function sevenTVInSetToAsset(
   emote: SevenTVEmoteInSet,
@@ -22,17 +39,16 @@ export function sevenTVInSetToAsset(
 ): AssetInfo {
   const { id, name, flags, data, timestamp } = emote;
   const { host, animated } = data;
-  const filename = `${size ?? EMOTE_SIZE}x.${animated ? 'webp' : 'png'}`;
-  const file = host.files.find((f: SevenTVEmoteFile) => f.name === filename);
+  const file = sevenTVFile(host.files, animated, size ?? EMOTE_SIZE);
   return {
     id: id,
     name: name,
-    url: `https:${host.url}/${file?.name}`,
+    url: cdnUrl(host.url, file.name),
     zeroWidth: !!(1 & flags),
     animated: animated,
-    width: file?.width,
-    height: file?.height,
-    frameCount: file?.frame_count,
+    width: file.width,
+    height: file.height,
+    frameCount: file.frame_count,
     platform: 'sevenInSet',
     timestamp: timestamp,
     isSevenTVPersonal: isSevenTVPersonal
@@ -44,17 +60,16 @@ export function sevenTVNotInSetToAsset(
   size?: number
 ): AssetInfo {
   const { id, name, flags, host, animated } = emote;
-  const filename = `${size ?? EMOTE_SIZE}x.${animated ? 'webp' : 'png'}`;
-  const file = host.files.find((f: SevenTVEmoteFile) => f.name === filename);
+  const file = sevenTVFile(host.files, animated, size ?? EMOTE_SIZE);
   return {
     id: id,
     name: name,
-    url: `https:${host.url}/${file?.name}`,
+    url: cdnUrl(host.url, file.name),
     zeroWidth: !!(256 & flags),
     animated: animated,
-    width: file?.width,
-    height: file?.height,
-    frameCount: file?.frame_count,
+    width: file.width,
+    height: file.height,
+    frameCount: file.frame_count,
     platform: 'sevenNotInSet',
     timestamp: undefined,
     isSevenTVPersonal: false
@@ -81,10 +96,12 @@ export function bttvToAsset(emote: BTTVEmote): AssetInfo {
 
 export function ffzToAsset(emote: FFZEmote): AssetInfo {
   const { id, name, urls } = emote;
+  const url = urls[String(EMOTE_SIZE)] ?? urls['1'] ?? urls['4'];
+  if (url === undefined) throw new Error('FFZ emote has no usable image URL.');
   return {
-    id: id,
+    id: String(id),
     name: name,
-    url: urls[`${EMOTE_SIZE}`],
+    url: new URL(url, 'https://cdn.frankerfacez.com').href,
     zeroWidth: false,
     animated: false,
     width: undefined,
@@ -98,9 +115,9 @@ export function ffzToAsset(emote: FFZEmote): AssetInfo {
 
 export function twitchToAsset(emote: TwitchEmote): AssetInfo {
   const { id, name, format, theme_mode } = emote;
-  const animated = format.length === 2;
-  const chosenFormat = animated ? format[1] : format[0];
-  const chosenThemeMode = theme_mode.length === 2 ? theme_mode[1] : theme_mode[0];
+  const animated = format.includes('animated');
+  const chosenFormat = animated ? 'animated' : 'static';
+  const chosenThemeMode = theme_mode.includes('dark') ? 'dark' : 'light';
   return {
     id: id,
     name: name,
