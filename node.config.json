@@ -6,7 +6,7 @@
     "experimental-detect-module": true,
     "experimental-global-navigator": false,
     "experimental-sqlite": true,
-    "experimental-websocket": false,
+    "experimental-websocket": true,
     "experimental-webstorage": false,
     "force-async-hooks-checks": true,
     "force-context-aware": true,
@@ -14,7 +14,9 @@
     "frozen-intrinsics": false,
     "global-search-paths": false,
     "require-module": false,
+    "trace-warnings": true,
     "unhandled-rejections": "strict",
+    "use-system-ca": true,
     "zero-fill-buffers": true
   },
   "permission": {
