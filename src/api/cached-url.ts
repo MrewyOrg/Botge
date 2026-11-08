@@ -1,32 +1,30 @@
-/** @format */
-
-// each pattern should have one and only one capturing group. usually just the entirety of path.
-const rules: readonly (readonly [Readonly<RegExp>, string])[] = [
-  [new RegExp(/https:\/\/cdn.7tv.app(.*)/), '/7tv'],
-  [new RegExp(/https:\/\/cdn.betterttv.net(.*)/), '/bttv'],
-  [new RegExp(/https:\/\/cdn.frankerfacez.com(.*)/), '/ffz'],
-  [new RegExp(/https:\/\/static-cdn.jtvnw.net(.*)/), '/twitch']
-];
+const CDN_PREFIXES: ReadonlyMap<string, string> = new Map([
+  ['https://cdn.7tv.app', '/7tv'],
+  ['https://cdn.betterttv.net', '/bttv'],
+  ['https://cdn.frankerfacez.com', '/ffz'],
+  ['https://static-cdn.jtvnw.net', '/twitch']
+]);
 
 export class CachedUrl {
   readonly #base: string | undefined;
 
   public constructor(base: string | undefined) {
-    this.#base = base;
+    const normalized = base?.trim().replace(/\/+$/u, '');
+    this.#base = normalized === '' ? undefined : normalized;
   }
 
   // translate remote url like https://cdn.tv.app/xxx to a local one pointing to cached data on disk.
-  // returns [localUrl, false]. if a url is not supported, returns [remoteUrl, false]
+  // returns [localUrl, true]. if a url is not supported, returns [remoteUrl, false]
   public get(remoteUrl: string): readonly [string, boolean] {
     if (this.#base === undefined) return [remoteUrl, false];
 
-    for (const [regex, prefix] of rules) {
-      const match = remoteUrl.match(regex);
+    const url = URL.parse(remoteUrl);
+    if (url === null) return [remoteUrl, false];
+    if (url.username !== '' || url.password !== '') return [remoteUrl, false];
 
-      if (match === null) continue;
-      return [this.#base + prefix + match[1], true];
-    }
+    const prefix = CDN_PREFIXES.get(url.origin);
+    if (prefix === undefined) return [remoteUrl, false];
 
-    return [remoteUrl, false];
+    return [this.#base + prefix + url.pathname + url.search, true];
   }
 }

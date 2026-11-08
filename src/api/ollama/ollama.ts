@@ -1,8 +1,5 @@
-/** @format */
-
-import { ollamaConfig } from './config/ollama-config.ts';
-
-type OllamaChatResponse = { readonly message?: { readonly content?: string } };
+import { ollamaConfig } from '../../config/ollama-config.ts';
+import { requestOllama } from './client.ts';
 
 type ScoreReplyOpportunityResult = {
   readonly score: number;
@@ -10,46 +7,35 @@ type ScoreReplyOpportunityResult = {
   readonly reason: string;
 };
 
-type ScoreReplyOpportunityResponse = {
-  readonly score?: number;
-  readonly should_reply?: boolean;
-  readonly reason?: string;
-};
-
 /**
  * Send a chat request to the local Ollama instance.
  */
-async function ollamaChat(systemPrompt: string, userPrompt: string): Promise<string> {
+async function ollamaChat(systemPrompt: string, userPrompt: string, json = false): Promise<string> {
   if (!ollamaConfig.enabled) throw new Error('Ollama is not enabled.');
 
-  const { baseUrl, model, options } = ollamaConfig;
-  const response = await fetch(`${baseUrl}/api/chat`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      model,
-      stream: false,
-      options,
-      messages: [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: userPrompt }
-      ]
-    })
+  const { model, options } = ollamaConfig;
+  const data = await requestOllama('/api/chat', {
+    model,
+    stream: false,
+    options,
+    ...(json ? { format: 'json' } : {}),
+    messages: [
+      { role: 'system', content: systemPrompt },
+      { role: 'user', content: userPrompt }
+    ]
   });
-  if (!response.ok)
-    throw new Error(`Ollama API error ${response.status}: ${await response.text()}`);
+  if (
+    typeof data !== 'object'
+    || data === null
+    || !('message' in data)
+    || typeof data.message !== 'object'
+    || data.message === null
+    || !('content' in data.message)
+    || typeof data.message.content !== 'string'
+  )
+    throw new Error('Ollama returned no chat message.');
 
-  const data = (await response.json()) as OllamaChatResponse;
-
-  console.log(
-    'systemPrompt: '
-      + systemPrompt
-      + '\nuserPrompt: '
-      + userPrompt
-      + '\nResponse'
-      + (data.message?.content?.trim() ?? '')
-  );
-  return data.message?.content?.trim() ?? '';
+  return data.message.content.trim();
 }
 
 /**
@@ -64,21 +50,31 @@ export async function scoreReplyOpportunity(
   const { botName } = ollamaConfig;
   const systemPrompt = ollamaConfig.systemPrompts.scoreReplyOpportunity;
   const userPrompt = `Recent chat:\n${chatHistory}\n\nShould ${botName} reply? Respond with JSON only.`;
-  const raw = await ollamaChat(systemPrompt, userPrompt);
+  const raw = await ollamaChat(systemPrompt, userPrompt, true);
 
   try {
-    const clean = raw.replace(/```json|```/g, '').trim();
-    const parsed = JSON.parse(clean) as ScoreReplyOpportunityResponse;
-
+    const clean = raw
+      .replace(/^```(?:json)?\s*/u, '')
+      .replace(/\s*```$/u, '')
+      .trim();
+    const parsed: unknown = JSON.parse(clean);
+    if (
+      typeof parsed !== 'object'
+      || parsed === null
+      || !('score' in parsed)
+      || typeof parsed.score !== 'number'
+      || !Number.isFinite(parsed.score)
+      || parsed.score < 0
+      || parsed.score > 10
+    )
+      throw new Error('Invalid reply score.');
     return {
-      score: parsed.score ?? 0,
-      shouldReply: parsed.should_reply === true,
-      // shouldReply: (parsed.score ?? 0) >= 7,
-      reason: parsed.reason ?? ''
+      score: parsed.score,
+      shouldReply: 'should_reply' in parsed && parsed.should_reply === true,
+      reason: 'reason' in parsed && typeof parsed.reason === 'string' ? parsed.reason : ''
     };
   } catch {
-    console.warn('⚠️  Failed to parse scoring JSON:', raw);
-
+    console.warn('Failed to parse Ollama scoring response.');
     return { score: 0, shouldReply: false, reason: 'parse error' };
   }
 }
