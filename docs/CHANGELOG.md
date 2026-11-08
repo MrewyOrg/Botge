@@ -2,6 +2,22 @@
 
 # Changelog
 
+## [v4.0.0](https://github.com/MrewyOrg/Botge/tree/v4.0.0) (2026-11-08)
+
+[Full Changelog](https://github.com/MrewyOrg/Botge/compare/v3.2.0...v4.0.0)
+
+**Merged pull requests:**
+
+- refactor\(core\): modernize Botge and add deployment controls
+  [\#241](https://github.com/MrewyOrg/Botge/pull/241) ([Mrewy](https://github.com/Mrewy))
+- style: botge generated banner and icons [\#240](https://github.com/MrewyOrg/Botge/pull/240)
+  ([Mrewy](https://github.com/Mrewy))
+- fix: fix [\#239](https://github.com/MrewyOrg/Botge/pull/239) ([Mrewy](https://github.com/Mrewy))
+- refactor: pr changes [\#238](https://github.com/MrewyOrg/Botge/pull/238)
+  ([Mrewy](https://github.com/Mrewy))
+- fix\(emote\): malformed loop filter in overlay emotes
+  [\#237](https://github.com/MrewyOrg/Botge/pull/237) ([gentlebob](https://github.com/gentlebob))
+
 ## [v3.2.0](https://github.com/MrewyOrg/Botge/tree/v3.2.0) (2026-10-30)
 
 [Full Changelog](https://github.com/MrewyOrg/Botge/compare/v3.1.1...v3.2.0)
