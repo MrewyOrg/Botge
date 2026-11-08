@@ -5,10 +5,11 @@ deployment → merge. Merging does not deploy again.
 
 ## Validation and deployment
 
-[BotgeQL](botgeql.yml) runs on pushes to `dev`/`main`, PRs to `dev`, and as a reusable workflow for
-PRs to `main`. It checks formatting, documentation, commit conventions, types, ESLint, unused code,
-test coverage, ShellCheck, and actionlint. Coverage appears in the job log. PR title edits rerun
-validation.
+[BotgeQL](botgeql.yml) runs on PRs to `dev` and as a reusable workflow for PRs to `main`. It checks
+formatting, documentation, commit conventions, types, ESLint, unused code, test coverage,
+ShellCheck, and actionlint. Coverage appears in the job log. PR title edits rerun validation. Pushes
+to `dev` or `main`, including branch synchronization, do not trigger BotgeQL; an open PR still
+reruns when its head branch changes.
 
 Before testing, CI copies `botge.example.config.jsonc` to `botge.config.json`. Tests use the example
 defaults and mocked services; no deployment configuration or credentials are needed.
@@ -28,9 +29,10 @@ existing image was retained. It does not restart the stack. Image-affecting path
 Dockerfile inputs. Deployment success means Compose completed successfully; it does not establish
 that the bot logged into Discord.
 
-CodeQL analyzes workflows and TypeScript on relevant pushes and PRs, and runs a full scheduled scan.
-Regal checks Rego changes. The Actions lockfile workflow verifies changed workflow references. The
-assignment workflow handles metadata without checking out PR code.
+CodeQL analyzes workflow and TypeScript changes on PRs to `dev`/`main` and pushes to `main`, keeping
+the default-branch baseline current. Scheduled and manual runs perform full scans. Pushes to `dev`
+do not trigger CodeQL. Regal checks Rego changes. The Actions lockfile workflow verifies changed
+workflow references. The assignment workflow handles metadata without checking out PR code.
 
 ## Repository settings
 

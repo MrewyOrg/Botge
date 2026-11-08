@@ -1,7 +1,7 @@
 # <img src="assets/botge-icon.png" alt="Botge logo" width="48" height="48"> Botge
 
 [![Version](https://img.shields.io/github/package-json/v/MrewyOrg/Botge)](package.json)
-[![Checks](https://github.com/MrewyOrg/Botge/actions/workflows/botgeql.yml/badge.svg?branch=main&event=push)](https://github.com/MrewyOrg/Botge/actions/workflows/botgeql.yml?query=branch%3Amain+event%3Apush)
+[![Build and deploy](https://github.com/MrewyOrg/Botge/actions/workflows/build-and-deploy.yml/badge.svg?event=pull_request)](https://github.com/MrewyOrg/Botge/actions/workflows/build-and-deploy.yml?query=event%3Apull_request)
 [![Coverage threshold: 80% per file](https://img.shields.io/badge/coverage_threshold-80%25_per_file-blue)](vitest.config.ts)
 [![CodeQL](https://github.com/MrewyOrg/Botge/actions/workflows/codeql.yml/badge.svg?branch=main&event=push)](https://github.com/MrewyOrg/Botge/actions/workflows/codeql.yml?query=branch%3Amain+event%3Apush)
 [![License](https://img.shields.io/github/license/MrewyOrg/Botge)](LICENSE.txt)
@@ -156,7 +156,7 @@ npm run check
 `npm run check` runs type checks, ESLint, Knip, and local tests without credentials or external
 services. Run `npm run test:coverage` for coverage, including HTML at `coverage/index.html`. The
 coverage badge documents the enforced 80% per-file minimum for statements, branches, functions, and
-lines. Checks and CodeQL badges track push runs on `main`.
+lines. The build badge tracks PR validation and deployment; CodeQL tracks push scans on `main`.
 
 See the [test guide](tests/README.md) for focused checks and the opt-in Compose suite, which starts
 a real bot. [GitHub workflows](.github/workflows/README.md) gate approved production deployments
