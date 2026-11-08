@@ -1,0 +1,49 @@
+{
+  // All general boolean switches default to false. Review docs/TERMS.md before enabling providers.
+  "general": {
+    "use7TVGlobalEmotes": false,
+    "use7TVPersonalEmotes": false,
+    "use7TVAddedEmotes": false,
+    "useBTTVEmotes": false,
+    "useFFZEmotes": false,
+    "useTwitchEmotes": false
+  },
+  // Ollama is disabled by default. Uncomment the block and set enabled to true to enable it.
+  // Set reachable service URLs, installed models, and Discord channel IDs first.
+  /*
+  "ollama": {
+    "enabled": false,
+    "botName": "Botge",
+    "baseUrl": "http://localhost:11434",
+    "model": "gemma4:26b",
+    "embeddingModel": "nomic-embed-text",
+    "options": {
+      "temperature": 0.85,
+      "num_ctx": 8192,
+      "top_p": 0.9
+    },
+    "behavior": {
+      "replyScoreThreshold": 2,
+      "contextWindow": 30,
+      "evaluationChance": 0.8,
+      "cooldownSeconds": 60,
+      "ragResults": 5,
+      "ragWindowSize": 2
+    },
+    "chroma": {
+      "url": "http://chromadb:8000"
+    },
+    "activeChatChannels": [],
+    "systemPrompts": {
+      "scoreReplyOpportunity": [
+        "Evaluate whether {name} should reply to the conversation.",
+        "Return JSON with score (0 to 10), should_reply (boolean), and reason (string)."
+      ],
+      "generateReply": [
+        "You are {name}. Write a helpful, concise response appropriate to the conversation."
+      ]
+    }
+  },
+  */
+  "$schema": "botge.config.schema.json"
+}

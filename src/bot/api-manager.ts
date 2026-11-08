@@ -1,30 +1,23 @@
-/** @format */
-
-import type { TwitchClipsMeilisearch } from '../../api/twitch-clips-meilisearch.ts';
-// import type { RedditApi } from '../api/reddit-api.ts';
-import type { TwitchApi } from '../../api/twitch-api.ts';
-import type { CachedUrl } from '../../api/cached-url.ts';
-
-import type { ReadonlyDeepLClient, ReadonlyOpenAI } from '../../types.ts';
+import type { CachedUrl } from '../api/cached-url.ts';
+import type { TwitchApi } from '../api/twitch/twitch-api.ts';
+import type { TwitchClipsMeilisearch } from '../api/twitch/twitch-clips-meilisearch.ts';
+import type { ReadonlyDeepLClient, ReadonlyOpenAI } from '../types.ts';
 
 export class ApiManager {
   readonly #twitchClipsMeilisearch: Readonly<TwitchClipsMeilisearch> | undefined;
-  // readonly #redditApi: Readonly<RedditApi> | undefined;
   readonly #twitchApi: Readonly<TwitchApi> | undefined;
   readonly #cachedUrl: Readonly<CachedUrl>;
   readonly #deepLClient: ReadonlyDeepLClient | undefined;
   readonly #openai: ReadonlyOpenAI | undefined;
 
   public constructor(
-    twitchClipsMeiliSearch: Readonly<TwitchClipsMeilisearch> | undefined,
-    // redditApi: Readonly<RedditApi> | undefined,
+    twitchClipsMeilisearch: Readonly<TwitchClipsMeilisearch> | undefined,
     twitchApi: Readonly<TwitchApi> | undefined,
     cachedUrl: Readonly<CachedUrl>,
     deepLClient: ReadonlyDeepLClient | undefined,
     openai: ReadonlyOpenAI | undefined
   ) {
-    this.#twitchClipsMeilisearch = twitchClipsMeiliSearch;
-    /// this.#redditApi = redditApi;
+    this.#twitchClipsMeilisearch = twitchClipsMeilisearch;
     this.#twitchApi = twitchApi;
     this.#cachedUrl = cachedUrl;
     this.#deepLClient = deepLClient;
@@ -34,11 +27,6 @@ export class ApiManager {
   public get twitchClipsMeilisearch(): Readonly<TwitchClipsMeilisearch> | undefined {
     return this.#twitchClipsMeilisearch;
   }
-  /*
-  public get redditApi(): Readonly<RedditApi> | undefined {
-    return this.#redditApi;
-  }
-  */
   public get twitchApi(): Readonly<TwitchApi> | undefined {
     return this.#twitchApi;
   }
