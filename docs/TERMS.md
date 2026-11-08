@@ -1,114 +1,223 @@
-<!-- @format -->
+# Terms of Service and hosting guidance
 
-# Terms of Service
+Last reviewed: 2026-11-08.
 
-By using **Botge** (“the Bot” or “the Software”), you agree to these Terms of Service (“Terms”) and
-the [Privacy Policy](https://github.com/MrewyOrg/Botge/blob/main/docs/PRIVACY.md). If you do not
-agree, please discontinue use of the Software.
+Botge is self-hosted software. The **operator** runs an instance and must review these use and
+integration requirements. These terms do not certify legal clearance for features, images, or
+deployments. Provider terms can change; linked originals and negotiated agreements control.
 
-Botge is software that may be self-hosted or operated by a third party. In these Terms, “operator”
-means the person or organization running the relevant Botge deployment. The operator, not the
-software itself, controls the deployment's databases, logs, integrations, retention, and access.
+The operator must publish their identity, contact details, applicable deployment terms, and a
+[privacy notice](PRIVACY.md) before inviting users. Repository maintainers do not automatically
+operate or support another person's instance. Mandatory consumer and privacy rights remain
+unaffected.
 
-## Compliance with Discord Policies
+## Software, artwork, and user content
 
-Botge integrates with the Discord platform. All users must follow Discord’s
-[Terms of Service](https://discord.com/terms) and
-[Community Guidelines](https://discord.com/guidelines). Any activity that violates Discord’s rules
-will also be considered a violation of these Terms.
+Botge's software license is [MIT](../LICENSE.txt). It permits hosting, modification, and
+redistribution subject to its notice requirements. Deployment rules do not remove those
+software-license rights. The license does not grant rights in third-party emotes, clips, GIFs,
+brands, or submitted content.
 
-## User Content
+The supplied `assets/botge-icon.png` and `assets/banner.png` were generated with OpenAI tools. They
+may be reused with Botge under the repository's license to the extent the project has rights to
+grant. AI generation is not proof of non-infringement, exclusivity, trademark availability, or
+copyright protection. OpenAI assigns its output rights to the customer to the extent permitted by
+law, but outputs can resemble other outputs and third-party rights remain applicable. See the
+applicable [OpenAI terms](https://openai.com/policies/eu-terms-of-use/) and
+[services agreement](https://openai.com/policies/services-agreement/). No trademark-clearance search
+has been performed for these assets. In the United States, purely AI-generated expression is not
+copyrightable without sufficient human authorship; other jurisdictions may differ. See the
+[Copyright Office's AI report](https://www.copyright.gov/newsnet/2025/1060.html).
 
-You are responsible for any text, data, links, images, media, or other material you submit,
-reference, save, or cause Botge to process (“User Content”). You must have the rights and
-permissions required to submit and use that User Content.
+Users must have the rights or other lawful authorization needed for material they ask Botge to save,
+quote, translate, analyze, render, or publish, including someone else's selected message or
+attachment. Submitting content does not transfer ownership to Botge or waive another person's
+rights. Uploading through a bot still requires the rights necessary under
+[Discord's terms](https://discord.com/terms).
 
-Botge may process User Content to provide commands and integrations, including storing saved media
-and quotes, scheduling ping messages, translating text, generating AI responses, and indexing chat
-messages when optional chat features are enabled. These activities are described in the
-[Privacy Policy](https://github.com/MrewyOrg/Botge/blob/main/docs/PRIVACY.md).
+## Discord and acceptable use
 
-## Prohibited Content
+Users must follow Discord's [terms](https://discord.com/terms) and
+[Community Guidelines](https://discord.com/guidelines). Operators must also follow the
+[Developer Terms](https://support-dev.discord.com/hc/en-us/articles/8562894815383-Discord-Developer-Terms-of-Service)
+and [Developer Policy][discord-developer-policy], including permitted API access, necessary intents,
+data security, deletion requests, and applicable app-review requirements.
 
-Users may not submit or distribute content that contains or promotes:
+Do not use an instance for illegal content, intellectual-property infringement, sexual exploitation,
+hate or harassment, graphic violence, malware, phishing, unsolicited messaging, or attacks on other
+accounts or services. Do not circumvent provider authentication, subscriptions, access controls,
+quotas, or feature restrictions. The operator may restrict access or disable integrations when
+necessary to enforce these rules or provider requirements.
 
-- Sexually explicit or pornographic material
-- Gore, excessive violence, or harm to animals
-- Hate speech, harassment, or material intended to offend or shock others
-- Content that is illegal or violates Discord’s Terms or applicable laws
-- Malware, phishing, spam, or attempts to access or disrupt another person’s account, server, or
-  service
-- Content that infringes another person’s intellectual-property, privacy, or other rights
+## Emotes and generated images
 
-Violation of this section may result in suspension or termination of access to a deployment.
+This applies to `/emote`, `/emote-compose`, `/emote-search`, `/emote-add`, `/emote-shortcuts`, and
+the `+` message shortcut. Some paths display provider images; rendering paths fetch image data,
+process it with FFmpeg, and upload a new Discord attachment. The optional nginx cache also retains
+source images. Public CDN access, an API response, an uploader's approval, or an open-source client
+license does not by itself establish the rights to all artwork or its underlying characters and
+photographs.
 
-## Media and third-party integrations
+- **7TV**: Its terms retain uploader ownership and grant service-related rights to 7TV. No blanket
+  license for Botge to modify and publish all emotes elsewhere was found. Obtain appropriate rights
+  and clarify provider permission for this use. [Terms](https://7tv.app/tos).
+- **BetterTTV (BTTV)**: Its terms provide a copyright complaint process, but no express blanket
+  license for arbitrary off-platform modification and redistribution was found. Do not treat public
+  availability as permission. [Terms](https://betterttv.com/terms).
+- **FrankerFaceZ (FFZ)**: Its terms expressly require permission from both FFZ and the original
+  owner for downloading, hosting, modifying, or redistributing hosted content. API access by
+  applications unrelated to Twitch also needs permission. Treat this integration as requiring
+  explicit clearance. [Terms](https://www.frankerfacez.com/terms).
+- **Twitch emotes**: Published trademark guidance requires express permission for emote use and
+  warns of third-party rights. Global emotes are excluded from the developer agreement's definition
+  of Program Materials. Do not interpret API access as a blanket artwork license.
+  [Guidelines](https://www.twitch.tv/p/nl-nl/legal/trademark/),
+  [agreement](https://legal.twitch.com/legal/developer-agreement).
 
-When you use a command that saves media or quotes, the operator may store the relevant URL, content,
-name, and date-added information until it is removed by the applicable command or the operator.
-Scheduled ping data is normally removed after the ping is delivered. The Software does not guarantee
-a particular retention period.
+These findings distinguish an express restriction from a permission that could not be confirmed;
+they do not establish that every individual use is unlawful. Own or properly licensed artwork and
+applicable legal exceptions can change the result. Resizing, stretching, recoloring, overlaying, or
+combining images does not automatically supply authorization or make a use exempt from copyright.
+Attribution alone cannot replace a required license. Link-only output is not an automatic exception
+to provider API terms either.
 
-Optional features can send User Content, identifiers, or URLs to third-party services, including
-OpenAI, DeepL, Ollama, ChromaDB, Twitch, Reddit, and other configured providers. Those services have
-their own terms and privacy policies. Do not submit content to an integration unless you are
-authorized to do so and accept the risks of that processing.
+Unicode emoji rendered by Botge use [Twemoji](https://github.com/jdecked/twemoji). Its graphics are
+licensed under [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/), separately from its MIT
+code. Credit Twemoji and its contributors, link the license and source, and identify modifications
+when sharing adapted artwork. Botge can resize and combine those graphics. This notice records the
+project's attribution; operators must make appropriate attribution available in their deployment and
+outputs as required. Discord custom emoji and external image URLs have their own rights
+requirements.
 
-Botge does not guarantee that third-party services will be available, accurate, secure, or
-compatible with the Software. AI-generated or translated output may be incomplete, inaccurate, or
-unsuitable, and must be reviewed before reliance or distribution.
+FFmpeg's software license does not license the media it processes. Image/container distributors must
+also retain applicable notices and satisfy the actual FFmpeg build's LGPL/GPL and dependency
+obligations. See [FFmpeg's legal guidance](https://www.ffmpeg.org/legal.html).
 
-## Service Availability and Modifications
+## Twitch clips: links, indexing, and optional embed services
 
-Botge is provided on an **“as is” and “as available”** basis, without any warranty of any kind.
-While we strive to maintain reliability, we do not guarantee uninterrupted service or error-free
-performance.
+`/clip` normally posts the clip's Twitch URL. It does **not** download, modify, or re-upload the
+video. Sharing an available original link matches Twitch's documented sharing mechanism. This is
+narrower than permission to copy the video elsewhere. See [Twitch sharing guidance][twitch-sharing].
 
-The operator may modify, suspend, or discontinue a deployment, its features, or its integrations at
-any time without prior notice.
+There are two unresolved deployment-dependent issues:
 
-## Limitation of Liability
+- **Persistent metadata:** Botge stores API clip records in Meilisearch. Scheduled refreshes
+  normally update/add records rather than remove every disappeared clip; there is no automatic index
+  expiry. The indexed developer agreement restricts stored copies, limits its temporary-cache
+  exception, requires honoring deletions, and restricts re-syndication of API data. A two-hour
+  refresh is not itself a retention or deletion policy. Operators need an applicable
+  authorization/exception and lifecycle controls before treating the current index as cleared.
+- **Custom embeds:** setting `EMBED_SERVER_TWITCH` replaces the original URL with an external
+  service URL. This repository does not implement that service, so its behavior was not reviewed.
+  Check whether it redirects, uses the authorized Twitch player, proxies video, or hosts its own
+  files. Do not assume it has the same permission as sharing an original link. Website player
+  requirements apply when using Twitch's [embed integration][twitch-embedding].
 
-To the fullest extent permitted by law, the operator, contributors, and licensors of Botge shall not
-be liable for any indirect, incidental, or consequential damages, including loss of data, content,
-or profits, arising from your use or inability to use a Botge deployment or a third-party
-integration.
+See the [developer agreement][twitch-agreement], especially Schedule 1's storage requirements.
+Twitch's current legal pages rendered incompletely during this review; some agreement and emote
+findings rely on indexed official text. Verify the latest wording and any account-specific
+permissions with Twitch. **The default link-sharing path is supported; the complete current
+indexing/custom-embed setup has not been established as compliant.**
 
-You are responsible for maintaining copies of User Content that you need. Your only remedy for
-dissatisfaction with a deployment is to stop using it, subject to rights that cannot be excluded
-under applicable law.
+## Other commands and integrations
 
-## Acceptable Use
+### Saved media, quotes, and Tenor
 
-You agree not to abuse, exploit, spam, reverse-engineer, or otherwise interfere with the normal
-operation of Botge, its hosting environment, or its integrations. You also agree not to use Botge
-for illegal purposes or to violate Discord’s policies.
+`/media`, `/media-list`, `/quote`, `/quote-list`, their save/delete context menus, and the `.`
+shortcut store or redisplay user-selected content. Media records store URLs, not permanent archival
+copies of all files. Do not save or republish another person's private message, image, or quote
+without the necessary rights and privacy authorization. Names and references do not guarantee future
+availability.
 
-## Right to Refuse Service
+The optional Tenor API resolves saved Tenor URLs into preview images. Tenor requires visible
+attribution for retrieved content, such as its prescribed browsing/shared-GIF labels. The current
+media builder links the source but has no explicit Tenor attribution label; operators must resolve
+that display gap before relying on API previews as compliant. A Tenor result does not clear every
+underlying right. See
+[Tenor attribution requirements](https://developers.google.com/tenor/guides/attribution).
 
-The operator may **limit, suspend, or terminate** access to a deployment for any user or Discord
-server that violates these Terms, Discord’s rules, or applicable laws, or where necessary to protect
-the deployment, its users, or third parties.
+### OpenAI and Ollama
 
-## Updates to These Terms
+`/chatgpt` and **Explain with ChatGPT** send content to the operator's OpenAI API account. The
+context menu can send another person's message and image/attachment URLs. Operators must have
+authority to process those inputs, enforce applicable age/access restrictions and
+[usage policies](https://openai.com/policies/usage-policies/), and follow the
+[API services agreement](https://openai.com/policies/services-agreement/). Outputs may be wrong or
+infringing and should not be represented as guaranteed accurate or human-authored.
 
-The operator may revise these Terms from time to time. The most current version will be available in
-the official Botge documentation or repository. By continuing to use a deployment after updates are
-posted, you agree to the revised Terms, subject to applicable law.
+Optional Ollama chat embeds, stores, retrieves, and analyzes messages from configured channels even
+when nobody invokes a command or receives a reply. The code performs inference and retrieval, not
+model training. Discord's policy prohibits training AI/ML models on API message content without
+Discord's express permission; user consent alone does not override that restriction. Do not enable
+provider training/data-sharing options or train on collected messages on that assumption. Inference
+still needs a disclosed, permitted purpose and appropriate privacy authorization. Review the
+selected models' licenses and any hosted [Ollama service terms](https://ollama.com/terms); a
+runtime's software license does not license every model. Retention/deletion gaps are described in
+[PRIVACY.md](PRIVACY.md).
 
-## Severability
+### Translation
 
-If any part of these Terms is found invalid or unenforceable, the remaining provisions will continue
-in force.
+`/translate` and **Translate to English** send supplied or selected message text to DeepL. Its
+current API terms require disclosure of unmodified API output using DeepL branding/domain unless
+otherwise agreed. Current replies contain only translated text, so that disclosure needs attention.
+The free API Developer plan prohibits processing personal data; a paid plan still needs appropriate
+legal authorization and processing arrangements. Botge does not detect the plan or remove personal
+data. See [DeepL API terms](https://www.deepl.com/en/pro-license_embedded), sections 8.1 and 8.3.
 
-## Governing Law
+### Steam statistics and dormant Reddit code
 
-These Terms are governed by the law of the jurisdiction selected by the operator of the relevant
-deployment, except where applicable law requires otherwise. If no jurisdiction is specified, the
-mandatory laws applicable to the operator and the user apply.
+`/poe2-stats` combines Steam's player-count API with review summaries parsed from Steam store HTML.
+The [Web API terms](https://steamcommunity.com/dev/apiterms) allow documented API uses subject to
+conditions, limits, and no implied endorsement; that is not blanket authorization for website
+scraping. Review the separate store-page fetching against Valve's current
+[Subscriber Agreement](https://store.steampowered.com/subscriber_agreement/) and access rules or use
+an authorized interface. The combined implementation has not received legal clearance.
 
-## Contact
+A Reddit client exists in the repository, but current startup/command wiring does not invoke it. If
+enabling it, obtain required API approval, including separate commercial authorization where
+applicable, and comply with attribution, approved-use and deletion requirements. A token alone does
+not establish approval. See [Reddit's Data API terms](https://redditinc.com/policies/data-api-terms)
+and [Responsible Builder Policy][reddit-builder-policy].
 
-If you have questions or concerns about a deployment, please contact its operator. For questions
-about Botge itself, you can contact the maintainers through the
-[GitHub issue tracker](https://github.com/MrewyOrg/Botge/issues).
+### Reminders, temporary messages, settings, and emoji grids
+
+`/remind` and `/reminders` publish reminder content and mentions into Discord channels; avoid spam
+and unwanted mentions. Server reminder listings may reveal messages to other server members.
+`/temporary` tries to delete its reply after the delay, but is not a confidentiality or erasure
+guarantee; restarts, errors, recipients, and service retention can preserve copies.
+`/clear-messages` is destructive and only removes Discord messages it can access, not copies in
+Botge's stores, AI providers, or backups. `/settings` changes access and preferences; it does not
+grant content licenses or erase stored data. `/emoji-hunt` uses server emoji; the same Discord and
+artwork rules apply.
+
+## Operator responsibilities and service terms
+
+Before hosting, publish enabled features, recipients, retention periods, a reachable privacy/contact
+route, and the rights-handling procedure described in [PRIVACY.md](PRIVACY.md). Only enable features
+for which the required permissions and operational controls are in place. Source-provider defaults
+and an enabled command are technical settings, not legal approval. Disabling slash commands alone
+may leave message shortcuts, provider loading, caches, and background integrations active.
+
+This review records known gaps; publishing these terms does not repair them, secure permissions,
+remove cached data, or implement retention and attribution. Keep provider credentials private and
+respect quotas, deletion notices, and takedown requests. For a commercial or public deployment with
+uncertain rights, obtain provider clarification and advice for the relevant jurisdiction.
+
+Botge is provided as is under its software license. Integrations may change or stop working, and AI
+or translated output can be inaccurate. Operators may limit or discontinue their service, subject to
+applicable law and their published commitments. No term excludes liability or statutory rights that
+cannot lawfully be excluded. Operators must provide any jurisdiction-specific terms they require and
+notify users of material changes as applicable; this document does not select a jurisdiction for all
+independent hosts.
+
+For deployment access, privacy, or copyright requests, contact that deployment's operator. The
+[issue tracker](https://github.com/MrewyOrg/Botge/issues) is for software issues; do not post
+private messages, credentials, or deletion-request evidence there.
+
+[twitch-sharing]: https://help.twitch.tv/s/article/how-to-share-a-stream?language=en_US
+[twitch-embedding]: https://dev.twitch.tv/docs/embed/video-and-clips/
+[twitch-agreement]: https://legal.twitch.com/legal/developer-agreement
+[discord-developer-policy]:
+  https://support-dev.discord.com/hc/en-us/articles/8563934450327-Discord-Developer-Policy
+[reddit-builder-policy]:
+  https://support.reddithelp.com/hc/en-us/articles/16471395473812-Moderation-Bots-Tooling

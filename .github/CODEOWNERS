@@ -2,23 +2,23 @@
 
 /compose.yaml @Mrewy @gentlebob
 /src/index.ts @Mrewy @gentlebob
-/src/modules/bot/bot.ts @Mrewy @gentlebob
+/src/bot/bot.ts @Mrewy @gentlebob
 
-/nginx/default.conf @gentlebob @Mrewy
+/nginx/botge-nginx.conf @gentlebob @Mrewy
 
-/src/api/ollama.ts @gentlebob @Mrewy
-/src/api/vector-store.ts @gentlebob @Mrewy
+/src/api/ollama/ollama.ts @gentlebob @Mrewy
+/src/api/ollama/vector-store.ts @gentlebob @Mrewy
 /src/api/cached-url.ts @gentlebob @Mrewy
-/src/api/config/ollama-config.ts @gentlebob @Mrewy
+/src/config/ollama-config.ts @gentlebob @Mrewy
 
-/src/modules/discord/emote-matcher.ts @gentlebob @Mrewy
+/src/emotes/emote-catalog.ts @gentlebob @Mrewy
 
-/src/handlers/command-handlers/emote.ts @gentlebob @Mrewy
-/src/handlers/command-handlers/steam.ts @gentlebob @Mrewy
-/src/handlers/command-handlers/transient.ts @gentlebob @Mrewy
+/src/handlers/commands/emote.ts @gentlebob @Mrewy
+/src/handlers/commands/steam.ts @gentlebob @Mrewy
+/src/handlers/commands/transient.ts @gentlebob @Mrewy
 
-/src/handlers/message-create-handlers/ollama-message-create-handler.ts @gentlebob @Mrewy
+/src/handlers/messages/ollama.ts @gentlebob @Mrewy
 
-/src/utils/handlers/command-handlers/emote/download-asset.ts @gentlebob @Mrewy
-/src/utils/handlers/command-handlers/emote/ffprobe-utils.ts @gentlebob @Mrewy
-/src/utils/modules/discord/update-commands.ts @gentlebob @Mrewy
+/src/emotes/rendering/download-asset.ts @gentlebob @Mrewy
+/src/emotes/rendering/ffprobe-utils.ts @gentlebob @Mrewy
+/src/discord/update-commands.ts @gentlebob @Mrewy

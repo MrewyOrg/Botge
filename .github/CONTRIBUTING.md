@@ -1,5 +1,3 @@
-<!-- @format -->
-
 # Contributing
 
 Git hooks run the project checks automatically:

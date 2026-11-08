@@ -1,0 +1,41 @@
+# Tests
+
+Run commands from the repository root:
+
+```sh
+npm run test:run
+npx vitest run tests/emotes
+npx vitest run tests/api/http.test.ts
+npm run typecheck
+```
+
+Group tests by their owning subsystem, matching `src/` where practical. Handler suites cover
+commands, interactions, and messages. Add regression cases to the related suite.
+
+The default run uses mocked external services and isolated temporary or in-memory storage. Import
+individual modules; the entry-point smoke test mocks application startup before importing
+`src/index.ts`. Mock loaded configuration modules when necessary so tests do not depend on local
+settings or credentials. Restore mocks, timers, and environment changes after each test, and clean
+up temporary storage.
+
+The Compose suite lives in `integration/` and is skipped by default. It starts a real Discord bot
+using local credentials. Read the integration instructions in [AGENTS.md](../AGENTS.md) before
+explicitly enabling `BOTGE_TEST_COMPOSE=true`.
+
+Prefer tests of observable behavior, error recovery, boundary values, and concurrency. Share
+fixtures only when several suites need the same setup; keep small fixtures local.
+
+`npm run check` runs types, ESLint, unused-code checks, and local tests. `bot/application.test.ts`
+tests startup with mocked services; the opt-in Compose suite checks real container startup.
+
+ESLint policy tests live in `tooling/` and run code samples through the real configuration. The
+small `requireValue` helper makes required fixture entries explicit under
+`noUncheckedIndexedAccess`; it throws when a fixture is missing instead of hiding that failure.
+
+Control protocol tests in `control/` run the handler and client against temporary command stubs.
+They cover request validation, locking, Docker failures, and transport responses without accessing a
+real socket, Docker daemon, or system account.
+
+`npm run test:coverage` requires 80% statements, branches, functions, and lines in each source file.
+It produces a terminal summary, HTML at `coverage/index.html` (green at 80%), and branch details in
+`coverage/coverage-final.json`. Coverage identifies untested paths; it does not prove correctness.

@@ -1,4 +1,4 @@
-<!-- @format -->
+<!-- cspell:words TimotronPrime widepogcrazy -->
 
 # Changelog
 
@@ -487,7 +487,7 @@
   [\#55](https://github.com/MrewyOrg/Botge/issues/55)
 - make /emote command and +emote usable in direct messages
   [\#46](https://github.com/MrewyOrg/Botge/issues/46)
-- write twitch api access token to a file, and read from that on strartup
+- write twitch api access token to a file, and read from that on startup
   [\#43](https://github.com/MrewyOrg/Botge/issues/43)
 - implement +emote with multiple emotes [\#42](https://github.com/MrewyOrg/Botge/issues/42)
 - Do tests [\#39](https://github.com/MrewyOrg/Botge/issues/39)

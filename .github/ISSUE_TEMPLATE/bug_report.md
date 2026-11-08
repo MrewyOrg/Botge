@@ -1,28 +1,19 @@
 ---
 name: Bug report
-about: Create a report to help us improve
+about: Report unexpected behavior
 title: ''
 labels: ''
 assignees: ''
 ---
 
-<!-- @format -->
+**Problem** Describe the actual and expected behavior.
 
-**Describe the bug** A clear and concise description of what the bug is.
+**Steps to reproduce** Include the command, inputs, and relevant settings.
 
-**To Reproduce** Steps to reproduce the behavior:
+1.
+2.
+3.
 
-1. Go to '...'
-2. Click on '....'
-3. Scroll down to '....'
-4. See error
+**Environment** Include your OS, Botge version or commit, and Docker or local setup.
 
-**Expected behavior** A clear and concise description of what you expected to happen.
-
-**Screenshots** If applicable, add screenshots to help explain your problem.
-
-**Desktop (please complete the following information):**
-
-- OS: [e.g. Windows, MacOS, Linux]
-
-**Additional context** Add any other context about the problem here.
+**Evidence** Add relevant logs or screenshots, removing credentials and private content.

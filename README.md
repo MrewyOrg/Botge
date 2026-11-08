@@ -1,63 +1,201 @@
-<!-- @format -->
+# <img src="assets/botge-icon.png" alt="Botge logo" width="48" height="48"> Botge
 
-# ![Botge Website Logo](assets/catSmile.png) Botge
+[![Version](https://img.shields.io/github/package-json/v/MrewyOrg/Botge)](package.json)
+[![Checks](https://github.com/MrewyOrg/Botge/actions/workflows/botgeql.yml/badge.svg?branch=main&event=push)](https://github.com/MrewyOrg/Botge/actions/workflows/botgeql.yml?query=branch%3Amain+event%3Apush)
+[![Coverage threshold: 80% per file](https://img.shields.io/badge/coverage_threshold-80%25_per_file-blue)](vitest.config.ts)
+[![CodeQL](https://github.com/MrewyOrg/Botge/actions/workflows/codeql.yml/badge.svg?branch=main&event=push)](https://github.com/MrewyOrg/Botge/actions/workflows/codeql.yml?query=branch%3Amain+event%3Apush)
+[![License](https://img.shields.io/github/license/MrewyOrg/Botge)](LICENSE.txt)
 
-![GitHub package.json version](https://img.shields.io/github/package-json/v/MrewyOrg/Botge)
-![GitHub License](https://img.shields.io/github/license/MrewyOrg/Botge)  
-![CodeQL](https://github.com/MrewyOrg/Botge/actions/workflows/codeql.yml/badge.svg)
-
-## Table of Contents
-
-- [Introduction](#introduction)
-- [Features](#features)
-- [Usage](#usage)
-- [Configuration](#configuration)
-- [Documentation](#documentation)
-- [License](#license)
-
-## Introduction
-
-Botge is a [Discord](https://discord.com) bot that provides functionalities inspired by the
-[Twitch](https://www.twitch.tv) chat experience to your server.  
-It offers seamless emote handling, Twitch clip searching, and other powerful features that enhance
-Discord interactions.  
-With built-in [DeepL Translation](https://www.deepl.com/en/products/translator), integration with
-[OpenAI's](https://openai.com) GPT models, Botge makes conversations more dynamic, engaging, and
-intelligent.
+Botge brings Twitch-style emotes to Discord, including search, composition, and zero-width overlays.
+It also supports Twitch clips, saved media and quotes, reminders, translation, and AI.
 
 ## Features
 
-- **Configuration**: Configure the bot to a streamer with Twitch username and [7TV](https://7tv.app)
-  emote set link.
-- **Emote Handling**: Search emotes from platforms: 7TV, [BTTV](https://betterttv.com),
-  [FFZ](https://www.frankerfacez.com) and [Twitch](https://www.twitch.tv), including using
-  overlaying (zero-width) emotes and [Discord emojis](https://github.com/jdecked/twemoji).\
-  It fetches global emotes and channel-specific emotes (if specified) from those platforms.
-- **Twitch Clip Search**: Search Twitch clips from the 1000 most viewed channel-specific clips.
-- **Add Emote**: Add an emote to the emote pool.
-- **Shortest unique substring**: Display the shortest unique substring for the specified emote(s)
-  compared to other emotes in the emote pool.
-- **ChatGPT Integration**: Interact with OpenAI's GPT models for generating responses.
-- **Translation**: Translate text to English using DeepL.
-- **Transient Messages**: Send messages that auto-delete after a specified duration.
-- **Find the emoji**: Generates an x by x grid where each element is a random, non-animated server
-  emoji hidden in a spoiler tag, with only a single occurrence of the specified emoji.
-- **Ping Me**: Pings you after a specified time, optionally with a message.
+- **Emotes:** `/emote` and `/emote-search` search 7TV, BTTV, FFZ, and Twitch. `/emote-compose`
+  combines emotes, emoji, and images, including animated and zero-width overlays.
+- **Emote tools:** `/emote-add` adds emotes; `/emote-shortcuts` finds the shortest text that
+  uniquely identifies each emote.
+- **Twitch clips:** `/clip` searches a configured channel's clips by title, creator, or category.
+- **Saved content:** `/media`, `/media-list`, `/quote`, and `/quote-list` save and retrieve named
+  media and quotes.
+- **Reminders:** `/remind` and `/reminders` schedule and manage pings; `/temporary` sends messages
+  that disappear after a chosen duration.
+- **AI and translation:** `/chatgpt` uses OpenAI; `/translate` translates text to English with
+  DeepL.
+- **Server tools:** `/emoji-hunt` creates an emoji search grid; `/settings` configures emote sets,
+  permissions, and personal emote borders.
 
-## Usage
+Message context menus support translation, AI explanations, and saving media or quotes. Optional
+Ollama chat uses conversation history in ChromaDB. See the [command guide](docs/COMMANDS.md) for all
+commands and configuration aliases.
 
-Usage of Botge is straightforward if you are familiar with Discord bot usage.
+## Run with Docker
+
+Before hosting, review [integration permissions and known gaps](docs/TERMS.md) and publish a
+[deployment-specific privacy notice](docs/PRIVACY.md). Public API access does not establish content
+or processing rights.
+
+For a Debian 13 host, the [Botge control guide](botge_control/README.md) sets up rootless Docker and
+restricted deployment access without cloning the repository.
+
+For a manual installation, install [Docker with Compose](https://docs.docker.com/compose/install/)
+and get the project files:
+
+```bash
+git clone https://github.com/MrewyOrg/Botge.git
+cd Botge
+cp .env.example .env
+cp botge.example.config.jsonc botge.config.json
+```
+
+### Set up Discord
+
+Create an application in the
+[Discord Developer Portal](https://discord.com/developers/applications):
+
+1. Copy its application ID and bot token into `APP_ID` and `DISCORD_TOKEN` in `.env`, replacing the
+   example values.
+2. Enable **Message Content Intent** on the application's Bot page. Botge requests this privileged
+   intent when connecting to Discord; see [Discord's intent documentation][discord-intents].
+3. Install the application to your server with the `bot` and `applications.commands` scopes. Grant
+   the channel permissions needed to view channels, send messages, embed links, attach files, and
+   read message history.
+
+### Start the bot
+
+The minimal stack runs the published Botge image and nginx, without the optional database services:
+
+```bash
+docker compose -f compose.minimal.yaml up -d
+docker compose -f compose.minimal.yaml logs -f botge
+```
+
+Botge registers the configured application commands on startup. Open `/settings` in Discord to
+choose the server's Twitch channel and emote sets. Server owners and administrators can configure
+settings access and emote-management permissions.
+
+To update or stop this stack:
+
+```bash
+docker compose -f compose.minimal.yaml pull
+docker compose -f compose.minimal.yaml up -d
+docker compose -f compose.minimal.yaml stop
+```
 
 ## Configuration
 
-Configure the bot in the `/settings` command.
+- **`.env`** holds credentials and optional integration settings. Start with
+  [.env.example](.env.example).
+- **`botge.config.json`** controls emote sources, enabled commands, and Ollama chat. Start with
+  [botge.example.config.jsonc](botge.example.config.jsonc); see the
+  [JSON schema](botge.config.schema.json) for options and defaults. Comments and trailing commas are
+  supported. All general boolean switches default to `false`; enable emote sources after reviewing
+  [TERMS.md](docs/TERMS.md). 7TV has separate global, personal, and added-emote switches; direct 7TV
+  URLs use the added-emote switch. See the [emote guide](src/emotes/README.md) for details. For
+  Ollama, uncomment and enable its example block, configure models and service URLs, and add Discord
+  channel IDs. Keep credentials in `.env`.
+- **`/settings`** controls server-specific emote sets and permissions, plus personal display
+  settings.
 
-## Documentation
+Recreate Botge after changing `.env` or `botge.config.json`:
 
-![Docker docks](docs/Docker.png) ![Git](docs/Git.png)
+```bash
+docker compose -f compose.minimal.yaml up -d --force-recreate botge
+```
 
-More documentation is available in the [docs](docs) folder.
+Remove unused commands from `general.activeSlashCommands` and `general.activeContextMenuCommands`;
+providing a command in these lists does not configure its integration automatically.
 
-## License
+### Optional integrations
 
-This project is licensed under the MIT License.
+| Feature                  | Configuration                                                |
+| ------------------------ | ------------------------------------------------------------ |
+| Twitch emotes and lookup | `TWITCH_CLIENT_ID` and `TWITCH_SECRET`.                      |
+| Twitch clip search       | Twitch credentials, Meilisearch, and `MEILI_MASTER_KEY`.     |
+| OpenAI responses         | `OPENAI_API_KEY`.                                            |
+| DeepL translation        | `DEEPL_API_KEY`.                                             |
+| Ollama chat              | `ollama.enabled`, an Ollama server and models, and ChromaDB. |
+
+API keys go in `.env`; Ollama options go in `botge.config.json`. For clip search, enable
+`general.updateClipsOnStartup` to refresh clips when Botge starts.
+
+The [full Compose stack](compose.yaml) builds Botge from source and includes nginx, Meilisearch, and
+ChromaDB. After configuring the integrations you want, start it instead of the minimal stack:
+
+```bash
+docker compose up -d --build
+```
+
+Ollama itself is hosted separately; it is not included in either Compose file.
+
+### Stored data
+
+Botge stores its SQLite databases and temporary files in the `botge-data` named volume, mounted at
+`/app/data`. The full stack also persists Meilisearch and ChromaDB in their own named volumes. The
+nginx cache lives in `nginx/cache` on the host.
+
+Both Compose files run Botge with a read-only root filesystem. `/app/data` stays writable for
+persistent state and rendering files; `/tmp` uses a separate temporary filesystem limited to 32 MiB.
+
+Keep backups of `.env`, `botge.config.json`, and persistent data. See the
+[import instructions](botge_control/README.md#import-an-existing-data-folder) when moving an
+existing data folder into an installation managed by Botge control.
+
+## Development
+
+Use the [VS Code dev container](.devcontainer/devcontainer.json), or install Node.js and npm
+versions matching [package.json](package.json). Prepare the configuration files as above. Docker is
+needed to run the Compose stack and integration tests. The Docker image supplies FFmpeg and FFprobe
+for emote rendering.
+
+```bash
+npm ci
+npm run check
+```
+
+`npm run check` runs type checks, ESLint, Knip, and local tests without credentials or external
+services. Run `npm run test:coverage` for coverage, including HTML at `coverage/index.html`. The
+coverage badge documents the enforced 80% per-file minimum for statements, branches, functions, and
+lines. Checks and CodeQL badges track push runs on `main`.
+
+See the [test guide](tests/README.md) for focused checks and the opt-in Compose suite, which starts
+a real bot. [GitHub workflows](.github/workflows/README.md) gate approved production deployments
+before merging `dev` into `main`. [Contributing](.github/CONTRIBUTING.md) covers Git hooks.
+
+These checks do not guarantee correctness. Use `npm audit` for dependency advisories. See
+[resource usage](docs/RESOURCE_USAGE.md) for runtime limits and [docs](docs) for architecture
+diagrams and the changelog.
+
+### Source layout
+
+`src/index.ts` calls the startup function in `src/application.ts`. The rest of the source is grouped
+by responsibility:
+
+| Directory           | Responsibility                                                     |
+| ------------------- | ------------------------------------------------------------------ |
+| `api/`              | External integrations grouped by provider, and shared URL caching. |
+| `bot/`              | Orchestration, service managers, command dispatch, and reminders.  |
+| `config/`           | Configuration loading and runtime directory paths.                 |
+| `database/`         | SQLite persistence.                                                |
+| `discord/`          | Guild/user models, permissions, and command registration.          |
+| `emotes/`           | Matching, asset conversion, provider URLs, and rendering helpers.  |
+| `handlers/`         | Discord command, interaction, and message event handlers.          |
+| `message-builders/` | Discord response builders.                                         |
+| `utils/`            | General-purpose helpers.                                           |
+
+Shared types live in `src/types.ts`. Helpers specific to a domain live alongside that domain.
+
+## Project information
+
+- [Privacy policy](docs/PRIVACY.md)
+- [Terms of service](docs/TERMS.md)
+- [Changelog](docs/CHANGELOG.md)
+- [Issue tracker](https://github.com/MrewyOrg/Botge/issues)
+
+Botge is licensed under the [MIT License](LICENSE.txt).
+
+Unicode emoji artwork comes from [Twemoji](https://github.com/jdecked/twemoji), licensed under
+[CC BY 4.0](https://creativecommons.org/licenses/by/4.0/). Botge can resize and combine the artwork;
+see the [attribution and hosting guidance](docs/TERMS.md#emotes-and-generated-images).
+
+[discord-intents]: https://docs.discord.com/developers/events/gateway#privileged-intents
