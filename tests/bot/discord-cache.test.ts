@@ -1,4 +1,5 @@
 import {
+  ActivityType,
   type CacheConstructors,
   type ClientUser,
   GatewayIntentBits,
@@ -13,6 +14,18 @@ import { expect, test } from 'vitest';
 
 import { createDiscordClient } from 'src/bot/create-discord-client.ts';
 import { requireValue } from 'src/utils/validation.ts';
+
+test('Discord starts with the Botge status and repository address', async () => {
+  const client = createDiscordClient();
+  try {
+    expect(client.options.presence?.status).toBe('online');
+    expect(client.options.presence?.activities).toMatchObject([
+      { type: ActivityType.Watching, name: 'https://github.com/MrewyOrg/Botge' }
+    ]);
+  } finally {
+    await client.destroy();
+  }
+});
 
 test('Discord requests voice state updates for voice connections', async () => {
   const client = createDiscordClient();

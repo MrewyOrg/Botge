@@ -8,7 +8,7 @@ import { botgeConfig } from '../../config/botge-config.ts';
 import { booleanToEnabled } from '../../discord/boolean-labels.ts';
 import type { Guild } from '../../discord/guild.ts';
 import { User } from '../../discord/user.ts';
-import { requestVoiceChannelJoin } from '../../discord/voice-channel.ts';
+import { requestVoiceChannelJoin, setVoiceChannelStatus } from '../../discord/voice-channel.ts';
 import type { PersonalEmoteSets } from '../../emotes/personal-emote-sets.ts';
 import {
   getBttvApiUrlFromBroadcasterName,
@@ -40,7 +40,9 @@ import {
   GUILD_ID_TEXT_INPUT_CUSTOM_ID,
   SEVEN_TV_TEXT_INPUT_CUSTOM_ID,
   VOICE_CHANNEL_SELECT_CUSTOM_ID,
-  VOICE_CHANNEL_SETTINGS_MODAL_CUSTOM_ID
+  VOICE_CHANNEL_SETTINGS_MODAL_CUSTOM_ID,
+  VOICE_STATUS_EMOJI_CUSTOM_ID,
+  VOICE_STATUS_ENABLED_CUSTOM_ID
 } from './component-ids.ts';
 import { canManageSettings } from './settings-permissions.ts';
 
@@ -116,22 +118,45 @@ export function modalSubmitHandler(
         const selection = interaction.fields.getField(VOICE_CHANNEL_SELECT_CUSTOM_ID);
         if (selection.type !== ComponentType.ChannelSelect)
           throw new Error('Expected a voice channel selection.');
+        const enabled = interaction.fields.getCheckbox(VOICE_STATUS_ENABLED_CUSTOM_ID);
+        const emoji = interaction.fields.getTextInputValue(VOICE_STATUS_EMOJI_CUSTOM_ID).trim();
+        if ((enabled || emoji !== '') && !/^<a?:\w{2,32}:\d{17,20}>$/u.test(emoji)) {
+          await interaction.editReply('Enter a custom emoji like `<:name:id>` to set the status.');
+          return;
+        }
+
         const [channelId] = selection.values;
         const { voiceChannelsDatabase } = databaseManager.databases;
+        const status = { enabled, emoji: emoji === '' ? null : emoji };
         if (channelId === undefined) {
-          voiceChannelsDatabase.clearChannelId(guild.id);
+          voiceChannelsDatabase.saveSettings(guild.id, undefined, status);
           getVoiceConnection(guild.id)?.destroy();
           await interaction.editReply('Voice channel cleared. Botge will stay disconnected.');
           return;
         }
 
         const channel = interactionGuild.channels.cache.get(channelId);
-        if (channel?.type !== ChannelType.GuildVoice || !channel.joinable) {
+        const alreadyJoined = interactionGuild.members.me?.voice.channelId === channelId;
+        if (channel?.type !== ChannelType.GuildVoice || (!alreadyJoined && !channel.joinable)) {
           await interaction.editReply('Botge cannot join that voice channel. Choose another one.');
           return;
         }
 
-        voiceChannelsDatabase.setChannelId(guild.id, channel.id);
+        voiceChannelsDatabase.saveSettings(guild.id, channelId, status);
+        if (alreadyJoined) {
+          try {
+            if (enabled) await setVoiceChannelStatus(interaction.client.rest, channelId, emoji);
+          } catch (error) {
+            logError(error, `Error setting voice channel status for guild ${guild.id}`);
+            await interaction.editReply(
+              'Settings saved, but Botge could not update the channel status.'
+            );
+            return;
+          }
+          await interaction.editReply('Voice channel settings saved.');
+          return;
+        }
+
         try {
           requestVoiceChannelJoin(channel);
         } catch (error) {

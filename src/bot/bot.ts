@@ -6,7 +6,7 @@ import { SLASH_COMMAND_NAMES } from '../discord/command-names.ts';
 import type { Guild } from '../discord/guild.ts';
 import { newGuild } from '../discord/new-guild.ts';
 import type { User } from '../discord/user.ts';
-import { requestVoiceChannelJoin } from '../discord/voice-channel.ts';
+import { requestVoiceChannelJoin, setVoiceChannelStatus } from '../discord/voice-channel.ts';
 import { emotesHandler } from '../handlers/commands/emote.ts';
 import { settingsHandler } from '../handlers/commands/settings.ts';
 import { autocompleteHandler } from '../handlers/interactions/autocomplete.ts';
@@ -107,6 +107,7 @@ export class Bot {
     this.#registerClientReadyListener();
     this.#registerMessageCreateListener();
     this.#registerInteractionCreateListener();
+    this.#registerVoiceStatusListener();
     this.#client.on(Events.GuildDelete, (guild: Readonly<{ id: string }>): void => {
       this.#releaseGuild(guild.id);
     });
@@ -120,9 +121,6 @@ export class Bot {
       for (const guild of [...this.#guilds]) {
         if (!this.#client.guilds.cache.has(guild.id)) this.#releaseGuild(guild.id);
       }
-
-      user.setStatus('online');
-      user.setPresence({ activities: [{ name: 'github.com/MrewyOrg/Botge', state: 'meow' }] });
 
       const { voiceChannelsDatabase } = this.#databaseManager.databases;
       for (const guild of this.#client.guilds.cache.values()) {
@@ -140,6 +138,33 @@ export class Bot {
 
       console.log(`Logged in as ${user.tag}!`);
     });
+  }
+
+  #registerVoiceStatusListener(): void {
+    this.#client.on(
+      Events.VoiceStateUpdate,
+      (
+        previous: Readonly<{ channelId: string | null }>,
+        current: Readonly<{ channelId: string | null; id: string; guild: Readonly<{ id: string }> }>
+      ): void => {
+        const { channelId, guild, id } = current;
+        if (id !== this.#client.user?.id || channelId === null || channelId === previous.channelId)
+          return;
+
+        const setStatus = async (): Promise<void> => {
+          const { voiceChannelsDatabase } = this.#databaseManager.databases;
+          if (voiceChannelsDatabase.getChannelId(guild.id) !== channelId) return;
+
+          const { enabled, emoji } = voiceChannelsDatabase.getStatusSettings(guild.id);
+          if (enabled && emoji !== null)
+            await setVoiceChannelStatus(this.#client.rest, channelId, emoji);
+        };
+
+        void setStatus().catch((error: unknown): void => {
+          logError(error, `Error setting voice channel status for guild ${guild.id}`);
+        });
+      }
+    );
   }
 
   async #getOrCreateGuild(guildId: string): Promise<Readonly<Guild>> {

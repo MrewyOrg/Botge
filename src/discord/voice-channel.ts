@@ -1,5 +1,5 @@
 import { getVoiceConnection, joinVoiceChannel, VoiceConnectionStatus } from '@discordjs/voice';
-import type { Guild } from 'discord.js';
+import { type Guild, type REST, Routes } from 'discord.js';
 
 import { logError } from '../utils/log-error.ts';
 
@@ -25,4 +25,12 @@ export function requestVoiceChannelJoin(
   }
 
   throw new Error('Discord gateway could not send the voice join request.');
+}
+
+export async function setVoiceChannelStatus(
+  rest: Readonly<Pick<REST, 'put'>>,
+  channelId: string,
+  emoji: string
+): Promise<void> {
+  await rest.put(Routes.channelVoiceStatus(channelId), { body: { status: emoji } });
 }

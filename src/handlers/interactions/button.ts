@@ -89,7 +89,9 @@ import {
   SEVEN_TV_TEXT_INPUT_CUSTOM_ID,
   VOICE_CHANNEL_SELECT_CUSTOM_ID,
   VOICE_CHANNEL_SETTINGS_BUTTON_CUSTOM_ID,
-  VOICE_CHANNEL_SETTINGS_MODAL_CUSTOM_ID
+  VOICE_CHANNEL_SETTINGS_MODAL_CUSTOM_ID,
+  VOICE_STATUS_EMOJI_CUSTOM_ID,
+  VOICE_STATUS_ENABLED_CUSTOM_ID
 } from './component-ids.ts';
 import { canManageSettings } from './settings-permissions.ts';
 
@@ -172,7 +174,9 @@ export function buttonHandler(
           .setRequired(false)
           .setMinValues(0)
           .setMaxValues(1);
-        const channelId = databaseManager.databases.voiceChannelsDatabase.getChannelId(guild.id);
+        const { voiceChannelsDatabase } = databaseManager.databases;
+        const channelId = voiceChannelsDatabase.getChannelId(guild.id);
+        const { enabled, emoji } = voiceChannelsDatabase.getStatusSettings(guild.id);
         if (
           channelId !== undefined
           && interaction.guild?.channels.cache.get(channelId)?.type === ChannelType.GuildVoice
@@ -183,10 +187,28 @@ export function buttonHandler(
           .setLabel('Voice channel')
           .setDescription('Choose where Botge joins. Save with no channel selected to disconnect.')
           .setChannelSelectMenuComponent(channelSelect);
+        const statusToggle = new LabelBuilder()
+          .setLabel('Set voice channel status')
+          .setDescription('Show the saved emoji as the channel status when Botge joins.')
+          .setCheckboxComponent(
+            new CheckboxBuilder().setCustomId(VOICE_STATUS_ENABLED_CUSTOM_ID).setDefault(enabled)
+          );
+        const emojiInput = new TextInputBuilder()
+          .setCustomId(VOICE_STATUS_EMOJI_CUSTOM_ID)
+          .setStyle(TextInputStyle.Short)
+          .setRequired(false)
+          .setMaxLength(57)
+          .setPlaceholder('<:name:id>');
+        if (emoji !== null) emojiInput.setValue(emoji);
+
+        const statusEmoji = new LabelBuilder()
+          .setLabel('Voice status emoji')
+          .setDescription('Paste a custom emoji from this server or the Botge application.')
+          .setTextInputComponent(emojiInput);
         const modal = new ModalBuilder()
           .setCustomId(VOICE_CHANNEL_SETTINGS_MODAL_CUSTOM_ID)
           .setTitle('Bot voice channel')
-          .addLabelComponents(label);
+          .addLabelComponents(label, statusToggle, statusEmoji);
 
         await interaction.showModal(modal);
         return undefined;

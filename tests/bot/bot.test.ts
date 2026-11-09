@@ -63,7 +63,11 @@ vi.mock('src/handlers/interactions/message-context-menu-command.ts', () => ({
 async function setup(
   guilds: readonly Readonly<Guild>[] = [],
   users: readonly Readonly<User>[] = [],
-  voiceChannelIds: Readonly<Record<string, string>> = {}
+  voiceChannelIds: Readonly<Record<string, string>> = {},
+  voiceStatus = { enabled: false, emoji: null } as Readonly<{
+    enabled: boolean;
+    emoji: string | null;
+  }>
 ): Promise<{
   readonly client: Client;
   readonly ready: () => void;
@@ -79,7 +83,12 @@ async function setup(
     new ApiManager(undefined, undefined, {} as Readonly<CachedUrl>, undefined, undefined),
     {
       mediaDatabase: {},
-      databases: { voiceChannelsDatabase: { getChannelId: (id: string) => voiceChannelIds[id] } }
+      databases: {
+        voiceChannelsDatabase: {
+          getChannelId: (id: string) => voiceChannelIds[id],
+          getStatusSettings: () => voiceStatus
+        }
+      }
     } as unknown as Readonly<DatabaseManager>,
     guilds,
     users
@@ -273,11 +282,7 @@ test('ready restores saved voice channels independently and skips unusable targe
     ['allowed', 'voice-5']
   ]);
   const target = await setup([], [], Object.fromEntries(saved));
-  target.client.user = {
-    tag: 'Test bot',
-    setStatus: vi.fn(),
-    setPresence: vi.fn()
-  } as unknown as ClientUser;
+  target.client.user = { tag: 'Test bot' } as unknown as ClientUser;
   const adapterCreator = vi.fn();
   for (const id of [...saved.keys(), 'no-selection']) {
     const guild = { id, voiceAdapterCreator: adapterCreator, channels: { cache: new Map() } };
@@ -305,7 +310,6 @@ test('ready restores saved voice channels independently and skips unusable targe
   const log = vi.spyOn(console, 'log').mockImplementation(() => undefined);
   try {
     target.ready();
-    expect(vi.spyOn(target.client.user, 'setStatus')).toHaveBeenCalledWith('online');
     expect(logError).toHaveBeenCalledWith(error, 'Error restoring voice channel for guild failed');
     expect(joinVoiceChannel).toHaveBeenCalledTimes(2);
     expect(joinVoiceChannel).toHaveBeenLastCalledWith({
@@ -380,11 +384,7 @@ test('ready events discard saved guild state for servers the bot no longer belon
   const dispose = vi.fn();
   const guild = { id: 'departed', personalEmoteStore: { dispose } } as unknown as Guild;
   const target = await setup([guild]);
-  target.client.user = {
-    tag: 'Test bot',
-    setStatus: vi.fn(),
-    setPresence: vi.fn()
-  } as unknown as ClientUser;
+  target.client.user = { tag: 'Test bot' } as unknown as ClientUser;
   const log = vi.spyOn(console, 'log').mockImplementation(() => undefined);
   try {
     target.ready();
@@ -394,3 +394,89 @@ test('ready events discard saved guild state for servers the bot no longer belon
     log.mockRestore();
   }
 });
+
+test.each([
+  {
+    name: 'joining the selected channel',
+    userId: 'bot',
+    previousChannelId: null,
+    channelId: 'voice',
+    update: true
+  },
+  {
+    name: 'switching to the selected channel',
+    userId: 'bot',
+    previousChannelId: 'other',
+    channelId: 'voice',
+    update: true
+  },
+  {
+    name: 'status disabled',
+    userId: 'bot',
+    previousChannelId: null,
+    channelId: 'voice',
+    update: false
+  },
+  {
+    name: 'another user joining',
+    userId: 'user',
+    previousChannelId: null,
+    channelId: 'voice',
+    update: false
+  },
+  {
+    name: 'joining a different channel',
+    userId: 'bot',
+    previousChannelId: null,
+    channelId: 'other',
+    update: false
+  },
+  {
+    name: 'leaving voice',
+    userId: 'bot',
+    previousChannelId: 'voice',
+    channelId: null,
+    update: false
+  },
+  {
+    name: 'changing mute state',
+    userId: 'bot',
+    previousChannelId: 'voice',
+    channelId: 'voice',
+    update: false
+  }
+] as const)(
+  'updates the voice status only on Botge joining its configured channel: $name',
+  async ({ name, userId, previousChannelId, channelId, update }) => {
+    const emoji = '<:test_emoji:123456789012345678>';
+    const { client } = await setup(
+      [],
+      [],
+      { guild: 'voice' },
+      { enabled: name !== 'status disabled', emoji }
+    );
+    client.user = { id: 'bot' } as ClientUser;
+    const error = new Error('Missing voice status permission');
+    const put = vi.spyOn(client.rest, 'put').mockRejectedValue(error);
+    const listener = client.listeners(Events.VoiceStateUpdate)[0] as (
+      before: unknown,
+      after: unknown
+    ) => void;
+
+    listener({ channelId: previousChannelId }, { channelId, id: userId, guild: { id: 'guild' } });
+
+    if (update) {
+      expect(put).toHaveBeenCalledExactlyOnceWith('/channels/voice/voice-status', {
+        body: { status: emoji }
+      });
+      await vi.waitFor(() => {
+        expect(logError).toHaveBeenCalledWith(
+          error,
+          'Error setting voice channel status for guild guild'
+        );
+      });
+    } else {
+      expect(put).not.toHaveBeenCalled();
+    }
+  }
+);

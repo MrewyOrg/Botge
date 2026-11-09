@@ -6,8 +6,9 @@
 [![CodeQL](https://github.com/MrewyOrg/Botge/actions/workflows/codeql.yml/badge.svg?branch=main&event=push)](https://github.com/MrewyOrg/Botge/actions/workflows/codeql.yml?query=branch%3Amain+event%3Apush)
 [![License](https://img.shields.io/github/license/MrewyOrg/Botge)](LICENSE.txt)
 
-Botge brings Twitch-style emotes to Discord, including search, composition, and zero-width overlays.
-It also supports Twitch clips, saved media and quotes, reminders, translation, and AI.
+Botge <img src="assets/botge-emoji.png" alt="Botge logo" width="14" height="14"> brings Twitch-style
+emotes to Discord, including search, composition, and zero-width overlays. It also supports Twitch
+clips, saved media and quotes, reminders, translation, and AI.
 
 ## Features
 
@@ -75,7 +76,9 @@ choose the server's Twitch channel and emote sets. Server owners and administrat
 settings access and emote-management permissions. Open **Bot voice channel** to choose a voice
 channel. Botge joins when you submit the selection and after each restart. Save with the selection
 empty to disconnect. Botge needs **View Channel** and **Connect** permissions in the selected
-channel.
+channel. To show a custom emoji as the channel status, enable **Set voice channel status** in the
+same picker and paste the emoji in `<:name:id>` format. Botge needs the **Voice Channel Status**
+permission. Turning the setting off keeps the saved emoji for later.
 
 To update or stop this stack:
 

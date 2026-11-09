@@ -37,7 +37,9 @@ import {
   SELECT_SETTINGS_PERMITTED_ROLES_ROLE_SELECT_MENU_CUSTOM_ID,
   VOICE_CHANNEL_SELECT_CUSTOM_ID,
   VOICE_CHANNEL_SETTINGS_BUTTON_CUSTOM_ID,
-  VOICE_CHANNEL_SETTINGS_MODAL_CUSTOM_ID
+  VOICE_CHANNEL_SETTINGS_MODAL_CUSTOM_ID,
+  VOICE_STATUS_EMOJI_CUSTOM_ID,
+  VOICE_STATUS_ENABLED_CUSTOM_ID
 } from 'src/handlers/interactions/component-ids.ts';
 import { modalSubmitHandler } from 'src/handlers/interactions/modal-submit.ts';
 import { roleSelectMenuHandler } from 'src/handlers/interactions/role-select-menu.ts';
@@ -544,6 +546,7 @@ test.each([false, true])(
   'voice settings open a clearable voice-only picker, saved channel exists: %s',
   async (exists) => {
     const channelId = '123456789012345678';
+    const emoji = '<:test_emoji:123456789012345678>';
     const base = makeInteraction(VOICE_CHANNEL_SETTINGS_BUTTON_CUSTOM_ID);
     const interaction = {
       ...base,
@@ -553,7 +556,14 @@ test.each([false, true])(
       }
     };
     const database = {
-      databases: { voiceChannelsDatabase: { getChannelId: vi.fn().mockReturnValue(channelId) } }
+      databases: {
+        voiceChannelsDatabase: {
+          getChannelId: vi.fn().mockReturnValue(channelId),
+          getStatusSettings: vi
+            .fn()
+            .mockReturnValue({ enabled: exists, emoji: exists ? emoji : null })
+        }
+      }
     } as unknown as Readonly<DatabaseManager>;
 
     await buttonHandler(
@@ -578,10 +588,13 @@ test.each([false, true])(
             max_values: 1,
             required: false
           }
-        }
+        },
+        { component: { custom_id: VOICE_STATUS_ENABLED_CUSTOM_ID, default: exists } },
+        { component: { custom_id: VOICE_STATUS_EMOJI_CUSTOM_ID, required: false } }
       ]
     });
     if (exists) {
+      expect(payload).toHaveProperty('components.2.component.value', emoji);
       expect(payload).toHaveProperty('components.0.component.default_values', [
         { id: channelId, type: 'channel' }
       ]);
@@ -600,17 +613,26 @@ test.each([
   'missing',
   'wrong type',
   'gateway failure',
-  'storage failure'
+  'storage failure',
+  'enable status',
+  'disable status',
+  'status request failure',
+  'invalid emoji',
+  'missing emoji'
 ])('voice settings validate and apply the selection: %s', async (scenario) => {
   const guild = makeGuild();
-  const setChannelId = vi.fn();
-  const clearChannelId = vi.fn();
+  const saveSettings = vi.fn();
+  const emoji = '<:test_emoji:123456789012345678>';
+  const enableStatus = scenario === 'enable status' || scenario === 'status request failure';
+  const alreadyJoined = enableStatus || scenario === 'disable status';
+  const put = vi.fn().mockResolvedValue(undefined);
+  if (scenario === 'status request failure') put.mockRejectedValue(new Error('Missing permission'));
   const destroy = vi.fn();
   const on = vi.fn();
   const rejoin = vi.fn<() => boolean>().mockReturnValue(true);
   const voiceAdapterCreator = vi.fn();
   const database = {
-    databases: { voiceChannelsDatabase: { setChannelId, clearChannelId } }
+    databases: { voiceChannelsDatabase: { saveSettings } }
   } as unknown as Readonly<DatabaseManager>;
   const connection = {
     destroy,
@@ -628,12 +650,17 @@ test.each([
     vi.mocked(getVoiceConnection).mockReturnValue(connection);
   vi.mocked(canManageSettings).mockResolvedValue(scenario !== 'denied');
   if (scenario === 'storage failure')
-    setChannelId.mockImplementationOnce(() => {
+    saveSettings.mockImplementationOnce(() => {
       throw new Error('Storage unavailable');
     });
 
   const base = makeInteraction(VOICE_CHANNEL_SETTINGS_MODAL_CUSTOM_ID);
-  const interactionGuild = { ...base.guild, voiceAdapterCreator, channels: { cache: new Map() } };
+  const interactionGuild = {
+    ...base.guild,
+    voiceAdapterCreator,
+    members: { me: { voice: { channelId: alreadyJoined ? 'voice' : null } } },
+    channels: { cache: new Map() }
+  };
   if (scenario !== 'missing') {
     interactionGuild.channels.cache.set('voice', {
       id: 'voice',
@@ -645,7 +672,14 @@ test.each([
   const interaction = {
     ...base,
     guild: interactionGuild,
+    client: { rest: { put } },
     fields: {
+      getCheckbox: vi.fn().mockReturnValue(enableStatus || scenario === 'missing emoji'),
+      getTextInputValue: vi.fn().mockReturnValue(
+        scenario === 'invalid emoji' ? ':emoji:'
+        : scenario === 'missing emoji' ? ''
+        : emoji
+      ),
       getField: vi
         .fn()
         .mockReturnValue({
@@ -665,15 +699,20 @@ test.each([
   )(interaction as unknown as ModalSubmitInteraction);
 
   if (scenario === 'clear') {
-    expect(clearChannelId).toHaveBeenCalledExactlyOnceWith('guild');
+    expect(saveSettings).toHaveBeenCalledExactlyOnceWith('guild', undefined, {
+      enabled: false,
+      emoji
+    });
     expect(destroy).toHaveBeenCalledOnce();
     expect(interaction.editReply).toHaveBeenCalledWith(expect.stringContaining('disconnected'));
   } else {
-    expect(clearChannelId).not.toHaveBeenCalled();
     expect(destroy).not.toHaveBeenCalled();
   }
   if (scenario === 'join' || scenario === 'switch' || scenario === 'gateway failure') {
-    expect(setChannelId).toHaveBeenCalledExactlyOnceWith('guild', 'voice');
+    expect(saveSettings).toHaveBeenCalledExactlyOnceWith('guild', 'voice', {
+      enabled: false,
+      emoji
+    });
     const voiceSettings = { channelId: 'voice', selfDeaf: false, selfMute: true };
     if (scenario === 'switch') {
       expect(rejoin).toHaveBeenCalledExactlyOnceWith(voiceSettings);
@@ -694,6 +733,21 @@ test.each([
     );
   } else {
     expect(joinVoiceChannel).not.toHaveBeenCalled();
-    expect(setChannelId).toHaveBeenCalledTimes(scenario === 'storage failure' ? 1 : 0);
+    if (alreadyJoined)
+      expect(saveSettings).toHaveBeenCalledExactlyOnceWith('guild', 'voice', {
+        enabled: enableStatus,
+        emoji
+      });
+    else
+      expect(saveSettings).toHaveBeenCalledTimes(
+        scenario === 'clear' || scenario === 'storage failure' ? 1 : 0
+      );
+  }
+  if (enableStatus) {
+    expect(put).toHaveBeenCalledExactlyOnceWith('/channels/voice/voice-status', {
+      body: { status: emoji }
+    });
+  } else {
+    expect(put).not.toHaveBeenCalled();
   }
 });
