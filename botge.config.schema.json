@@ -20,11 +20,6 @@
           "default": false,
           "description": "Refresh Twitch clips on startup instead of refreshing creator names and game IDs."
         },
-        "joinVoiceChannels": {
-          "type": "boolean",
-          "default": false,
-          "description": "Join the configured voice channel when the bot becomes ready."
-        },
         "autoCompleteOnly7TVPersonal": {
           "type": "boolean",
           "default": false,

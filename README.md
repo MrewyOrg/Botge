@@ -63,23 +63,26 @@ Create an application in the
 
 ### Start the bot
 
-The minimal stack runs the published Botge image and nginx, without the optional database services:
+The default stack runs the published Botge image and nginx:
 
 ```bash
-docker compose -f compose.minimal.yaml up -d
-docker compose -f compose.minimal.yaml logs -f botge
+docker compose up -d
+docker compose logs -f botge
 ```
 
 Botge registers the configured application commands on startup. Open `/settings` in Discord to
 choose the server's Twitch channel and emote sets. Server owners and administrators can configure
-settings access and emote-management permissions.
+settings access and emote-management permissions. Open **Bot voice channel** to choose a voice
+channel. Botge joins when you submit the selection and after each restart. Save with the selection
+empty to disconnect. Botge needs **View Channel** and **Connect** permissions in the selected
+channel.
 
 To update or stop this stack:
 
 ```bash
-docker compose -f compose.minimal.yaml pull
-docker compose -f compose.minimal.yaml up -d
-docker compose -f compose.minimal.yaml stop
+docker compose pull
+docker compose up -d
+docker compose stop
 ```
 
 ## Configuration
@@ -94,13 +97,14 @@ docker compose -f compose.minimal.yaml stop
   URLs use the added-emote switch. See the [emote guide](src/emotes/README.md) for details. For
   Ollama, uncomment and enable its example block, configure models and service URLs, and add Discord
   channel IDs. Keep credentials in `.env`.
-- **`/settings`** controls server-specific emote sets and permissions, plus personal display
-  settings.
+- **`/settings`** controls server-specific emote sets, permissions, and voice channel, plus personal
+  display settings. If you previously used `general.joinVoiceChannels`, remove it from
+  `botge.config.json` and choose the channel in Discord.
 
 Recreate Botge after changing `.env` or `botge.config.json`:
 
 ```bash
-docker compose -f compose.minimal.yaml up -d --force-recreate botge
+docker compose up -d --force-recreate botge
 ```
 
 Remove unused commands from `general.activeSlashCommands` and `general.activeContextMenuCommands`;
@@ -119,14 +123,26 @@ providing a command in these lists does not configure its integration automatica
 API keys go in `.env`; Ollama options go in `botge.config.json`. For clip search, enable
 `general.updateClipsOnStartup` to refresh clips when Botge starts.
 
-The [full Compose stack](compose.yaml) builds Botge from source and includes nginx, Meilisearch, and
-ChromaDB. After configuring the integrations you want, start it instead of the minimal stack:
+The [full Compose stack](compose.full.yaml) runs the published Botge image alongside nginx,
+Meilisearch, and ChromaDB. After configuring the integrations you want, start the full stack:
 
 ```bash
-docker compose up -d --build
+docker compose -f compose.full.yaml up -d
 ```
 
-Ollama itself is hosted separately; it is not included in either Compose file.
+To return to the default stack, run `docker compose up -d --remove-orphans`. This removes the
+optional service containers and keeps their named volumes. Ollama runs separately.
+
+### Build Botge locally
+
+Add [`compose.build.yaml`](compose.build.yaml) after the stack file to build from the repository:
+
+```bash
+docker compose -f compose.yaml -f compose.build.yaml up -d --build
+```
+
+Use `compose.full.yaml` as the first file to build locally with Meilisearch and ChromaDB. Leave out
+the build override to use the published image.
 
 ### Stored data
 
@@ -134,8 +150,8 @@ Botge stores its SQLite databases and temporary files in the `botge-data` named 
 `/app/data`. The full stack also persists Meilisearch and ChromaDB in their own named volumes. The
 nginx cache lives in `nginx/cache` on the host.
 
-Both Compose files run Botge with a read-only root filesystem. `/app/data` stays writable for
-persistent state and rendering files; `/tmp` uses a separate temporary filesystem limited to 32 MiB.
+Both stacks run Botge with a read-only root filesystem. `/app/data` stays writable for persistent
+state and rendering files; `/tmp` uses a separate temporary filesystem limited to 32 MiB.
 
 Keep backups of `.env`, `botge.config.json`, and persistent data. See the
 [import instructions](botge_control/README.md#import-an-existing-data-folder) when moving an

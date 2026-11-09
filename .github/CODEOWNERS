@@ -1,6 +1,8 @@
 * @Mrewy
 
 /compose.yaml @Mrewy @gentlebob
+/compose.build.yaml @Mrewy @gentlebob
+/compose.full.yaml @Mrewy @gentlebob
 /src/index.ts @Mrewy @gentlebob
 /src/bot/bot.ts @Mrewy @gentlebob
 

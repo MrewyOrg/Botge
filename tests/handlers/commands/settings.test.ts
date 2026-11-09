@@ -4,6 +4,7 @@ import { beforeEach, expect, test, vi } from 'vitest';
 import type { Guild } from 'src/discord/guild.ts';
 import { globalAdministrator, owner, permitted } from 'src/discord/permissions.ts';
 import { settingsHandler } from 'src/handlers/commands/settings.ts';
+import { VOICE_CHANNEL_SETTINGS_BUTTON_CUSTOM_ID } from 'src/handlers/interactions/component-ids.ts';
 
 vi.mock('src/discord/permissions.ts', () => ({
   globalAdministrator: vi.fn(),
@@ -42,10 +43,15 @@ test.each(['owner', 'administrator', 'role', 'none', 'direct'])(
       'components.length',
       permission === 'none' || permission === 'direct' ? 1 : 2
     );
-    if (permission !== 'none' && permission !== 'direct')
+    if (permission !== 'none' && permission !== 'direct') {
+      expect(payload).toHaveProperty(
+        'components.1.components.1.data.custom_id',
+        VOICE_CHANNEL_SETTINGS_BUTTON_CUSTOM_ID
+      );
       expect(payload).toHaveProperty(
         'components.0.components.length',
         permission === 'role' ? 3 : 5
       );
+    }
   }
 );

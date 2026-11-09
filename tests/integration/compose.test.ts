@@ -22,7 +22,12 @@ describe.runIf(process.env['BOTGE_TEST_COMPOSE'] === 'true')('Compose integratio
       override,
       JSON.stringify({ services: { nginx: { volumes: [`${directory}/cache:/var/www/cache:rw`] } } })
     );
-    environment = await new DockerComposeEnvironment('.', ['compose.yaml', override])
+    environment = await new DockerComposeEnvironment('.', [
+      'compose.full.yaml',
+      'compose.build.yaml',
+      override
+    ])
+      .withBuild()
       .withProjectName(`botge-test-${randomUUID()}`)
       .withWaitStrategy('botge-1', Wait.forLogMessage(/Logged in as/u))
       .up();

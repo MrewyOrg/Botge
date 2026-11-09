@@ -27,7 +27,8 @@ translation, and optional AI integrations. Read [README.md](README.md) for setup
 - `src/utils/`: general-purpose helpers; `src/types.ts`: shared types.
 - `tests/`: Vitest suites grouped by subsystem; see [the test guide](tests/README.md). The opt-in
   Docker Compose suite lives in `tests/integration/`.
-- `compose.yaml`, `compose.minimal.yaml`, `Dockerfile`, and `nginx/`: container runtime setup.
+- `compose.yaml` and `compose.full.yaml`: container stacks. `compose.build.yaml` opts into a local
+  build with the `Dockerfile`; nginx configuration lives in `nginx/`.
 - `botge_control/` and `scripts/botge-control`: Linux deployment and control tooling. Read
   [the control guide](botge_control/README.md) before changing this tooling.
 

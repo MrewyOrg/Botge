@@ -45,8 +45,7 @@ vi.mock('src/config/botge-config.ts', () => ({
       useBTTVEmotes: true,
       useFFZEmotes: true,
       useTwitchEmotes: true,
-      updateClipsOnStartup: true,
-      joinVoiceChannels: false
+      updateClipsOnStartup: true
     }
   }
 }));
@@ -181,6 +180,7 @@ test('startup restores settings, registers commands, logs in, and schedules main
   expect(state.login).toHaveBeenCalledWith('test-value');
   expect(state.register).toHaveBeenCalledOnce();
   expect(state.createBot).toHaveBeenCalledOnce();
+  expect(state.listeners).toHaveBeenCalledExactlyOnceWith();
   expect(process.env['DISCORD_TOKEN']).toBeUndefined();
   expect(process.env['OPENAI_API_KEY']).toBeUndefined();
   expect(state.schedule).toHaveBeenCalledTimes(5);

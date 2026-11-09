@@ -150,8 +150,9 @@ URLs, identifiers, content fragments, and diagnostic details. nginx access logs 
 requested paths and network addresses. Container log rotation is a size limit, not a guaranteed
 time-based retention period. Hosting services and backups can keep other copies.
 
-The optional voice-channel join is self-muted and self-deafened; current code does not implement
-voice recording, transcription, or voice-model processing.
+If voice is enabled through `/settings`, Botge stores the server and voice channel IDs in its local
+SQLite database so it can rejoin on startup. Clearing the selection removes the active record. Botge
+joins self-muted and does not record, transcribe, or process voice.
 
 Deleting a saved record removes the active database entry, not necessarily every recoverable
 database page, backup, posted message, or third-party copy. `/temporary` attempts to delete its bot

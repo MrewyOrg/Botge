@@ -42,7 +42,7 @@
     "markdownlint": "markdownlint-cli2 \"**/*.md\" \"#node_modules\"",
     "prepare": "node .husky/install.ts",
     "prettier": "prettier . --write",
-    "start": "docker image prune --force && docker compose up --build",
+    "start": "docker image prune --force && docker compose -f compose.yaml -f compose.build.yaml up --build",
     "stop": "docker compose stop",
     "test": "vitest",
     "test:coverage": "vitest run --coverage",

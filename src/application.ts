@@ -232,7 +232,7 @@ export async function startApplication(): Promise<void> {
 
     Bot.createInstance(client, apiManager, databaseManager, guilds, users);
     const bot = Bot.instance;
-    bot.registerListeners(botgeConfig.general.joinVoiceChannels);
+    bot.registerListeners();
     await updateCommands(
       COMMANDS_PATH,
       botgeConfig.general.activeSlashCommands,

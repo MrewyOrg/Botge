@@ -1,4 +1,5 @@
-import { MessageFlags, type ModalSubmitInteraction } from 'discord.js';
+import { getVoiceConnection } from '@discordjs/voice';
+import { ChannelType, ComponentType, MessageFlags, type ModalSubmitInteraction } from 'discord.js';
 
 import type { ApiManager } from '../../bot/api-manager.ts';
 import type { DatabaseManager } from '../../bot/database-manager.ts';
@@ -7,6 +8,7 @@ import { botgeConfig } from '../../config/botge-config.ts';
 import { booleanToEnabled } from '../../discord/boolean-labels.ts';
 import type { Guild } from '../../discord/guild.ts';
 import { User } from '../../discord/user.ts';
+import { requestVoiceChannelJoin } from '../../discord/voice-channel.ts';
 import type { PersonalEmoteSets } from '../../emotes/personal-emote-sets.ts';
 import {
   getBttvApiUrlFromBroadcasterName,
@@ -36,7 +38,9 @@ import {
   EMOTE_BORDER_CONFIGURATION_MODAL_CUSTOM_ID,
   EMOTE_BORDER_ENABLED_CHECKBOX_CUSTOM_ID,
   GUILD_ID_TEXT_INPUT_CUSTOM_ID,
-  SEVEN_TV_TEXT_INPUT_CUSTOM_ID
+  SEVEN_TV_TEXT_INPUT_CUSTOM_ID,
+  VOICE_CHANNEL_SELECT_CUSTOM_ID,
+  VOICE_CHANNEL_SETTINGS_MODAL_CUSTOM_ID
 } from './component-ids.ts';
 import { canManageSettings } from './settings-permissions.ts';
 
@@ -55,6 +59,7 @@ export function modalSubmitHandler(
         customId === ASSIGN_EMOTE_SETS_MODAL_CUSTOM_ID
         || customId === ASSIGN_GUILD_MODAL_CUSTOM_ID
         || customId === EMOTE_BORDER_CONFIGURATION_MODAL_CUSTOM_ID
+        || customId === VOICE_CHANNEL_SETTINGS_MODAL_CUSTOM_ID
       ) ?
         interaction.deferReply({ flags: MessageFlags.Ephemeral })
       : undefined;
@@ -93,6 +98,50 @@ export function modalSubmitHandler(
         users.push(user);
         await deferReply;
         await interaction.editReply('Changed guild.');
+        return;
+      }
+
+      if (customId === VOICE_CHANNEL_SETTINGS_MODAL_CUSTOM_ID) {
+        await deferReply;
+        const interactionGuild = interaction.guild;
+        if (
+          guild === undefined
+          || interactionGuild === null
+          || !(await canManageSettings(interaction, guild))
+        ) {
+          await interaction.editReply('You do not have permission to change these settings.');
+          return;
+        }
+
+        const selection = interaction.fields.getField(VOICE_CHANNEL_SELECT_CUSTOM_ID);
+        if (selection.type !== ComponentType.ChannelSelect)
+          throw new Error('Expected a voice channel selection.');
+        const [channelId] = selection.values;
+        const { voiceChannelsDatabase } = databaseManager.databases;
+        if (channelId === undefined) {
+          voiceChannelsDatabase.clearChannelId(guild.id);
+          getVoiceConnection(guild.id)?.destroy();
+          await interaction.editReply('Voice channel cleared. Botge will stay disconnected.');
+          return;
+        }
+
+        const channel = interactionGuild.channels.cache.get(channelId);
+        if (channel?.type !== ChannelType.GuildVoice || !channel.joinable) {
+          await interaction.editReply('Botge cannot join that voice channel. Choose another one.');
+          return;
+        }
+
+        voiceChannelsDatabase.setChannelId(guild.id, channel.id);
+        try {
+          requestVoiceChannelJoin(channel);
+        } catch (error) {
+          logError(error, `Error joining voice channel for guild ${guild.id}`);
+          await interaction.editReply(
+            `Saved <#${channel.id}>, but Botge could not join it now. It will try again on startup.`
+          );
+          return;
+        }
+        await interaction.editReply(`Saved <#${channel.id}> as Botge’s voice channel.`);
         return;
       }
 

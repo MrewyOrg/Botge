@@ -16,6 +16,7 @@ import { PermittedRoleIdsDatabase } from 'src/database/permitted-role-ids-databa
 import { PingsDatabase } from 'src/database/pings-database.ts';
 import { QuotesDatabase } from 'src/database/quotes-database.ts';
 import { UsersDatabase } from 'src/database/users-database.ts';
+import { VoiceChannelsDatabase } from 'src/database/voice-channels-database.ts';
 import type { Ping } from 'src/types.ts';
 import { requireValue } from 'src/utils/validation.ts';
 
@@ -228,6 +229,34 @@ test('the registry opens every database with the existing filenames and the mana
     const reopened = new UsersDatabase(join(directory, 'new-directory', 'users.sqlite'));
     try {
       expect(reopened.getUser('user')?.guildId).toBe('guild');
+    } finally {
+      reopened.close();
+    }
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
+test('voice channels persist by guild and clearing one leaves the others intact', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'botge-voice-'));
+  const path = join(directory, 'voiceChannels.sqlite');
+  try {
+    const database = new VoiceChannelsDatabase(path);
+    try {
+      expect(database.getChannelId('first')).toBeUndefined();
+      database.setChannelId('first', 'original');
+      database.setChannelId('second', 'other');
+      database.setChannelId('first', 'replacement');
+    } finally {
+      database.close();
+    }
+
+    const reopened = new VoiceChannelsDatabase(path);
+    try {
+      expect(reopened.getChannelId('first')).toBe('replacement');
+      reopened.clearChannelId('first');
+      expect(reopened.getChannelId('first')).toBeUndefined();
+      expect(reopened.getChannelId('second')).toBe('other');
     } finally {
       reopened.close();
     }

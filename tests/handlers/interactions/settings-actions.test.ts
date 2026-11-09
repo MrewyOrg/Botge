@@ -1,8 +1,12 @@
+import { getVoiceConnection, joinVoiceChannel, VoiceConnectionStatus } from '@discordjs/voice';
 import {
   type ButtonInteraction,
+  ChannelType,
   type ChatInputCommandInteraction,
   type Client,
+  ComponentType,
   MessageFlags,
+  ModalBuilder,
   type ModalSubmitInteraction,
   type RoleSelectMenuInteraction
 } from 'discord.js';
@@ -30,7 +34,10 @@ import {
   ASSIGN_GUILD_MODAL_CUSTOM_ID,
   EMOTE_BORDER_CONFIGURATION_MODAL_CUSTOM_ID,
   SELECT_ADD_EMOTE_PERMITTED_ROLES_ROLE_SELECT_MENU_CUSTOM_ID,
-  SELECT_SETTINGS_PERMITTED_ROLES_ROLE_SELECT_MENU_CUSTOM_ID
+  SELECT_SETTINGS_PERMITTED_ROLES_ROLE_SELECT_MENU_CUSTOM_ID,
+  VOICE_CHANNEL_SELECT_CUSTOM_ID,
+  VOICE_CHANNEL_SETTINGS_BUTTON_CUSTOM_ID,
+  VOICE_CHANNEL_SETTINGS_MODAL_CUSTOM_ID
 } from 'src/handlers/interactions/component-ids.ts';
 import { modalSubmitHandler } from 'src/handlers/interactions/modal-submit.ts';
 import { roleSelectMenuHandler } from 'src/handlers/interactions/role-select-menu.ts';
@@ -54,6 +61,11 @@ const providerSettings = vi.hoisted(() => ({
   useBTTVEmotes: true,
   useFFZEmotes: true,
   useTwitchEmotes: true
+}));
+vi.mock(import('@discordjs/voice'), async (importOriginal) => ({
+  ...(await importOriginal()),
+  getVoiceConnection: vi.fn(),
+  joinVoiceChannel: vi.fn()
 }));
 vi.mock('src/config/botge-config.ts', () => ({ botgeConfig: { general: providerSettings } }));
 
@@ -124,25 +136,26 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-test.each([ALLOW_EVERYONE_TO_ADD_EMOTE_BUTTON_CUSTOM_ID, CONFIGURATION_GUILD_BUTTON_CUSTOM_ID])(
-  'stale settings buttons cannot change settings: %s',
-  async (customId) => {
-    const guild = makeGuild();
-    const write = vi.fn();
-    const interaction = makeInteraction(customId);
-    vi.mocked(canManageSettings).mockResolvedValue(false);
-    await buttonHandler({} as Client, guild, undefined, new MessageBuilderManager(), {
-      permittedRoleIdsDatabase: { changeAllowEveryoneToAddEmote: write }
-    } as unknown as Readonly<DatabaseManager>)(interaction as unknown as ButtonInteraction);
-    expect(write).not.toHaveBeenCalled();
-    expect(guild.allowEveryoneToAddEmote).toBe(false);
-    expect(interaction.reply).toHaveBeenCalledWith({
-      content: 'You do not have permission to change these settings.',
-      flags: MessageFlags.Ephemeral
-    });
-    expect(interaction.showModal).not.toHaveBeenCalled();
-  }
-);
+test.each([
+  ALLOW_EVERYONE_TO_ADD_EMOTE_BUTTON_CUSTOM_ID,
+  CONFIGURATION_GUILD_BUTTON_CUSTOM_ID,
+  VOICE_CHANNEL_SETTINGS_BUTTON_CUSTOM_ID
+])('stale settings buttons cannot change settings: %s', async (customId) => {
+  const guild = makeGuild();
+  const write = vi.fn();
+  const interaction = makeInteraction(customId);
+  vi.mocked(canManageSettings).mockResolvedValue(false);
+  await buttonHandler({} as Client, guild, undefined, new MessageBuilderManager(), {
+    permittedRoleIdsDatabase: { changeAllowEveryoneToAddEmote: write }
+  } as unknown as Readonly<DatabaseManager>)(interaction as unknown as ButtonInteraction);
+  expect(write).not.toHaveBeenCalled();
+  expect(guild.allowEveryoneToAddEmote).toBe(false);
+  expect(interaction.reply).toHaveBeenCalledWith({
+    content: 'You do not have permission to change these settings.',
+    flags: MessageFlags.Ephemeral
+  });
+  expect(interaction.showModal).not.toHaveBeenCalled();
+});
 
 test.each([false, true])(
   'settings are persisted before changing live permissions, write fails: %s',
@@ -526,3 +539,161 @@ test.each([CONFIGURATION_USER_BUTTON_CUSTOM_ID, EMOTE_BORDER_CONFIGURATION_BUTTO
     expect(interaction.showModal).toHaveBeenCalledOnce();
   }
 );
+
+test.each([false, true])(
+  'voice settings open a clearable voice-only picker, saved channel exists: %s',
+  async (exists) => {
+    const channelId = '123456789012345678';
+    const base = makeInteraction(VOICE_CHANNEL_SETTINGS_BUTTON_CUSTOM_ID);
+    const interaction = {
+      ...base,
+      guild: {
+        ...base.guild,
+        channels: { cache: new Map(exists ? [[channelId, { type: ChannelType.GuildVoice }]] : []) }
+      }
+    };
+    const database = {
+      databases: { voiceChannelsDatabase: { getChannelId: vi.fn().mockReturnValue(channelId) } }
+    } as unknown as Readonly<DatabaseManager>;
+
+    await buttonHandler(
+      {} as Client,
+      makeGuild(),
+      undefined,
+      new MessageBuilderManager(),
+      database
+    )(interaction as unknown as ButtonInteraction);
+
+    const modal: unknown = interaction.showModal.mock.calls[0]?.[0];
+    if (!(modal instanceof ModalBuilder)) throw new Error('Expected a voice channel modal.');
+    const payload = modal.toJSON();
+    expect(payload).toMatchObject({
+      custom_id: VOICE_CHANNEL_SETTINGS_MODAL_CUSTOM_ID,
+      components: [
+        {
+          component: {
+            custom_id: VOICE_CHANNEL_SELECT_CUSTOM_ID,
+            channel_types: [ChannelType.GuildVoice],
+            min_values: 0,
+            max_values: 1,
+            required: false
+          }
+        }
+      ]
+    });
+    if (exists) {
+      expect(payload).toHaveProperty('components.0.component.default_values', [
+        { id: channelId, type: 'channel' }
+      ]);
+    } else {
+      expect(payload).not.toHaveProperty('components.0.component.default_values');
+    }
+  }
+);
+
+test.each([
+  'join',
+  'switch',
+  'clear',
+  'denied',
+  'unavailable',
+  'missing',
+  'wrong type',
+  'gateway failure',
+  'storage failure'
+])('voice settings validate and apply the selection: %s', async (scenario) => {
+  const guild = makeGuild();
+  const setChannelId = vi.fn();
+  const clearChannelId = vi.fn();
+  const destroy = vi.fn();
+  const on = vi.fn();
+  const rejoin = vi.fn<() => boolean>().mockReturnValue(true);
+  const voiceAdapterCreator = vi.fn();
+  const database = {
+    databases: { voiceChannelsDatabase: { setChannelId, clearChannelId } }
+  } as unknown as Readonly<DatabaseManager>;
+  const connection = {
+    destroy,
+    on,
+    rejoin,
+    state: {
+      status:
+        scenario === 'gateway failure' ?
+          VoiceConnectionStatus.Disconnected
+        : VoiceConnectionStatus.Signalling
+    }
+  } as unknown as ReturnType<typeof joinVoiceChannel>;
+  vi.mocked(joinVoiceChannel).mockReturnValue(connection);
+  if (scenario === 'clear' || scenario === 'switch')
+    vi.mocked(getVoiceConnection).mockReturnValue(connection);
+  vi.mocked(canManageSettings).mockResolvedValue(scenario !== 'denied');
+  if (scenario === 'storage failure')
+    setChannelId.mockImplementationOnce(() => {
+      throw new Error('Storage unavailable');
+    });
+
+  const base = makeInteraction(VOICE_CHANNEL_SETTINGS_MODAL_CUSTOM_ID);
+  const interactionGuild = { ...base.guild, voiceAdapterCreator, channels: { cache: new Map() } };
+  if (scenario !== 'missing') {
+    interactionGuild.channels.cache.set('voice', {
+      id: 'voice',
+      type: scenario === 'wrong type' ? ChannelType.GuildText : ChannelType.GuildVoice,
+      joinable: scenario !== 'unavailable',
+      guild: interactionGuild
+    });
+  }
+  const interaction = {
+    ...base,
+    guild: interactionGuild,
+    fields: {
+      getField: vi
+        .fn()
+        .mockReturnValue({
+          type: ComponentType.ChannelSelect,
+          values: scenario === 'clear' ? [] : ['voice']
+        })
+    }
+  };
+
+  await modalSubmitHandler(
+    [guild],
+    [],
+    guild,
+    new MessageBuilderManager(),
+    database,
+    {} as Readonly<ApiManager>
+  )(interaction as unknown as ModalSubmitInteraction);
+
+  if (scenario === 'clear') {
+    expect(clearChannelId).toHaveBeenCalledExactlyOnceWith('guild');
+    expect(destroy).toHaveBeenCalledOnce();
+    expect(interaction.editReply).toHaveBeenCalledWith(expect.stringContaining('disconnected'));
+  } else {
+    expect(clearChannelId).not.toHaveBeenCalled();
+    expect(destroy).not.toHaveBeenCalled();
+  }
+  if (scenario === 'join' || scenario === 'switch' || scenario === 'gateway failure') {
+    expect(setChannelId).toHaveBeenCalledExactlyOnceWith('guild', 'voice');
+    const voiceSettings = { channelId: 'voice', selfDeaf: false, selfMute: true };
+    if (scenario === 'switch') {
+      expect(rejoin).toHaveBeenCalledExactlyOnceWith(voiceSettings);
+      expect(joinVoiceChannel).not.toHaveBeenCalled();
+      expect(on).not.toHaveBeenCalled();
+    } else {
+      expect(joinVoiceChannel).toHaveBeenCalledExactlyOnceWith({
+        ...voiceSettings,
+        guildId: 'guild',
+        adapterCreator: voiceAdapterCreator
+      });
+      expect(on).toHaveBeenCalledOnce();
+    }
+    expect(interaction.editReply).toHaveBeenCalledWith(
+      expect.stringContaining(
+        scenario === 'gateway failure' ? 'try again on startup' : 'Saved <#voice>'
+      )
+    );
+  } else {
+    expect(joinVoiceChannel).not.toHaveBeenCalled();
+    expect(setChannelId).toHaveBeenCalledTimes(scenario === 'storage failure' ? 1 : 0);
+  }
+});

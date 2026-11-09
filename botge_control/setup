@@ -57,7 +57,7 @@ for file in \
   botge_control/systemd/botge_control.socket \
   botge_control/systemd/botge_control@.service \
   scripts/botge-control \
-  compose.minimal.yaml \
+  compose.yaml \
   botge.example.config.jsonc \
   .env.example \
   nginx/botge-nginx.conf; do
@@ -235,7 +235,7 @@ install_application_file() {
   fi
 }
 
-install_application_file compose.minimal.yaml "$BOTGE_DIR/compose.yaml" 600
+install_application_file compose.yaml "$BOTGE_DIR/compose.yaml" 600
 install_application_file botge.example.config.jsonc "$BOTGE_DIR/botge.config.json" 644
 install_application_file .env.example "$BOTGE_DIR/.env" 600
 install_application_file nginx/botge-nginx.conf "$BOTGE_DIR/nginx/botge-nginx.conf" 644

@@ -9,6 +9,10 @@ export const BROADCASTER_NAME_TEXT_INPUT_CUSTOM_ID = 'broadcasterNameTextInput' 
 export const SEVEN_TV_TEXT_INPUT_CUSTOM_ID = 'sevenTVTextInput' as const;
 export const GUILD_ID_TEXT_INPUT_CUSTOM_ID = 'guildIdTextInput' as const;
 
+export const VOICE_CHANNEL_SETTINGS_BUTTON_CUSTOM_ID = 'voiceChannelSettingsButton';
+export const VOICE_CHANNEL_SETTINGS_MODAL_CUSTOM_ID = 'voiceChannelSettingsModal';
+export const VOICE_CHANNEL_SELECT_CUSTOM_ID = 'voiceChannelSelect';
+
 export const EMOTE_BORDER_CONFIGURATION_MODAL_CUSTOM_ID = 'emoteBorderConfigurationModal' as const;
 export const EMOTE_BORDER_ENABLED_CHECKBOX_CUSTOM_ID = 'emoteBorderEnabledCheckbox' as const;
 export const EMOTE_BORDER_COLOR_TEXT_INPUT_CUSTOM_ID = 'emoteBorderColorTextInput' as const;

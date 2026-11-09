@@ -1,8 +1,10 @@
 import {
   type CacheConstructors,
   type ClientUser,
+  GatewayIntentBits,
   GuildMember,
   GuildMemberManager,
+  IntentsBitField,
   Message,
   MessageManager,
   type User
@@ -11,6 +13,17 @@ import { expect, test } from 'vitest';
 
 import { createDiscordClient } from 'src/bot/create-discord-client.ts';
 import { requireValue } from 'src/utils/validation.ts';
+
+test('Discord requests voice state updates for voice connections', async () => {
+  const client = createDiscordClient();
+  try {
+    expect(
+      new IntentsBitField(client.options.intents).has(GatewayIntentBits.GuildVoiceStates)
+    ).toBe(true);
+  } finally {
+    await client.destroy();
+  }
+});
 
 test('Discord caches bound members and users and retain no message history', async () => {
   const client = createDiscordClient();

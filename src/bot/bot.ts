@@ -1,12 +1,12 @@
-import { joinVoiceChannel } from '@discordjs/voice';
-import { type Client, type ClientEvents, Events } from 'discord.js';
+import { ChannelType, type Client, type ClientEvents, Events } from 'discord.js';
 import { once } from 'helpful-decorators';
 import type { Job } from 'node-schedule';
 
 import { SLASH_COMMAND_NAMES } from '../discord/command-names.ts';
-import { GENERAL_CHANNEL_ID_CUTEDOG, type Guild } from '../discord/guild.ts';
+import type { Guild } from '../discord/guild.ts';
 import { newGuild } from '../discord/new-guild.ts';
 import type { User } from '../discord/user.ts';
+import { requestVoiceChannelJoin } from '../discord/voice-channel.ts';
 import { emotesHandler } from '../handlers/commands/emote.ts';
 import { settingsHandler } from '../handlers/commands/settings.ts';
 import { autocompleteHandler } from '../handlers/interactions/autocomplete.ts';
@@ -103,8 +103,8 @@ export class Bot {
   }
 
   @once
-  public registerListeners(joinVoiceChannels: boolean): void {
-    this.#registerClientReadyListener(joinVoiceChannels);
+  public registerListeners(): void {
+    this.#registerClientReadyListener();
     this.#registerMessageCreateListener();
     this.#registerInteractionCreateListener();
     this.#client.on(Events.GuildDelete, (guild: Readonly<{ id: string }>): void => {
@@ -112,9 +112,9 @@ export class Bot {
     });
   }
 
-  #registerClientReadyListener(joinVoiceChannels: boolean): void {
+  #registerClientReadyListener(): void {
     this.#client.on(Events.ClientReady, (): void => {
-      const { user, channels } = this.#client;
+      const { user } = this.#client;
       if (user === null) throw new Error('Bot client user is empty.');
 
       for (const guild of [...this.#guilds]) {
@@ -124,28 +124,18 @@ export class Bot {
       user.setStatus('online');
       user.setPresence({ activities: [{ name: 'github.com/MrewyOrg/Botge', state: 'meow' }] });
 
-      try {
-        if (joinVoiceChannels) {
-          const cuteDogGeneralChannel = channels.cache.find(
-            (channel: { readonly id: string }) => channel.id === GENERAL_CHANNEL_ID_CUTEDOG
-          );
+      const { voiceChannelsDatabase } = this.#databaseManager.databases;
+      for (const guild of this.#client.guilds.cache.values()) {
+        try {
+          const channelId = voiceChannelsDatabase.getChannelId(guild.id);
+          if (channelId === undefined) continue;
 
-          if (
-            cuteDogGeneralChannel !== undefined
-            && cuteDogGeneralChannel.isVoiceBased()
-            && cuteDogGeneralChannel.joinable
-          ) {
-            joinVoiceChannel({
-              channelId: cuteDogGeneralChannel.id,
-              guildId: cuteDogGeneralChannel.guild.id,
-              adapterCreator: cuteDogGeneralChannel.guild.voiceAdapterCreator,
-              selfDeaf: true,
-              selfMute: true
-            });
-          }
+          const channel = guild.channels.cache.get(channelId);
+          if (channel?.type === ChannelType.GuildVoice && channel.joinable)
+            requestVoiceChannelJoin(channel);
+        } catch (error) {
+          logError(error, `Error restoring voice channel for guild ${guild.id}`);
         }
-      } catch (error) {
-        logError(error, 'Error at joining voice channel');
       }
 
       console.log(`Logged in as ${user.tag}!`);

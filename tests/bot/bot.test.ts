@@ -1,5 +1,11 @@
-import { joinVoiceChannel } from '@discordjs/voice';
-import { Client, type ClientUser, Events, type VoiceChannel } from 'discord.js';
+import { joinVoiceChannel, VoiceConnectionStatus } from '@discordjs/voice';
+import {
+  ChannelType,
+  Client,
+  type ClientUser,
+  type Guild as DiscordGuild,
+  Events
+} from 'discord.js';
 import { beforeEach, describe, expect, test, vi } from 'vitest';
 
 import type { CachedUrl } from 'src/api/cached-url.ts';
@@ -7,7 +13,7 @@ import { ApiManager } from 'src/bot/api-manager.ts';
 import type { Bot } from 'src/bot/bot.ts';
 import type { DatabaseManager } from 'src/bot/database-manager.ts';
 import { SLASH_COMMAND_NAMES } from 'src/discord/command-names.ts';
-import { GENERAL_CHANNEL_ID_CUTEDOG, type Guild } from 'src/discord/guild.ts';
+import type { Guild } from 'src/discord/guild.ts';
 import { newGuild } from 'src/discord/new-guild.ts';
 import { User } from 'src/discord/user.ts';
 import { messageCreateHandler } from 'src/handlers/messages/message-create.ts';
@@ -19,7 +25,10 @@ const { handleMessage, handleCommand, handleComponent } = vi.hoisted(() => ({
   handleComponent: vi.fn()
 }));
 
-vi.mock('@discordjs/voice', () => ({ joinVoiceChannel: vi.fn() }));
+vi.mock(import('@discordjs/voice'), async (importOriginal) => ({
+  ...(await importOriginal()),
+  joinVoiceChannel: vi.fn()
+}));
 vi.mock('src/handlers/commands/emote.ts', () => ({
   emotesHandler: (): typeof handleComponent => handleComponent
 }));
@@ -54,7 +63,7 @@ vi.mock('src/handlers/interactions/message-context-menu-command.ts', () => ({
 async function setup(
   guilds: readonly Readonly<Guild>[] = [],
   users: readonly Readonly<User>[] = [],
-  voice = false
+  voiceChannelIds: Readonly<Record<string, string>> = {}
 ): Promise<{
   readonly client: Client;
   readonly ready: () => void;
@@ -68,11 +77,14 @@ async function setup(
   Bot.createInstance(
     client,
     new ApiManager(undefined, undefined, {} as Readonly<CachedUrl>, undefined, undefined),
-    { mediaDatabase: {} } as unknown as Readonly<DatabaseManager>,
+    {
+      mediaDatabase: {},
+      databases: { voiceChannelsDatabase: { getChannelId: (id: string) => voiceChannelIds[id] } }
+    } as unknown as Readonly<DatabaseManager>,
     guilds,
     users
   );
-  Bot.instance.registerListeners(voice);
+  Bot.instance.registerListeners();
   return {
     bot: Bot.instance,
     client,
@@ -252,35 +264,69 @@ test.each(['none', 'assigned', 'missing'])(
   }
 );
 
-test.each([false, true])(
-  'ready events set presence and optionally join voice: %s',
-  async (voice) => {
-    const target = await setup([], [], voice);
-    target.client.user = {
-      tag: 'Test bot',
-      setStatus: vi.fn(),
-      setPresence: vi.fn()
-    } as unknown as ClientUser;
-    target.client.channels.cache.set(GENERAL_CHANNEL_ID_CUTEDOG, {
-      id: GENERAL_CHANNEL_ID_CUTEDOG,
-      isVoiceBased: (): boolean => true,
-      joinable: true,
-      guild: { id: 'guild', voiceAdapterCreator: vi.fn() }
-    } as unknown as VoiceChannel);
-    const log = vi.spyOn(console, 'log').mockImplementation(() => undefined);
-    try {
-      target.ready();
-      expect(vi.spyOn(target.client.user, 'setStatus')).toHaveBeenCalledWith('online');
-      expect(joinVoiceChannel).toHaveBeenCalledTimes(voice ? 1 : 0);
-      expect(target.bot.client).toBe(target.client);
-      expect(target.bot.databaseManager).toBeDefined();
-      expect(target.bot.apiManager).toBeDefined();
-      expect(target.bot.scheduledJobs).toEqual([]);
-    } finally {
-      log.mockRestore();
+test('ready restores saved voice channels independently and skips unusable targets', async () => {
+  const saved = new Map([
+    ['failed', 'voice-1'],
+    ['missing', 'voice-2'],
+    ['blocked', 'voice-3'],
+    ['text', 'text-4'],
+    ['allowed', 'voice-5']
+  ]);
+  const target = await setup([], [], Object.fromEntries(saved));
+  target.client.user = {
+    tag: 'Test bot',
+    setStatus: vi.fn(),
+    setPresence: vi.fn()
+  } as unknown as ClientUser;
+  const adapterCreator = vi.fn();
+  for (const id of [...saved.keys(), 'no-selection']) {
+    const guild = { id, voiceAdapterCreator: adapterCreator, channels: { cache: new Map() } };
+    if (id !== 'missing') {
+      guild.channels.cache.set(saved.get(id), {
+        guild,
+        id: saved.get(id),
+        type: id === 'text' ? ChannelType.GuildText : ChannelType.GuildVoice,
+        joinable: id !== 'blocked'
+      });
     }
+    target.client.guilds.cache.set(id, guild as unknown as DiscordGuild);
   }
-);
+  const on = vi.fn();
+  const connection = {
+    on,
+    state: { status: VoiceConnectionStatus.Signalling }
+  } as unknown as ReturnType<typeof joinVoiceChannel>;
+  const error = new Error('voice unavailable');
+  vi.mocked(joinVoiceChannel)
+    .mockImplementationOnce(() => {
+      throw error;
+    })
+    .mockReturnValue(connection);
+  const log = vi.spyOn(console, 'log').mockImplementation(() => undefined);
+  try {
+    target.ready();
+    expect(vi.spyOn(target.client.user, 'setStatus')).toHaveBeenCalledWith('online');
+    expect(logError).toHaveBeenCalledWith(error, 'Error restoring voice channel for guild failed');
+    expect(joinVoiceChannel).toHaveBeenCalledTimes(2);
+    expect(joinVoiceChannel).toHaveBeenLastCalledWith({
+      channelId: 'voice-5',
+      guildId: 'allowed',
+      adapterCreator,
+      selfDeaf: false,
+      selfMute: true
+    });
+    expect(on).toHaveBeenCalledWith('error', expect.any(Function));
+    const errorListener = on.mock.calls[0]?.[1] as (error: Readonly<Error>) => void;
+    errorListener(error);
+    expect(logError).toHaveBeenCalledWith(error, 'Voice connection failed for guild allowed');
+    expect(target.bot.client).toBe(target.client);
+    expect(target.bot.databaseManager).toBeDefined();
+    expect(target.bot.apiManager).toBeDefined();
+    expect(target.bot.scheduledJobs).toEqual([]);
+  } finally {
+    log.mockRestore();
+  }
+});
 
 test.each([false, true])(
   'departed guilds release subscriptions and user references even if disposal fails: %s',
