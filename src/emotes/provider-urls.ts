@@ -96,7 +96,9 @@ export async function sevenTVUrlToSevenTVNotInSet(
     'id'
   ];
   if (id === undefined) return undefined;
-  const emote = parseSevenTVEmote(await requestJson(`${SEVEN_TV_EMOTES_URL}/${id}`));
+  const emote = parseSevenTVEmote(
+    await requestJson(`${SEVEN_TV_EMOTES_URL}/${id}`, { timeoutMs: 10_000 })
+  );
   if (emote.error !== undefined) throw new Error(emote.error);
   return emote;
 }
