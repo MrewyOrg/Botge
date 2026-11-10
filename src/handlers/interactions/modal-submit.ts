@@ -31,6 +31,9 @@ import { TwitchClipMessageBuilder } from '../../message-builders/twitch-clip-mes
 import type { MutableArray } from '../../types.ts';
 import { logError } from '../../utils/log-error.ts';
 import {
+  ADD_EMOTE_ACCESS_MODAL_CUSTOM_ID,
+  ADD_EMOTE_ACCESS_MODE_CUSTOM_ID,
+  ADD_EMOTE_ACCESS_ROLES_CUSTOM_ID,
   ASSIGN_EMOTE_SETS_MODAL_CUSTOM_ID,
   ASSIGN_GUILD_MODAL_CUSTOM_ID,
   BROADCASTER_NAME_TEXT_INPUT_CUSTOM_ID,
@@ -58,7 +61,8 @@ export function modalSubmitHandler(
     const { customId } = interaction;
     const deferReply =
       (
-        customId === ASSIGN_EMOTE_SETS_MODAL_CUSTOM_ID
+        customId === ADD_EMOTE_ACCESS_MODAL_CUSTOM_ID
+        || customId === ASSIGN_EMOTE_SETS_MODAL_CUSTOM_ID
         || customId === ASSIGN_GUILD_MODAL_CUSTOM_ID
         || customId === EMOTE_BORDER_CONFIGURATION_MODAL_CUSTOM_ID
         || customId === VOICE_CHANNEL_SETTINGS_MODAL_CUSTOM_ID
@@ -100,6 +104,33 @@ export function modalSubmitHandler(
         users.push(user);
         await deferReply;
         await interaction.editReply('Changed guild.');
+        return;
+      }
+
+      if (customId === ADD_EMOTE_ACCESS_MODAL_CUSTOM_ID) {
+        await deferReply;
+        if (guild === undefined || !(await canManageSettings(interaction, guild))) {
+          await interaction.editReply('You do not have permission to change these settings.');
+          return;
+        }
+
+        const mode = interaction.fields.getRadioGroup(ADD_EMOTE_ACCESS_MODE_CUSTOM_ID, true);
+        const roles = interaction.fields.getField(ADD_EMOTE_ACCESS_ROLES_CUSTOM_ID);
+        if ((mode !== 'everyone' && mode !== 'roles') || roles.type !== ComponentType.RoleSelect)
+          throw new Error('Invalid add emote access selection.');
+
+        const everyone = mode === 'everyone';
+        databaseManager.permittedRoleIdsDatabase.saveAddEmoteAccess(
+          guild.id,
+          roles.values,
+          everyone
+        );
+        guild.changeAddEmoteAccess(roles.values, everyone);
+        await interaction.editReply(
+          everyone ?
+            'Everyone can add emotes.'
+          : 'Add emote access is limited to the selected roles, server owner, and Botge admins.'
+        );
         return;
       }
 

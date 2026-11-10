@@ -90,6 +90,11 @@ export class Guild {
     this.#addEmotePermittedRoleIds = roleIds.length === 0 ? null : [...roleIds];
   }
 
+  public changeAddEmoteAccess(roleIds: readonly string[], everyone: boolean): void {
+    this.changeAddEmotePermittedRoleIds(roleIds);
+    this.#allowEveryoneToAddEmote = everyone;
+  }
+
   public toggleAllowEveryoneToAddEmote(): void {
     this.#allowEveryoneToAddEmote = !this.#allowEveryoneToAddEmote;
   }

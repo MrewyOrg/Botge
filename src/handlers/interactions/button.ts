@@ -11,6 +11,7 @@ import {
   ModalBuilder,
   type ModalSubmitInteraction,
   type PermissionsBitField,
+  RadioGroupBuilder,
   RoleSelectMenuBuilder,
   TextInputBuilder,
   TextInputStyle
@@ -68,7 +69,7 @@ import type {
 } from '../../types.ts';
 import { logError } from '../../utils/log-error.ts';
 import {
-  ADD_EMOTE_PERMITTED_ROLES_BUTTON_CUSTOM_ID,
+  ADD_EMOTE_ACCESS_BUTTON_CUSTOM_ID,
   ADDED_EMOTE_DELETION_MENU_BUTTON_CUSTOM_ID,
   ALLOW_EVERYONE_TO_ADD_EMOTE_BUTTON_CUSTOM_ID,
   CONFIGURATION_GUILD_BUTTON_CUSTOM_ID,
@@ -77,6 +78,9 @@ import {
   SETTINGS_PERMITTED_ROLES_BUTTON_CUSTOM_ID
 } from '../commands/settings.ts';
 import {
+  ADD_EMOTE_ACCESS_MODAL_CUSTOM_ID,
+  ADD_EMOTE_ACCESS_MODE_CUSTOM_ID,
+  ADD_EMOTE_ACCESS_ROLES_CUSTOM_ID,
   ASSIGN_EMOTE_SETS_MODAL_CUSTOM_ID,
   ASSIGN_GUILD_MODAL_CUSTOM_ID,
   BROADCASTER_NAME_TEXT_INPUT_CUSTOM_ID,
@@ -84,7 +88,6 @@ import {
   EMOTE_BORDER_CONFIGURATION_MODAL_CUSTOM_ID,
   EMOTE_BORDER_ENABLED_CHECKBOX_CUSTOM_ID,
   GUILD_ID_TEXT_INPUT_CUSTOM_ID,
-  SELECT_ADD_EMOTE_PERMITTED_ROLES_ROLE_SELECT_MENU_CUSTOM_ID,
   SELECT_SETTINGS_PERMITTED_ROLES_ROLE_SELECT_MENU_CUSTOM_ID,
   SEVEN_TV_TEXT_INPUT_CUSTOM_ID,
   VOICE_CHANNEL_SELECT_CUSTOM_ID,
@@ -144,7 +147,7 @@ export function buttonHandler(
       if (guild === undefined) return undefined;
       const settingsActions: readonly string[] = [
         SETTINGS_PERMITTED_ROLES_BUTTON_CUSTOM_ID,
-        ADD_EMOTE_PERMITTED_ROLES_BUTTON_CUSTOM_ID,
+        ADD_EMOTE_ACCESS_BUTTON_CUSTOM_ID,
         ALLOW_EVERYONE_TO_ADD_EMOTE_BUTTON_CUSTOM_ID,
         ADDED_EMOTE_DELETION_MENU_BUTTON_CUSTOM_ID,
         CONFIGURATION_GUILD_BUTTON_CUSTOM_ID,
@@ -214,24 +217,47 @@ export function buttonHandler(
         return undefined;
       }
 
-      if (
-        customId === SETTINGS_PERMITTED_ROLES_BUTTON_CUSTOM_ID
-        || customId === ADD_EMOTE_PERMITTED_ROLES_BUTTON_CUSTOM_ID
-      ) {
+      if (customId === ADD_EMOTE_ACCESS_BUTTON_CUSTOM_ID) {
+        const everyone = guild.allowEveryoneToAddEmote;
+        const mode = new RadioGroupBuilder()
+          .setCustomId(ADD_EMOTE_ACCESS_MODE_CUSTOM_ID)
+          .addOptions(
+            { label: 'Everyone', value: 'everyone', default: everyone },
+            { label: 'Selected roles', value: 'roles', default: !everyone }
+          );
+        const roles = new RoleSelectMenuBuilder()
+          .setCustomId(ADD_EMOTE_ACCESS_ROLES_CUSTOM_ID)
+          .setRequired(false)
+          .setMinValues(0)
+          .setMaxValues(MAX_ROLE_SELECT_MENU_VALUES);
+        if (guild.addEmotePermittedRoleIds !== null)
+          roles.setDefaultRoles([...guild.addEmotePermittedRoleIds]);
+
+        const modal = new ModalBuilder()
+          .setCustomId(ADD_EMOTE_ACCESS_MODAL_CUSTOM_ID)
+          .setTitle('Add emote access')
+          .addLabelComponents(
+            new LabelBuilder()
+              .setLabel('Who can add emotes?')
+              .setDescription('Applies to /emote-add and the Botge Activity.')
+              .setRadioGroupComponent(mode),
+            new LabelBuilder()
+              .setLabel('Roles that can add emotes')
+              .setDescription(
+                'Saved for Selected roles mode. The server owner and Botge admins always have access.'
+              )
+              .setRoleSelectMenuComponent(roles)
+          );
+        await interaction.showModal(modal);
+        return undefined;
+      }
+
+      if (customId === SETTINGS_PERMITTED_ROLES_BUTTON_CUSTOM_ID) {
         const defer = interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
-        let permittedRoles = guild.settingsPermittedRoleIds;
-        let roleSelectMenuCustomId = SELECT_SETTINGS_PERMITTED_ROLES_ROLE_SELECT_MENU_CUSTOM_ID;
-        let commandName: string = SLASH_COMMAND_NAMES.settings;
-
-        if (customId === ADD_EMOTE_PERMITTED_ROLES_BUTTON_CUSTOM_ID) {
-          permittedRoles = guild.addEmotePermittedRoleIds;
-          roleSelectMenuCustomId = SELECT_ADD_EMOTE_PERMITTED_ROLES_ROLE_SELECT_MENU_CUSTOM_ID;
-          commandName = SLASH_COMMAND_NAMES.addEmote;
-        }
-
+        const permittedRoles = guild.settingsPermittedRoleIds;
         const roleSelectMenuBuilder = new RoleSelectMenuBuilder()
-          .setCustomId(roleSelectMenuCustomId)
+          .setCustomId(SELECT_SETTINGS_PERMITTED_ROLES_ROLE_SELECT_MENU_CUSTOM_ID)
           .setPlaceholder('Choose roles with access')
           .setMinValues(0)
           .setMaxValues(MAX_ROLE_SELECT_MENU_VALUES);
@@ -243,7 +269,7 @@ export function buttonHandler(
 
         await defer;
         await interaction.editReply({
-          content: `Choose roles that can use /${commandName}. Clear the selection to remove role-based access.`,
+          content: `Choose roles that can use /${SLASH_COMMAND_NAMES.settings}. Clear the selection to remove role-based access.`,
           components: [row]
         });
         return undefined;

@@ -14,7 +14,7 @@ import { logError } from '../../utils/log-error.ts';
 import { VOICE_CHANNEL_SETTINGS_BUTTON_CUSTOM_ID } from '../interactions/component-ids.ts';
 
 export const SETTINGS_PERMITTED_ROLES_BUTTON_CUSTOM_ID = 'settingsPermittedRolesButton' as const;
-export const ADD_EMOTE_PERMITTED_ROLES_BUTTON_CUSTOM_ID = 'addEmotePermittedRolesButton' as const;
+export const ADD_EMOTE_ACCESS_BUTTON_CUSTOM_ID = 'addEmotePermittedRolesButton' as const;
 export const ALLOW_EVERYONE_TO_ADD_EMOTE_BUTTON_CUSTOM_ID =
   'allowEveryoneToAddEmoteButton' as const;
 export const ADDED_EMOTE_DELETION_MENU_BUTTON_CUSTOM_ID = 'addedEmoteDeletionMenuButton' as const;
@@ -78,16 +78,8 @@ export function settingsHandler() {
 
         guildSettingsRow.addComponents(
           new ButtonBuilder()
-            .setCustomId(ADD_EMOTE_PERMITTED_ROLES_BUTTON_CUSTOM_ID)
-            .setLabel('Emote creation access')
-            .setStyle(ButtonStyle.Secondary),
-          new ButtonBuilder()
-            .setCustomId(ALLOW_EVERYONE_TO_ADD_EMOTE_BUTTON_CUSTOM_ID)
-            .setLabel(
-              guild.allowEveryoneToAddEmote ?
-                'Restrict emote creation to roles'
-              : 'Allow everyone to add emotes'
-            )
+            .setCustomId(ADD_EMOTE_ACCESS_BUTTON_CUSTOM_ID)
+            .setLabel('Add emote access')
             .setStyle(ButtonStyle.Secondary),
           new ButtonBuilder()
             .setCustomId(ADDED_EMOTE_DELETION_MENU_BUTTON_CUSTOM_ID)

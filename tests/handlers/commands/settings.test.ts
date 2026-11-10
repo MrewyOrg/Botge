@@ -50,7 +50,11 @@ test.each(['owner', 'administrator', 'role', 'none', 'direct'])(
       );
       expect(payload).toHaveProperty(
         'components.0.components.length',
-        permission === 'role' ? 3 : 5
+        permission === 'role' ? 2 : 4
+      );
+      expect(payload).toHaveProperty(
+        `components.0.components.${permission === 'role' ? 0 : 2}.data.label`,
+        'Add emote access'
       );
     }
   }

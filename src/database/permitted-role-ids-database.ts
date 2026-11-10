@@ -18,6 +18,16 @@ export class PermittedRoleIdsDatabase extends ScopedDatabase {
   public changeAddEmotePermittedRoleIds(guildId: string, roleIds: readonly string[]): void {
     this.#changeRoleIds(guildId, ADD_EMOTE_ID_TYPE, roleIds);
   }
+  public saveAddEmoteAccess(guildId: string, roleIds: readonly string[], everyone: boolean): void {
+    this.ensureTable(guildId);
+    this.execute(
+      `INSERT INTO ${this.tableName(guildId)} (idType, roleIds, permitNoRole) VALUES (?, ?, ?)
+      ON CONFLICT(idType) DO UPDATE SET roleIds = excluded.roleIds, permitNoRole = excluded.permitNoRole`,
+      ADD_EMOTE_ID_TYPE,
+      serializeIds(roleIds),
+      Number(everyone)
+    );
+  }
   public changeAllowEveryoneToAddEmote(guildId: string, permitNoRole: boolean): void {
     this.ensureTable(guildId);
     this.execute(

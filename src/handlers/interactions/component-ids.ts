@@ -2,6 +2,9 @@ export const SELECT_SETTINGS_PERMITTED_ROLES_ROLE_SELECT_MENU_CUSTOM_ID =
   'selectSettingsPermittedRolesRoleSelectMenu';
 export const SELECT_ADD_EMOTE_PERMITTED_ROLES_ROLE_SELECT_MENU_CUSTOM_ID =
   'selectAddEmotePermittedRolesRoleSelectMenu' as const;
+export const ADD_EMOTE_ACCESS_MODAL_CUSTOM_ID = 'addEmoteAccessModal';
+export const ADD_EMOTE_ACCESS_MODE_CUSTOM_ID = 'addEmoteAccessMode';
+export const ADD_EMOTE_ACCESS_ROLES_CUSTOM_ID = 'addEmoteAccessRoles';
 export const ASSIGN_EMOTE_SETS_MODAL_CUSTOM_ID = 'assignEmoteSetsModal' as const;
 export const ASSIGN_GUILD_MODAL_CUSTOM_ID = 'assignGuildModal' as const;
 

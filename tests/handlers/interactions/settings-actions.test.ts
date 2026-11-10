@@ -21,7 +21,7 @@ import { EmoteCatalog } from 'src/emotes/emote-catalog.ts';
 import type { PersonalEmoteStore } from 'src/emotes/emote-store.ts';
 import { twitchToAsset } from 'src/emotes/emote-to-asset.ts';
 import {
-  ADD_EMOTE_PERMITTED_ROLES_BUTTON_CUSTOM_ID,
+  ADD_EMOTE_ACCESS_BUTTON_CUSTOM_ID,
   ALLOW_EVERYONE_TO_ADD_EMOTE_BUTTON_CUSTOM_ID,
   CONFIGURATION_GUILD_BUTTON_CUSTOM_ID,
   CONFIGURATION_USER_BUTTON_CUSTOM_ID,
@@ -30,6 +30,9 @@ import {
 } from 'src/handlers/commands/settings.ts';
 import { buttonHandler } from 'src/handlers/interactions/button.ts';
 import {
+  ADD_EMOTE_ACCESS_MODAL_CUSTOM_ID,
+  ADD_EMOTE_ACCESS_MODE_CUSTOM_ID,
+  ADD_EMOTE_ACCESS_ROLES_CUSTOM_ID,
   ASSIGN_EMOTE_SETS_MODAL_CUSTOM_ID,
   ASSIGN_GUILD_MODAL_CUSTOM_ID,
   EMOTE_BORDER_CONFIGURATION_MODAL_CUSTOM_ID,
@@ -99,7 +102,12 @@ type TestInteraction = {
   readonly guild: Readonly<{ id: string }>;
   readonly member: Readonly<Record<string, never>>;
   readonly values: readonly string[];
-  readonly fields: Readonly<{ getTextInputValue: Mock; getCheckbox: Mock }>;
+  readonly fields: Readonly<{
+    getCheckbox: Mock;
+    getField: Mock;
+    getRadioGroup: Mock;
+    getTextInputValue: Mock;
+  }>;
   readonly deferReply: Mock;
   readonly deferUpdate: Mock;
   readonly editReply: Mock;
@@ -117,7 +125,9 @@ function makeInteraction(customId: string, text = '', checkbox = false): TestInt
     values: ['role'],
     fields: {
       getTextInputValue: vi.fn().mockReturnValue(text),
-      getCheckbox: vi.fn().mockReturnValue(checkbox)
+      getCheckbox: vi.fn().mockReturnValue(checkbox),
+      getField: vi.fn(),
+      getRadioGroup: vi.fn()
     },
     deferReply: vi.fn().mockResolvedValue(undefined),
     deferUpdate: vi.fn().mockResolvedValue(undefined),
@@ -139,6 +149,7 @@ afterEach(() => {
 });
 
 test.each([
+  ADD_EMOTE_ACCESS_BUTTON_CUSTOM_ID,
   ALLOW_EVERYONE_TO_ADD_EMOTE_BUTTON_CUSTOM_ID,
   CONFIGURATION_GUILD_BUTTON_CUSTOM_ID,
   VOICE_CHANNEL_SETTINGS_BUTTON_CUSTOM_ID
@@ -412,28 +423,90 @@ test.each([
   expect(interaction.showModal).toHaveBeenCalledOnce();
 });
 
-test.each([SETTINGS_PERMITTED_ROLES_BUTTON_CUSTOM_ID, ADD_EMOTE_PERMITTED_ROLES_BUTTON_CUSTOM_ID])(
-  'role configuration buttons offer a selection menu: %s',
-  async (customId) => {
+test('settings access still offers a role selection menu', async () => {
+  const guild = makeGuild();
+  guild.changeSettingsPermittedRoleIds(['123456789012345678']);
+  const interaction = makeInteraction(SETTINGS_PERMITTED_ROLES_BUTTON_CUSTOM_ID);
+  await buttonHandler(
+    {} as Client,
+    guild,
+    undefined,
+    new MessageBuilderManager(),
+    {} as DatabaseManager
+  )(interaction as unknown as ButtonInteraction);
+  expect(interaction.editReply).toHaveBeenCalledWith(
+    expect.objectContaining({
+      content:
+        'Choose roles that can use /settings. Clear the selection to remove role-based access.'
+    })
+  );
+});
+
+test.each([false, true])('emote access prefills saved roles and mode %s', async (everyone) => {
+  const guild = makeGuild();
+  const role = '123456789012345678';
+  guild.changeAddEmoteAccess([role], everyone);
+  const interaction = makeInteraction(ADD_EMOTE_ACCESS_BUTTON_CUSTOM_ID);
+  await buttonHandler(
+    {} as Client,
+    guild,
+    undefined,
+    new MessageBuilderManager(),
+    {} as DatabaseManager
+  )(interaction as unknown as ButtonInteraction);
+  const modal: unknown = interaction.showModal.mock.calls[0]?.[0];
+  if (!(modal instanceof ModalBuilder)) throw new Error('Expected the access modal.');
+  const payload = modal.toJSON();
+  expect(payload.custom_id).toBe(ADD_EMOTE_ACCESS_MODAL_CUSTOM_ID);
+  expect(payload).toHaveProperty('components.0.component.options', [
+    { label: 'Everyone', value: 'everyone', default: everyone },
+    { label: 'Selected roles', value: 'roles', default: !everyone }
+  ]);
+  expect(payload).toHaveProperty('components.1.component.default_values', [
+    { id: role, type: 'role' }
+  ]);
+});
+
+test.each([
+  ['everyone', true, false, true],
+  ['roles', true, false, true],
+  ['everyone', false, false, false],
+  ['everyone', true, true, false],
+  ['invalid', true, false, false]
+] as const)(
+  'saves emote access mode %s with permission %s and storage failure %s',
+  async (mode, allowed, fails, saved) => {
     const guild = makeGuild();
-    guild.changeSettingsPermittedRoleIds(['123456789012345678']);
-    guild.changeAddEmotePermittedRoleIds(['123456789012345678']);
-    const interaction = makeInteraction(customId);
-    await buttonHandler(
-      {} as Client,
+    guild.changeAddEmotePermittedRoleIds(['previous']);
+    vi.mocked(canManageSettings).mockResolvedValue(allowed);
+    const write = vi.fn(() => {
+      if (fails) throw new Error('Storage unavailable');
+    });
+    const interaction = makeInteraction(ADD_EMOTE_ACCESS_MODAL_CUSTOM_ID);
+    interaction.fields.getRadioGroup.mockReturnValue(mode);
+    interaction.fields.getField.mockReturnValue({
+      type: ComponentType.RoleSelect,
+      values: ['role']
+    });
+    await modalSubmitHandler(
+      [guild],
+      [],
       guild,
-      undefined,
       new MessageBuilderManager(),
-      {} as DatabaseManager
-    )(interaction as unknown as ButtonInteraction);
-    expect(interaction.editReply).toHaveBeenCalledWith(
-      expect.objectContaining({
-        content:
-          customId === SETTINGS_PERMITTED_ROLES_BUTTON_CUSTOM_ID ?
-            'Choose roles that can use /settings. Clear the selection to remove role-based access.'
-          : 'Choose roles that can use /emote-add. Clear the selection to remove role-based access.'
-      })
-    );
+      { permittedRoleIdsDatabase: { saveAddEmoteAccess: write } } as unknown as DatabaseManager,
+      {} as ApiManager
+    )(interaction as unknown as ModalSubmitInteraction);
+    if (saved || fails) expect(write).toHaveBeenCalledWith('guild', ['role'], mode === 'everyone');
+    else expect(write).not.toHaveBeenCalled();
+    if (allowed)
+      expect(interaction.fields.getRadioGroup).toHaveBeenCalledWith(
+        ADD_EMOTE_ACCESS_MODE_CUSTOM_ID,
+        true
+      );
+    if (allowed)
+      expect(interaction.fields.getField).toHaveBeenCalledWith(ADD_EMOTE_ACCESS_ROLES_CUSTOM_ID);
+    expect(guild.allowEveryoneToAddEmote).toBe(saved && mode === 'everyone');
+    expect(guild.addEmotePermittedRoleIds).toEqual([saved ? 'role' : 'previous']);
   }
 );
 

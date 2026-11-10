@@ -138,6 +138,13 @@ test('permission upserts preserve independent role lists and allow-everyone sett
   expect(db.getAddEmotePermittedRoleIds('guild')).toEqual(['emote-role']);
   db.changeAddEmotePermittedRoleIds('guild', []);
   expect(db.getAddEmotePermittedRoleIds('guild')).toBeNull();
+  db.saveAddEmoteAccess('guild', ['emote-role'], true);
+  expect(db.getAddEmotePermitNoRole('guild')).toBe(true);
+  expect(db.getAddEmotePermittedRoleIds('guild')).toEqual(['emote-role']);
+  db.saveAddEmoteAccess('guild', ['emote-role'], false);
+  expect(db.getAddEmotePermitNoRole('guild')).toBe(false);
+  expect(db.getAddEmotePermittedRoleIds('guild')).toEqual(['emote-role']);
+  expect(db.getSettingsPermittedRoleIds('guild')).toEqual(['settings-role']);
 });
 
 test('user upserts preserve unrelated preferences and guild assignments', () => {
