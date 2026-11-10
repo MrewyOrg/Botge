@@ -58,4 +58,4 @@ test('the Worker entry uses the configured Discord public key', async () => {
   expect(await response.text()).toBe(html);
 });
 
-vi.mock('../../dist/activity/index.html', () => ({ default: html }));
+vi.mock('../dist/index.html', () => ({ default: html }));

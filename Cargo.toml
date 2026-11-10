@@ -1,0 +1,96 @@
+# cspell:words dalek rustls serde webpki
+
+[package]
+name = "botge"
+version = "0.1.0"
+edition = "2024"
+description = "Discord bot for emotes, overlays, and the Botge Activity"
+license = "MIT"
+repository = "https://github.com/MrewyOrg/Botge"
+publish = false
+
+[dependencies]
+anyhow = "1"
+axum = "0.8"
+base64 = "0.22"
+ed25519-dalek = "2"
+futures-util = "0.3"
+hex = "0.4"
+jsonc-parser = { version = "0.34", features = ["serde"] }
+redb = "4.5"
+reqwest = { version = "0.12", default-features = false, features = [
+  "json",
+  "rustls-tls",
+] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+serenity = { version = "0.12", default-features = false, features = [
+  "client",
+  "gateway",
+  "model",
+  "rustls_backend",
+  "voice",
+] }
+songbird = "0.6.1"
+tempfile = "3"
+tokio = { version = "1", features = [
+  "fs",
+  "io-util",
+  "macros",
+  "net",
+  "process",
+  "rt-multi-thread",
+  "signal",
+  "sync",
+  "time",
+] }
+tokio-tungstenite = { version = "0.26", features = ["rustls-tls-webpki-roots"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+[dev-dependencies]
+tower = { version = "0.5", features = ["util"] }
+
+[lints.rust]
+# Treat warnings as errors in local builds, tests, and Clippy.
+warnings = { level = "deny", priority = -1 }
+
+# Keep Botge's own code safe and require callers to handle fallible results.
+unsafe_code = "forbid"
+unused_must_use = "deny"
+
+# Make lifetimes and the crate's public surface explicit.
+elided_lifetimes_in_paths = "deny"
+unreachable_pub = "deny"
+unused_lifetimes = "deny"
+unused_mut = "deny"
+
+[lints.clippy]
+# Release synchronous locks and borrows before suspending an async task.
+await_holding_lock = "deny"
+await_holding_refcell_ref = "deny"
+
+# Require exclusive borrows only for operations that need them.
+needless_pass_by_ref_mut = "deny"
+
+# Propagate errors and handle bounds explicitly.
+expect_used = "deny"
+indexing_slicing = "deny"
+panic = "deny"
+unwrap_used = "deny"
+
+# Keep unfinished paths and debugging calls out of committed code.
+dbg_macro = "deny"
+todo = "deny"
+unimplemented = "deny"
+
+# Preserve resource cleanup and document local lint exceptions.
+mem_forget = "deny"
+allow_attributes_without_reason = "deny"
+
+# Keep local build artifacts small. Release builds use Cargo's defaults.
+[profile.dev]
+debug = 0
+
+[profile.test]
+debug = 0

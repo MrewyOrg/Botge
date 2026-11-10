@@ -1,4 +1,4 @@
-# cspell:words botgeql GOBIN rhysd VITE
+# cspell:words botgeql demuxer GOBIN rhysd VITE webp
 
 name: BotgeQL
 
@@ -68,17 +68,39 @@ jobs:
       - name: Types, lint, and unused code
         run: npm run check:static
 
+      - name: Install Rust build and test dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes --no-install-recommends libopus-dev pkg-config
+          rustup show active-toolchain
+          cargo --version
+          cargo install --locked --version 0.9.1 cargo-llvm-cov
+
+      # Rust coverage runs real render tests. They need FFmpeg 9's webp_anim demuxer,
+      # the libwebp_anim encoder, and a matching FFprobe. Ubuntu's package is too old.
+      - name: Install FFmpeg with animated WebP support
+        run: |
+          sh scripts/install-test-ffmpeg.sh "$RUNNER_TEMP/botge-test-bin"
+          printf '%s\n' "$RUNNER_TEMP/botge-test-bin" >> "$GITHUB_PATH"
+
+      - name: Check Rust formatting, lints, and coverage
+        run: |
+          cargo fmt --all --check
+          cargo clippy --locked --all-targets -- -D warnings
+          sh scripts/check-rust-coverage.sh
+
       - name: Validate Activity HTML and SCSS
         env:
           VITE_ENABLE_7TV_DISCOVERY: 'true'
           VITE_ENABLE_ACTIVITY_ADDS: 'true'
           VITE_ENABLE_ACTIVITY_CATALOG: 'true'
+          VITE_ENABLE_ACTIVITY_SETTINGS: 'true'
         run: npm run check:markup -w activity
 
-      - name: Tests and coverage
+      - name: Test repository tooling and Activity
         run: |
-          cp botge.example.config.jsonc botge.config.json
-          npm run test:coverage
+          npm test -- --run --project Tooling
+          npm run test:coverage -w activity
 
   tooling-lint:
     name: Shell and workflow lint
@@ -94,11 +116,6 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Set up Node
-        uses: actions/setup-node@v7.1.0
-        with:
-          node-version-file: .nvmrc
-
       - name: Install ShellCheck and actionlint
         shell: bash
         run: |
@@ -109,7 +126,7 @@ jobs:
           echo "$RUNNER_TEMP/botge-linters" >> "$GITHUB_PATH"
 
       - name: Check shell scripts
-        run: npm run lint:shell
+        run: bash scripts/lint-shell.sh
 
       - name: Check workflows and inline shell
-        run: npm run lint:workflows
+        run: sh scripts/lint-workflows.sh

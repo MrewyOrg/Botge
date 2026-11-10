@@ -3,44 +3,29 @@
 Run commands from the repository root:
 
 ```sh
-npm test -- --run
+cargo test --locked
+sh scripts/check-rust-coverage.sh
 npm test -w activity
-npm test -- --run --project Botge
-npx vitest run tests/emotes
-npx vitest run tests/api/http.test.ts
+npm test -- --run --project Tooling
 npm run typecheck
 ```
 
-The default run covers both suites. Use the workspace command for the
-[Activity tests](../activity/README.md#preview-and-build) or `--project Botge` for the bot and
-repository tooling tests.
+The Rust coverage check uses `jq` and `cargo-llvm-cov`. BotgeQL installs the latter with
+`cargo install --locked --version 0.9.1 cargo-llvm-cov`.
 
-Group tests by their owning subsystem, matching `src/` where practical. Handler suites cover
-commands, interactions, and messages. Add regression cases to the related suite.
+Rust unit tests live next to their modules in `src/`. The CLI integration tests live in
+`tests/rust_cli.rs` and exercise the compiled binary. Unit tests can access private code and use
+local provider and Discord fixtures and temporary redb databases. Render tests need FFmpeg 9 or
+later with libwebp and FFprobe. BotgeQL requires more than 80% branch coverage and at least 80%
+line, function, and region coverage in every Rust source file. To export the Rust coverage report as
+HTML, run `sh scripts/check-rust-coverage.sh --html --output-dir coverage/rust`.
 
-The default run uses mocked external services and isolated temporary or in-memory storage. Import
-individual modules; the entry-point smoke test mocks application startup before importing
-`src/index.ts`. Mock loaded configuration modules when necessary so tests do not depend on local
-settings or credentials. Restore mocks, timers, and environment changes after each test, and clean
-up temporary storage.
+The [Activity tests](../activity/README.md) exercise the browser and Worker. Run
+`npm run test:coverage -w activity` for its coverage report in `coverage/activity/`.
 
-Prefer tests of observable behavior, error recovery, boundary values, and concurrency. Share
-fixtures only when several suites need the same setup; keep small fixtures local.
-
-`npm run check` runs types, ESLint, unused-code checks, and local tests. `bot/application.test.ts`
-tests startup with mocked services; the opt-in Compose suite checks real container startup.
-
-ESLint policy tests live in `tooling/` and run code samples through the real configuration. The
-small `requireValue` helper makes required fixture entries explicit under
-`noUncheckedIndexedAccess`; it throws when a fixture is missing instead of hiding that failure.
-
-Control protocol tests in `control/` run the handler and client against temporary command stubs.
-They cover request validation, locking, Docker failures, and transport responses without accessing a
-real socket, Docker daemon, or system account.
-
-`npm run test:coverage` requires 80% statements, branches, functions, and lines in each source file.
-It produces separate HTML reports for the bot at `coverage/index.html` and the Activity at
-`coverage/activity/index.html`. Coverage identifies untested paths; it does not prove correctness.
+Repository tooling tests exercise the ESLint configuration and the control protocol. The combined
+[root Vitest config](../vitest.config.ts) runs both the tooling and Activity suites. Control tests
+use temporary command stubs in place of the Docker daemon and control socket.
 
 ## Compose integration
 
@@ -54,5 +39,5 @@ BOTGE_TEST_COMPOSE=true npm --prefix tests/integration test
 ```
 
 The test requires Docker, `.env`, and `botge.config.json`. It logs a real bot into Discord, so check
-for an existing stack before running it. It builds the full Compose stack with an isolated project
-name, named volumes, and a temporary nginx cache.
+for an existing stack before running it. It builds the Rust Compose stack with command registration
+disabled, an isolated project name, named volumes, and a temporary nginx cache.

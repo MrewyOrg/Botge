@@ -2,8 +2,10 @@ import type { BrowserEmote } from './catalog.ts';
 import { groupEmoteLayers, MAX_EMOTE_COMPOSE_INPUTS } from './compose-layout.ts';
 import { requireValue } from './validation.ts';
 
+/** Manages an ordered browser preview and the tokens copied into the Discord compose command. */
 export function createComposer(): Readonly<{
   add: (emote: BrowserEmote) => void;
+  addMany: (emotes: readonly BrowserEmote[]) => number;
   full: () => boolean;
 }> {
   const panel = requireValue(
@@ -63,6 +65,7 @@ export function createComposer(): Readonly<{
       button.addEventListener('click', () => {
         const index = handler();
         render();
+        // Rendering replaces the buttons. Restore focus to an equivalent surviving action.
         const row = layers.children.item(Math.min(index, emotes.length - 1));
         const next =
           row?.querySelector<HTMLButtonElement>(`button[data-action="${label}"]:enabled`)
@@ -73,7 +76,7 @@ export function createComposer(): Readonly<{
       return button;
     }
 
-    const groups = groupEmoteLayers(emotes, (emote) => emote.zeroWidth === true);
+    const groups = groupEmoteLayers(emotes, (emote) => emote.overlaying === true);
     preview.replaceChildren();
     layers.replaceChildren();
     for (const group of groups) {
@@ -90,7 +93,7 @@ export function createComposer(): Readonly<{
     for (const [index, emote] of emotes.entries()) {
       const row = document.createElement('li');
       const name = document.createElement('span');
-      name.textContent = emote.zeroWidth === true ? `${emote.name} · Zero-width` : emote.name;
+      name.textContent = emote.overlaying === true ? `${emote.name} · Overlaying` : emote.name;
       row.append(
         name,
         action('Move earlier', emote, () => move(index, -1), index === 0),
@@ -130,13 +133,23 @@ export function createComposer(): Readonly<{
   });
   render();
 
-  return {
-    full,
-    add(emote: BrowserEmote): void {
-      if (full() || emote.composeToken === undefined) return;
-      emotes.push(emote);
+  function addMany(items: readonly BrowserEmote[]): number {
+    const added = items
+      .filter((emote) => emote.composeToken !== undefined)
+      .slice(0, MAX_EMOTE_COMPOSE_INPUTS - emotes.length);
+    if (added.length > 0) {
+      emotes.push(...added);
       panel.open = true;
       render();
     }
+    return added.length;
+  }
+
+  return {
+    full,
+    add(emote: BrowserEmote): void {
+      addMany([emote]);
+    },
+    addMany
   };
 }

@@ -1,8 +1,11 @@
-# cspell:words webp
+# cspell:words vsicons webp
 
 * text=auto eol=lf
 
 *.md diff=markdown
 
-*.webp binary
 *.png binary
+*.webp binary
+
+# Suppress line diffs for VS Code icons while preserving text normalization.
+assets/vsicons-custom-icons/*.svg -diff

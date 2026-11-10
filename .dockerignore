@@ -1,34 +1,10 @@
-# cspell:words tsdoc
-
-# Only send Dockerfile inputs to the builder. Keep this list aligned with COPY instructions.
+# Only send Dockerfile inputs to the builder.
 **
-
-# npm prepare needs this script even though Git hooks are disabled in CI.
-!.husky/
-.husky/**
-!.husky/install.ts
-!.npmrc
-!package.json
-!package-lock.json
-!activity/
-activity/**
-!activity/package.json
-
-# Production compilation.
+!Cargo.toml
+!Cargo.lock
+!rust-toolchain.toml
 !src/
 !src/**
-src/**/README.md
-src/tsdoc.json
-!tsconfig.base.json
-
-# Runtime files and selected documentation.
-!docs/
-docs/**
-!docs/Docker.png
-!docs/CHANGELOG.md
-!docs/PRIVACY.md
-!docs/TERMS.md
+# Rust unit tests live alongside production code and run separately in BotgeQL.
+src/**/tests.rs
 !LICENSE.txt
-!README.md
-!botge.config.schema.json
-!node.config.json

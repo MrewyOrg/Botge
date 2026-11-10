@@ -46,6 +46,18 @@ updates:
       - docker
     target-branch: dev
 
+  - package-ecosystem: cargo
+    directory: '/'
+    schedule:
+      interval: weekly
+      day: monday
+      time: '12:49'
+    groups:
+      cargo-dependencies:
+        patterns:
+          - '*'
+    target-branch: dev
+
   - package-ecosystem: npm
     directory: '/'
     schedule:

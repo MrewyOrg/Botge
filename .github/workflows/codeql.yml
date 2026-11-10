@@ -45,6 +45,7 @@ jobs:
       matrix:
         include:
           - language: actions
+          - language: rust
           - language: typescript
 
     steps:
@@ -61,11 +62,27 @@ jobs:
           filters: |
             actions:
               - '.github/workflows/**'
+            rust:
+              - '**/*.rs'
+              - 'Cargo.toml'
+              - 'Cargo.lock'
+              - 'rust-toolchain.toml'
+              - '.github/codeql/**'
             typescript:
               - '**/*.ts'
               - '.github/codeql/**'
               - 'package*.json'
               - '**/tsconfig*.json'
+
+      - name: Install Rust analysis dependencies
+        if: >-
+          matrix.language == 'rust' && (github.event_name == 'schedule' || github.event_name ==
+          'workflow_dispatch' ||
+            steps.changes.outputs.rust == 'true')
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes --no-install-recommends libopus-dev pkg-config
+          cargo --version
 
       - name: Initialize CodeQL
         if:
@@ -74,12 +91,8 @@ jobs:
         uses: github/codeql-action/init@v4.39.1
         with:
           languages: ${{ matrix.language }}
-          queries: >-
-            ${{
-              matrix.language == 'typescript'
-              && './.github/codeql/queries/typescript-security-and-quality.qls'
-              || 'security-and-quality'
-            }}
+          build-mode: none
+          queries: security-and-quality
 
       - name: CodeQL analysis
         if:

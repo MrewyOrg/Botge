@@ -7,7 +7,9 @@ const configuration: Configuration = {
     'cspell'
   ],
   '*.md': ['prettier --write', 'markdownlint-cli2', 'cspell'],
-  '!(*.ts|*.md|*.webp|*.png)': ['prettier --write --ignore-unknown', 'cspell']
+  // Format only the staged Rust files. rustfmt normally follows module declarations.
+  '*.rs': ['rustfmt --config skip_children=true', 'cspell'],
+  '!(*.ts|*.md|*.rs|*.webp|*.png)': ['prettier --write --ignore-unknown', 'cspell']
 };
 
 export default configuration;

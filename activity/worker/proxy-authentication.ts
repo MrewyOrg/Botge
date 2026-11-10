@@ -9,6 +9,7 @@ function decodeBase64(value: unknown): Buffer | undefined {
   return Buffer.from(value, 'base64');
 }
 
+/** Builds the signature verifier for requests delivered through Discord's Activity proxy. */
 export function createProxyAuthenticator(
   publicKeyHex: string
 ): (headers: Readonly<Record<string, unknown>>) => boolean {
@@ -32,6 +33,7 @@ export function createProxyAuthenticator(
 
     let data: unknown;
     try {
+      // Verify the original bytes before interpreting the signed claims as JSON.
       if (!verify(null, payload, publicKey, signature)) return false;
       data = JSON.parse(payload.toString('utf8'));
     } catch {

@@ -18,7 +18,7 @@
 
       "type": "shell",
       "command": "bash",
-      "args": ["scripts/check-package-version", "npm"],
+      "args": ["scripts/check-package-version.sh", "npm"],
 
       "runOptions": { "runOn": "folderOpen" },
 
@@ -32,7 +32,7 @@
 
       "type": "shell",
       "command": "bash",
-      "args": ["scripts/check-package-version", "sort-package-json"],
+      "args": ["scripts/check-package-version.sh", "sort-package-json"],
 
       "options": { "statusbar": { "hide": true } }
     },
@@ -56,7 +56,7 @@
 
       "type": "shell",
       "command": "bash",
-      "args": ["scripts/check-package-version", "npm-check-updates"],
+      "args": ["scripts/check-package-version.sh", "npm-check-updates"],
 
       "options": { "statusbar": { "hide": true } }
     },
@@ -80,7 +80,7 @@
 
       "type": "shell",
       "command": "bash",
-      "args": ["scripts/check-package-version", "@devcontainers/cli", "devcontainer"],
+      "args": ["scripts/check-package-version.sh", "@devcontainers/cli", "devcontainer"],
 
       "options": { "statusbar": { "hide": true } }
     },

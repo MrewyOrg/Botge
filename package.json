@@ -1,8 +1,8 @@
 {
   "name": "botge",
-  "version": "4.0.0",
+  "version": "5.0.0",
   "private": true,
-  "description": "Search emotes, clips, use zero-width emotes and other such commands.",
+  "description": "Discord bot and Activity for browsing and composing emotes.",
   "keywords": [
     "bot",
     "discord",
@@ -27,44 +27,27 @@
     "gentlebob"
   ],
   "type": "module",
-  "main": "dist/index.js",
   "workspaces": [
     "activity"
   ],
   "scripts": {
-    "build": "tsc --build src",
-    "build:production": "tsc --project src/tsconfig.production.json",
     "check": "npm run check:static && npm test -- --run",
     "check:static": "npm run typecheck && npm run eslint && npm run knip",
     "cspell": "cspell . --verbose",
     "eslint": "eslint \"**/*.ts\" --flag unstable_native_nodejs_ts_config --concurrency=auto",
     "knip": "knip --no-progress",
-    "lint:shell": "node scripts/lint-shell.ts",
-    "lint:workflows": "node scripts/lint-workflows.ts",
+    "lint:shell": "bash scripts/lint-shell.sh",
+    "lint:workflows": "sh scripts/lint-workflows.sh",
     "markdownlint": "markdownlint-cli2 \"**/*.md\" \"#node_modules\"",
-    "prepare": "node .husky/install.ts",
+    "prepare": "sh .husky/install.sh",
     "start": "docker image prune --force && docker compose -f compose.yaml -f compose.build.yaml up --build",
     "stop": "docker compose stop",
     "test": "vitest",
-    "test:coverage": "vitest run --project Botge --coverage && npm run test:coverage -w activity",
-    "typecheck": "tsc --build && tsc --project tests --noEmit && npm run typecheck --workspace activity"
+    "typecheck": "tsc --build && npm run typecheck -w activity"
   },
   "allowScripts": {
     "@parcel/watcher": false,
     "fsevents": true
-  },
-  "dependencies": {
-    "@discordjs/voice": "^0.19.2",
-    "@twemoji/api": "^17.0.3",
-    "chromadb": "^3.5.0",
-    "deepl-node": "^1.29.0",
-    "discord.js": "^14.28.1",
-    "helpful-decorators": "^2.1.0",
-    "jsonc-parser": "^3.3.1",
-    "meilisearch": "^0.62.0",
-    "node-schedule": "^2.1.2",
-    "openai": "^7.53.0",
-    "timezones-list": "^3.1.0"
   },
   "devDependencies": {
     "@commitlint/cli": "^21.2.4",
@@ -73,9 +56,7 @@
     "@commitlint/types": "^21.2.3",
     "@eslint/js": "^10.0.1",
     "@types/node": "^26.6.6",
-    "@types/node-schedule": "^2.1.8",
     "@typescript/native": "npm:typescript@^7.1.0-beta",
-    "@vitest/coverage-v8": "^5.1.0",
     "cspell": "^10.4.1",
     "eslint": "^10.14.0",
     "eslint-plugin-tsdoc": "^0.5.4",
@@ -85,7 +66,6 @@
     "markdownlint-cli2": "^0.24.0",
     "prettier": "^3.9.10",
     "prettier-plugin-sh": "^0.20.2",
-    "ts-essentials": "^10.2.1",
     "typescript": "npm:@typescript/typescript6@^6.0.3",
     "typescript-eslint": "^8.72.1",
     "vitest": "^5.1.0"
@@ -103,14 +83,5 @@
       "name": "npm",
       "onFail": "error"
     }
-  },
-  "os": [
-    "linux",
-    "darwin",
-    "win32"
-  ],
-  "cpu": [
-    "x64",
-    "arm64"
-  ]
+  }
 }

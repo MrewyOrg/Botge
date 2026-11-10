@@ -3,8 +3,8 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "build": "vite build --base=./ --outDir ../dist/activity --emptyOutDir",
-    "check:markup": "npm run build && html-validate --preset standard --max-warnings 0 index.html ../dist/activity/index.html",
+    "build": "vite build --base=./",
+    "check:markup": "npm run build && html-validate --preset standard --max-warnings 0 index.html dist/index.html",
     "dev": "vite --host 127.0.0.1",
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",

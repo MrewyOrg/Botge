@@ -2,5 +2,6 @@
   "name": "botge-activity",
   "main": "worker/entry.ts",
   "compatibility_date": "2026-11-10",
-  "assets": { "directory": "../dist/activity", "html_handling": "none" }
+  // The Worker owns HTML routing. public/.assetsignore excludes index.html from static serving.
+  "assets": { "directory": "./dist", "html_handling": "none" }
 }

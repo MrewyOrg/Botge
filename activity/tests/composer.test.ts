@@ -15,7 +15,7 @@ const base = {
   image: 'wave.webp',
   animated: false
 };
-const overlay = { ...base, name: 'Hat', composeToken: 'Hat', zeroWidth: true };
+const overlay = { ...base, name: 'Hat', composeToken: 'Hat', overlaying: true };
 const other = { ...base, name: 'Smile', composeToken: 'Smile' };
 
 function element(selector: string): HTMLElement {

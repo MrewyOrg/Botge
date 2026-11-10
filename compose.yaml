@@ -31,6 +31,7 @@ services:
     restart: unless-stopped
     init: true
     read_only: true
+    # FFmpeg inputs and outputs are temporary. redb data lives in the persistent volume below.
     tmpfs:
       - /tmp:size=32m,mode=1777,noexec,nosuid
     logging: *logging
@@ -40,10 +41,7 @@ services:
     env_file:
       - .env
     environment:
-      # Node
-      - NODE_ENV=production
-
-      # NGINX
+      # Route supported provider media through the internal nginx cache.
       - LOCAL_CACHE_BASE=http://nginx:80
 
 volumes:

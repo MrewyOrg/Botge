@@ -6,11 +6,13 @@ export type ActivityPageRequest = Readonly<{
   url: string;
 }>;
 
+/** Serves the Activity HTML after verifying Discord's proxy signature. */
 export function serveActivityPage(
   request: ActivityPageRequest,
   publicKey: string | undefined,
   html: string
 ): Response {
+  // Every visit must reach the signature check, including visits after a successful response.
   const headers = new Headers({ 'Cache-Control': 'no-store' });
   const path = new URL(request.url).pathname;
   if (path !== '/' && path !== '/index.html') return new Response(null, { status: 404, headers });

@@ -1,34 +1,34 @@
-// cspell:words moby
+// cspell:words moby tamasfe trixie vadimcn
 
-// For format details, see https://aka.ms/devcontainer.json. For config options, see the
-// README at: https://github.com/devcontainers/templates/tree/main/src/typescript-node
+// See https://aka.ms/devcontainer.json for the configuration format.
 
 {
   "name": "Botge",
-  "image": "mcr.microsoft.com/devcontainers/typescript-node",
+  "image": "mcr.microsoft.com/devcontainers/base:trixie",
 
   "features": {
     "ghcr.io/devcontainers/features/docker-in-docker": {
       "moby": false,
       "installDockerBuildx": true,
       "azureDnsAutoDetection": false,
-      "installDockerComposeSwitch": true
+      "installDockerComposeSwitch": false
     },
     "ghcr.io/devcontainers/features/github-cli": { "extensions": "github/gh-actions-lock" },
+    // Use the minimal bootstrap toolchain. The workspace selects its own nightly and components.
+    "ghcr.io/devcontainers/features/rust": { "components": "none" },
+    // Install nvm here. Setup reads the Node version from the mounted workspace's .nvmrc.
     "ghcr.io/devcontainers/features/node": {
-      "version": "v26.13.0",
-      "npmVersion": "latest",
+      "version": "none",
+      "npmVersion": "none",
+      "pnpmVersion": "none",
       "nodeGypDependencies": false
     }
   },
 
-  "postCreateCommand": {
-    "global-npm-packages": "npm install -g npm-check-updates sort-package-json @devcontainers/cli",
-    "install-and-build": "npm install --no-save && npm run build"
-  },
+  "postCreateCommand": "bash scripts/setup-devcontainer.sh",
 
   "customizations": {
-    "codespaces": { "openFiles": ["package.json", "tsconfig.json", "src/index.ts"] },
+    "codespaces": { "openFiles": ["README.md", "Cargo.toml", "src/main.rs"] },
     "vscode": {
       "extensions": [
         // Development environment
@@ -39,9 +39,14 @@
         "ahmadalli.vscode-nginx-conf",
         "dotenv.dotenv-vscode",
         "redhat.vscode-yaml",
+        "rust-lang.rust-analyzer",
+        "tamasfe.even-better-toml",
         "tsandall.opa",
         "TypeScriptTeam.native-preview",
         "xlaoyu.npmrc-helper",
+
+        // Native debugging
+        "vadimcn.vscode-lldb",
 
         // Formatting and validation
         "DavidAnson.vscode-markdownlint",

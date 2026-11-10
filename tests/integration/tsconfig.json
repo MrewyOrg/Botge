@@ -1,5 +1,8 @@
 {
   "extends": "../../tsconfig.base.json",
   "include": ["compose.test.ts"],
-  "compilerOptions": { "noEmit": true, "tsBuildInfoFile": "../../dist/integration.tsbuildinfo" }
+  "compilerOptions": {
+    "noEmit": true,
+    "tsBuildInfoFile": "../../node_modules/.cache/botge/integration.tsbuildinfo"
+  }
 }

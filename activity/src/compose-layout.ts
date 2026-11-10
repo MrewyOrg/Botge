@@ -1,6 +1,6 @@
 export const MAX_EMOTE_COMPOSE_INPUTS = 32;
 
-/** Each normal emote starts a column; zero-width emotes layer over the current column. */
+/** Each normal emote starts a column; overlaying emotes layer over the current column. */
 export function groupEmoteLayers<T>(
   items: readonly T[],
   isOverlay: (item: T) => boolean

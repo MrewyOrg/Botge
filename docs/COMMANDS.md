@@ -1,62 +1,36 @@
 # Commands
 
-## Emotes
+| Command            | Action                                                               |
+| ------------------ | -------------------------------------------------------------------- |
+| `/emote-compose`   | Send one emote or compose up to 32 emotes, custom emoji, and images. |
+| `/emote-shortcuts` | Find a short name fragment that resolves to the selected emote.      |
+| `/clear-messages`  | Delete earlier unpinned messages in this channel after confirmation. |
 
-| Command            | Action                                                  |
-| ------------------ | ------------------------------------------------------- |
-| `/emote`           | Send an emote by name, with an optional size.           |
-| `/emote-search`    | Browse emotes and filter by name, provider, or type.    |
-| `/emote-compose`   | Combine emotes, emojis, and images in a row or overlay. |
-| `/emote-add`       | Add a 7TV emote to the server's bot catalog.            |
-| `/emote-shortcuts` | Find the shortest text that uniquely matches an emote.  |
+`/emote-compose` and `/emote-shortcuts` suggest matching names from enabled sources as you type.
+Compositions target 64 px in height by default. Single emotes keep their original size unless
+resized. Use `size` for a specific size in pixels, `fullsize` for the 256 px preset, or `stretch` to
+fill each overlay's column. In the Activity, open **My emote border** to choose a personal border
+for rendered emotes.
 
-## Saved content and clips
+Type `+Wave Hat` in a Discord message to compose the named emotes, or `+Wave` to send one. Use
+`+Wave Hat:96` to set the composition height to 96 px. The size can be 24 to 256 px. For Discord
+image links, put a space before the suffix. Keep the first name directly after the plus.
 
-| Command       | Action                                          |
-| ------------- | ----------------------------------------------- |
-| `/clip`       | Search Twitch clips by title, creator, or game. |
-| `/media`      | Send saved media by name.                       |
-| `/media-list` | Browse, rename, and delete saved media.         |
-| `/quote`      | Send a saved quote by name.                     |
-| `/quote-list` | Browse, rename, and delete saved quotes.        |
+To enable the shortcut, turn on **Message Content Intent** under **Bot** in the Discord Developer
+Portal, set `BOTGE_ENABLE_PREFIX_COMPOSE=true` in `.env`, and restart the bot. The bot needs to be
+able to read message history, reply, and attach files in channels where the shortcut is used.
 
-Use the message context menus **Save Media**, **Delete Saved Media**, **Save Quote**, and **Delete
-Saved Quote** to manage saved content from a message.
+`/clear-messages` requires a server administrator and confirmation within one minute. Botge skips
+pinned messages and messages sent after the command.
 
-## Reminders and other tools
+Compositions use the Activity preview's relative widths and centered overlays. An animated WebP
+composition uses the longest source duration as its loop length. Shorter layers can loop within that
+duration. Botge adjusts delays of 10 ms or less so browsers play the full animation at its intended
+speed. Very dense bursts may lose intermediate frames. Resizing a single animated WebP preserves its
+duration and loop count.
 
-| Command           | Action                                                          |
-| ----------------- | --------------------------------------------------------------- |
-| `/remind`         | Set a reminder here; days, hours, and minutes add together.     |
-| `/reminders`      | Browse server reminders or filter to your own.                  |
-| `/temporary`      | Send text or an attachment that disappears after 0–600 seconds. |
-| `/chatgpt`        | Ask ChatGPT a question or analyze an image URL.                 |
-| `/translate`      | Translate text into English.                                    |
-| `/emoji-hunt`     | Find a server emoji hidden in a grid of spoilers.               |
-| `/poe2-stats`     | Show Path of Exile 2 Steam player counts and reviews.           |
-| `/settings`       | Configure server settings and personal bot preferences.         |
-| `/clear-messages` | Delete earlier channel messages after confirmation.             |
+Use the [Botge Activity](../activity/README.md) to manage voice and guild emote sets. Open a 7TV
+discovery result to add it, or open an individually added emote in the server catalog to remove it.
+The operator must enable added 7TV emotes, and the user must have emote management access.
 
-The message context menus **Explain with ChatGPT** and **Translate to English** work on a selected
-message. Commands retain their existing permissions and service requirements.
-
-## Renamed commands
-
-| Previous command            | Current command    |
-| --------------------------- | ------------------ |
-| `/emotes`                   | `/emote-compose`   |
-| `/emotelist`                | `/emote-search`    |
-| `/addemote`                 | `/emote-add`       |
-| `/shortestuniquesubstrings` | `/emote-shortcuts` |
-| `/pingme`                   | `/remind`          |
-| `/pinglist`                 | `/reminders`       |
-| `/medialist`                | `/media-list`      |
-| `/quotelist`                | `/quote-list`      |
-| `/transient`                | `/temporary`       |
-| `/findtheemoji`             | `/emoji-hunt`      |
-| `/poe2`                     | `/poe2-stats`      |
-| `/clear`                    | `/clear-messages`  |
-
-Command lists in `botge.config.json` accept old names as aliases; new configurations should use
-current names. Including both aliases is rejected as a duplicate. An empty list disables that
-command category. The next startup registers only current names with Discord.
+See the [roadmap](ROADMAP.md) for planned commands.

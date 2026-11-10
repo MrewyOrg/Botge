@@ -69,11 +69,22 @@ test('keeps server overlay metadata and validates composable names', () => {
   const overlay = {
     ...motion,
     image: '/7tv-cdn/emote/id/2x.webp',
-    zeroWidth: true,
+    overlaying: true,
     composeToken: motion.name
   };
   expect(parseCatalog([overlay], true)).toEqual([overlay]);
   expect(() => parseCatalog([{ ...overlay, composeToken: 'Another' }], true)).toThrow();
-  expect(() => parseCatalog([{ ...overlay, zeroWidth: 1 }], true)).toThrow();
+  expect(() => parseCatalog([{ ...overlay, overlaying: 1 }], true)).toThrow();
   expect(parseCatalog([{ ...motion, name: 'Two words' }])[0]?.composeToken).toBeUndefined();
+});
+
+test('filters overlaying emotes by provider tags and built-in labels', () => {
+  const catalog = parseCatalog([
+    still,
+    { ...motion, zeroWidth: true, tags: [' Greeting ', 'Dance', null, 'Dance'] }
+  ]);
+  expect(filterEmotes(catalog, '', '', '', false, 'overlaying', 'greet,animated')).toEqual([
+    { ...motion, overlaying: true, tags: ['Greeting', 'Dance'], composeToken: motion.name }
+  ]);
+  expect(filterEmotes(catalog, '', '', '', false, 'regular', 'dance')).toEqual([]);
 });

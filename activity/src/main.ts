@@ -1,24 +1,21 @@
 import { DiscordSDK } from '@discord/embedded-app-sdk';
 
-import bannerUrl from '../../assets/banner.png';
 import demoEmoteUrl from '../../assets/botge-emoji.png';
 import iconUrl from '../../assets/botge-icon.png';
-import { type BrowserEmote, filterEmotes, parseCatalog } from './catalog.ts';
+import { type BrowserEmote, emoteTags, filterEmotes, parseCatalog } from './catalog.ts';
 import { createComposer } from './composer.ts';
+import { createContextMenu } from './context-menu.ts';
+import { mountEmoteBorderSettings } from './emote-border-settings.ts';
+import { mountEmoteSettings } from './emote-settings.ts';
 import { type DiscoveryMode, fetchDiscoveryPage } from './seventv.ts';
 import { isRecord, requireValue } from './validation.ts';
+import { mountVoiceSettings } from './voice-settings.ts';
 import './style.scss';
 
 const favicon = document.createElement('link');
 favicon.rel = 'icon';
 favicon.href = iconUrl;
 document.head.append(favicon);
-
-const banner = new Image(680, 240);
-banner.className = 'masthead-art';
-banner.alt = 'Botge';
-banner.src = bannerUrl;
-requireValue(document.querySelector('#masthead-brand'), 'Missing masthead brand.').append(banner);
 
 const search = requireValue(document.querySelector<HTMLInputElement>('#search'), 'Missing search.');
 const source = requireValue(
@@ -29,8 +26,19 @@ const motion = requireValue(
   document.querySelector<HTMLSelectElement>('#motion'),
   'Missing motion.'
 );
+const overlay = requireValue(
+  document.querySelector<HTMLSelectElement>('#overlay-filter'),
+  'Missing layering filter.'
+);
+const tags = requireValue(
+  document.querySelector<HTMLInputElement>('#tag-search'),
+  'Missing tag search.'
+);
 const message = requireValue(document.querySelector('#message'), 'Missing status message.');
-const results = requireValue(document.querySelector('#results'), 'Missing results.');
+const results = requireValue(
+  document.querySelector<HTMLUListElement>('#results'),
+  'Missing results.'
+);
 const more = requireValue(
   document.querySelector<HTMLButtonElement>('#more'),
   'Missing pagination.'
@@ -54,6 +62,7 @@ const previewName = requireValue(
   document.querySelector<HTMLInputElement>('#preview-name'),
   'Missing preview name.'
 );
+const previewTags = requireValue(document.querySelector('#preview-tags'), 'Missing preview tags.');
 const copy = requireValue(
   document.querySelector<HTMLButtonElement>('#copy'),
   'Missing copy button.'
@@ -61,12 +70,18 @@ const copy = requireValue(
 const copyMessage = requireValue(document.querySelector('#copy-message'), 'Missing copy status.');
 
 const composer = createComposer();
+const contextMenu = createContextMenu();
+const tileEmotes = new WeakMap<HTMLButtonElement, BrowserEmote>();
 const composeAdd = requireValue(
   document.querySelector<HTMLButtonElement>('#compose-add'),
   'Missing composer button.'
 );
 
 const add = requireValue(document.querySelector<HTMLButtonElement>('#add'), 'Missing add button.');
+const remove = requireValue(
+  document.querySelector<HTMLButtonElement>('#remove'),
+  'Missing remove button.'
+);
 const openSevenTV = requireValue(
   document.querySelector<HTMLAnchorElement>('#open-7tv'),
   'Missing 7TV link.'
@@ -84,8 +99,84 @@ const sourceFilter = requireValue(
   'Missing source filter.'
 );
 
+const catalogLink = requireValue(document.querySelector('#catalog-link'), 'Missing catalog link.');
+const settingsLink = requireValue(
+  document.querySelector<HTMLElement>('#settings-link'),
+  'Missing settings link.'
+);
+const catalogPage = requireValue(
+  document.querySelector<HTMLElement>('#catalog-page'),
+  'Missing catalog page.'
+);
+const catalogIntro = requireValue(
+  document.querySelector<HTMLElement>('#catalog-intro'),
+  'Missing catalog heading.'
+);
+const composerPane = requireValue(
+  document.querySelector<HTMLElement>('#composer-pane'),
+  'Missing composer pane.'
+);
+const settingsPage = requireValue(
+  document.querySelector<HTMLElement>('#activity-settings'),
+  'Missing settings page.'
+);
+const selectEmotes = requireValue(
+  document.querySelector<HTMLButtonElement>('#select-emotes'),
+  'Missing selection toggle.'
+);
+const selectionPanel = requireValue(
+  document.querySelector<HTMLElement>('#selection'),
+  'Missing selection panel.'
+);
+const selectionStatus = requireValue(
+  document.querySelector('#selection-status'),
+  'Missing selection status.'
+);
+const selectionCompose = requireValue(
+  document.querySelector<HTMLButtonElement>('#selection-compose'),
+  'Missing bulk compose.'
+);
+const selectionAdd = requireValue(
+  document.querySelector<HTMLButtonElement>('#selection-add'),
+  'Missing bulk add.'
+);
+const selectionRemove = requireValue(
+  document.querySelector<HTMLButtonElement>('#selection-remove'),
+  'Missing bulk remove.'
+);
+const selectionClear = requireValue(
+  document.querySelector<HTMLButtonElement>('#selection-clear'),
+  'Missing clear selection.'
+);
+
+function showSettings(show: boolean): void {
+  settingsPage.hidden = !show;
+  catalogIntro.hidden = show;
+  catalogPage.hidden = show;
+  composerPane.hidden = show;
+  catalogLink.setAttribute('aria-current', show ? 'false' : 'page');
+  settingsLink.setAttribute('aria-current', show ? 'page' : 'false');
+}
+
+window.addEventListener('hashchange', () => {
+  showSettings(settingsLink.hidden === false && window.location.hash === '#activity-settings');
+});
+catalogLink.addEventListener('click', () => {
+  showSettings(false);
+});
+settingsLink.addEventListener('click', () => {
+  showSettings(true);
+});
+
 const PAGE_SIZE = 48;
+const MAX_SELECTION = 12;
 let catalog: readonly BrowserEmote[] = [];
+let canManageEmotes = false;
+let canComposeDiscovery = false;
+let knownSevenTV = new Map<string, BrowserEmote>();
+let selecting = false;
+const selection = new Map<string, BrowserEmote>();
+let requestQueue = Promise.resolve();
 let catalogMatches: readonly BrowserEmote[] = [];
 let visibleCount = 0;
 let mode: 'catalog' | DiscoveryMode = 'catalog';
@@ -107,44 +198,122 @@ const refresh = requireValue(
   'Missing catalog refresh.'
 );
 
+/** Requests a fresh Discord authorization code for each queued Botge API call. */
 async function requestServer(
-  path: 'catalog' | 'emotes',
+  path:
+    | 'catalog'
+    | 'emotes'
+    | 'emotes/remove'
+    | 'emotes/batch'
+    | 'settings'
+    | 'settings/voice'
+    | 'settings/emotes'
+    | 'settings/emotes/read'
+    | 'settings/border'
+    | 'settings/border/read',
   guildId: string,
-  emoteId?: string
+  fields?: Readonly<Record<string, unknown>>
 ): Promise<unknown> {
-  if (discord === undefined || appId === undefined) throw new Error('Open Botge inside Discord.');
-  const { code } = await discord.commands.authorize({
-    client_id: appId,
-    response_type: 'code',
-    state: '',
-    prompt: 'none',
-    scope: ['identify']
+  const client = discord;
+  const applicationId = appId;
+  if (client === undefined || applicationId === undefined)
+    throw new Error('Open Botge inside Discord.');
+  const request = requestQueue.then(async () => {
+    const send = async (): Promise<unknown> => {
+      const { code } = await client.commands.authorize({
+        client_id: applicationId,
+        response_type: 'code',
+        state: '',
+        prompt: 'none',
+        scope: ['identify']
+      });
+      const response = await fetch(`/botge-api/${path}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...fields, code, guildId }),
+        signal: AbortSignal.timeout(45_000)
+      });
+      return (await response.json()) as unknown;
+    };
+    const payload = await send();
+    // Only an expired OAuth code triggers a retry. Other errors may follow a write.
+    return isRecord(payload) && payload['code'] === 'oauth_expired' ? await send() : payload;
   });
-  const response = await fetch(`/botge-api/${path}`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ code, guildId, emoteId }),
-    signal: AbortSignal.timeout(35_000)
-  });
-  return (await response.json()) as unknown;
+  // Settle the queue on failure as well so later requests can still run.
+  requestQueue = request.then(
+    () => undefined,
+    () => undefined
+  );
+  return await request;
+}
+
+function emoteKey(emote: BrowserEmote): string {
+  return JSON.stringify([emote.source, emote.sevenTVId ?? emote.image, emote.name]);
+}
+
+function canChangeEmote(emote: BrowserEmote, removing: boolean): boolean {
+  if (!canManageEmotes || emote.sevenTVId === undefined) return false;
+  const known = knownSevenTV.get(emote.sevenTVId);
+  return removing ? known?.added === true : allowAdds && known === undefined;
+}
+
+function syncSelection(feedback?: string): void {
+  selectionPanel.hidden = !selecting;
+  selectEmotes.setAttribute('aria-pressed', String(selecting));
+  selectEmotes.textContent = selecting ? 'Done selecting' : 'Select emotes';
+  selectionStatus.textContent = feedback ?? `${selection.size} of ${MAX_SELECTION} selected`;
+  const entries = [...selection.values()];
+  const busy = pendingActions.has('add');
+  selectionAdd.hidden = !entries.some((emote) => canChangeEmote(emote, false));
+  selectionRemove.hidden = !entries.some((emote) => canChangeEmote(emote, true));
+  selectionAdd.disabled = busy;
+  selectionRemove.disabled = busy;
+  selectionCompose.disabled = !entries.some((emote) => emote.composeToken !== undefined);
+  selectionClear.disabled = entries.length === 0;
+  for (const tile of results.querySelectorAll<HTMLButtonElement>('.tile')) {
+    if (selecting)
+      tile.setAttribute('aria-pressed', String(selection.has(tile.dataset['key'] ?? '')));
+    else tile.removeAttribute('aria-pressed');
+  }
+}
+
+function clearSelection(): void {
+  selection.clear();
+  syncSelection();
+}
+
+function toggleSelection(emote: BrowserEmote): void {
+  const key = emoteKey(emote);
+  if (selection.has(key)) selection.delete(key);
+  else if (selection.size < MAX_SELECTION) selection.set(key, emote);
+  else {
+    syncSelection(`Select up to ${MAX_SELECTION} emotes at a time.`);
+    return;
+  }
+  syncSelection();
 }
 
 function showPreview(emote: BrowserEmote): void {
   selected = emote;
   composeAdd.hidden = emote.composeToken === undefined;
   composeAdd.disabled = composer.full();
-  add.hidden =
-    emote.sevenTVId === undefined
-    || !allowAdds
-    || discord === undefined
-    || discord.guildId === null;
+  add.hidden = !canChangeEmote(emote, false);
   add.disabled = pendingActions.has('add');
+  remove.hidden = !canChangeEmote(emote, true);
+  remove.disabled = pendingActions.has('add');
   openSevenTV.hidden = emote.sevenTVId === undefined;
   if (emote.sevenTVId !== undefined) openSevenTV.href = `https://7tv.app/emotes/${emote.sevenTVId}`;
   previewImage.src = emote.image;
   previewArt.append(previewImage);
   previewSource.textContent = emote.added === true ? `${emote.source} · Added` : emote.source;
   previewTitle.textContent = emote.name;
+  previewTags.replaceChildren(
+    ...emoteTags(emote).map((tag) => {
+      const item = document.createElement('li');
+      item.textContent = tag;
+      return item;
+    })
+  );
   previewName.value = emote.name;
   copyMessage.textContent =
     !composeAdd.hidden && composeAdd.disabled ?
@@ -158,9 +327,14 @@ function makeTile(emote: BrowserEmote): HTMLLIElement {
   const button = document.createElement('button');
   button.type = 'button';
   button.className = 'tile';
+  const key = emoteKey(emote);
+  button.dataset['key'] = key;
+  if (selecting) button.setAttribute('aria-pressed', String(selection.has(key)));
   button.addEventListener('click', () => {
-    showPreview(emote);
+    if (selecting) toggleSelection(emote);
+    else showPreview(emote);
   });
+  tileEmotes.set(button, emote);
 
   const image = document.createElement('img');
   image.src = emote.image;
@@ -169,14 +343,22 @@ function makeTile(emote: BrowserEmote): HTMLLIElement {
   image.height = 64;
   image.loading = 'lazy';
 
+  const art = document.createElement('span');
+  art.className = 'tile-art';
+  art.append(image);
+
+  const details = document.createElement('span');
+  details.className = 'tile-details';
   const name = document.createElement('strong');
   name.textContent = emote.name;
   const label = document.createElement('span');
-  const tags = [emote.source];
-  if (emote.added === true) tags.push('Added');
-  if (emote.animated) tags.push('Animated');
-  label.textContent = tags.join(' · ');
-  button.append(image, name, label);
+  const labels = [emote.source];
+  if (emote.added === true) labels.push('Added');
+  if (emote.animated) labels.push('Animated');
+  if (emote.overlaying === true) labels.push('Overlaying');
+  label.textContent = labels.join(' · ');
+  details.append(name, label);
+  button.append(art, details);
   item.append(button);
   return item;
 }
@@ -198,7 +380,9 @@ function resetResults(): void {
     search.value,
     source.value,
     motion.value,
-    addedFilter.getAttribute('aria-pressed') === 'true'
+    addedFilter.getAttribute('aria-pressed') === 'true',
+    overlay.value,
+    tags.value
   );
   results.replaceChildren();
   visibleCount = 0;
@@ -207,37 +391,22 @@ function resetResults(): void {
 
 function updateCatalog(entries: readonly BrowserEmote[]): void {
   catalog = entries;
+  knownSevenTV = new Map();
+  // If an ID occurs in both a feed and the added list, keep the entry the guild can remove.
+  for (const emote of entries) {
+    if (
+      emote.sevenTVId !== undefined
+      && (!knownSevenTV.has(emote.sevenTVId) || emote.added === true)
+    )
+      knownSevenTV.set(emote.sevenTVId, emote);
+  }
+  syncSelection();
   const selectedSource = source.value;
   const sources = new Set(catalog.map((emote) => emote.source));
   source.length = 1;
   for (const name of sources) source.add(new Option(name, name));
   source.value = sources.has(selectedSource) ? selectedSource : '';
   if (mode === 'catalog') resetResults();
-}
-
-async function refreshServerCatalog(): Promise<void> {
-  if (serverGuildId === undefined || pendingActions.has('catalog')) return;
-  pendingActions.add('catalog');
-  refresh.disabled = true;
-  message.textContent = 'Loading server emotes…';
-  try {
-    const payload = await requestServer('catalog', serverGuildId);
-    if (!isRecord(payload) || !Array.isArray(payload['emotes'])) {
-      if (mode === 'catalog')
-        message.textContent =
-          isRecord(payload) && typeof payload['message'] === 'string' ?
-            payload['message']
-          : 'Could not load server emotes.';
-      return;
-    }
-    updateCatalog(parseCatalog(payload['emotes'], true));
-  } catch {
-    if (mode === 'catalog')
-      message.textContent = 'Could not load server emotes. Use Refresh to try again.';
-  } finally {
-    pendingActions.delete('catalog');
-    refresh.disabled = false;
-  }
 }
 
 async function copyName(): Promise<void> {
@@ -254,6 +423,7 @@ async function copyName(): Promise<void> {
 async function loadDiscovery(nextPage: number): Promise<void> {
   if (mode === 'catalog') return;
   const request = new AbortController();
+  // A filter change can replace a request while its results are in flight.
   discoveryRequest?.abort();
   discoveryRequest = request;
   more.disabled = true;
@@ -265,10 +435,28 @@ async function loadDiscovery(nextPage: number): Promise<void> {
       search.value,
       motion.value,
       discord !== undefined,
-      request.signal
+      request.signal,
+      overlay.value,
+      tags.value
     );
     if (request.signal.aborted) return;
-    results.append(...page.emotes.map(makeTile));
+    results.append(
+      ...page.emotes.map((emote) => {
+        const id = emote.sevenTVId;
+        const known = id === undefined ? undefined : knownSevenTV.get(id);
+        const token =
+          known?.composeToken
+          ?? (id !== undefined && (discord === undefined || canComposeDiscovery) ?
+            `7tv:${id}`
+          : undefined);
+        return makeTile({
+          ...emote,
+          ...(known?.added === true ? { added: true } : {}),
+          ...(known?.composeToken !== undefined ? { overlaying: known.overlaying === true } : {}),
+          ...(token === undefined ? {} : { composeToken: token })
+        });
+      })
+    );
     currentPage = nextPage;
     more.hidden = nextPage >= page.pageCount;
     more.textContent = 'Show more';
@@ -306,39 +494,225 @@ function updateFilters(delay = 0): void {
   }, delay);
 }
 
-async function addSelectedEmote(): Promise<void> {
-  const emote = selected;
+async function refreshServerCatalog(): Promise<void> {
+  if (serverGuildId === undefined || pendingActions.has('catalog')) return;
+  pendingActions.add('catalog');
+  refresh.disabled = true;
+  if (mode === 'catalog') message.textContent = 'Loading server emotes…';
+  try {
+    const payload = await requestServer('catalog', serverGuildId);
+    if (!isRecord(payload) || !Array.isArray(payload['emotes'])) {
+      if (mode === 'catalog')
+        message.textContent =
+          isRecord(payload) && typeof payload['message'] === 'string' ?
+            payload['message']
+          : 'Could not load server emotes.';
+      return;
+    }
+    const entries = parseCatalog(payload['emotes'], true);
+    canManageEmotes = payload['canManageEmotes'] === true;
+    canComposeDiscovery = payload['canComposeDiscovery'] === true;
+    updateCatalog(entries);
+    if (mode !== 'catalog') updateFilters();
+  } catch {
+    if (mode === 'catalog')
+      message.textContent = 'Could not load server emotes. Use Refresh to try again.';
+  } finally {
+    pendingActions.delete('catalog');
+    refresh.disabled = false;
+  }
+}
+
+async function changeEmote(
+  emote: BrowserEmote | undefined,
+  removing: boolean,
+  report: (feedback: string) => void
+): Promise<void> {
   const guildId = discord?.guildId;
   if (
-    !allowAdds
-    || discord === undefined
-    || appId === undefined
-    || guildId === null
+    guildId === null
     || guildId === undefined
     || emote?.sevenTVId === undefined
     || pendingActions.has('add')
+    || !canChangeEmote(emote, removing)
   )
     return;
 
   pendingActions.add('add');
   add.disabled = true;
-  copyMessage.textContent = 'Adding emote…';
+  remove.disabled = true;
+  report(removing ? 'Removing emote…' : 'Adding emote…');
   try {
-    const payload = await requestServer('emotes', guildId, emote.sevenTVId);
+    const payload = await requestServer(removing ? 'emotes/remove' : 'emotes', guildId, {
+      emoteId: emote.sevenTVId
+    });
     if (!isRecord(payload) || typeof payload['message'] !== 'string')
       throw new Error('Invalid add response.');
-    if (selected === emote) copyMessage.textContent = payload['message'];
+    if (payload['removed'] === true || payload['added'] === true) {
+      await refreshServerCatalog();
+      if (selected === emote) {
+        add.hidden = !canChangeEmote(emote, false);
+        remove.hidden = !canChangeEmote(emote, true);
+      }
+    }
+    report(payload['message']);
   } catch {
-    if (selected === emote)
-      copyMessage.textContent = 'Could not add this emote. Try again or open it on 7TV.';
+    report(
+      removing ?
+        'Could not remove this emote. Try again.'
+      : 'Could not add this emote. Try again or open it on 7TV.'
+    );
   } finally {
     pendingActions.delete('add');
     add.disabled = false;
+    remove.disabled = false;
   }
 }
 
+function changePreviewEmote(removing: boolean): void {
+  const emote = selected;
+  void changeEmote(emote, removing, (feedback) => {
+    if (selected === emote) copyMessage.textContent = feedback;
+  });
+}
+
+results.addEventListener(
+  'contextmenu',
+  (
+    event: Readonly<{
+      target: unknown;
+      clientX: number;
+      clientY: number;
+      preventDefault: () => void;
+    }>
+  ) => {
+    const button =
+      event.target instanceof Element ? event.target.closest<HTMLButtonElement>('.tile') : null;
+    const emote = button === null ? undefined : tileEmotes.get(button);
+    if (button === null || emote === undefined) return;
+    event.preventDefault();
+    const actions: { label: string; run: () => void }[] = [];
+    if (emote.composeToken !== undefined && !composer.full())
+      actions.push({
+        label: 'Add to composer',
+        run() {
+          composer.add(emote);
+          syncSelection();
+        }
+      });
+    for (const removing of [false, true]) {
+      if (!canChangeEmote(emote, removing) || pendingActions.has('add')) continue;
+      actions.push({
+        label: removing ? 'Remove from this server' : 'Add to this server',
+        run() {
+          void changeEmote(emote, removing, (feedback) => {
+            message.textContent = feedback;
+          });
+        }
+      });
+    }
+    actions.push({
+      label: 'View details',
+      run() {
+        showPreview(emote);
+      }
+    });
+    contextMenu.open(button, event.clientX, event.clientY, actions);
+  }
+);
+
+async function changeSelection(removing: boolean): Promise<void> {
+  const guildId = discord?.guildId;
+  if (guildId === undefined || guildId === null || pendingActions.has('add')) return;
+  const ids = [
+    ...new Set(
+      [...selection.values()].flatMap((emote) =>
+        emote.sevenTVId !== undefined && canChangeEmote(emote, removing) ? [emote.sevenTVId] : []
+      )
+    )
+  ];
+  if (ids.length === 0) return;
+  pendingActions.add('add');
+  let feedback = '';
+  syncSelection(removing ? 'Removing selected emotes…' : 'Adding selected emotes…');
+  try {
+    const payload = await requestServer('emotes/batch', guildId, {
+      action: removing ? 'remove' : 'add',
+      emoteIds: ids
+    });
+    if (isRecord(payload) && typeof payload['message'] === 'string')
+      throw new Error(payload['message']);
+    if (!Array.isArray(payload)) throw new Error('Invalid bulk emote response.');
+    const succeeded = new Set<string>();
+    let failure = '';
+    const changes: readonly unknown[] = payload;
+    for (const result of changes) {
+      if (
+        !isRecord(result)
+        || typeof result['emoteId'] !== 'string'
+        || !ids.includes(result['emoteId'])
+      )
+        continue;
+      if (result['ok'] === true) succeeded.add(result['emoteId']);
+      else if (failure === '' && typeof result['message'] === 'string') failure = result['message'];
+    }
+    // Keep failed items selected so the user can retry them without picking them again.
+    for (const [key, emote] of selection) {
+      if (emote.sevenTVId !== undefined && succeeded.has(emote.sevenTVId)) selection.delete(key);
+    }
+    if (succeeded.size > 0) await refreshServerCatalog();
+    feedback =
+      `${removing ? 'Removed' : 'Added'} ${succeeded.size} of ${ids.length}. ${failure}`.trim();
+  } catch (error) {
+    feedback = error instanceof Error ? error.message : 'Could not update selected emotes.';
+  } finally {
+    pendingActions.delete('add');
+    syncSelection(feedback);
+  }
+}
+
+selectEmotes.addEventListener('click', () => {
+  selecting = !selecting;
+  clearSelection();
+});
+selectionClear.addEventListener('click', clearSelection);
+selectionCompose.addEventListener('click', () => {
+  const count = composer.addMany([...selection.values()]);
+  syncSelection(
+    count === 0 ?
+      'The composer is full. Remove an input to add more.'
+    : `Added ${count} to the composer.`
+  );
+});
+selectionAdd.addEventListener('click', () => {
+  void changeSelection(false);
+});
+selectionRemove.addEventListener('click', () => {
+  void changeSelection(true);
+});
+
 async function loadActivity(): Promise<void> {
   await discord?.ready();
+  const settingsGuildId = discord?.guildId ?? undefined;
+  if (
+    import.meta.env['VITE_ENABLE_ACTIVITY_SETTINGS'] === 'true'
+    && settingsGuildId !== undefined
+  ) {
+    settingsLink.hidden = false;
+    showSettings(window.location.hash === '#activity-settings');
+    mountEmoteBorderSettings(async (color) => {
+      if (color === undefined) return await requestServer('settings/border/read', settingsGuildId);
+      return await requestServer('settings/border', settingsGuildId, { color });
+    });
+    mountVoiceSettings(async (voice) => {
+      if (voice === undefined) return await requestServer('settings', settingsGuildId);
+      return await requestServer('settings/voice', settingsGuildId, { voice });
+    });
+    mountEmoteSettings(async (emotes) => {
+      if (emotes === undefined) return await requestServer('settings/emotes/read', settingsGuildId);
+      return await requestServer('settings/emotes', settingsGuildId, { emotes });
+    });
+  }
 
   search.addEventListener('input', () => {
     updateFilters(300);
@@ -348,6 +722,12 @@ async function loadActivity(): Promise<void> {
   });
   motion.addEventListener('change', () => {
     updateFilters();
+  });
+  overlay.addEventListener('change', () => {
+    updateFilters();
+  });
+  tags.addEventListener('input', () => {
+    updateFilters(300);
   });
   more.addEventListener('click', () => {
     if (mode === 'catalog') renderMore();
@@ -363,6 +743,7 @@ async function loadActivity(): Promise<void> {
       ['top', requireValue(document.querySelector('#top-mode'), 'Missing top mode.')]
     ] as const;
     function selectMode(value: 'catalog' | DiscoveryMode): void {
+      if (mode !== value) clearSelection();
       mode = value;
       sourceFilter.hidden = value !== 'catalog';
       addedFilter.hidden = value !== 'catalog' || serverGuildId === undefined;
@@ -379,7 +760,10 @@ async function loadActivity(): Promise<void> {
     modes.hidden = false;
   }
   add.addEventListener('click', () => {
-    void addSelectedEmote();
+    changePreviewEmote(false);
+  });
+  remove.addEventListener('click', () => {
+    changePreviewEmote(true);
   });
   if (discord !== undefined) {
     openSevenTV.addEventListener('click', (event: Readonly<Pick<Event, 'preventDefault'>>) => {
@@ -392,6 +776,7 @@ async function loadActivity(): Promise<void> {
   composeAdd.addEventListener('click', () => {
     if (selected === undefined) return;
     composer.add(selected);
+    syncSelection();
     preview.close();
   });
   copy.addEventListener('click', () => {

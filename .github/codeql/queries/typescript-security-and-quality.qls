@@ -1,7 +1,0 @@
-- import: codeql-suites/javascript-security-and-quality.qls
-  from: codeql/javascript-queries
-
-- exclude:
-    id:
-      - js/file-access-to-http
-      - js/http-to-file-access
