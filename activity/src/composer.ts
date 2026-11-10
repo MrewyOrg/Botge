@@ -1,9 +1,6 @@
-import {
-  groupEmoteLayers,
-  MAX_EMOTE_COMPOSE_INPUTS
-} from '../../src/emotes/rendering/compose-layout.ts';
-import { requireValue } from '../../src/utils/validation.ts';
 import type { BrowserEmote } from './catalog.ts';
+import { groupEmoteLayers, MAX_EMOTE_COMPOSE_INPUTS } from './compose-layout.ts';
+import { requireValue } from './validation.ts';
 
 export function createComposer(): Readonly<{
   add: (emote: BrowserEmote) => void;

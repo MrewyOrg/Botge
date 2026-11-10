@@ -1,8 +1,8 @@
 import { generateKeyPairSync, sign } from 'node:crypto';
 
-import { expect, test } from 'vitest';
+import { expect, test, vi } from 'vitest';
 
-import { serveActivityPage } from '../../activity/worker/serve-activity-page.ts';
+import { serveActivityPage } from '../worker/serve-activity-page.ts';
 
 const { privateKey, publicKey } = generateKeyPairSync('ed25519');
 const key = publicKey.export({ format: 'der', type: 'spki' }).subarray(-32).toString('hex');
@@ -47,3 +47,15 @@ test('serves the entry page only for known paths and navigation methods', () => 
   expect(response.status).toBe(405);
   expect(response.headers.get('Allow')).toBe('GET, HEAD');
 });
+
+test('the Worker entry uses the configured Discord public key', async () => {
+  const { default: worker } = await import('../worker/entry.ts');
+  const headers = signedHeaders(Math.floor(Date.now() / 1000) + 60);
+  const response = worker.fetch(new Request(origin, { headers }), {
+    DISCORD_ACTIVITY_PUBLIC_KEY: key
+  });
+  expect(response.status).toBe(200);
+  expect(await response.text()).toBe(html);
+});
+
+vi.mock('../../dist/activity/index.html', () => ({ default: html }));

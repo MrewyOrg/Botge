@@ -1,6 +1,6 @@
 import { afterEach, expect, test, vi } from 'vitest';
 
-import { fetchDiscoveryPage, parseDiscoveryPage } from '../../activity/src/seventv.ts';
+import { fetchDiscoveryPage, parseDiscoveryPage } from '../src/seventv.ts';
 
 const id = '01234567890123456789012345';
 const emote = {

@@ -14,9 +14,18 @@ From the repository root, run `npm ci` and `npm run dev -w activity`. Open the l
 by Vite to preview the Activity in a browser. Run `npm run build -w activity` to write the static
 site to `dist/activity/`.
 
-Run `npm test -w activity` from the repository root to test the catalog, discovery, API, and Worker.
-Run `npm run check:markup -w activity` to compile SCSS through Vite and validate the source and
-built HTML.
+Run these checks from the repository root:
+
+```sh
+npm test -w activity
+npm run test:coverage -w activity
+npm run check:markup -w activity
+```
+
+The Activity suite covers the browser and Worker without starting the bot or building the site.
+Coverage reports are written to `coverage/activity/` with an 80% minimum for each source file. The
+markup check compiles SCSS through Vite and validates the source and built HTML. Tests for the bot’s
+Activity API live under [the bot test suite](../tests/api/activity/).
 
 ## Emote Composer
 
@@ -86,8 +95,9 @@ preview discovery locally.
 ### Add to this server
 
 This optional action uses Botge’s added-emote catalog for the Discord server where the Activity is
-open. It checks the same add permissions and duplicates as `/emote-add`. Use **Open on 7TV** to
-manage an upstream set through 7TV.
+open. Use **Add emote access** in `/settings` to manage permissions for both the Activity and
+`/emote-add`. They share the same duplicate checks. Use **Open on 7TV** to manage an upstream set
+through 7TV.
 
 1. Enable `general.use7TVAddedEmotes` in the bot’s configuration.
 2. In Discord’s **OAuth2** page, add `https://127.0.0.1` under **Redirects** as the Activity

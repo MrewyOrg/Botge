@@ -46,7 +46,7 @@
     "start": "docker image prune --force && docker compose -f compose.yaml -f compose.build.yaml up --build",
     "stop": "docker compose stop",
     "test": "vitest",
-    "test:coverage": "vitest run --coverage",
+    "test:coverage": "vitest run --project Botge --coverage && npm run test:coverage -w activity",
     "typecheck": "tsc --build && tsc --project tests --noEmit && npm run typecheck --workspace activity"
   },
   "allowScripts": {

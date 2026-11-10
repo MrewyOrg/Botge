@@ -1,13 +1,19 @@
-// cspell:words testge
-
 import { configDefaults, defineConfig, type ViteUserConfig } from 'vitest/config';
 
 const viteUserConfig: Readonly<ViteUserConfig> = defineConfig({
   resolve: { tsconfigPaths: true },
   test: {
-    name: { label: 'Testge', color: 'cyan' },
-    include: ['tests/**/*.test.ts'],
-    exclude: [...configDefaults.exclude, 'tests/integration/**'],
+    projects: [
+      {
+        extends: true,
+        test: {
+          name: { label: 'Botge', color: 'cyan' },
+          include: ['tests/**/*.test.ts'],
+          exclude: [...configDefaults.exclude, 'tests/integration/**']
+        }
+      },
+      './activity/vitest.config.ts'
+    ],
     // Bound memory and startup contention while the policy suite loads TypeScript and ESLint.
     maxWorkers: 4,
     coverage: {

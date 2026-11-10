@@ -1,6 +1,5 @@
-import { isSevenTVEmoteId } from '../../src/emotes/seventv/emote-id.ts';
-import { isRecord } from '../../src/utils/validation.ts';
 import type { BrowserEmote } from './catalog.ts';
+import { isRecord } from './validation.ts';
 
 export type DiscoveryMode = 'trending' | 'top';
 
@@ -20,6 +19,10 @@ const SEARCH = `
     }
   }
 `;
+
+function isSevenTVEmoteId(value: unknown): value is string {
+  return typeof value === 'string' && /^(?:[a-f0-9]{24}|[a-z0-9]{26})$/iu.test(value);
+}
 
 function previewPath(images: readonly unknown[], id: string): string | undefined {
   for (const size of ['2x', '1x', '3x', '4x']) {

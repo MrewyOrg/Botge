@@ -1,11 +1,6 @@
 {
   "extends": "../tsconfig.base",
-  "include": [
-    "**/*.ts",
-    "../activity/src/catalog.ts",
-    "../activity/src/seventv.ts",
-    "../activity/worker/serve-activity-page.ts"
-  ],
+  "include": ["**/*.ts"],
   "exclude": ["integration"],
   "references": [{ "path": "../src" }],
   "compilerOptions": {

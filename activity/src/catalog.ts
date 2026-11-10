@@ -1,5 +1,5 @@
-import { isComposeToken } from '../../src/emotes/rendering/compose-layout.ts';
-import { isRecord } from '../../src/utils/validation.ts';
+import { isComposeToken } from './compose-layout.ts';
+import { isRecord } from './validation.ts';
 
 export type BrowserEmote = Readonly<{
   name: string;

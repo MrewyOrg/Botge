@@ -1,4 +1,4 @@
-import { createProxyAuthenticator } from '../../src/api/activity/proxy-authentication.ts';
+import { createProxyAuthenticator } from './proxy-authentication.ts';
 
 export type ActivityPageRequest = Readonly<{
   headers: Readonly<Pick<Headers, 'get'>>;

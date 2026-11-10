@@ -5,14 +5,15 @@ Run commands from the repository root:
 ```sh
 npm test -- --run
 npm test -w activity
-npm test -- --run --exclude 'tests/activity/**'
+npm test -- --run --project Botge
 npx vitest run tests/emotes
 npx vitest run tests/api/http.test.ts
 npm run typecheck
 ```
 
-The workspace command runs only the Activity suite. The `--exclude` command runs the other local
-tests. The default suite covers both.
+The default run covers both suites. Use the workspace command for the
+[Activity tests](../activity/README.md#preview-and-build) or `--project Botge` for the bot and
+repository tooling tests.
 
 Group tests by their owning subsystem, matching `src/` where practical. Handler suites cover
 commands, interactions, and messages. Add regression cases to the related suite.
@@ -38,8 +39,8 @@ They cover request validation, locking, Docker failures, and transport responses
 real socket, Docker daemon, or system account.
 
 `npm run test:coverage` requires 80% statements, branches, functions, and lines in each source file.
-It produces a terminal summary, HTML at `coverage/index.html` (green at 80%), and branch details in
-`coverage/coverage-final.json`. Coverage identifies untested paths; it does not prove correctness.
+It produces separate HTML reports for the bot at `coverage/index.html` and the Activity at
+`coverage/activity/index.html`. Coverage identifies untested paths; it does not prove correctness.
 
 ## Compose integration
 

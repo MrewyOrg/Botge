@@ -3,10 +3,10 @@ import { DiscordSDK } from '@discord/embedded-app-sdk';
 import bannerUrl from '../../assets/banner.png';
 import demoEmoteUrl from '../../assets/botge-emoji.png';
 import iconUrl from '../../assets/botge-icon.png';
-import { isRecord, requireValue } from '../../src/utils/validation.ts';
 import { type BrowserEmote, filterEmotes, parseCatalog } from './catalog.ts';
 import { createComposer } from './composer.ts';
 import { type DiscoveryMode, fetchDiscoveryPage } from './seventv.ts';
+import { isRecord, requireValue } from './validation.ts';
 import './style.scss';
 
 const favicon = document.createElement('link');
