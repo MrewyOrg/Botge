@@ -1,0 +1,5 @@
+services:
+  botge:
+    image: !reset null
+    build:
+      context: .

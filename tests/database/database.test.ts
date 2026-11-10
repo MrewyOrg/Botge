@@ -16,6 +16,7 @@ import { PermittedRoleIdsDatabase } from 'src/database/permitted-role-ids-databa
 import { PingsDatabase } from 'src/database/pings-database.ts';
 import { QuotesDatabase } from 'src/database/quotes-database.ts';
 import { UsersDatabase } from 'src/database/users-database.ts';
+import { VoiceChannelsDatabase } from 'src/database/voice-channels-database.ts';
 import type { Ping } from 'src/types.ts';
 import { requireValue } from 'src/utils/validation.ts';
 
@@ -228,6 +229,64 @@ test('the registry opens every database with the existing filenames and the mana
     const reopened = new UsersDatabase(join(directory, 'new-directory', 'users.sqlite'));
     try {
       expect(reopened.getUser('user')?.guildId).toBe('guild');
+    } finally {
+      reopened.close();
+    }
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
+test('voice settings preserve existing selections and keep status preferences after disconnecting', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'botge-voice-'));
+  const path = join(directory, 'voiceChannels.sqlite');
+  const emoji = '<:test_emoji:123456789012345678>';
+  try {
+    const legacyDatabase = new DatabaseSync(path);
+    try {
+      legacyDatabase.exec(`
+        CREATE TABLE voiceChannels (guildId TEXT NOT NULL PRIMARY KEY, channelId TEXT NOT NULL) STRICT;
+        INSERT INTO voiceChannels VALUES ('first', 'original');
+      `);
+    } finally {
+      legacyDatabase.close();
+    }
+
+    const database = new VoiceChannelsDatabase(path);
+    try {
+      expect(database.getChannelId('first')).toBe('original');
+      expect(database.getStatusSettings('first')).toEqual({ enabled: false, emoji: null });
+      database.saveSettings('first', 'replacement', { enabled: true, emoji });
+      database.saveSettings('second', 'other', { enabled: false, emoji: null });
+    } finally {
+      database.close();
+    }
+
+    const reopened = new VoiceChannelsDatabase(path);
+    try {
+      expect(reopened.getChannelId('first')).toBe('replacement');
+      expect(reopened.getStatusSettings('first')).toEqual({ enabled: true, emoji });
+      reopened.saveSettings('first', undefined, { enabled: false, emoji });
+      expect(reopened.getChannelId('first')).toBeUndefined();
+      expect(reopened.getStatusSettings('first')).toEqual({ enabled: false, emoji });
+      expect(reopened.getChannelId('second')).toBe('other');
+
+      const connection = new DatabaseSync(path);
+      try {
+        connection.exec(`
+          CREATE TRIGGER rejectVoiceStatusUpdate BEFORE UPDATE ON voiceChannelStatus
+          BEGIN
+            SELECT RAISE(ABORT, 'Status update failed');
+          END;
+        `);
+      } finally {
+        connection.close();
+      }
+      expect(() => {
+        reopened.saveSettings('second', 'new-channel', { enabled: true, emoji });
+      }).toThrow('Status update failed');
+      expect(reopened.getChannelId('second')).toBe('other');
+      expect(reopened.getStatusSettings('second')).toEqual({ enabled: false, emoji: null });
     } finally {
       reopened.close();
     }

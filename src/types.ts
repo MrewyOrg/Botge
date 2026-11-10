@@ -16,7 +16,6 @@ export type ReadonlyActionRowBuilderMessageActionRowComponentBuilder = DeepReado
 export type BotgeConfig = {
   readonly general: {
     readonly updateClipsOnStartup: boolean;
-    readonly joinVoiceChannels: boolean;
     readonly autoCompleteOnly7TVPersonal: boolean;
     readonly use7TVGlobalEmotes: boolean;
     readonly use7TVPersonalEmotes: boolean;

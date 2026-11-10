@@ -1,8 +1,9 @@
 import { createHash } from 'node:crypto';
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 
-import { REST, Routes } from 'discord.js';
+import { ApplicationCommandType, REST, Routes } from 'discord.js';
 
+import { isArrayOf, isRecord } from '../utils/validation.ts';
 import { getCommands } from './commands.ts';
 
 export async function updateCommands(
@@ -33,7 +34,24 @@ export async function updateCommands(
   console.log('Discord commands updating.');
 
   const rest: Readonly<REST> = new REST().setToken(discordToken);
-  await rest.put(Routes.applicationCommands(applicationId), { body: commands });
+  const route = Routes.applicationCommands(applicationId);
+  // Discord creates this command when Activities are enabled. Bulk updates must include it.
+  const registered: unknown = await rest.get(route, {
+    query: new URLSearchParams({ with_localizations: 'true' })
+  });
+  if (!isArrayOf(registered, isRecord)) throw new Error('Invalid registered commands response.');
+  const launch = registered.find(
+    (command: Readonly<Record<string, unknown>>) =>
+      command['type'] === ApplicationCommandType.PrimaryEntryPoint
+  );
+  if (launch !== undefined) {
+    const entryPoint = { ...launch };
+    delete entryPoint['application_id'];
+    delete entryPoint['version'];
+    await rest.put(route, { body: [...commands, entryPoint] });
+  } else {
+    await rest.put(route, { body: commands });
+  }
 
   writeFileSync(lockFilePath, newCommands, { encoding: 'utf8', flag: 'w' });
 

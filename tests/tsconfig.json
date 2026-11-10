@@ -1,8 +1,17 @@
 {
   "extends": "../tsconfig.base",
+  "include": [
+    "**/*.ts",
+    "../activity/src/catalog.ts",
+    "../activity/src/seventv.ts",
+    "../activity/worker/serve-activity-page.ts"
+  ],
+  "exclude": ["integration"],
   "references": [{ "path": "../src" }],
   "compilerOptions": {
     // Modules
+    "allowImportingTsExtensions": true,
+    "rewriteRelativeImportExtensions": false,
     "paths": { "src/*": ["../src/*"] },
 
     // Emit

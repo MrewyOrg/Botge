@@ -142,6 +142,16 @@ additional analytics, resale, transfers, or modified processing they introduce a
 relevant platform restrictions. Self-hosting does not prevent configured external providers from
 processing data under their own terms.
 
+## Emote Browser Activity
+
+Optional 7TV discovery sends search terms, filters, and page requests to 7TV through Discord’s
+Activity proxy when opened inside Discord. Preview images come from 7TV. If the operator enables
+server catalogs or adding emotes, Botge exchanges a Discord OAuth code to identify the requester and
+checks their current server membership and roles. Botge uses the access token for that request and
+does not store it. When proxy authentication is enabled, Botge also validates Discord’s signed
+request metadata in memory. An accepted add stores the server ID and the emote reference in the
+added-emote database.
+
 ## Logs, voice, and copies outside the bot
 
 Botge writes operational/error output to process logs. Current Ollama logging includes channel
@@ -150,8 +160,10 @@ URLs, identifiers, content fragments, and diagnostic details. nginx access logs 
 requested paths and network addresses. Container log rotation is a size limit, not a guaranteed
 time-based retention period. Hosting services and backups can keep other copies.
 
-The optional voice-channel join is self-muted and self-deafened; current code does not implement
-voice recording, transcription, or voice-model processing.
+If voice is enabled through `/settings`, Botge stores the server and voice channel IDs in its local
+SQLite database so it can rejoin on startup. Clearing the channel removes the saved channel ID.
+Botge also stores the optional channel status emoji and whether to set it. Botge joins self-muted
+and does not record, transcribe, or process voice.
 
 Deleting a saved record removes the active database entry, not necessarily every recoverable
 database page, backup, posted message, or third-party copy. `/temporary` attempts to delete its bot

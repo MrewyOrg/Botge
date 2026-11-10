@@ -17,6 +17,10 @@ import { type Guild, GUILD_ID_CUTEDOG } from '../../discord/guild.ts';
 import type { User } from '../../discord/user.ts';
 import { stringToPlatform } from '../../emotes/platforms.ts';
 import { isEmoteEnabled } from '../../emotes/provider-policy.ts';
+import {
+  groupEmoteLayers,
+  MAX_EMOTE_COMPOSE_INPUTS
+} from '../../emotes/rendering/compose-layout.ts';
 import { downloadAsset } from '../../emotes/rendering/download-asset.ts';
 import { parseToken } from '../../emotes/rendering/parse-token.ts';
 import { assetSizeChange, maxPlatformSize } from '../../emotes/rendering/size-change.ts';
@@ -36,7 +40,6 @@ const FAILED_TO_DOWNLOAD_OR_GET_EMOJI_MESSAGE = 'Failed to download or get emoji
 const SOMETHING_WENT_WRONG_REPLY_MESSAGE = 'Something went wrong. Please try again later.' as const;
 const MAX_FFMPEG_STDERR_LENGTH = 16_384 as const;
 const MAX_ACTIVE_RENDERS = 2;
-const MAX_RENDER_TOKENS = 32;
 let activeRenders = 0;
 
 function getMaxWidth(layers: readonly DownloadedAsset[], scaleToHeight: number): number {
@@ -201,40 +204,24 @@ function createRenderElements(
     ];
   }
 
-  const elements: HorizontalStackElement[] = [];
-  function appendGroup(start: number, end: number): void {
-    if (end - start === 1) {
-      elements.push(
+  return groupEmoteLayers(assets, (asset) => typeof asset !== 'string' && asset.zeroWidth).map(
+    ({ start, layers }) =>
+      layers.length === 1 ?
         new SimpleElement(
           start,
           requireValue(downloaded[start], DOWNLOAD_ASSET_ERROR_MESSAGE),
           maxWidth,
           maxHeight
         )
-      );
-    } else {
-      elements.push(
-        new OverlayElement(
+      : new OverlayElement(
           start,
-          downloaded.slice(start, end),
+          downloaded.slice(start, start + layers.length),
           fullSize,
           stretch,
           maxWidth,
           maxHeight
         )
-      );
-    }
-  }
-
-  let boundary = 0;
-  for (const [index, asset] of assets.entries()) {
-    if (index > boundary && (typeof asset === 'string' || !asset.zeroWidth)) {
-      appendGroup(boundary, index);
-      boundary = index;
-    }
-  }
-  appendGroup(boundary, assets.length);
-  return elements;
+  );
 }
 
 export function emoteListHandler(
@@ -366,9 +353,9 @@ export function emotesHandler(cachedUrl: Readonly<CachedUrl>) {
         return;
       }
 
-      if (emotes.length > MAX_RENDER_TOKENS) {
+      if (emotes.length > MAX_EMOTE_COMPOSE_INPUTS) {
         const feedback = {
-          content: `Please request at most ${MAX_RENDER_TOKENS} emotes at once.`,
+          content: `Please request at most ${MAX_EMOTE_COMPOSE_INPUTS} emotes at once.`,
           allowedMentions: { repliedUser: false }
         };
         if (interaction !== undefined) await interaction.editReply(feedback.content);

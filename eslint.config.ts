@@ -156,6 +156,12 @@ const config: readonly Readonly<Config>[] = defineConfig([
     }
   },
   {
+    name: 'optional-integration-tests',
+    files: ['tests/integration/**/*.ts'],
+    // This suite type-checks separately after its dependencies are installed.
+    extends: [configs.disableTypeChecked]
+  },
+  {
     name: 'test-doubles',
     files: ['tests/**/*.ts'],
     // Partial SDK mocks intentionally implement only the behavior under test.

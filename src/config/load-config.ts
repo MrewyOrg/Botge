@@ -8,7 +8,6 @@ import { isRecord } from '../utils/validation.ts';
 
 export const GENERAL_DEFAULTS: BotgeConfig['general'] = {
   updateClipsOnStartup: false,
-  joinVoiceChannels: false,
   autoCompleteOnly7TVPersonal: false,
   use7TVGlobalEmotes: false,
   use7TVPersonalEmotes: false,
@@ -181,6 +180,8 @@ export function parseConfig(value: unknown): BotgeConfig {
   if (root['$schema'] !== undefined && typeof root['$schema'] !== 'string')
     throw new Error('config.$schema must be a string.');
   const general = { ...object(root['general'] === undefined ? {} : root['general'], 'general') };
+  // Ignore the retired option so existing installations can start and configure voice in Discord.
+  delete general['joinVoiceChannels'];
   for (const [key, aliases] of [
     ['activeSlashCommands', LEGACY_SLASH_COMMAND_NAMES],
     ['activeContextMenuCommands', LEGACY_CONTEXT_MENU_COMMAND_NAMES]

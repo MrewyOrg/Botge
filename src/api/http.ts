@@ -2,6 +2,7 @@ type RequestOptions = {
   readonly method?: string;
   readonly headers?: Readonly<Record<string, string>>;
   readonly body?: string;
+  readonly timeoutMs?: number;
 };
 
 const REQUEST_TIMEOUT_MS = 300_000;
@@ -22,10 +23,10 @@ export class HttpError extends Error {
 /** Bound requests and reject HTTP errors before decoding their bodies as successful data. */
 export async function requestResponse(
   url: string,
-  init: RequestOptions = {},
+  { timeoutMs = REQUEST_TIMEOUT_MS, ...init }: RequestOptions = {},
   allowedStatuses: readonly number[] = []
 ): Promise<Response> {
-  const response = await fetch(url, { ...init, signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS) });
+  const response = await fetch(url, { ...init, signal: AbortSignal.timeout(timeoutMs) });
   if (!response.ok && !allowedStatuses.includes(response.status)) {
     await response.body?.cancel();
     throw new HttpError(url, response.status);

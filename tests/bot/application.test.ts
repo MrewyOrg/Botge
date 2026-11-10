@@ -1,5 +1,7 @@
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 
+import { createActivityEmoteServer } from 'src/api/activity/emote-server.ts';
+
 const state = vi.hoisted(() => {
   const guild = {
     id: 'guild',
@@ -45,10 +47,12 @@ vi.mock('src/config/botge-config.ts', () => ({
       useBTTVEmotes: true,
       useFFZEmotes: true,
       useTwitchEmotes: true,
-      updateClipsOnStartup: true,
-      joinVoiceChannels: false
+      updateClipsOnStartup: true
     }
   }
+}));
+vi.mock('src/api/activity/emote-server.ts', () => ({
+  createActivityEmoteServer: vi.fn(() => ({ on: vi.fn(), listen: vi.fn() }))
 }));
 vi.mock('src/bot/create-discord-client.ts', () => ({
   createDiscordClient: vi.fn(() => ({ login: state.login }))
@@ -147,6 +151,9 @@ beforeEach(() => {
   ])
     vi.stubEnv(name, 'test-value');
   vi.stubEnv('AUTOCOMPLETE_ONLY_7TV_PERSONAL', '');
+  vi.stubEnv('DISCORD_ACTIVITY_CLIENT_SECRET', undefined);
+  vi.stubEnv('ACTIVITY_BIND_HOST', undefined);
+  vi.stubEnv('DISCORD_ACTIVITY_PUBLIC_KEY', undefined);
   vi.spyOn(process, 'once').mockReturnValue(process);
   vi.spyOn(process, 'on').mockReturnValue(process);
   vi.spyOn(process, 'exit').mockImplementation(() => {
@@ -181,6 +188,7 @@ test('startup restores settings, registers commands, logs in, and schedules main
   expect(state.login).toHaveBeenCalledWith('test-value');
   expect(state.register).toHaveBeenCalledOnce();
   expect(state.createBot).toHaveBeenCalledOnce();
+  expect(state.listeners).toHaveBeenCalledExactlyOnceWith();
   expect(process.env['DISCORD_TOKEN']).toBeUndefined();
   expect(process.env['OPENAI_API_KEY']).toBeUndefined();
   expect(state.schedule).toHaveBeenCalledTimes(5);
@@ -259,3 +267,19 @@ test.each(['prepare', 'token', 'globalInit', 'guildInit', 'update', 'login', 're
     expect(state.schedule).not.toHaveBeenCalled();
   }
 );
+
+test('starts the opt-in Activity API on loopback after login', async () => {
+  vi.stubEnv('DISCORD_ACTIVITY_CLIENT_SECRET', 'test-secret');
+  vi.stubEnv('DISCORD_ACTIVITY_PUBLIC_KEY', 'a'.repeat(64));
+  const { startApplication } = await import('src/application.ts');
+  await startApplication();
+  expect(createActivityEmoteServer).toHaveBeenCalledExactlyOnceWith(
+    'test-value',
+    'test-secret',
+    expect.any(Function) as unknown,
+    'a'.repeat(64)
+  );
+  const server = vi.mocked(createActivityEmoteServer).mock.results[0]?.value as
+    Readonly<{ listen: ReturnType<typeof vi.fn> }> | undefined;
+  expect(server?.listen).toHaveBeenCalledExactlyOnceWith(3080, '127.0.0.1');
+});

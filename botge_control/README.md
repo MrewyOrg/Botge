@@ -42,7 +42,8 @@ sudo bash "$BOTGE_DOWNLOAD_DIR/botge_control/setup" "$BOTGE_CONTROL_NAME"
 ## Configure and start
 
 Edit `.env` and `botge.config.json` in `/home/<control-name>/botge`. Import any existing data before
-starting. Botge runs as `node` and stores data in the `botge-data` named volume.
+starting. Setup installs the default Compose stack with Botge and nginx. Botge runs as `node` and
+stores data in the `botge-data` named volume.
 
 Using the variables set during installation:
 

@@ -7,9 +7,10 @@ deployment → merge. Merging does not deploy again.
 
 [BotgeQL](botgeql.yml) runs on PRs to `dev` and as a reusable workflow for PRs to `main`. It checks
 formatting, documentation, commit conventions, types, ESLint, unused code, test coverage,
-ShellCheck, and actionlint. Coverage appears in the job log. PR title edits rerun validation. Pushes
-to `dev` or `main`, including branch synchronization, do not trigger BotgeQL; an open PR still
-reruns when its head branch changes.
+ShellCheck, and actionlint. It also builds the Activity to compile SCSS and validates its source and
+built HTML. Coverage appears in the job log. PR title edits rerun validation. Pushes to `dev` or
+`main`, including branch synchronization, do not trigger BotgeQL; an open PR still reruns when its
+head branch changes.
 
 Before testing, CI copies `botge.example.config.jsonc` to `botge.config.json`. Tests use the example
 defaults and mocked services; no deployment configuration or credentials are needed.

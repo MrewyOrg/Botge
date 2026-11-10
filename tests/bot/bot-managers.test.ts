@@ -15,7 +15,7 @@ describe('Database shutdown', () => {
   test('attempts every close and reports all failures', () => {
     const firstError = new Error('first close failed');
     const secondError = new Error('second close failed');
-    const databases = Array.from({ length: 7 }, () => ({ close: vi.fn() }));
+    const databases = Object.keys(DATABASE_DEFINITIONS).map(() => ({ close: vi.fn() }));
     requireValue(databases[0], 'Expected indexed test value.').close.mockImplementation(() => {
       throw firstError;
     });

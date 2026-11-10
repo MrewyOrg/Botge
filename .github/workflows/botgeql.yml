@@ -1,4 +1,4 @@
-# cspell:words botgeql GOBIN rhysd
+# cspell:words botgeql GOBIN rhysd VITE
 
 name: BotgeQL
 
@@ -67,6 +67,13 @@ jobs:
 
       - name: Types, lint, and unused code
         run: npm run check:static
+
+      - name: Validate Activity HTML and SCSS
+        env:
+          VITE_ENABLE_7TV_DISCOVERY: 'true'
+          VITE_ENABLE_ACTIVITY_ADDS: 'true'
+          VITE_ENABLE_ACTIVITY_CATALOG: 'true'
+        run: npm run check:markup -w activity
 
       - name: Tests and coverage
         run: |

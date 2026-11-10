@@ -1,0 +1,20 @@
+{
+  "name": "@botge/activity",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "vite build --base=./ --outDir ../dist/activity --emptyOutDir",
+    "check:markup": "npm run build && html-validate --preset standard --max-warnings 0 index.html ../dist/activity/index.html",
+    "dev": "vite --host 127.0.0.1",
+    "test": "npm --prefix .. test -- --run tests/activity",
+    "typecheck": "tsc --project tsconfig.json"
+  },
+  "dependencies": {
+    "@discord/embedded-app-sdk": "^2.5.0"
+  },
+  "devDependencies": {
+    "html-validate": "^11.21.0",
+    "sass": "^1.108.1",
+    "vite": "^8.3.6"
+  }
+}

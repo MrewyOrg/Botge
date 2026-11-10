@@ -11,6 +11,7 @@ import {
 import type { Guild } from '../../discord/guild.ts';
 import { globalAdministrator, owner, permitted } from '../../discord/permissions.ts';
 import { logError } from '../../utils/log-error.ts';
+import { VOICE_CHANNEL_SETTINGS_BUTTON_CUSTOM_ID } from '../interactions/component-ids.ts';
 
 export const SETTINGS_PERMITTED_ROLES_BUTTON_CUSTOM_ID = 'settingsPermittedRolesButton' as const;
 export const ADD_EMOTE_PERMITTED_ROLES_BUTTON_CUSTOM_ID = 'addEmotePermittedRolesButton' as const;
@@ -103,6 +104,14 @@ export function settingsHandler() {
           .setLabel('My emote borders')
           .setStyle(ButtonStyle.Primary)
       );
+
+      if (guildSettingsRow !== undefined)
+        userSettingsRow.addComponents(
+          new ButtonBuilder()
+            .setCustomId(VOICE_CHANNEL_SETTINGS_BUTTON_CUSTOM_ID)
+            .setLabel('Bot voice channel')
+            .setStyle(ButtonStyle.Secondary)
+        );
 
       await defer;
       await interaction.editReply({

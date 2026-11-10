@@ -15,7 +15,6 @@ test('provider loading is opt-in and explicit true values still work', () => {
   const defaults = parseConfig({}).general;
   expect(defaults).toMatchObject({
     updateClipsOnStartup: false,
-    joinVoiceChannels: false,
     autoCompleteOnly7TVPersonal: false,
     use7TVGlobalEmotes: false,
     use7TVPersonalEmotes: false,
@@ -34,6 +33,12 @@ test('provider loading is opt-in and explicit true values still work', () => {
   };
   expect(parseConfig({ general: enabledProviders }).general).toMatchObject(enabledProviders);
   expect(loadConfig('botge.example.config.jsonc').general).toEqual(defaults);
+});
+
+test('existing configs can still load with the retired voice setting', () => {
+  const { general } = parseConfig({ general: { joinVoiceChannels: true, useBTTVEmotes: true } });
+  expect(general).not.toHaveProperty('joinVoiceChannels');
+  expect(general.useBTTVEmotes).toBe(true);
 });
 
 test('minimal config applies schema defaults and preserves explicit false and empty lists', () => {

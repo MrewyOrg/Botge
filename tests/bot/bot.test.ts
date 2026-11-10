@@ -1,5 +1,11 @@
-import { joinVoiceChannel } from '@discordjs/voice';
-import { Client, type ClientUser, Events, type VoiceChannel } from 'discord.js';
+import { joinVoiceChannel, VoiceConnectionStatus } from '@discordjs/voice';
+import {
+  ChannelType,
+  Client,
+  type ClientUser,
+  type Guild as DiscordGuild,
+  Events
+} from 'discord.js';
 import { beforeEach, describe, expect, test, vi } from 'vitest';
 
 import type { CachedUrl } from 'src/api/cached-url.ts';
@@ -7,9 +13,10 @@ import { ApiManager } from 'src/bot/api-manager.ts';
 import type { Bot } from 'src/bot/bot.ts';
 import type { DatabaseManager } from 'src/bot/database-manager.ts';
 import { SLASH_COMMAND_NAMES } from 'src/discord/command-names.ts';
-import { GENERAL_CHANNEL_ID_CUTEDOG, type Guild } from 'src/discord/guild.ts';
+import type { Guild } from 'src/discord/guild.ts';
 import { newGuild } from 'src/discord/new-guild.ts';
 import { User } from 'src/discord/user.ts';
+import { addSevenTVEmote, canAddEmote } from 'src/emotes/add-emote.ts';
 import { messageCreateHandler } from 'src/handlers/messages/message-create.ts';
 import { logError } from 'src/utils/log-error.ts';
 
@@ -19,13 +26,17 @@ const { handleMessage, handleCommand, handleComponent } = vi.hoisted(() => ({
   handleComponent: vi.fn()
 }));
 
-vi.mock('@discordjs/voice', () => ({ joinVoiceChannel: vi.fn() }));
+vi.mock(import('@discordjs/voice'), async (importOriginal) => ({
+  ...(await importOriginal()),
+  joinVoiceChannel: vi.fn()
+}));
 vi.mock('src/handlers/commands/emote.ts', () => ({
   emotesHandler: (): typeof handleComponent => handleComponent
 }));
 vi.mock('src/handlers/commands/settings.ts', () => ({
   settingsHandler: (): typeof handleComponent => handleComponent
 }));
+vi.mock('src/emotes/add-emote.ts', () => ({ addSevenTVEmote: vi.fn(), canAddEmote: vi.fn() }));
 vi.mock('src/discord/new-guild.ts', () => ({ newGuild: vi.fn() }));
 vi.mock('src/utils/log-error.ts', () => ({ logError: vi.fn() }));
 vi.mock('src/handlers/messages/message-create.ts', () => ({
@@ -54,7 +65,11 @@ vi.mock('src/handlers/interactions/message-context-menu-command.ts', () => ({
 async function setup(
   guilds: readonly Readonly<Guild>[] = [],
   users: readonly Readonly<User>[] = [],
-  voice = false
+  voiceChannelIds: Readonly<Record<string, string>> = {},
+  voiceStatus = { enabled: false, emoji: null } as Readonly<{
+    enabled: boolean;
+    emoji: string | null;
+  }>
 ): Promise<{
   readonly client: Client;
   readonly ready: () => void;
@@ -68,11 +83,20 @@ async function setup(
   Bot.createInstance(
     client,
     new ApiManager(undefined, undefined, {} as Readonly<CachedUrl>, undefined, undefined),
-    { mediaDatabase: {} } as unknown as Readonly<DatabaseManager>,
+    {
+      mediaDatabase: {},
+      addedEmotesDatabase: {},
+      databases: {
+        voiceChannelsDatabase: {
+          getChannelId: (id: string) => voiceChannelIds[id],
+          getStatusSettings: () => voiceStatus
+        }
+      }
+    } as unknown as Readonly<DatabaseManager>,
     guilds,
     users
   );
-  Bot.instance.registerListeners(voice);
+  Bot.instance.registerListeners();
   return {
     bot: Bot.instance,
     client,
@@ -252,35 +276,64 @@ test.each(['none', 'assigned', 'missing'])(
   }
 );
 
-test.each([false, true])(
-  'ready events set presence and optionally join voice: %s',
-  async (voice) => {
-    const target = await setup([], [], voice);
-    target.client.user = {
-      tag: 'Test bot',
-      setStatus: vi.fn(),
-      setPresence: vi.fn()
-    } as unknown as ClientUser;
-    target.client.channels.cache.set(GENERAL_CHANNEL_ID_CUTEDOG, {
-      id: GENERAL_CHANNEL_ID_CUTEDOG,
-      isVoiceBased: (): boolean => true,
-      joinable: true,
-      guild: { id: 'guild', voiceAdapterCreator: vi.fn() }
-    } as unknown as VoiceChannel);
-    const log = vi.spyOn(console, 'log').mockImplementation(() => undefined);
-    try {
-      target.ready();
-      expect(vi.spyOn(target.client.user, 'setStatus')).toHaveBeenCalledWith('online');
-      expect(joinVoiceChannel).toHaveBeenCalledTimes(voice ? 1 : 0);
-      expect(target.bot.client).toBe(target.client);
-      expect(target.bot.databaseManager).toBeDefined();
-      expect(target.bot.apiManager).toBeDefined();
-      expect(target.bot.scheduledJobs).toEqual([]);
-    } finally {
-      log.mockRestore();
+test('ready restores saved voice channels independently and skips unusable targets', async () => {
+  const saved = new Map([
+    ['failed', 'voice-1'],
+    ['missing', 'voice-2'],
+    ['blocked', 'voice-3'],
+    ['text', 'text-4'],
+    ['allowed', 'voice-5']
+  ]);
+  const target = await setup([], [], Object.fromEntries(saved));
+  target.client.user = { tag: 'Test bot' } as unknown as ClientUser;
+  const adapterCreator = vi.fn();
+  for (const id of [...saved.keys(), 'no-selection']) {
+    const guild = { id, voiceAdapterCreator: adapterCreator, channels: { cache: new Map() } };
+    if (id !== 'missing') {
+      guild.channels.cache.set(saved.get(id), {
+        guild,
+        id: saved.get(id),
+        type: id === 'text' ? ChannelType.GuildText : ChannelType.GuildVoice,
+        joinable: id !== 'blocked'
+      });
     }
+    target.client.guilds.cache.set(id, guild as unknown as DiscordGuild);
   }
-);
+  const on = vi.fn();
+  const connection = {
+    on,
+    state: { status: VoiceConnectionStatus.Signalling }
+  } as unknown as ReturnType<typeof joinVoiceChannel>;
+  const error = new Error('voice unavailable');
+  vi.mocked(joinVoiceChannel)
+    .mockImplementationOnce(() => {
+      throw error;
+    })
+    .mockReturnValue(connection);
+  const log = vi.spyOn(console, 'log').mockImplementation(() => undefined);
+  try {
+    target.ready();
+    expect(logError).toHaveBeenCalledWith(error, 'Error restoring voice channel for guild failed');
+    expect(joinVoiceChannel).toHaveBeenCalledTimes(2);
+    expect(joinVoiceChannel).toHaveBeenLastCalledWith({
+      channelId: 'voice-5',
+      guildId: 'allowed',
+      adapterCreator,
+      selfDeaf: false,
+      selfMute: true
+    });
+    expect(on).toHaveBeenCalledWith('error', expect.any(Function));
+    const errorListener = on.mock.calls[0]?.[1] as (error: Readonly<Error>) => void;
+    errorListener(error);
+    expect(logError).toHaveBeenCalledWith(error, 'Voice connection failed for guild allowed');
+    expect(target.bot.client).toBe(target.client);
+    expect(target.bot.databaseManager).toBeDefined();
+    expect(target.bot.apiManager).toBeDefined();
+    expect(target.bot.scheduledJobs).toEqual([]);
+  } finally {
+    log.mockRestore();
+  }
+});
 
 test.each([false, true])(
   'departed guilds release subscriptions and user references even if disposal fails: %s',
@@ -334,11 +387,7 @@ test('ready events discard saved guild state for servers the bot no longer belon
   const dispose = vi.fn();
   const guild = { id: 'departed', personalEmoteStore: { dispose } } as unknown as Guild;
   const target = await setup([guild]);
-  target.client.user = {
-    tag: 'Test bot',
-    setStatus: vi.fn(),
-    setPresence: vi.fn()
-  } as unknown as ClientUser;
+  target.client.user = { tag: 'Test bot' } as unknown as ClientUser;
   const log = vi.spyOn(console, 'log').mockImplementation(() => undefined);
   try {
     target.ready();
@@ -347,4 +396,194 @@ test('ready events discard saved guild state for servers the bot no longer belon
   } finally {
     log.mockRestore();
   }
+});
+
+test.each([
+  {
+    name: 'joining the selected channel',
+    userId: 'bot',
+    previousChannelId: null,
+    channelId: 'voice',
+    update: true
+  },
+  {
+    name: 'switching to the selected channel',
+    userId: 'bot',
+    previousChannelId: 'other',
+    channelId: 'voice',
+    update: true
+  },
+  {
+    name: 'status disabled',
+    userId: 'bot',
+    previousChannelId: null,
+    channelId: 'voice',
+    update: false
+  },
+  {
+    name: 'another user joining',
+    userId: 'user',
+    previousChannelId: null,
+    channelId: 'voice',
+    update: false
+  },
+  {
+    name: 'joining a different channel',
+    userId: 'bot',
+    previousChannelId: null,
+    channelId: 'other',
+    update: false
+  },
+  {
+    name: 'leaving voice',
+    userId: 'bot',
+    previousChannelId: 'voice',
+    channelId: null,
+    update: false
+  },
+  {
+    name: 'changing mute state',
+    userId: 'bot',
+    previousChannelId: 'voice',
+    channelId: 'voice',
+    update: false
+  }
+] as const)(
+  'updates the voice status only on Botge joining its configured channel: $name',
+  async ({ name, userId, previousChannelId, channelId, update }) => {
+    const emoji = '<:test_emoji:123456789012345678>';
+    const { client } = await setup(
+      [],
+      [],
+      { guild: 'voice' },
+      { enabled: name !== 'status disabled', emoji }
+    );
+    client.user = { id: 'bot' } as ClientUser;
+    const error = new Error('Missing voice status permission');
+    const put = vi.spyOn(client.rest, 'put').mockRejectedValue(error);
+    const listener = client.listeners(Events.VoiceStateUpdate)[0] as (
+      before: unknown,
+      after: unknown
+    ) => void;
+
+    listener({ channelId: previousChannelId }, { channelId, id: userId, guild: { id: 'guild' } });
+
+    if (update) {
+      expect(put).toHaveBeenCalledExactlyOnceWith('/channels/voice/voice-status', {
+        body: { status: emoji }
+      });
+      await vi.waitFor(() => {
+        expect(logError).toHaveBeenCalledWith(
+          error,
+          'Error setting voice channel status for guild guild'
+        );
+      });
+    } else {
+      expect(put).not.toHaveBeenCalled();
+    }
+  }
+);
+
+test.each(['missing server', 'missing member', 'denied', 'allowed'])(
+  'Activity adds verify current server access before writing: %s',
+  async (scenario) => {
+    const guild = { id: 'guild' } as Readonly<Guild>;
+    const { bot, client } = await setup([guild]);
+    const member = { user: { id: 'user' }, roles: { cache: new Map() } };
+    const fetch = vi.fn().mockResolvedValue(member);
+    if (scenario === 'missing member') fetch.mockRejectedValue(new Error('Unknown member'));
+    const discordGuild = { id: guild.id, members: { fetch } } as unknown as DiscordGuild;
+    if (scenario !== 'missing server') client.guilds.cache.set(guild.id, discordGuild);
+    vi.mocked(canAddEmote).mockReturnValue(scenario === 'allowed');
+    vi.mocked(addSevenTVEmote).mockResolvedValue({ status: 201, message: 'Added' });
+
+    const result = await bot.activityEmotes(guild.id, 'user', 'emote');
+
+    if (scenario === 'missing server') expect(fetch).not.toHaveBeenCalled();
+    else expect(fetch).toHaveBeenCalledExactlyOnceWith({ user: 'user', force: true });
+    if (scenario === 'allowed') {
+      expect(canAddEmote).toHaveBeenCalledExactlyOnceWith(guild, discordGuild, member, []);
+      expect(addSevenTVEmote).toHaveBeenCalledExactlyOnceWith(
+        bot.databaseManager.addedEmotesDatabase,
+        guild,
+        'https://7tv.app/emotes/emote',
+        null
+      );
+      expect(result.status).toBe(201);
+    } else {
+      expect(addSevenTVEmote).not.toHaveBeenCalled();
+      expect(result.status).toBe(scenario === 'missing server' ? 404 : 403);
+    }
+  }
+);
+
+test('Activity catalog returns the selected server’s enabled emotes after verifying membership', async () => {
+  const assets = [
+    {
+      name: 'Wave',
+      url: 'https://cdn.7tv.app/emote/id/2x.webp',
+      animated: true,
+      zeroWidth: true,
+      platform: 'sevenNotInSet'
+    },
+    {
+      name: 'Static',
+      url: 'https://cdn.betterttv.net/emote/id/2x.png',
+      animated: false,
+      zeroWidth: false
+    },
+    {
+      name: 'Wave',
+      url: 'https://cdn.betterttv.net/emote/duplicate/2x.png',
+      animated: false,
+      zeroWidth: false
+    },
+    { name: 'Unsafe', url: 'https://example.com/image.png', animated: false },
+    { name: 'Credentials', url: 'https://name@cdn.7tv.app/image.png', animated: false },
+    { name: 'Invalid', url: 'invalid', animated: false }
+  ];
+  const matchSingleArray = vi.fn().mockReturnValue(assets);
+  const guild = { id: 'guild', emoteCatalog: { matchSingleArray } } as unknown as Guild;
+  const { bot, client } = await setup([guild]);
+  const fetch = vi.fn().mockResolvedValue({ user: { id: 'user' } });
+  client.guilds.cache.set(guild.id, {
+    id: guild.id,
+    members: { fetch }
+  } as unknown as DiscordGuild);
+
+  expect(await bot.activityEmotes(guild.id, 'user', undefined)).toEqual({
+    status: 200,
+    message: 'Server emotes loaded.',
+    emotes: [
+      {
+        name: 'Wave',
+        source: '7TV',
+        image: '/7tv-cdn/emote/id/2x.webp',
+        animated: true,
+        added: true,
+        zeroWidth: true,
+        composeToken: 'Wave'
+      },
+      {
+        name: 'Static',
+        source: 'BTTV',
+        image: '/bttv-cdn/emote/id/2x.png',
+        animated: false,
+        added: false,
+        zeroWidth: false,
+        composeToken: 'Static'
+      },
+      {
+        name: 'Wave',
+        source: 'BTTV',
+        image: '/bttv-cdn/emote/duplicate/2x.png',
+        animated: false,
+        added: false,
+        zeroWidth: false
+      }
+    ]
+  });
+  expect(fetch).toHaveBeenCalledExactlyOnceWith({ user: 'user', force: true });
+  expect(canAddEmote).not.toHaveBeenCalled();
+  expect(addSevenTVEmote).not.toHaveBeenCalled();
 });

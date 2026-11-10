@@ -1,12 +1,14 @@
-import { joinVoiceChannel } from '@discordjs/voice';
-import { type Client, type ClientEvents, Events } from 'discord.js';
+import { ChannelType, type Client, type ClientEvents, Events } from 'discord.js';
 import { once } from 'helpful-decorators';
 import type { Job } from 'node-schedule';
 
+import { activityCatalog, type ActivityCatalogEmote } from '../api/activity/catalog.ts';
 import { SLASH_COMMAND_NAMES } from '../discord/command-names.ts';
-import { GENERAL_CHANNEL_ID_CUTEDOG, type Guild } from '../discord/guild.ts';
+import type { Guild } from '../discord/guild.ts';
 import { newGuild } from '../discord/new-guild.ts';
 import type { User } from '../discord/user.ts';
+import { requestVoiceChannelJoin, setVoiceChannelStatus } from '../discord/voice-channel.ts';
+import { addSevenTVEmote, canAddEmote } from '../emotes/add-emote.ts';
 import { emotesHandler } from '../handlers/commands/emote.ts';
 import { settingsHandler } from '../handlers/commands/settings.ts';
 import { autocompleteHandler } from '../handlers/interactions/autocomplete.ts';
@@ -103,53 +105,104 @@ export class Bot {
   }
 
   @once
-  public registerListeners(joinVoiceChannels: boolean): void {
-    this.#registerClientReadyListener(joinVoiceChannels);
+  public registerListeners(): void {
+    this.#registerClientReadyListener();
     this.#registerMessageCreateListener();
     this.#registerInteractionCreateListener();
+    this.#registerVoiceStatusListener();
     this.#client.on(Events.GuildDelete, (guild: Readonly<{ id: string }>): void => {
       this.#releaseGuild(guild.id);
     });
   }
 
-  #registerClientReadyListener(joinVoiceChannels: boolean): void {
+  public async activityEmotes(
+    guildId: string,
+    userId: string,
+    emoteId: string | undefined
+  ): Promise<
+    Readonly<{ status: number; message: string; emotes?: readonly ActivityCatalogEmote[] }>
+  > {
+    const discordGuild = this.#client.guilds.cache.get(guildId);
+    if (discordGuild === undefined)
+      return { status: 404, message: 'Botge is unavailable in this server.' };
+
+    const member = await discordGuild.members
+      .fetch({ user: userId, force: true })
+      .catch(() => undefined);
+    if (member === undefined)
+      return { status: 403, message: 'Could not verify your server membership.' };
+
+    const guild = await this.#getOrCreateGuild(guildId);
+    if (emoteId === undefined)
+      return {
+        status: 200,
+        message: 'Server emotes loaded.',
+        emotes: activityCatalog(guild.emoteCatalog.matchSingleArray('') ?? [])
+      };
+
+    if (!canAddEmote(guild, discordGuild, member, [...member.roles.cache]))
+      return { status: 403, message: 'You do not have permission to add emotes in this server.' };
+
+    return addSevenTVEmote(
+      this.#databaseManager.addedEmotesDatabase,
+      guild,
+      `https://7tv.app/emotes/${emoteId}`,
+      null
+    );
+  }
+
+  #registerClientReadyListener(): void {
     this.#client.on(Events.ClientReady, (): void => {
-      const { user, channels } = this.#client;
+      const { user } = this.#client;
       if (user === null) throw new Error('Bot client user is empty.');
 
       for (const guild of [...this.#guilds]) {
         if (!this.#client.guilds.cache.has(guild.id)) this.#releaseGuild(guild.id);
       }
 
-      user.setStatus('online');
-      user.setPresence({ activities: [{ name: 'github.com/MrewyOrg/Botge', state: 'meow' }] });
+      const { voiceChannelsDatabase } = this.#databaseManager.databases;
+      for (const guild of this.#client.guilds.cache.values()) {
+        try {
+          const channelId = voiceChannelsDatabase.getChannelId(guild.id);
+          if (channelId === undefined) continue;
 
-      try {
-        if (joinVoiceChannels) {
-          const cuteDogGeneralChannel = channels.cache.find(
-            (channel: { readonly id: string }) => channel.id === GENERAL_CHANNEL_ID_CUTEDOG
-          );
-
-          if (
-            cuteDogGeneralChannel !== undefined
-            && cuteDogGeneralChannel.isVoiceBased()
-            && cuteDogGeneralChannel.joinable
-          ) {
-            joinVoiceChannel({
-              channelId: cuteDogGeneralChannel.id,
-              guildId: cuteDogGeneralChannel.guild.id,
-              adapterCreator: cuteDogGeneralChannel.guild.voiceAdapterCreator,
-              selfDeaf: true,
-              selfMute: true
-            });
-          }
+          const channel = guild.channels.cache.get(channelId);
+          if (channel?.type === ChannelType.GuildVoice && channel.joinable)
+            requestVoiceChannelJoin(channel);
+        } catch (error) {
+          logError(error, `Error restoring voice channel for guild ${guild.id}`);
         }
-      } catch (error) {
-        logError(error, 'Error at joining voice channel');
       }
 
       console.log(`Logged in as ${user.tag}!`);
     });
+  }
+
+  #registerVoiceStatusListener(): void {
+    this.#client.on(
+      Events.VoiceStateUpdate,
+      (
+        previous: Readonly<{ channelId: string | null }>,
+        current: Readonly<{ channelId: string | null; id: string; guild: Readonly<{ id: string }> }>
+      ): void => {
+        const { channelId, guild, id } = current;
+        if (id !== this.#client.user?.id || channelId === null || channelId === previous.channelId)
+          return;
+
+        const setStatus = async (): Promise<void> => {
+          const { voiceChannelsDatabase } = this.#databaseManager.databases;
+          if (voiceChannelsDatabase.getChannelId(guild.id) !== channelId) return;
+
+          const { enabled, emoji } = voiceChannelsDatabase.getStatusSettings(guild.id);
+          if (enabled && emoji !== null)
+            await setVoiceChannelStatus(this.#client.rest, channelId, emoji);
+        };
+
+        void setStatus().catch((error: unknown): void => {
+          logError(error, `Error setting voice channel status for guild ${guild.id}`);
+        });
+      }
+    );
   }
 
   async #getOrCreateGuild(guildId: string): Promise<Readonly<Guild>> {

@@ -1,12 +1,10 @@
-import type { ChatInputCommandInteraction, Role } from 'discord.js';
+import type { ChatInputCommandInteraction } from 'discord.js';
 
 import { botgeConfig } from '../../config/botge-config.ts';
 import type { AddedEmotesDatabase } from '../../database/added-emotes-database.ts';
 import { getOptionValue, getOptionValueWithoutUndefined } from '../../discord/get-option-value.ts';
 import type { Guild } from '../../discord/guild.ts';
-import { globalAdministrator, owner, permitted } from '../../discord/permissions.ts';
-import { SEVEN_TV_EMOTES_URL, sevenTVUrlToSevenTVNotInSet } from '../../emotes/provider-urls.ts';
-import type { AddedEmote } from '../../types.ts';
+import { addSevenTVEmote, canAddEmote } from '../../emotes/add-emote.ts';
 import { logError } from '../../utils/log-error.ts';
 
 export function addEmoteHandler(addedEmotesDatabase: Readonly<AddedEmotesDatabase>) {
@@ -26,13 +24,7 @@ export function addEmoteHandler(addedEmotesDatabase: Readonly<AddedEmotesDatabas
       if (interactionGuild === null || member === null) return;
 
       const guildMember = await interactionGuild.members.fetch(interaction.user.id);
-      const memberRolesCache: readonly (readonly [string, Role])[] = [...guildMember.roles.cache];
-      if (
-        !guild.allowEveryoneToAddEmote
-        && !permitted(memberRolesCache, guild.addEmotePermittedRoleIds)
-        && !owner(guildMember, interactionGuild)
-        && !globalAdministrator(guildMember)
-      ) {
+      if (!canAddEmote(guild, interactionGuild, guildMember, [...guildMember.roles.cache])) {
         await defer;
         await interaction.editReply(
           'You do not have the necessary permissions to use this command.'
@@ -42,41 +34,9 @@ export function addEmoteHandler(addedEmotesDatabase: Readonly<AddedEmotesDatabas
 
       const url = getOptionValueWithoutUndefined(interaction, 'url');
       const name = getOptionValue(interaction, 'name') ?? null;
-
-      const sourceEmote = await sevenTVUrlToSevenTVNotInSet(url);
-      if (sourceEmote === undefined) {
-        await defer;
-        await interaction.editReply('Invalid URL.');
-
-        return;
-      }
-
-      if (guild.emoteCatalog.matchSingleExact(name ?? sourceEmote.name)) {
-        await defer;
-        await interaction.editReply('There is already an emote with the same name.');
-
-        return;
-      }
-
-      const emoteId = sourceEmote.id;
-      const addedEmote: AddedEmote = { url: `${SEVEN_TV_EMOTES_URL}/${emoteId}`, alias: name };
-      const addedEmotes = addedEmotesDatabase.getAll(guild.id);
-      if (addedEmotes.some((existingEmote) => existingEmote.url === addedEmote.url)) {
-        await defer;
-        await interaction.editReply('There is already an emote with the same URL.');
-
-        return;
-      }
-
-      addedEmotesDatabase.insert(addedEmote, guild.id);
-
-      const sevenTVEmoteNotInSet = { ...sourceEmote, name: name ?? sourceEmote.name };
-      guild.personalEmoteStore.addSevenTVEmoteNotInSet(sevenTVEmoteNotInSet);
-
+      const result = await addSevenTVEmote(addedEmotesDatabase, guild, url, name);
       await defer;
-      await interaction.editReply(
-        `Added emote ${sourceEmote.name}${name !== null ? ` with the name ${name}` : ''}.`
-      );
+      await interaction.editReply(result.message);
     } catch (error) {
       logError(error, 'Error at addEmoteHandlerSevenNotInSet');
 

@@ -9,6 +9,7 @@ import { PermittedRoleIdsDatabase } from './permitted-role-ids-database.ts';
 import { PingsDatabase } from './pings-database.ts';
 import { QuotesDatabase } from './quotes-database.ts';
 import { UsersDatabase } from './users-database.ts';
+import { VoiceChannelsDatabase } from './voice-channels-database.ts';
 
 /** Add new database files here; opening and shutdown use this registry automatically. */
 export const DATABASE_DEFINITIONS = {
@@ -36,6 +37,10 @@ export const DATABASE_DEFINITIONS = {
   pingsDatabase: {
     filename: 'pings.sqlite',
     create: (filepath: string): PingsDatabase => new PingsDatabase(filepath)
+  },
+  voiceChannelsDatabase: {
+    filename: 'voiceChannels.sqlite',
+    create: (filepath: string): VoiceChannelsDatabase => new VoiceChannelsDatabase(filepath)
   },
   usersDatabase: {
     filename: 'users.sqlite',

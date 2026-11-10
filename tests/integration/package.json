@@ -1,0 +1,25 @@
+{
+  "name": "@botge/compose-tests",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "vitest run compose.test.ts",
+    "typecheck": "tsc --project tsconfig.json"
+  },
+  "allowScripts": {
+    "cpu-features": true,
+    "fsevents": true,
+    "protobufjs": true,
+    "ssh2": true
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.6",
+    "testcontainers": "^12.2.1",
+    "typescript": "npm:@typescript/typescript6@^6.0.3",
+    "vitest": "^5.1.0"
+  },
+  "engines": {
+    "node": ">=26.13.0",
+    "npm": ">=11.20.0"
+  }
+}

@@ -1,6 +1,8 @@
 import {
   ActionRowBuilder,
   type ButtonInteraction,
+  ChannelSelectMenuBuilder,
+  ChannelType,
   CheckboxBuilder,
   type Client,
   LabelBuilder,
@@ -84,7 +86,12 @@ import {
   GUILD_ID_TEXT_INPUT_CUSTOM_ID,
   SELECT_ADD_EMOTE_PERMITTED_ROLES_ROLE_SELECT_MENU_CUSTOM_ID,
   SELECT_SETTINGS_PERMITTED_ROLES_ROLE_SELECT_MENU_CUSTOM_ID,
-  SEVEN_TV_TEXT_INPUT_CUSTOM_ID
+  SEVEN_TV_TEXT_INPUT_CUSTOM_ID,
+  VOICE_CHANNEL_SELECT_CUSTOM_ID,
+  VOICE_CHANNEL_SETTINGS_BUTTON_CUSTOM_ID,
+  VOICE_CHANNEL_SETTINGS_MODAL_CUSTOM_ID,
+  VOICE_STATUS_EMOJI_CUSTOM_ID,
+  VOICE_STATUS_ENABLED_CUSTOM_ID
 } from './component-ids.ts';
 import { canManageSettings } from './settings-permissions.ts';
 
@@ -140,7 +147,8 @@ export function buttonHandler(
         ADD_EMOTE_PERMITTED_ROLES_BUTTON_CUSTOM_ID,
         ALLOW_EVERYONE_TO_ADD_EMOTE_BUTTON_CUSTOM_ID,
         ADDED_EMOTE_DELETION_MENU_BUTTON_CUSTOM_ID,
-        CONFIGURATION_GUILD_BUTTON_CUSTOM_ID
+        CONFIGURATION_GUILD_BUTTON_CUSTOM_ID,
+        VOICE_CHANNEL_SETTINGS_BUTTON_CUSTOM_ID
       ];
       if (
         settingsActions.includes(customId)
@@ -155,6 +163,54 @@ export function buttonHandler(
           content: 'You do not have permission to change these settings.',
           flags: MessageFlags.Ephemeral
         });
+        return undefined;
+      }
+
+      if (customId === VOICE_CHANNEL_SETTINGS_BUTTON_CUSTOM_ID) {
+        const channelSelect = new ChannelSelectMenuBuilder()
+          .setCustomId(VOICE_CHANNEL_SELECT_CUSTOM_ID)
+          .setChannelTypes(ChannelType.GuildVoice)
+          .setPlaceholder('Choose a voice channel')
+          .setRequired(false)
+          .setMinValues(0)
+          .setMaxValues(1);
+        const { voiceChannelsDatabase } = databaseManager.databases;
+        const channelId = voiceChannelsDatabase.getChannelId(guild.id);
+        const { enabled, emoji } = voiceChannelsDatabase.getStatusSettings(guild.id);
+        if (
+          channelId !== undefined
+          && interaction.guild?.channels.cache.get(channelId)?.type === ChannelType.GuildVoice
+        )
+          channelSelect.setDefaultChannels(channelId);
+
+        const label = new LabelBuilder()
+          .setLabel('Voice channel')
+          .setDescription('Choose where Botge joins. Save with no channel selected to disconnect.')
+          .setChannelSelectMenuComponent(channelSelect);
+        const statusToggle = new LabelBuilder()
+          .setLabel('Set voice channel status')
+          .setDescription('Show the saved emoji as the channel status when Botge joins.')
+          .setCheckboxComponent(
+            new CheckboxBuilder().setCustomId(VOICE_STATUS_ENABLED_CUSTOM_ID).setDefault(enabled)
+          );
+        const emojiInput = new TextInputBuilder()
+          .setCustomId(VOICE_STATUS_EMOJI_CUSTOM_ID)
+          .setStyle(TextInputStyle.Short)
+          .setRequired(false)
+          .setMaxLength(57)
+          .setPlaceholder('<:name:id>');
+        if (emoji !== null) emojiInput.setValue(emoji);
+
+        const statusEmoji = new LabelBuilder()
+          .setLabel('Voice status emoji')
+          .setDescription('Paste a custom emoji from this server or the Botge application.')
+          .setTextInputComponent(emojiInput);
+        const modal = new ModalBuilder()
+          .setCustomId(VOICE_CHANNEL_SETTINGS_MODAL_CUSTOM_ID)
+          .setTitle('Bot voice channel')
+          .addLabelComponents(label, statusToggle, statusEmoji);
+
+        await interaction.showModal(modal);
         return undefined;
       }
 
