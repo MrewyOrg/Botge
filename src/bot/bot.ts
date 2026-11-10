@@ -2,11 +2,13 @@ import { ChannelType, type Client, type ClientEvents, Events } from 'discord.js'
 import { once } from 'helpful-decorators';
 import type { Job } from 'node-schedule';
 
+import { activityCatalog, type ActivityCatalogEmote } from '../api/activity/catalog.ts';
 import { SLASH_COMMAND_NAMES } from '../discord/command-names.ts';
 import type { Guild } from '../discord/guild.ts';
 import { newGuild } from '../discord/new-guild.ts';
 import type { User } from '../discord/user.ts';
 import { requestVoiceChannelJoin, setVoiceChannelStatus } from '../discord/voice-channel.ts';
+import { addSevenTVEmote, canAddEmote } from '../emotes/add-emote.ts';
 import { emotesHandler } from '../handlers/commands/emote.ts';
 import { settingsHandler } from '../handlers/commands/settings.ts';
 import { autocompleteHandler } from '../handlers/interactions/autocomplete.ts';
@@ -111,6 +113,42 @@ export class Bot {
     this.#client.on(Events.GuildDelete, (guild: Readonly<{ id: string }>): void => {
       this.#releaseGuild(guild.id);
     });
+  }
+
+  public async activityEmotes(
+    guildId: string,
+    userId: string,
+    emoteId: string | undefined
+  ): Promise<
+    Readonly<{ status: number; message: string; emotes?: readonly ActivityCatalogEmote[] }>
+  > {
+    const discordGuild = this.#client.guilds.cache.get(guildId);
+    if (discordGuild === undefined)
+      return { status: 404, message: 'Botge is unavailable in this server.' };
+
+    const member = await discordGuild.members
+      .fetch({ user: userId, force: true })
+      .catch(() => undefined);
+    if (member === undefined)
+      return { status: 403, message: 'Could not verify your server membership.' };
+
+    const guild = await this.#getOrCreateGuild(guildId);
+    if (emoteId === undefined)
+      return {
+        status: 200,
+        message: 'Server emotes loaded.',
+        emotes: activityCatalog(guild.emoteCatalog.matchSingleArray('') ?? [])
+      };
+
+    if (!canAddEmote(guild, discordGuild, member, [...member.roles.cache]))
+      return { status: 403, message: 'You do not have permission to add emotes in this server.' };
+
+    return addSevenTVEmote(
+      this.#databaseManager.addedEmotesDatabase,
+      guild,
+      `https://7tv.app/emotes/${emoteId}`,
+      null
+    );
   }
 
   #registerClientReadyListener(): void {

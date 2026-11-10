@@ -10,10 +10,13 @@
  * @packageDocumentation
  */
 
+import type { Server } from 'node:http';
+
 import { DeepLClient } from 'deepl-node';
 import { Meilisearch } from 'meilisearch';
 import OpenAI from 'openai';
 
+import { createActivityEmoteServer } from './api/activity/emote-server.ts';
 import { CachedUrl } from './api/cached-url.ts';
 import { newTwitchApi } from './api/twitch/new-twitch-api.ts';
 import type { TwitchApi } from './api/twitch/twitch-api.ts';
@@ -89,6 +92,7 @@ export async function startApplication(): Promise<void> {
 
   const client = createDiscordClient();
   let activeDatabases: Readonly<DatabaseManager> | undefined;
+  let activityServer: Server | undefined;
   let databasesClosed = false;
   let stopping = false;
 
@@ -117,6 +121,8 @@ export async function startApplication(): Promise<void> {
     stopping = true;
     const timeout = setTimeout(() => process.exit(1), 10_000);
     timeout.unref();
+    activityServer?.close();
+    activityServer?.closeAllConnections();
     await shutdown();
     clearTimeout(timeout);
     process.exit(process.exitCode ?? exitCode);
@@ -258,6 +264,24 @@ export async function startApplication(): Promise<void> {
     if (isStopping()) return;
     await registerPings(client, pingsDatabase, bot.scheduledJobs);
     if (isStopping()) return;
+
+    const activitySecret = takeEnvironmentVariable('DISCORD_ACTIVITY_CLIENT_SECRET');
+    if (activitySecret !== undefined) {
+      activityServer = createActivityEmoteServer(
+        applicationId,
+        activitySecret,
+        async (guild, user, emote) => {
+          if (emote !== undefined && !botgeConfig.general.use7TVAddedEmotes)
+            return { status: 403, message: 'Added 7TV emotes are disabled by the operator.' };
+          return bot.activityEmotes(guild, user, emote);
+        },
+        takeEnvironmentVariable('DISCORD_ACTIVITY_PUBLIC_KEY')
+      );
+      activityServer.on('error', (error: Readonly<Error>): void => {
+        logError(error, 'Error running Activity emote server');
+      });
+      activityServer.listen(3080, takeEnvironmentVariable('ACTIVITY_BIND_HOST') ?? '127.0.0.1');
+    }
 
     scheduleMaintenance(bot, twitchApi);
   }

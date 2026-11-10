@@ -16,6 +16,7 @@ import { SLASH_COMMAND_NAMES } from 'src/discord/command-names.ts';
 import type { Guild } from 'src/discord/guild.ts';
 import { newGuild } from 'src/discord/new-guild.ts';
 import { User } from 'src/discord/user.ts';
+import { addSevenTVEmote, canAddEmote } from 'src/emotes/add-emote.ts';
 import { messageCreateHandler } from 'src/handlers/messages/message-create.ts';
 import { logError } from 'src/utils/log-error.ts';
 
@@ -35,6 +36,7 @@ vi.mock('src/handlers/commands/emote.ts', () => ({
 vi.mock('src/handlers/commands/settings.ts', () => ({
   settingsHandler: (): typeof handleComponent => handleComponent
 }));
+vi.mock('src/emotes/add-emote.ts', () => ({ addSevenTVEmote: vi.fn(), canAddEmote: vi.fn() }));
 vi.mock('src/discord/new-guild.ts', () => ({ newGuild: vi.fn() }));
 vi.mock('src/utils/log-error.ts', () => ({ logError: vi.fn() }));
 vi.mock('src/handlers/messages/message-create.ts', () => ({
@@ -83,6 +85,7 @@ async function setup(
     new ApiManager(undefined, undefined, {} as Readonly<CachedUrl>, undefined, undefined),
     {
       mediaDatabase: {},
+      addedEmotesDatabase: {},
       databases: {
         voiceChannelsDatabase: {
           getChannelId: (id: string) => voiceChannelIds[id],
@@ -480,3 +483,107 @@ test.each([
     }
   }
 );
+
+test.each(['missing server', 'missing member', 'denied', 'allowed'])(
+  'Activity adds verify current server access before writing: %s',
+  async (scenario) => {
+    const guild = { id: 'guild' } as Readonly<Guild>;
+    const { bot, client } = await setup([guild]);
+    const member = { user: { id: 'user' }, roles: { cache: new Map() } };
+    const fetch = vi.fn().mockResolvedValue(member);
+    if (scenario === 'missing member') fetch.mockRejectedValue(new Error('Unknown member'));
+    const discordGuild = { id: guild.id, members: { fetch } } as unknown as DiscordGuild;
+    if (scenario !== 'missing server') client.guilds.cache.set(guild.id, discordGuild);
+    vi.mocked(canAddEmote).mockReturnValue(scenario === 'allowed');
+    vi.mocked(addSevenTVEmote).mockResolvedValue({ status: 201, message: 'Added' });
+
+    const result = await bot.activityEmotes(guild.id, 'user', 'emote');
+
+    if (scenario === 'missing server') expect(fetch).not.toHaveBeenCalled();
+    else expect(fetch).toHaveBeenCalledExactlyOnceWith({ user: 'user', force: true });
+    if (scenario === 'allowed') {
+      expect(canAddEmote).toHaveBeenCalledExactlyOnceWith(guild, discordGuild, member, []);
+      expect(addSevenTVEmote).toHaveBeenCalledExactlyOnceWith(
+        bot.databaseManager.addedEmotesDatabase,
+        guild,
+        'https://7tv.app/emotes/emote',
+        null
+      );
+      expect(result.status).toBe(201);
+    } else {
+      expect(addSevenTVEmote).not.toHaveBeenCalled();
+      expect(result.status).toBe(scenario === 'missing server' ? 404 : 403);
+    }
+  }
+);
+
+test('Activity catalog returns the selected server’s enabled emotes after verifying membership', async () => {
+  const assets = [
+    {
+      name: 'Wave',
+      url: 'https://cdn.7tv.app/emote/id/2x.webp',
+      animated: true,
+      zeroWidth: true,
+      platform: 'sevenNotInSet'
+    },
+    {
+      name: 'Static',
+      url: 'https://cdn.betterttv.net/emote/id/2x.png',
+      animated: false,
+      zeroWidth: false
+    },
+    {
+      name: 'Wave',
+      url: 'https://cdn.betterttv.net/emote/duplicate/2x.png',
+      animated: false,
+      zeroWidth: false
+    },
+    { name: 'Unsafe', url: 'https://example.com/image.png', animated: false },
+    { name: 'Credentials', url: 'https://name@cdn.7tv.app/image.png', animated: false },
+    { name: 'Invalid', url: 'invalid', animated: false }
+  ];
+  const matchSingleArray = vi.fn().mockReturnValue(assets);
+  const guild = { id: 'guild', emoteCatalog: { matchSingleArray } } as unknown as Guild;
+  const { bot, client } = await setup([guild]);
+  const fetch = vi.fn().mockResolvedValue({ user: { id: 'user' } });
+  client.guilds.cache.set(guild.id, {
+    id: guild.id,
+    members: { fetch }
+  } as unknown as DiscordGuild);
+
+  expect(await bot.activityEmotes(guild.id, 'user', undefined)).toEqual({
+    status: 200,
+    message: 'Server emotes loaded.',
+    emotes: [
+      {
+        name: 'Wave',
+        source: '7TV',
+        image: '/7tv-cdn/emote/id/2x.webp',
+        animated: true,
+        added: true,
+        zeroWidth: true,
+        composeToken: 'Wave'
+      },
+      {
+        name: 'Static',
+        source: 'BTTV',
+        image: '/bttv-cdn/emote/id/2x.png',
+        animated: false,
+        added: false,
+        zeroWidth: false,
+        composeToken: 'Static'
+      },
+      {
+        name: 'Wave',
+        source: 'BTTV',
+        image: '/bttv-cdn/emote/duplicate/2x.png',
+        animated: false,
+        added: false,
+        zeroWidth: false
+      }
+    ]
+  });
+  expect(fetch).toHaveBeenCalledExactlyOnceWith({ user: 'user', force: true });
+  expect(canAddEmote).not.toHaveBeenCalled();
+  expect(addSevenTVEmote).not.toHaveBeenCalled();
+});

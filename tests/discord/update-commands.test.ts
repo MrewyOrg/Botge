@@ -18,6 +18,7 @@ test('command registration uses explicit credentials and honors the command cach
     vi.stubEnv('APP_ID', undefined);
     vi.stubEnv('DISCORD_TOKEN', undefined);
     const token = vi.spyOn(REST.prototype, 'setToken');
+    const get = vi.spyOn(REST.prototype, 'get').mockResolvedValue([]);
     const put = vi.spyOn(REST.prototype, 'put').mockResolvedValue([]);
     const path = join(directory, 'commands.txt');
     await updateCommands(path, [], [], 'application', 'test-token');
@@ -26,6 +27,7 @@ test('command registration uses explicit credentials and honors the command cach
     expect(await readFile(path, 'utf8')).not.toBe('');
     await updateCommands(path, [], [], 'application', 'test-token');
     expect(put).toHaveBeenCalledOnce();
+    expect(get).toHaveBeenCalledOnce();
     await updateCommands(path, [], [], 'another-application', 'test-token');
     expect(put).toHaveBeenCalledTimes(2);
     expect(put).toHaveBeenLastCalledWith(Routes.applicationCommands('another-application'), {
@@ -42,4 +44,36 @@ test('missing credentials fail before making a Discord request', async () => {
     'DISCORD_TOKEN and APP_ID required.'
   );
   expect(put).not.toHaveBeenCalled();
+});
+
+test('bulk registration preserves the existing Activity entry point', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'botge-commands-'));
+  try {
+    const launch = { id: 'entry', type: 4, name: 'launch', description: 'Open Botge', handler: 2 };
+    vi.spyOn(REST.prototype, 'get').mockResolvedValue([
+      { id: 'old', type: 1, name: 'old-command' },
+      { ...launch, application_id: 'application', version: 'version' }
+    ]);
+    const put = vi.spyOn(REST.prototype, 'put').mockResolvedValue([]);
+    await updateCommands(join(directory, 'commands.txt'), [], [], 'application', 'test-token');
+    expect(put).toHaveBeenCalledExactlyOnceWith(Routes.applicationCommands('application'), {
+      body: [launch]
+    });
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
+test('unexpected command lists leave the existing commands intact', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'botge-commands-'));
+  try {
+    vi.spyOn(REST.prototype, 'get').mockResolvedValue(null);
+    const put = vi.spyOn(REST.prototype, 'put');
+    await expect(
+      updateCommands(join(directory, 'commands.txt'), [], [], 'application', 'test-token')
+    ).rejects.toThrow('Invalid registered commands response.');
+    expect(put).not.toHaveBeenCalled();
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
 });
