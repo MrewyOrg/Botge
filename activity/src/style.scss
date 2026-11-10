@@ -1,0 +1,298 @@
+:root {
+  --background: #0a0a0a;
+  --surface: #151515;
+  --surface-hover: #232323;
+  --border: #343434;
+  --control-border: #696969;
+  --muted: #b5b5b5;
+  --accent: #f5f5f5;
+
+  color-scheme: dark;
+  font:
+    1rem/1.5 system-ui,
+    sans-serif;
+  color: var(--accent);
+  background: var(--background);
+}
+
+* {
+  box-sizing: border-box;
+}
+body {
+  margin: 0;
+}
+main {
+  width: min(100% - 2rem, 70rem);
+  margin: auto;
+  padding: 2rem 0;
+}
+.masthead {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  align-items: center;
+  border: 1px solid var(--border);
+  border-radius: 1rem;
+  overflow: hidden;
+  background: #000;
+
+  @media (max-width: 36rem) {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+.masthead-art {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+.masthead-copy {
+  padding: 1.25rem clamp(1rem, 4vw, 2.5rem);
+  border-inline-start: 1px solid var(--border);
+
+  @media (max-width: 36rem) {
+    border-inline-start: 0;
+    border-block-start: 1px solid var(--border);
+  }
+}
+h1,
+h2,
+p {
+  margin: 0;
+}
+h1 {
+  font-size: clamp(1.6rem, 4vw, 2.4rem);
+  font-weight: 800;
+  letter-spacing: -0.035em;
+  line-height: 1.15;
+}
+.masthead p:last-child {
+  margin-top: 0.35rem;
+  color: var(--muted);
+}
+.eyebrow {
+  color: var(--muted);
+  font-size: 0.75rem;
+  font-weight: 650;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+.masthead .eyebrow {
+  margin-bottom: 0.35rem;
+}
+
+.filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin: 1.5rem 0 1rem;
+}
+label {
+  display: grid;
+  gap: 0.3rem;
+  font-size: 0.85rem;
+  font-weight: 650;
+}
+.search {
+  flex: 1 1 15rem;
+}
+input,
+select,
+button {
+  font: inherit;
+  color: inherit;
+  border: 1px solid var(--control-border);
+  border-radius: 0.5rem;
+  background: var(--surface);
+  padding: 0.55rem 0.75rem;
+}
+input {
+  min-width: 0;
+}
+button {
+  cursor: pointer;
+
+  &:enabled:hover {
+    border-color: var(--accent);
+    background: var(--surface-hover);
+  }
+
+  &:disabled {
+    opacity: 0.5;
+    cursor: default;
+  }
+}
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+#message,
+#copy-message {
+  color: var(--muted);
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 8rem), 1fr));
+  gap: 0.65rem;
+  list-style: none;
+  padding: 0;
+}
+.grid li {
+  min-width: 0;
+}
+.tile {
+  display: grid;
+  align-content: start;
+  justify-items: center;
+  width: 100%;
+  height: 100%;
+  gap: 0.4rem;
+  padding: 0.85rem 0.4rem;
+  border-color: var(--border);
+  border-radius: 0.75rem;
+
+  img {
+    object-fit: contain;
+  }
+
+  strong,
+  span {
+    max-width: 100%;
+    overflow-wrap: anywhere;
+  }
+
+  span {
+    color: var(--muted);
+    font-size: 0.75rem;
+  }
+}
+#more {
+  margin: 0.5rem 0;
+}
+
+dialog {
+  width: min(100% - 2rem, 23rem);
+  border: 1px solid var(--border);
+  border-radius: 1rem;
+  background: var(--surface);
+  padding: 1.5rem;
+  color: inherit;
+}
+dialog::backdrop {
+  background: rgb(0 0 0 / 80%);
+}
+dialog form {
+  display: flex;
+  justify-content: flex-end;
+}
+.close {
+  font-size: 1.25rem;
+  line-height: 1;
+}
+.preview-art {
+  display: grid;
+  place-items: center;
+  min-height: 9rem;
+  margin: 0.75rem 0;
+  border-radius: 0.75rem;
+  background: var(--background);
+}
+.preview-art img {
+  max-width: 8rem;
+  max-height: 8rem;
+  object-fit: contain;
+}
+dialog h2 {
+  overflow-wrap: anywhere;
+  margin-bottom: 0.75rem;
+}
+#copy {
+  margin-top: 0.75rem;
+}
+#copy-message {
+  min-height: 1.5em;
+  margin-top: 0.5rem;
+}
+
+.browse-modes,
+.preview-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+}
+#added-filter {
+  align-self: end;
+}
+.browse-modes button[aria-pressed='true'],
+#added-filter[aria-pressed='true'] {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: var(--background);
+}
+.preview-actions a {
+  color: var(--accent);
+}
+.preview-actions #copy {
+  margin: 0;
+}
+
+.composer {
+  margin-top: 1rem;
+  padding: 1rem;
+  border: 1px solid var(--border);
+  border-radius: 0.75rem;
+  background: var(--surface);
+}
+.composer summary {
+  color: var(--accent);
+  cursor: pointer;
+  font-weight: 650;
+}
+.composer p {
+  margin-top: 0.5rem;
+  color: var(--muted);
+}
+.composer-preview {
+  display: flex;
+  gap: 0.25rem;
+  min-height: 5rem;
+  margin-top: 0.75rem;
+  padding: 0.5rem;
+  overflow-x: auto;
+  border-radius: 0.5rem;
+  background: var(--background);
+}
+.composer-column {
+  display: grid;
+  flex: none;
+  place-items: center;
+}
+.composer-column img {
+  grid-area: 1 / 1;
+  height: 4rem;
+  max-width: 12rem;
+  object-fit: contain;
+}
+.composer-layers {
+  display: grid;
+  gap: 0.4rem;
+  padding-left: 1.75rem;
+}
+.composer-layers li {
+  min-width: 0;
+}
+.composer-layers span {
+  display: block;
+  font-weight: 650;
+  overflow-wrap: anywhere;
+}
+.composer-layers button {
+  margin: 0.25rem 0.25rem 0 0;
+  padding: 0.25rem 0.5rem;
+  font-size: 0.8rem;
+}
+
+[hidden] {
+  display: none;
+}

@@ -1,0 +1,12 @@
+{
+  "extends": "../tsconfig.base.json",
+  "include": ["src/**/*.ts", "worker/**/*.ts"],
+  "compilerOptions": {
+    "composite": false,
+    "declaration": true,
+    "noEmit": true,
+    "lib": ["ESNext", "DOM"],
+    "types": ["node", "vite/client"],
+    "tsBuildInfoFile": "../dist/activity.tsbuildinfo"
+  }
+}

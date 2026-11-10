@@ -28,11 +28,13 @@
   ],
   "type": "module",
   "main": "dist/index.js",
+  "workspaces": [
+    "activity"
+  ],
   "scripts": {
     "build": "tsc --build src",
-    "build:clean": "tsc --build --clean src",
     "build:production": "tsc --project src/tsconfig.production.json",
-    "check": "npm run check:static && npm run test:run",
+    "check": "npm run check:static && npm test -- --run",
     "check:static": "npm run typecheck && npm run eslint && npm run knip",
     "cspell": "cspell . --verbose",
     "eslint": "eslint \"**/*.ts\" --flag unstable_native_nodejs_ts_config --concurrency=auto",
@@ -41,19 +43,15 @@
     "lint:workflows": "node scripts/lint-workflows.ts",
     "markdownlint": "markdownlint-cli2 \"**/*.md\" \"#node_modules\"",
     "prepare": "node .husky/install.ts",
-    "prettier": "prettier . --write",
     "start": "docker image prune --force && docker compose -f compose.yaml -f compose.build.yaml up --build",
     "stop": "docker compose stop",
     "test": "vitest",
     "test:coverage": "vitest run --coverage",
-    "test:run": "vitest run",
-    "typecheck": "tsc --build && tsc --project tests --noEmit"
+    "typecheck": "tsc --build && tsc --project tests --noEmit && npm run typecheck --workspace activity"
   },
   "allowScripts": {
-    "cpu-features": true,
-    "fsevents": true,
-    "protobufjs": true,
-    "ssh2": true
+    "@parcel/watcher": false,
+    "fsevents": true
   },
   "dependencies": {
     "@discordjs/voice": "^0.19.2",
@@ -87,7 +85,6 @@
     "markdownlint-cli2": "^0.24.0",
     "prettier": "^3.9.10",
     "prettier-plugin-sh": "^0.20.2",
-    "testcontainers": "^12.2.1",
     "ts-essentials": "^10.2.1",
     "typescript": "npm:@typescript/typescript6@^6.0.3",
     "typescript-eslint": "^8.72.1",

@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#0a0a0a" />
+    <title>Botge Emote Browser</title>
+  </head>
+  <body>
+    <main>
+      <header class="masthead">
+        <div id="masthead-brand"></div>
+        <div class="masthead-copy">
+          <p class="eyebrow">Discord Activity</p>
+          <h1>Emote Browser</h1>
+          <p>Find an emote, preview it, and copy its name.</p>
+        </div>
+      </header>
+
+      <details id="composer" class="composer">
+        <summary>Emote Composer</summary>
+        <p>
+          Open an emote in Catalog and add it here. Zero-width emotes layer over the previous
+          column.
+        </p>
+        <div
+          id="composer-preview"
+          class="composer-preview"
+          role="group"
+          aria-label="Composition preview"
+        ></div>
+        <ol id="composer-layers" class="composer-layers" aria-label="Composition inputs"></ol>
+        <label>
+          /emote-compose emotes field
+          <input id="composer-input" readonly />
+        </label>
+        <div class="preview-actions">
+          <button id="composer-copy" type="button" disabled>Copy emotes</button>
+          <button id="composer-clear" type="button" disabled>Clear</button>
+        </div>
+        <p id="composer-feedback" role="status"></p>
+      </details>
+
+      <nav id="browse-modes" class="browse-modes" aria-label="Browse emotes" hidden>
+        <button id="catalog-mode" type="button" aria-pressed="true">Catalog</button>
+        <button id="trending-mode" type="button" aria-pressed="false">Trending this week</button>
+        <button id="top-mode" type="button" aria-pressed="false">Top all time</button>
+      </nav>
+
+      <section class="filters" aria-label="Emote filters">
+        <label class="search"
+          >Search<input id="search" type="search" placeholder="Search emotes…"
+        /></label>
+        <label id="source-filter"
+          >Platform<select id="source">
+            <option value="">All platforms</option>
+          </select></label
+        >
+        <label
+          >Motion<select id="motion">
+            <option value="">All emotes</option>
+            <option value="static">Static</option>
+            <option value="animated">Animated</option>
+          </select></label
+        >
+        <button id="added-filter" type="button" aria-pressed="false" hidden>Added emotes</button>
+      </section>
+
+      <button id="refresh-catalog" type="button" hidden>Refresh server emotes</button>
+      <p id="message" role="status">Loading emotes…</p>
+      <ul id="results" class="grid" aria-label="Emotes"></ul>
+      <button id="more" type="button" hidden>Show more</button>
+
+      <dialog id="preview" aria-labelledby="preview-title">
+        <form method="dialog"><button class="close" aria-label="Close preview">×</button></form>
+        <div id="preview-art" class="preview-art"></div>
+        <p class="eyebrow" id="preview-source"></p>
+        <h2 id="preview-title"></h2>
+        <label>Emote name<input id="preview-name" readonly /></label>
+        <div class="preview-actions">
+          <button id="copy" type="button">Copy name</button>
+          <button id="compose-add" type="button" hidden>Add to composer</button>
+          <button id="add" type="button" hidden>Add to this server</button>
+          <a id="open-7tv" href="https://7tv.app/" target="_blank" rel="noopener noreferrer" hidden
+            >Open on 7TV</a
+          >
+        </div>
+        <p id="copy-message" role="status"></p>
+      </dialog>
+    </main>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

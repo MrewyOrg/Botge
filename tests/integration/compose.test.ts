@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 import {
   DockerComposeEnvironment,
@@ -10,7 +11,7 @@ import {
 } from 'testcontainers';
 import { afterAll, beforeAll, describe, expect, test } from 'vitest';
 
-// Explicit integration run: BOTGE_TEST_COMPOSE=true npx vitest run tests/integration/compose.test.ts
+// Explicit integration run: BOTGE_TEST_COMPOSE=true npm --prefix tests/integration test
 // Uses local credentials to start a real bot. Never reuse the deployment's project name.
 describe.runIf(process.env['BOTGE_TEST_COMPOSE'] === 'true')('Compose integration', () => {
   let environment: Readonly<StartedDockerComposeEnvironment> | undefined;
@@ -22,7 +23,8 @@ describe.runIf(process.env['BOTGE_TEST_COMPOSE'] === 'true')('Compose integratio
       override,
       JSON.stringify({ services: { nginx: { volumes: [`${directory}/cache:/var/www/cache:rw`] } } })
     );
-    environment = await new DockerComposeEnvironment('.', [
+    const projectDirectory = fileURLToPath(new URL('../../', import.meta.url));
+    environment = await new DockerComposeEnvironment(projectDirectory, [
       'compose.full.yaml',
       'compose.build.yaml',
       override

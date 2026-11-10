@@ -1,0 +1,6 @@
+{
+  "name": "botge-activity",
+  "main": "worker/entry.ts",
+  "compatibility_date": "2026-11-10",
+  "assets": { "directory": "../dist/activity", "html_handling": "none" }
+}

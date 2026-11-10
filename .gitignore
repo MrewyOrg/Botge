@@ -7,7 +7,7 @@
 /data
 /dist
 /nginx/cache
-/node_modules
+node_modules/
 /tmp
 
 /.env

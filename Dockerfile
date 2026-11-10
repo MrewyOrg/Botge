@@ -9,16 +9,17 @@ ENV CI=true NPM_CONFIG_CACHE=/root/.npm
 
 COPY .husky/install.ts ./.husky/install.ts
 COPY .npmrc package.json package-lock.json ./
+COPY activity/package.json ./activity/
 
 FROM ci-dependencies AS node-dependencies
 
 RUN --mount=type=cache,id=botge-npm,target=/root/.npm,sharing=locked \
-  npm ci --omit=dev
+  npm ci --omit=dev --workspaces=false
 
 FROM ci-dependencies AS build
 
 RUN --mount=type=cache,id=botge-npm,target=/root/.npm,sharing=locked \
-  npm ci --include=dev
+  npm ci --include=dev --workspaces=false
 
 COPY tsconfig.base.json ./
 COPY src ./src
