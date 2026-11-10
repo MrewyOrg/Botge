@@ -160,6 +160,11 @@ Keep backups of `.env`, `botge.config.json`, and persistent data. See the
 [import instructions](botge_control/README.md#import-an-existing-data-folder) when moving an
 existing data folder into an installation managed by Botge control.
 
+## Emote Browser Activity
+
+The optional [Emote Browser](activity/README.md) opens a searchable, curated catalog in Discord. It
+can also be previewed locally with `npm run dev -w activity`.
+
 ## Development
 
 Use the [VS Code dev container](.devcontainer/devcontainer.json), or install Node.js and npm

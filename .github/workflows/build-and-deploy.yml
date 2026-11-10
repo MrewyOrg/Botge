@@ -45,6 +45,7 @@ jobs:
               - 'Dockerfile'
               - 'LICENSE.txt'
               - 'README.md'
+              - 'activity/package.json'
               - 'botge.config.schema.json'
               - 'node.config.json'
               - 'package-lock.json'

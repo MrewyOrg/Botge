@@ -56,7 +56,8 @@ the `+` message shortcut. Some paths display provider images; rendering paths fe
 process it with FFmpeg, and upload a new Discord attachment. The optional nginx cache also retains
 source images. Public CDN access, an API response, an uploader's approval, or an open-source client
 license does not by itself establish the rights to all artwork or its underlying characters and
-photographs.
+photographs. The Activity’s optional 7TV discovery displays provider-hosted images and can save
+emote references through the same server permissions as `/emote-add`.
 
 - **7TV**: Its terms retain uploader ownership and grant service-related rights to 7TV. No blanket
   license for Botge to modify and publish all emotes elsewhere was found. Obtain appropriate rights

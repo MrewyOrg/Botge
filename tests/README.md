@@ -3,11 +3,16 @@
 Run commands from the repository root:
 
 ```sh
-npm run test:run
+npm test -- --run
+npm test -w activity
+npm test -- --run --exclude 'tests/activity/**'
 npx vitest run tests/emotes
 npx vitest run tests/api/http.test.ts
 npm run typecheck
 ```
+
+The workspace command runs only the Activity suite. The `--exclude` command runs the other local
+tests. The default suite covers both.
 
 Group tests by their owning subsystem, matching `src/` where practical. Handler suites cover
 commands, interactions, and messages. Add regression cases to the related suite.
@@ -17,10 +22,6 @@ individual modules; the entry-point smoke test mocks application startup before 
 `src/index.ts`. Mock loaded configuration modules when necessary so tests do not depend on local
 settings or credentials. Restore mocks, timers, and environment changes after each test, and clean
 up temporary storage.
-
-The Compose suite lives in `integration/` and is skipped by default. It starts a real Discord bot
-using local credentials. Read the integration instructions in [AGENTS.md](../AGENTS.md) before
-explicitly enabling `BOTGE_TEST_COMPOSE=true`.
 
 Prefer tests of observable behavior, error recovery, boundary values, and concurrency. Share
 fixtures only when several suites need the same setup; keep small fixtures local.
@@ -39,3 +40,18 @@ real socket, Docker daemon, or system account.
 `npm run test:coverage` requires 80% statements, branches, functions, and lines in each source file.
 It produces a terminal summary, HTML at `coverage/index.html` (green at 80%), and branch details in
 `coverage/coverage-final.json`. Coverage identifies untested paths; it does not prove correctness.
+
+## Compose integration
+
+The Compose suite has its own package and lockfile. Install its dependencies and run it from the
+repository root:
+
+```sh
+npm --prefix tests/integration ci
+npm --prefix tests/integration run typecheck
+BOTGE_TEST_COMPOSE=true npm --prefix tests/integration test
+```
+
+The test requires Docker, `.env`, and `botge.config.json`. It logs a real bot into Discord, so check
+for an existing stack before running it. It builds the full Compose stack with an isolated project
+name, named volumes, and a temporary nginx cache.

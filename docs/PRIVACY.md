@@ -142,6 +142,16 @@ additional analytics, resale, transfers, or modified processing they introduce a
 relevant platform restrictions. Self-hosting does not prevent configured external providers from
 processing data under their own terms.
 
+## Emote Browser Activity
+
+Optional 7TV discovery sends search terms, filters, and page requests to 7TV through Discord’s
+Activity proxy when opened inside Discord. Preview images come from 7TV. If the operator enables
+server catalogs or adding emotes, Botge exchanges a Discord OAuth code to identify the requester and
+checks their current server membership and roles. Botge uses the access token for that request and
+does not store it. When proxy authentication is enabled, Botge also validates Discord’s signed
+request metadata in memory. An accepted add stores the server ID and the emote reference in the
+added-emote database.
+
 ## Logs, voice, and copies outside the bot
 
 Botge writes operational/error output to process logs. Current Ollama logging includes channel

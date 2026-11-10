@@ -25,6 +25,7 @@ translation, and optional AI integrations. Read [README.md](README.md) for setup
   resolution, and runtime directory paths. `load-config.ts` can be imported safely in tests;
   `botge-config.ts` and `ollama-config.ts` read local configuration when imported.
 - `src/utils/`: general-purpose helpers; `src/types.ts`: shared types.
+- `activity/`: optional static Discord Emote Browser. See [setup](activity/README.md).
 - `tests/`: Vitest suites grouped by subsystem; see [the test guide](tests/README.md). The opt-in
   Docker Compose suite lives in `tests/integration/`.
 - `compose.yaml` and `compose.full.yaml`: container stacks. `compose.build.yaml` opts into a local
@@ -45,8 +46,7 @@ Use npm and the committed `package-lock.json`. Follow `package.json` engine requ
 - Generate coverage reports: `npm run test:coverage`; generated reports live in `coverage/`. Each
   source file must reach 80% statements, branches, functions, and lines.
 - Type-check tests separately: `npx tsc --project tests --noEmit`.
-- Run local tests once: `npm run test:run` (no credentials or services required; Compose is skipped
-  unless `BOTGE_TEST_COMPOSE=true` is set).
+- Run local tests once: `npm test -- --run` (no credentials or services required).
 - Run a focused test: `npx vitest run tests/<area>/<name>.test.ts`.
 - Lint TypeScript: `npm run eslint`.
 - Check Markdown: `npm run markdownlint`.
@@ -60,11 +60,10 @@ type-check tests when changing them. For documentation changes, check formatting
 Report checks that failed or could not run, including the reason.
 
 `npm test` invokes Vitest without forcing a single run. Use `npx vitest run` for a single run. Opt
-into the real Compose integration with
-`BOTGE_TEST_COMPOSE=true npx vitest run tests/integration/compose.test.ts`. It requires Docker,
-`.env`, and `botge.config.json`, and logs a real bot into Discord. It uses a unique test project,
-isolated named volumes, and a temporary nginx cache. Check for an existing stack before running it.
-`npm start` prunes Docker images and starts the stack; it is not a validation command.
+into the separately installed Compose integration suite through the
+[test guide](tests/README.md#compose-integration). It logs a real bot into Discord. Check for an
+existing stack before running it. `npm start` prunes Docker images and starts the stack; it is not a
+validation command.
 
 ## Implementation conventions
 
