@@ -33,8 +33,9 @@ unnecessary for validation.
 
 [Build and Deploy](build-and-deploy.yml) calls that validation before building an image. Draft PRs
 are validated and become eligible for a build and deployment once marked ready. PR edits can rerun
-validation and the candidate build. Deployment runs on eligible PR openings, updates, and changes to
-ready-for-review status. Each candidate has a tag derived from its PR and merge commit.
+validation and the candidate build. Deployment runs on eligible PR openings, updates, edits, and
+changes to ready-for-review status so an edit cannot leave the required deployment missing. Each
+candidate has a tag derived from its PR and merge commit.
 
 After `production` environment approval, `Deploy` verifies the PR still targets `main` from the
 current same-repository `dev` head and has a current tested merge commit. It promotes the
