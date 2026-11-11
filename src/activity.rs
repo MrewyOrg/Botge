@@ -465,7 +465,8 @@ async fn change_emotes<A: GuildAccess>(
     return Err(ApiError::INVALID);
   }
   state.authorize_change(guild, &request.code).await?;
-  let mut results = Vec::with_capacity(request.emote_ids.len());
+  // The validated batch contains at most twelve entries.
+  let mut results = Vec::with_capacity(12);
   match request.action {
     EmoteAction::Add => {
       // Load the catalog once. Each write still checks the current saved additions in redb.

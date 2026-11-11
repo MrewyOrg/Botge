@@ -19,6 +19,7 @@ use crate::{
   settings::discord_id,
 };
 
+#[cfg(test)]
 const DISCORD_API: &str = "https://discord.com/api/v10";
 
 /// Exchanges Activity authorization codes and uses the bot client to check guild permissions.
@@ -28,6 +29,7 @@ pub(crate) struct DiscordAccess {
   bot_user: UserId,
   http: Arc<Http>,
   oauth: reqwest::Client,
+  #[cfg(test)]
   api: String,
 }
 
@@ -43,6 +45,7 @@ impl DiscordAccess {
       .timeout(Duration::from_secs(10))
       .redirect(reqwest::redirect::Policy::none())
       .build()?;
+    #[cfg(test)]
     let api = http.proxy.as_ref().map_or_else(
       || DISCORD_API.to_owned(),
       |origin| format!("{}/api/v10", origin.trim_end_matches('/')),
@@ -53,6 +56,7 @@ impl DiscordAccess {
       bot_user,
       http,
       oauth,
+      #[cfg(test)]
       api,
     })
   }
@@ -78,9 +82,12 @@ impl DiscordAccess {
     }
 
     let application_id = self.application_id.to_string();
-    let response = self
-      .oauth
-      .post(format!("{}/oauth2/token", self.api))
+    // Production OAuth destinations are fixed. Loopback overrides exist only in test builds.
+    #[cfg(not(test))]
+    let request = self.oauth.post("https://discord.com/api/v10/oauth2/token");
+    #[cfg(test)]
+    let request = self.oauth.post(format!("{}/oauth2/token", self.api));
+    let response = request
       .form(&[
         ("client_id", application_id.as_str()),
         ("client_secret", self.secret.as_str()),
@@ -89,7 +96,7 @@ impl DiscordAccess {
       ])
       .send()
       .await
-      .map_err(ApiError::upstream)?;
+      .map_err(oauth_error)?;
     if matches!(
       response.status(),
       StatusCode::BAD_REQUEST | StatusCode::UNAUTHORIZED
@@ -114,30 +121,37 @@ impl DiscordAccess {
     }
     let token: Token = response
       .error_for_status()
-      .map_err(ApiError::upstream)?
+      .map_err(oauth_error)?
       .json()
       .await
-      .map_err(ApiError::upstream)?;
-    let response = self
-      .oauth
-      .get(format!("{}/users/@me", self.api))
+      .map_err(oauth_error)?;
+    #[cfg(not(test))]
+    let request = self.oauth.get("https://discord.com/api/v10/users/@me");
+    #[cfg(test)]
+    let request = self.oauth.get(format!("{}/users/@me", self.api));
+    let response = request
       .bearer_auth(token.access_token)
       .send()
       .await
-      .map_err(ApiError::upstream)?;
+      .map_err(oauth_error)?;
     if response.status() == StatusCode::UNAUTHORIZED {
       return Err(ApiError::UNAUTHORIZED);
     }
     let user: Identity = response
       .error_for_status()
-      .map_err(ApiError::upstream)?
+      .map_err(oauth_error)?
       .json()
       .await
-      .map_err(ApiError::upstream)?;
+      .map_err(oauth_error)?;
     discord_id(&user.id)
       .map(|id| UserId::new(id.get()))
       .ok_or(ApiError::UNAUTHORIZED)
   }
+}
+
+/// Keeps OAuth transport and decoding errors out of logs because they may contain credentials.
+fn oauth_error(_error: reqwest::Error) -> ApiError {
+  ApiError::upstream("Discord OAuth request failed")
 }
 
 impl GuildAccess for DiscordAccess {
