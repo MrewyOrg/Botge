@@ -12,13 +12,30 @@ built HTML. Rust branch, line, function, and region coverage appear in the job l
 rerun validation. Pushes to `dev` or `main`, including branch synchronization, do not trigger
 BotgeQL; an open PR still reruns when its head branch changes.
 
+BotgeQL compares the complete PR against its base and filters each validation stage by its inputs.
+Formatting, documentation, and commit checks always run. Rust source, manifests, toolchain,
+formatting, rendering dependencies, and coverage scripts enable Rust checks. TypeScript and Node
+configuration enable static checks. Activity code and assets enable its tests, while browser build
+inputs enable HTML and SCSS validation. Tooling tests, shell lint, and workflow lint have separate
+filters. Changing BotgeQL itself exercises every stage. Required job names stay present and succeed
+when their optional steps have no matching changes. Failure to classify changes fails validation.
+
+Rust checks cache Cargo downloads and build artifacts with toolchain and manifest keys. Pinned
+coverage and FFmpeg tools have a separate cache keyed by the toolchain, installer, and workflow.
+Workflow lint caches its pinned actionlint binary and reuses installed ShellCheck. Rust builds use
+bundled Opus, matching the production build and avoiding an Ubuntu package download. ShellCheck
+package installation runs only when the tool is absent. npm prefers its cached downloads and omits
+the install-time audit request. Cache availability follows GitHub's branch and PR isolation rules;
+cold runs still install and build dependencies.
+
 Tests use temporary configuration, local fixtures, and mocked services. Deployment credentials are
 unnecessary for validation.
 
 [Build and Deploy](build-and-deploy.yml) calls that validation before building an image. Draft PRs
 are validated and become eligible for a build and deployment once marked ready. PR edits can rerun
-validation and the candidate build. Deployment runs on eligible PR openings, updates, and changes to
-ready-for-review status. Each candidate has a tag derived from its PR and merge commit.
+validation and the candidate build. Deployment runs on eligible PR openings, updates, edits, and
+changes to ready-for-review status so an edit cannot leave the required deployment missing. Each
+candidate has a tag derived from its PR and merge commit.
 
 After `production` environment approval, `Deploy` verifies the PR still targets `main` from the
 current same-repository `dev` head and has a current tested merge commit. It promotes the
@@ -31,10 +48,13 @@ existing image was retained. It does not restart the stack. Image-affecting path
 Dockerfile inputs. Deployment success means Compose completed successfully; it does not establish
 that the bot logged into Discord.
 
-CodeQL analyzes workflow, Rust, and TypeScript changes on PRs to `dev`/`main` and pushes to `main`,
-keeping the default-branch baseline current. Scheduled and manual runs perform full scans. Pushes to
-`dev` do not trigger CodeQL. Regal checks Rego changes. The Actions lockfile workflow verifies
-changed workflow references. The assignment workflow handles metadata without checking out PR code.
+CodeQL analyzes workflows, Rust, and TypeScript on every PR to `dev`/`main` and push to `main`,
+keeping the default-branch baseline current. All three analyses upload results even when their
+source files are unchanged because code scanning merge protection expects each configured analysis.
+Scheduled and manual runs also perform full scans. Rust analysis uses build mode `none` without
+native package installation. Pushes to `dev` do not trigger CodeQL. Regal checks Rego changes. The
+Actions lockfile workflow verifies changed workflow references. The assignment workflow handles
+metadata without checking out PR code.
 
 ## Repository settings
 

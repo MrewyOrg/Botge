@@ -42,25 +42,17 @@ sudo bash "$BOTGE_DOWNLOAD_DIR/botge_control/setup" "$BOTGE_CONTROL_NAME"
 If your installed setup script predates the `.sh` source filenames, download and run the current
 `setup.sh` first. It updates the saved setup script and keeps the installed command paths.
 
-## Configure and start
+## Configure and operate
 
-Edit `.env` and `botge.config.json` in `/home/<control-name>/botge`. Import any existing data before
-starting. Setup installs the default Compose stack with Botge and nginx. Botge runs as `node` and
-stores data in the `botge-data` named volume.
+Edit `.env` and `botge.config.json` in `/home/<control-name>/botge`. Setup installs the default
+Botge and nginx Compose stack and preserves existing configuration on reruns. Botge runs as `node`
+and stores redb in the `botge-data` volume. Copying legacy SQLite files does not migrate them to
+redb.
 
-Using the variables set during installation:
-
-```bash
-sudo -u "$BOTGE_CONTROL_NAME" env BOTGE_CONTROL_SOCKET="/run/$BOTGE_CONTROL_NAME.sock" \
-  bash "$BOTGE_DOWNLOAD_DIR/scripts/botge-control" up
-```
-
-Use `stop` to stop the stack or `deploy` to pull and update only Botge. Set the variables again in a
-new shell. For `BUSY`, retry later; for `ERROR`, run the diagnostic script below.
-
-Start and deploy wait for Compose services to be running or healthy, with a 120-second timeout.
-Botge has no application health check, so an `OK` response does not confirm Discord login. Image
-cleanup failure is logged but does not turn a completed deployment into a failed response.
+The [operations wiki](https://github.com/MrewyOrg/Botge/wiki/Operations) documents start, stop,
+deploy, configuration updates, and log commands. The control handler serializes operations and waits
+up to 120 seconds for Compose services. An `OK` response confirms the Compose operation; verify
+Discord login separately. Image cleanup errors are logged independently.
 
 ## Import an existing data folder
 

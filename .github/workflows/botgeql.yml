@@ -1,4 +1,4 @@
-# cspell:words botgeql demuxer GOBIN rhysd VITE webp
+# cspell:words botgeql demuxer GOBIN rhysd tsdoc VITE webp
 
 name: BotgeQL
 
@@ -25,15 +25,123 @@ jobs:
     uses: $/.github/workflows/check-pr-target.yml
     permissions: {}
 
-  botgeql:
-    name: BotgeQL
+  changes:
+    name: Detect changes
     needs: check-pr-target
     if: >-
       always() && !cancelled() && (needs.check-pr-target.result == 'success' ||
       needs.check-pr-target.result == 'skipped')
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      rust: ${{ steps.paths.outputs.rust }}
+      static: ${{ steps.paths.outputs.static }}
+      activity: ${{ steps.paths.outputs.activity }}
+      markup: ${{ steps.paths.outputs.markup }}
+      tooling: ${{ steps.paths.outputs.tooling }}
+      shell: ${{ steps.paths.outputs.shell }}
+      workflows: ${{ steps.paths.outputs.workflows }}
     steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+
+      # PR filtering compares the complete PR, including deleted and renamed files.
+      # Editing this workflow validates every stage it controls.
+      - name: Classify changed inputs
+        uses: dorny/paths-filter@v4.0.3
+        id: paths
+        with:
+          filters: |
+            rust:
+              - '**/*.rs'
+              - 'Cargo.{toml,lock}'
+              - 'rust*.toml'
+              - '.cargo/**'
+              - 'botge*.config.{json,jsonc}'
+              - 'botge.config.schema.json'
+              - '.env.example'
+              - 'Dockerfile*'
+              - 'scripts/check-rust-coverage.sh'
+              - 'scripts/install-test-ffmpeg.sh'
+              - '.github/workflows/botgeql.yml'
+            static:
+              - '**/*.ts'
+              - '**/tsconfig*.json'
+              - '**/tsdoc.json'
+              - '**/package{,-lock}.json'
+              - '**/.npmrc'
+              - '.nvmrc'
+              - 'knip.jsonc'
+              - '.github/workflows/botgeql.yml'
+            activity:
+              - 'activity/**/*.{ts,html,scss,css,json,jsonc}'
+              - 'activity/public/**'
+              - 'assets/**'
+              - 'package{,-lock}.json'
+              - 'tsconfig*.json'
+              - 'vitest.config.ts'
+              - '**/.npmrc'
+              - '.nvmrc'
+              - '.github/workflows/botgeql.yml'
+            markup:
+              - 'activity/src/**/*.{ts,html,scss,css}'
+              - 'activity/index.html'
+              - 'activity/public/**'
+              - 'activity/vite.config.*'
+              - 'activity/package{,-lock}.json'
+              - 'activity/tsconfig*.json'
+              - 'activity/.htmlvalidate*'
+              - '.htmlvalidate*'
+              - 'tsconfig*.json'
+              - 'assets/**'
+              - 'package{,-lock}.json'
+              - '**/.npmrc'
+              - '.nvmrc'
+              - '.github/workflows/botgeql.yml'
+            tooling:
+              - 'tests/tooling/**/*.{ts,json}'
+              - 'tests/control/**/*.{ts,json}'
+              - 'botge_control/**/*.{sh,service,socket}'
+              - 'scripts/**/*.{sh,ts}'
+              - '*.ts'
+              - 'tsconfig*.json'
+              - 'package{,-lock}.json'
+              - '**/.npmrc'
+              - '.nvmrc'
+              - '.husky/**'
+              - '.github/workflows/botgeql.yml'
+            shell:
+              - '**/*.sh'
+              - '.husky/{pre-commit,commit-msg,post-merge}'
+              - '.shellcheckrc'
+              - '.github/workflows/botgeql.yml'
+            workflows:
+              - '.github/workflows/*.{yml,yaml}'
+              - '.github/actionlint.*'
+              - 'scripts/lint-workflows.sh'
+
+  botgeql:
+    name: BotgeQL
+    needs: [check-pr-target, changes]
+    if: >-
+      always() && !cancelled() && (needs.check-pr-target.result == 'success' ||
+      needs.check-pr-target.result == 'skipped')
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      CARGO_INCREMENTAL: '0'
+      OPUS_BUNDLED: '1'
+    steps:
+      - name: Require successful change detection
+        env:
+          CHANGE_DETECTION_RESULT: ${{ needs.changes.result }}
+        run: test "$CHANGE_DETECTION_RESULT" = success
+
       - name: Checkout repository
         uses: actions/checkout@v7.0.1
         with:
@@ -47,7 +155,7 @@ jobs:
           cache: npm
 
       - name: Install dependencies
-        run: npm ci
+        run: npm ci --prefer-offline --no-audit
 
       - name: Check formatting and documentation
         run: |
@@ -66,30 +174,62 @@ jobs:
           npx commitlint --from="$BASE_SHA" --to="$HEAD_SHA" --verbose
 
       - name: Types, lint, and unused code
+        if: needs.changes.outputs.static == 'true'
         run: npm run check:static
 
-      - name: Install Rust build and test dependencies
+      - name: Restore Rust build cache
+        if: needs.changes.outputs.rust == 'true'
+        uses: actions/cache@v6.1.0
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target/debug
+            target/llvm-cov-branch
+          key: >-
+            rust-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('rust-toolchain.toml') }}-${{
+            hashFiles('Cargo.toml', 'Cargo.lock') }}
+          restore-keys: |
+            rust-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('rust-toolchain.toml') }}-
+
+      - name: Restore pinned Rust test tools
+        if: needs.changes.outputs.rust == 'true'
+        uses: actions/cache@v6.1.0
+        id: rust-tools
+        with:
+          path: |
+            ~/.cargo/bin/cargo-llvm-cov
+            ${{ runner.temp }}/botge-test-bin
+          key: >-
+            rust-tools-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('rust-toolchain.toml',
+            'scripts/install-test-ffmpeg.sh', '.github/workflows/botgeql.yml') }}
+
+      - name: Check Rust toolchain
+        if: needs.changes.outputs.rust == 'true'
         run: |
-          sudo apt-get update
-          sudo apt-get install --yes --no-install-recommends libopus-dev pkg-config
           rustup show active-toolchain
           cargo --version
-          cargo install --locked --version 0.9.1 cargo-llvm-cov
 
-      # Rust coverage runs real render tests. They need FFmpeg 9's webp_anim demuxer,
-      # the libwebp_anim encoder, and a matching FFprobe. Ubuntu's package is too old.
-      - name: Install FFmpeg with animated WebP support
+      # These tools are pinned together by the installer and workflow cache key.
+      - name: Install Rust coverage and render tools
+        if: needs.changes.outputs.rust == 'true' && steps.rust-tools.outputs.cache-hit != 'true'
         run: |
+          cargo install --locked --version 0.9.1 cargo-llvm-cov
           sh scripts/install-test-ffmpeg.sh "$RUNNER_TEMP/botge-test-bin"
-          printf '%s\n' "$RUNNER_TEMP/botge-test-bin" >> "$GITHUB_PATH"
+
+      - name: Add render tools to PATH
+        if: needs.changes.outputs.rust == 'true'
+        run: printf '%s\n' "$RUNNER_TEMP/botge-test-bin" >> "$GITHUB_PATH"
 
       - name: Check Rust formatting, lints, and coverage
+        if: needs.changes.outputs.rust == 'true'
         run: |
           cargo fmt --all --check
           cargo clippy --locked --all-targets -- -D warnings
           sh scripts/check-rust-coverage.sh
 
       - name: Validate Activity HTML and SCSS
+        if: needs.changes.outputs.markup == 'true'
         env:
           VITE_ENABLE_7TV_DISCOVERY: 'true'
           VITE_ENABLE_ACTIVITY_ADDS: 'true'
@@ -97,36 +237,67 @@ jobs:
           VITE_ENABLE_ACTIVITY_SETTINGS: 'true'
         run: npm run check:markup -w activity
 
-      - name: Test repository tooling and Activity
-        run: |
-          npm test -- --run --project Tooling
-          npm run test:coverage -w activity
+      - name: Test repository tooling
+        if: needs.changes.outputs.tooling == 'true'
+        run: npm test -- --run --project Tooling
+
+      - name: Test Activity and Worker coverage
+        if: needs.changes.outputs.activity == 'true'
+        run: npm run test:coverage -w activity
 
   tooling-lint:
     name: Shell and workflow lint
-    needs: check-pr-target
+    needs: [check-pr-target, changes]
     if: >-
       always() && !cancelled() && (needs.check-pr-target.result == 'success' ||
       needs.check-pr-target.result == 'skipped')
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
+      - name: Require successful change detection
+        env:
+          CHANGE_DETECTION_RESULT: ${{ needs.changes.result }}
+        run: test "$CHANGE_DETECTION_RESULT" = success
+
       - name: Checkout repository
+        if: needs.changes.outputs.shell == 'true' || needs.changes.outputs.workflows == 'true'
         uses: actions/checkout@v7.0.1
         with:
           persist-credentials: false
 
-      - name: Install ShellCheck and actionlint
+      - name: Install ShellCheck
+        if: needs.changes.outputs.shell == 'true' || needs.changes.outputs.workflows == 'true'
         shell: bash
         run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends shellcheck
+          if ! command -v shellcheck > /dev/null 2>&1; then
+            sudo apt-get -o Acquire::Retries=2 update --error-on=any
+            sudo apt-get -o Acquire::Retries=2 install -y --no-install-recommends shellcheck
+          fi
+
+      - name: Restore actionlint
+        if: needs.changes.outputs.workflows == 'true'
+        uses: actions/cache@v6.1.0
+        id: actionlint-cache
+        with:
+          path: ${{ runner.temp }}/botge-linters/actionlint
+          key: actionlint-${{ runner.os }}-${{ runner.arch }}-1.7.12
+
+      - name: Install actionlint
+        if:
+          needs.changes.outputs.workflows == 'true' && steps.actionlint-cache.outputs.cache-hit !=
+          'true'
+        run: |
           mkdir -p "$RUNNER_TEMP/botge-linters"
           GOBIN="$RUNNER_TEMP/botge-linters" go install github.com/rhysd/actionlint/cmd/actionlint@v1.7.12
-          echo "$RUNNER_TEMP/botge-linters" >> "$GITHUB_PATH"
+
+      - name: Add actionlint to PATH
+        if: needs.changes.outputs.workflows == 'true'
+        run: printf '%s\n' "$RUNNER_TEMP/botge-linters" >> "$GITHUB_PATH"
 
       - name: Check shell scripts
+        if: needs.changes.outputs.shell == 'true'
         run: bash scripts/lint-shell.sh
 
       - name: Check workflows and inline shell
+        if: needs.changes.outputs.workflows == 'true'
         run: sh scripts/lint-workflows.sh

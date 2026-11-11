@@ -20,6 +20,7 @@ jobs:
     uses: $/.github/workflows/botgeql.yml
     permissions:
       contents: read
+      pull-requests: read
 
   filter-paths:
     name: Filter image paths
@@ -79,9 +80,8 @@ jobs:
     name: Deploy
     needs: [validate, filter-paths, build]
     if: >-
-      always() && !cancelled() && github.event.action != 'edited' &&
-      !github.event.pull_request.draft && needs.validate.result == 'success' &&
-      needs.filter-paths.result == 'success' && (needs.build.result == 'success' ||
+      always() && !cancelled() && !github.event.pull_request.draft && needs.validate.result ==
+      'success' && needs.filter-paths.result == 'success' && (needs.build.result == 'success' ||
       needs.build.result == 'skipped')
     runs-on: ubuntu-latest
     timeout-minutes: 20
