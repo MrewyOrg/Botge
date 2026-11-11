@@ -48,10 +48,13 @@ existing image was retained. It does not restart the stack. Image-affecting path
 Dockerfile inputs. Deployment success means Compose completed successfully; it does not establish
 that the bot logged into Discord.
 
-CodeQL analyzes workflow, Rust, and TypeScript changes on PRs to `dev`/`main` and pushes to `main`,
-keeping the default-branch baseline current. Scheduled and manual runs perform full scans. Pushes to
-`dev` do not trigger CodeQL. Regal checks Rego changes. The Actions lockfile workflow verifies
-changed workflow references. The assignment workflow handles metadata without checking out PR code.
+CodeQL analyzes workflows, Rust, and TypeScript on every PR to `dev`/`main` and push to `main`,
+keeping the default-branch baseline current. All three analyses upload results even when their
+source files are unchanged because code scanning merge protection expects each configured analysis.
+Scheduled and manual runs also perform full scans. Rust analysis uses build mode `none` without
+native package installation. Pushes to `dev` do not trigger CodeQL. Regal checks Rego changes. The
+Actions lockfile workflow verifies changed workflow references. The assignment workflow handles
+metadata without checking out PR code.
 
 ## Repository settings
 

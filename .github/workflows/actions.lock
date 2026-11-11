@@ -18,7 +18,6 @@ workflows:
     '.github/workflows/check-pr-target.yml': []
     '.github/workflows/codeql.yml':
         - 'actions/checkout@v7.0.1'
-        - 'dorny/paths-filter@v4.0.3'
         - 'github/codeql-action@v4.39.1'
     '.github/workflows/regal-lint.yml':
         - 'actions/checkout@v7.0.1'
