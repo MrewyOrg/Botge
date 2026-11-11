@@ -34,6 +34,10 @@ updates:
 
   - package-ecosystem: docker
     directory: '/'
+    # Registry publication dates are unavailable, so an age-based delay cannot be enforced.
+    cooldown:
+      exclude:
+        - '*'
     schedule:
       interval: weekly
       day: monday
