@@ -12,8 +12,8 @@ publish = false
 [dependencies]
 anyhow = "1"
 axum = "0.8"
-base64 = "0.22"
-ed25519-dalek = "2"
+base64 = "0.23"
+ed25519-dalek = "3"
 futures-util = "0.3"
 hex = "0.4"
 jsonc-parser = { version = "0.34", features = ["serde"] }
@@ -44,7 +44,7 @@ tokio = { version = "1", features = [
   "sync",
   "time",
 ] }
-tokio-tungstenite = { version = "0.26", features = ["rustls-tls-webpki-roots"] }
+tokio-tungstenite = { version = "0.30", features = ["rustls-tls-webpki-roots"] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 
