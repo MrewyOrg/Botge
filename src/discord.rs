@@ -1,6 +1,10 @@
 //! Adapts Discord gateway events and OAuth responses to Botge's commands and Activity API.
 
-use std::{num::NonZeroU64, sync::Arc, time::Duration};
+use std::{
+  num::NonZeroU64,
+  sync::{Arc, OnceLock},
+  time::Duration,
+};
 
 use reqwest::StatusCode;
 use serde::Deserialize;
@@ -19,18 +23,12 @@ use crate::{
   settings::discord_id,
 };
 
-#[cfg(test)]
-const DISCORD_API: &str = "https://discord.com/api/v10";
-
 /// Exchanges Activity authorization codes and uses the bot client to check guild permissions.
 pub(crate) struct DiscordAccess {
   application_id: NonZeroU64,
   secret: String,
   bot_user: UserId,
   http: Arc<Http>,
-  oauth: reqwest::Client,
-  #[cfg(test)]
-  api: String,
 }
 
 impl DiscordAccess {
@@ -41,23 +39,12 @@ impl DiscordAccess {
     bot_user: UserId,
     http: Arc<Http>,
   ) -> anyhow::Result<Self> {
-    let oauth = reqwest::Client::builder()
-      .timeout(Duration::from_secs(10))
-      .redirect(reqwest::redirect::Policy::none())
-      .build()?;
-    #[cfg(test)]
-    let api = http.proxy.as_ref().map_or_else(
-      || DISCORD_API.to_owned(),
-      |origin| format!("{}/api/v10", origin.trim_end_matches('/')),
-    );
+    discord_client()?;
     Ok(Self {
       application_id,
       secret,
       bot_user,
       http,
-      oauth,
-      #[cfg(test)]
-      api,
     })
   }
 
@@ -81,22 +68,19 @@ impl DiscordAccess {
       id: String,
     }
 
+    let client = discord_client().map_err(oauth_error)?;
     let application_id = self.application_id.to_string();
-    // Production OAuth destinations are fixed. Loopback overrides exist only in test builds.
-    #[cfg(not(test))]
-    let request = self.oauth.post("https://discord.com/api/v10/oauth2/token");
-    #[cfg(test)]
-    let request = self.oauth.post(format!("{}/oauth2/token", self.api));
-    let response = request
+    let request = client
+      .post("https://discord.com/api/v10/oauth2/token")
       .form(&[
         ("client_id", application_id.as_str()),
         ("client_secret", self.secret.as_str()),
         ("grant_type", "authorization_code"),
         ("code", code),
       ])
-      .send()
-      .await
+      .build()
       .map_err(oauth_error)?;
+    let response = self.send_oauth(request).await?;
     if matches!(
       response.status(),
       StatusCode::BAD_REQUEST | StatusCode::UNAUTHORIZED
@@ -125,15 +109,12 @@ impl DiscordAccess {
       .json()
       .await
       .map_err(oauth_error)?;
-    #[cfg(not(test))]
-    let request = self.oauth.get("https://discord.com/api/v10/users/@me");
-    #[cfg(test)]
-    let request = self.oauth.get(format!("{}/users/@me", self.api));
-    let response = request
+    let request = client
+      .get("https://discord.com/api/v10/users/@me")
       .bearer_auth(token.access_token)
-      .send()
-      .await
+      .build()
       .map_err(oauth_error)?;
+    let response = self.send_oauth(request).await?;
     if response.status() == StatusCode::UNAUTHORIZED {
       return Err(ApiError::UNAUTHORIZED);
     }
@@ -147,6 +128,31 @@ impl DiscordAccess {
       .map(|id| UserId::new(id.get()))
       .ok_or(ApiError::UNAUTHORIZED)
   }
+
+  /// Sends a request built from a fixed Discord endpoint, using loopback fixtures in tests.
+  async fn send_oauth(&self, request: reqwest::Request) -> Result<reqwest::Response, ApiError> {
+    #[cfg(test)]
+    let request = tests::redirect_oauth(request, self.http.proxy.as_deref())?;
+    discord_client()
+      .map_err(oauth_error)?
+      .execute(request)
+      .await
+      .map_err(oauth_error)
+  }
+}
+
+/// Shares one bounded, non-redirecting Discord transport independently of request state.
+/// Concurrent initialization retains one client and propagates configuration errors.
+fn discord_client() -> Result<&'static reqwest::Client, reqwest::Error> {
+  static CLIENT: OnceLock<reqwest::Client> = OnceLock::new();
+  if let Some(client) = CLIENT.get() {
+    return Ok(client);
+  }
+  let client = reqwest::Client::builder()
+    .timeout(Duration::from_secs(10))
+    .redirect(reqwest::redirect::Policy::none())
+    .build()?;
+  Ok(CLIENT.get_or_init(|| client))
 }
 
 /// Keeps OAuth transport and decoding errors out of logs because they may contain credentials.

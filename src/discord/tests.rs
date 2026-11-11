@@ -10,6 +10,57 @@ use serde_json::{Value, json};
 use super::*;
 use crate::tests::{TestServer, http_for, user};
 
+/// Redirects OAuth fixtures to a loopback port while preserving the fixed API paths.
+pub(super) fn redirect_oauth(
+  mut request: reqwest::Request,
+  origin: Option<&str>,
+) -> Result<reqwest::Request, ApiError> {
+  if let Some(origin) = origin {
+    let origin = reqwest::Url::parse(origin).map_err(|_| ApiError::UNAUTHORIZED)?;
+    if origin.scheme() != "http" || origin.host_str() != Some("127.0.0.1") {
+      return Err(ApiError::UNAUTHORIZED);
+    }
+    let url = request.url_mut();
+    url
+      .set_scheme("http")
+      .map_err(|()| ApiError::UNAUTHORIZED)?;
+    url
+      .set_host(Some("127.0.0.1"))
+      .map_err(|_| ApiError::UNAUTHORIZED)?;
+    url
+      .set_port(origin.port())
+      .map_err(|()| ApiError::UNAUTHORIZED)?;
+  }
+  Ok(request)
+}
+
+#[test]
+fn oauth_fixtures_preserve_paths_and_reject_non_loopback_destinations() -> anyhow::Result<()> {
+  let client = reqwest::Client::new();
+  let endpoint = "https://discord.com/api/v10/oauth2/token";
+  for origin in [
+    "invalid",
+    "https://127.0.0.1:1234",
+    "http://example.com:1234",
+  ] {
+    assert!(redirect_oauth(client.post(endpoint).build()?, Some(origin)).is_err());
+  }
+  let original = redirect_oauth(client.post(endpoint).build()?, None)
+    .map_err(|_| anyhow::anyhow!("original request rejected"))?;
+  assert_eq!(original.url().as_str(), endpoint);
+  let redirected = redirect_oauth(
+    client.post(endpoint).build()?,
+    Some("http://127.0.0.1:1234/ignored"),
+  )
+  .map_err(|_| anyhow::anyhow!("loopback request rejected"))?;
+  assert_eq!(
+    redirected.url().as_str(),
+    "http://127.0.0.1:1234/api/v10/oauth2/token"
+  );
+  assert_eq!(redirected.method(), reqwest::Method::POST);
+  Ok(())
+}
+
 fn guild() -> Value {
   json!({
       "id":"1","name":"Fixture","owner_id":"2","verification_level":0,
