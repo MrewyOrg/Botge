@@ -1,9 +1,6 @@
 {
   "extends": "./tsconfig.base",
   "files": [
-    ".husky/install.ts",
-    "scripts/lint-shell.ts",
-    "scripts/lint-workflows.ts",
     "commitlint.config.ts",
     "cspell.config.ts",
     "eslint.config.ts",
@@ -11,10 +8,11 @@
     "prettier.config.ts",
     "vitest.config.ts"
   ],
-  "references": [{ "path": "./src" }],
+  "include": ["tests/control/**/*.ts", "tests/tooling/**/*.ts"],
   "compilerOptions": {
     // Emit
     "noEmit": true,
-    "tsBuildInfoFile": "./dist/root.tsbuildinfo"
+    // Keep incremental metadata out of the source tree even though JavaScript emit is disabled.
+    "tsBuildInfoFile": "./node_modules/.cache/botge/root.tsbuildinfo"
   }
 }

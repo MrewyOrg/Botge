@@ -6,6 +6,8 @@
 !/.github/codeql/output/.gitkeep
 /data
 /dist
+/activity/dist/
+/activity/.wrangler/
 /nginx/cache
 node_modules/
 /tmp
@@ -13,3 +15,5 @@ node_modules/
 /.env
 /botge.config.json
 /coverage
+
+/target/

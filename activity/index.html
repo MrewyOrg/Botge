@@ -3,84 +3,205 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta name="theme-color" content="#0a0a0a" />
-    <title>Botge Emote Browser</title>
+    <meta name="theme-color" content="#0b0a10" />
+    <title>Botge Emote Studio</title>
   </head>
   <body>
     <main>
       <header class="masthead">
-        <div id="masthead-brand"></div>
-        <div class="masthead-copy">
-          <p class="eyebrow">Discord Activity</p>
-          <h1>Emote Browser</h1>
-          <p>Find an emote, preview it, and copy its name.</p>
+        <div class="masthead-brand">
+          <img
+            class="masthead-art"
+            src="../assets/banner.png"
+            width="680"
+            height="240"
+            alt="Botge"
+          />
+          <span class="activity-label">Discord Activity</span>
+        </div>
+        <div id="catalog-intro" class="masthead-copy">
+          <p class="eyebrow">Workspace / Emotes</p>
+          <h1>Emote Studio</h1>
+          <p>Browse, build, and preview emote compositions.</p>
         </div>
       </header>
 
-      <details id="composer" class="composer">
-        <summary>Emote Composer</summary>
-        <p>
-          Open an emote in Catalog and add it here. Zero-width emotes layer over the previous
-          column.
-        </p>
-        <div
-          id="composer-preview"
-          class="composer-preview"
-          role="group"
-          aria-label="Composition preview"
-        ></div>
-        <ol id="composer-layers" class="composer-layers" aria-label="Composition inputs"></ol>
-        <label>
-          /emote-compose emotes field
-          <input id="composer-input" readonly />
-        </label>
-        <div class="preview-actions">
-          <button id="composer-copy" type="button" disabled>Copy emotes</button>
-          <button id="composer-clear" type="button" disabled>Clear</button>
-        </div>
-        <p id="composer-feedback" role="status"></p>
-      </details>
+      <div class="workspace">
+        <nav class="workspace-nav" aria-label="Emote workspace">
+          <a id="catalog-link" href="#catalog-heading" aria-current="page">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <rect x="3" y="3" width="7" height="7" rx="1" />
+              <rect x="14" y="3" width="7" height="7" rx="1" />
+              <rect x="3" y="14" width="7" height="7" rx="1" />
+              <rect x="14" y="14" width="7" height="7" rx="1" />
+            </svg>
+            Catalog
+          </a>
+          <a id="settings-link" href="#activity-settings" hidden>
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M4 7h16M4 17h16" />
+              <circle cx="8" cy="7" r="2.5" />
+              <circle cx="16" cy="17" r="2.5" />
+            </svg>
+            Settings
+          </a>
+        </nav>
+        <section id="catalog-page" class="catalog" aria-labelledby="catalog-heading">
+          <header class="section-header">
+            <h2 id="catalog-heading" tabindex="-1">Emote catalog</h2>
+          </header>
+          <nav id="browse-modes" class="browse-modes" aria-label="Browse emotes" hidden>
+            <button id="catalog-mode" type="button" aria-pressed="true">Catalog</button>
+            <button id="trending-mode" type="button" aria-pressed="false">
+              Trending this week
+            </button>
+            <button id="top-mode" type="button" aria-pressed="false">Top all time</button>
+          </nav>
 
-      <nav id="browse-modes" class="browse-modes" aria-label="Browse emotes" hidden>
-        <button id="catalog-mode" type="button" aria-pressed="true">Catalog</button>
-        <button id="trending-mode" type="button" aria-pressed="false">Trending this week</button>
-        <button id="top-mode" type="button" aria-pressed="false">Top all time</button>
-      </nav>
+          <section class="filters" aria-label="Emote filters">
+            <label class="search"
+              >Search<input id="search" type="search" placeholder="Search emotes…"
+            /></label>
+            <label id="source-filter"
+              >Platform<select id="source">
+                <option value="">All platforms</option>
+              </select></label
+            >
+            <label
+              >Motion<select id="motion">
+                <option value="">All emotes</option>
+                <option value="static">Static</option>
+                <option value="animated">Animated</option>
+              </select></label
+            >
+            <label>
+              Layering
+              <select id="overlay-filter">
+                <option value="">All emotes</option>
+                <option value="overlaying">Overlaying</option>
+                <option value="regular">Regular</option>
+              </select>
+            </label>
+            <label class="search">
+              Tags<input id="tag-search" type="search" placeholder="Tags, separated by commas" />
+            </label>
+            <button id="added-filter" type="button" aria-pressed="false" hidden>
+              Added emotes
+            </button>
+          </section>
 
-      <section class="filters" aria-label="Emote filters">
-        <label class="search"
-          >Search<input id="search" type="search" placeholder="Search emotes…"
-        /></label>
-        <label id="source-filter"
-          >Platform<select id="source">
-            <option value="">All platforms</option>
-          </select></label
-        >
-        <label
-          >Motion<select id="motion">
-            <option value="">All emotes</option>
-            <option value="static">Static</option>
-            <option value="animated">Animated</option>
-          </select></label
-        >
-        <button id="added-filter" type="button" aria-pressed="false" hidden>Added emotes</button>
-      </section>
+          <div class="catalog-status">
+            <p id="message" role="status">Loading emotes…</p>
+            <button id="select-emotes" type="button" aria-pressed="false">Select emotes</button>
+            <button id="refresh-catalog" class="quiet" type="button" hidden>Refresh catalog</button>
+          </div>
+          <div id="selection" class="selection" hidden>
+            <p id="selection-status" role="status"></p>
+            <div class="preview-actions">
+              <button id="selection-compose" type="button" class="primary">Add to composer</button>
+              <button id="selection-add" type="button" hidden>Add to server</button>
+              <button id="selection-remove" type="button" class="danger" hidden>
+                Remove from server
+              </button>
+              <button id="selection-clear" type="button">Clear selection</button>
+            </div>
+          </div>
+          <ul id="results" class="grid" aria-label="Emotes"></ul>
+          <button id="more" type="button" hidden>Show more</button>
+        </section>
+        <aside id="composer-pane" class="tools" aria-label="Composer">
+          <details id="composer" class="composer" open>
+            <summary>Emote composer</summary>
+            <p>Open any emote to add it. Overlaying emotes sit on top of the previous emote.</p>
+            <div
+              id="composer-preview"
+              class="composer-preview"
+              role="group"
+              aria-label="Composition preview"
+            ></div>
+            <ol id="composer-layers" class="composer-layers" aria-label="Composition inputs"></ol>
+            <label>
+              /emote-compose emotes field
+              <input id="composer-input" readonly />
+            </label>
+            <div class="preview-actions">
+              <button id="composer-copy" class="primary" type="button" disabled>Copy emotes</button>
+              <button id="composer-clear" type="button" disabled>Clear</button>
+            </div>
+            <p id="composer-feedback" role="status"></p>
+          </details>
+        </aside>
+        <section id="activity-settings" aria-labelledby="settings-heading" hidden>
+          <h1 id="settings-heading" tabindex="-1">Settings</h1>
+          <details id="emote-border-settings" class="composer settings-panel" hidden>
+            <summary>My emote border</summary>
+            <form>
+              <fieldset disabled>
+                <label><input name="enabled" type="checkbox" /> Enable emote border</label>
+                <label>
+                  Border color
+                  <input name="color" type="color" value="#ffffff" disabled />
+                </label>
+                <button type="submit">Save emote border</button>
+              </fieldset>
+            </form>
+            <p role="status"></p>
+          </details>
 
-      <button id="refresh-catalog" type="button" hidden>Refresh server emotes</button>
-      <p id="message" role="status">Loading emotes…</p>
-      <ul id="results" class="grid" aria-label="Emotes"></ul>
-      <button id="more" type="button" hidden>Show more</button>
+          <details id="voice-settings" class="composer settings-panel" hidden>
+            <summary>Bot voice settings</summary>
+            <form>
+              <fieldset disabled>
+                <label>Voice channel<select id="voice-channel"></select></label>
+                <label
+                  ><input id="voice-status-enabled" type="checkbox" /> Set voice channel
+                  status</label
+                >
+                <label>Voice status emoji<input id="voice-status-emoji" maxlength="64" /></label>
+                <button type="submit">Save voice settings</button>
+              </fieldset>
+            </form>
+            <p id="voice-feedback" role="status"></p>
+          </details>
 
+          <details id="emote-settings" class="composer settings-panel" hidden>
+            <summary>Server emote settings</summary>
+            <form>
+              <fieldset disabled>
+                <label>7TV emote set ID <input name="seven-tv-set" maxlength="26" /></label>
+                <label
+                  >BTTV channel's Twitch user ID
+                  <input name="bttv-twitch-id" inputmode="numeric" maxlength="20"
+                /></label>
+                <label>FFZ Twitch channel name <input name="ffz-channel" maxlength="25" /></label>
+                <label
+                  ><input name="allow-everyone" type="checkbox" /> Allow all members to add and
+                  remove emotes</label
+                >
+                <label>Emote manager roles<select name="role"></select></label>
+                <button name="add-role" type="button">Add role</button>
+                <ul class="selected-roles" aria-label="Selected roles"></ul>
+                <button type="submit">Save emote settings</button>
+              </fieldset>
+            </form>
+            <p role="status"></p>
+          </details>
+        </section>
+      </div>
+
+      <div id="emote-context-menu" role="menu" aria-label="Emote actions" hidden></div>
       <dialog id="preview" aria-labelledby="preview-title">
         <form method="dialog"><button class="close" aria-label="Close preview">×</button></form>
         <div id="preview-art" class="preview-art"></div>
         <p class="eyebrow" id="preview-source"></p>
         <h2 id="preview-title"></h2>
+        <ul id="preview-tags" class="tag-list" aria-label="Emote tags"></ul>
         <label>Emote name<input id="preview-name" readonly /></label>
         <div class="preview-actions">
           <button id="copy" type="button">Copy name</button>
-          <button id="compose-add" type="button" hidden>Add to composer</button>
+          <button id="compose-add" class="primary" type="button" hidden>Add to composer</button>
           <button id="add" type="button" hidden>Add to this server</button>
+          <button id="remove" class="danger" type="button" hidden>Remove from this server</button>
           <a id="open-7tv" href="https://7tv.app/" target="_blank" rel="noopener noreferrer" hidden
             >Open on 7TV</a
           >

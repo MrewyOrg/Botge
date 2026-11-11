@@ -1,0 +1,6 @@
+[toolchain]
+# Use the same nightly locally, in CI, and in the production image build.
+channel = "nightly-2026-11-10"
+profile = "minimal"
+# Clippy and rustfmt check the source. LLVM tools produce the branch coverage report.
+components = ["clippy", "rustfmt", "llvm-tools-preview"]

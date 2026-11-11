@@ -3,18 +3,22 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "build": "vite build --base=./ --outDir ../dist/activity --emptyOutDir",
-    "check:markup": "npm run build && html-validate --preset standard --max-warnings 0 index.html ../dist/activity/index.html",
+    "build": "vite build --base=./",
+    "check:markup": "npm run build && html-validate --preset standard --max-warnings 0 index.html dist/index.html",
     "dev": "vite --host 127.0.0.1",
-    "test": "npm --prefix .. test -- --run tests/activity",
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage",
     "typecheck": "tsc --project tsconfig.json"
   },
   "dependencies": {
     "@discord/embedded-app-sdk": "^2.5.0"
   },
   "devDependencies": {
+    "@vitest/coverage-v8": "^5.1.0",
     "html-validate": "^11.21.0",
+    "jsdom": "^31.0.0",
     "sass": "^1.108.1",
-    "vite": "^8.3.6"
+    "vite": "^8.3.6",
+    "vitest": "^5.1.0"
   }
 }

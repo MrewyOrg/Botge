@@ -37,20 +37,14 @@ jobs:
           filters: |
             build:
               - '.github/workflows/build-and-deploy.yml'
-              - 'src/**'
-              - 'docs/**'
               - '.dockerignore'
-              - '.husky/install.ts'
-              - '.npmrc'
+              - 'src/**'
+              - 'Cargo.lock'
+              - 'Cargo.toml'
               - 'Dockerfile'
+              - 'Dockerfile.rego'
               - 'LICENSE.txt'
-              - 'README.md'
-              - 'activity/package.json'
-              - 'botge.config.schema.json'
-              - 'node.config.json'
-              - 'package-lock.json'
-              - 'package.json'
-              - 'tsconfig.base.json'
+              - 'rust-toolchain.toml'
     outputs:
       build: ${{ steps.changes.outputs.build }}
 
@@ -66,6 +60,7 @@ jobs:
       output: image
       push: true
       meta-images: mrewy/botge
+      # The candidate tag identifies the tested PR merge commit. Approval controls promotion.
       meta-tags: type=raw,value=pr-${{ github.event.number }}-${{ github.sha }}
       meta-flavor: latest=false
       set-meta-annotations: true
@@ -100,6 +95,7 @@ jobs:
       pull-requests: read
       id-token: write
     steps:
+      # The PR may have changed while this job waited for production approval.
       - name: Reject stale pull requests and changed targets
         env:
           GH_TOKEN: ${{ github.token }}
@@ -171,5 +167,5 @@ jobs:
             --tunnel-through-iap \
             --quiet \
             --command="BOTGE_CONTROL_SOCKET=$(printf '%q' "$BOTGE_CONTROL_SOCKET") bash -s -- deploy" \
-              < scripts/botge-control
+              < scripts/botge-control.sh
           printf 'Deployed candidate: mrewy/botge@%s\n' "$IMAGE_DIGEST" >> "$GITHUB_STEP_SUMMARY"

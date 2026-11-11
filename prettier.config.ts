@@ -5,6 +5,7 @@ const config: Readonly<Config> = {
   endOfLine: 'lf',
   experimentalOperatorPosition: 'start',
   experimentalTernaries: true,
+  htmlWhitespaceSensitivity: 'strict',
   objectWrap: 'collapse',
   plugins: [prettierPluginSh],
   printWidth: 100,

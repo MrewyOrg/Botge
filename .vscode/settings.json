@@ -1,4 +1,4 @@
-// cspell:words botgeql vsicons
+// cspell:words botgeql tamasfe vsicons
 
 {
   // Editor
@@ -19,15 +19,6 @@
     "**/.husky/commit-msg": "shellscript",
     "**/.husky/post-merge": "shellscript",
     "**/.husky/pre-commit": "shellscript",
-    "**/botge_control/bin/botge_control": "shellscript",
-    "**/botge_control/config": "shellscript",
-    "**/botge_control/import_data": "shellscript",
-    "**/botge_control/inspect": "shellscript",
-    "**/botge_control/setup": "shellscript",
-    "**/botge_control/setup_docker": "shellscript",
-    "**/botge_control/teardown": "shellscript",
-    "**/scripts/botge-control": "shellscript",
-    "**/scripts/check-package-version": "shellscript",
     "botge.config.json": "jsonc",
     "Dockerfile.rego": "rego"
   },
@@ -43,12 +34,14 @@
     ".github/workflows/actions.lock": true,
     ".husky/_/**/*": true,
     "**/*.tsbuildinfo": true,
+    "Cargo.lock": true,
     "coverage/**/*": true,
     "data/**/*": true,
-    "dist/**/*": true,
+    "**/dist/**": true,
     "nginx/cache/**/*": true,
     "node_modules/**/*": true,
     "package-lock.json": true,
+    "target/**/*": true,
     "tmp/**/*": true
   },
   "files.trimFinalNewlines": true,
@@ -58,11 +51,13 @@
     "**/.github/codeql/database/**": true,
     "**/.github/codeql/output/**": true,
     "**/.husky/_/**": true,
+    "**/.wrangler/**": true,
     "**/*.tsbuildinfo": true,
     "**/coverage/**": true,
     "**/data/**": true,
     "**/dist/**": true,
     "**/nginx/cache/**": true,
+    "**/target/**": true,
     "**/tmp/**": true
   },
 
@@ -71,11 +66,13 @@
     "**/.github/codeql/database/**": true,
     "**/.github/codeql/output/**": true,
     "**/.husky/_/**": true,
+    "**/.wrangler/**": true,
     "**/*.tsbuildinfo": true,
     "**/coverage/**": true,
     "**/data/**": true,
     "**/dist/**": true,
     "**/nginx/cache/**": true,
+    "**/target/**": true,
     "**/tmp/**": true
   },
   "search.useIgnoreFiles": true,
@@ -118,6 +115,11 @@
   "terminal.integrated.tabs.showActions": "singleTerminalOrNarrow",
   "terminal.integrated.tabs.showActiveTerminal": "always",
   "terminal.integrated.tabs.title": "botge${separator}${process}",
+
+  // Rust
+  "rust-analyzer.check.allTargets": true,
+  "rust-analyzer.check.command": "clippy",
+  "rust-analyzer.check.extraArgs": ["--locked"],
 
   // TypeScript
   "js/ts.experimental.useTsgo": true,
@@ -181,7 +183,6 @@
     "https://developer.microsoft.com/json-schemas/": true,
     "https://json-schema.org/": true,
     "https://json.schemastore.org/": true,
-    "https://nodejs.org/docs/v26.13.0/node-config-schema.json": true,
     "https://raw.githubusercontent.com/devcontainers/spec/": true,
     "https://raw.githubusercontent.com/microsoft/vscode/": true,
     "https://schemastore.azurewebsites.net/": true,
@@ -227,7 +228,7 @@
   // File icons
   "vsicons.associations.files": [
     {
-      "extensions": ["index.ts", "botge.config.json", "botge.example.config.jsonc", "README.md"],
+      "extensions": ["main.rs", "botge.config.json", "botge.example.config.jsonc", "README.md"],
       "filename": true,
       "format": "png",
       "icon": "botge"
@@ -236,8 +237,7 @@
   ],
   "vsicons.associations.folders": [
     { "extensions": ["botge_control"], "icon": "server" },
-    { "extensions": ["discord"], "format": "svg", "icon": "discord" },
-    { "extensions": ["message-builders"], "icon": "template" }
+    { "extensions": ["discord"], "format": "svg", "icon": "discord" }
   ],
   "vsicons.customIconFolderPath": "assets",
 
@@ -256,7 +256,13 @@
     "files.trimTrailingWhitespace": false
   },
   "[nginx]": { "editor.defaultFormatter": "ahmadalli.vscode-nginx-conf" },
-  "[rego]": { "editor.defaultFormatter": "tsandall.opa" },
+  "[rego]": {
+    "editor.defaultFormatter": "tsandall.opa",
+    "editor.insertSpaces": false,
+    "editor.tabSize": 4
+  },
+  "[rust]": { "editor.defaultFormatter": "rust-lang.rust-analyzer" },
+  "[toml]": { "editor.defaultFormatter": "tamasfe.even-better-toml" },
   // Fix on explicit save; preserve import groups and intentional side-effect imports.
   "[typescript]": {
     "editor.codeActionsOnSave": {

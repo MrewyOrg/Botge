@@ -1,8 +1,8 @@
 # Botge Emote Browser
 
-The Activity can browse the current Discord server’s Botge emotes. Search by name, filter by source
-or animation, and open a preview to copy the name. The local browser preview uses the curated
-catalog or a built-in Botge emoji demo.
+Browse the current Discord server’s Botge emotes, search by name or tags, and filter by provider,
+animation, or overlay status. Open an emote to copy its name or add it to the composer. The local
+browser preview uses the curated catalog or a built-in Botge emoji demo.
 
 ## Preview and build
 
@@ -12,22 +12,41 @@ The Activity has its own npm workspace and shares the repository’s lockfile. B
 
 From the repository root, run `npm ci` and `npm run dev -w activity`. Open the localhost URL printed
 by Vite to preview the Activity in a browser. Run `npm run build -w activity` to write the static
-site to `dist/activity/`.
+site to `activity/dist/`.
 
-Run `npm test -w activity` from the repository root to test the catalog, discovery, API, and Worker.
-Run `npm run check:markup -w activity` to compile SCSS through Vite and validate the source and
-built HTML.
+Run these checks from the repository root:
+
+```sh
+npm test -w activity
+npm run test:coverage -w activity
+npm run check:markup -w activity
+```
+
+The Activity suite covers the browser and Worker without starting the bot or building the site.
+Coverage reports are written to `coverage/activity/` with an 80% minimum for each source file. The
+markup check compiles SCSS through Vite and validates the source and built HTML. Tests for the bot’s
+Activity API live beside [the Rust API implementation](../src/activity/tests.rs).
 
 ## Emote Composer
 
 Open an emote from **Catalog** and select **Add to composer**. Normal emotes form a row, and
-zero-width emotes stack on the preceding column. Move or remove inputs to change the layout, then
+overlaying emotes stack on the preceding column. Move or remove inputs to change the layout, then
 use **Copy emotes** and paste them into the `emotes` field of Discord’s `/emote-compose` command.
 The browser shows an approximate layout. Botge renders the final image.
 
-With the server catalog enabled, the composer uses the server’s emote names and zero-width flags.
+With the server catalog enabled, the composer uses the server’s emote names and overlaying flags.
 When multiple emotes share a name, only the one Botge resolves by that name can be composed. In the
-local preview, a curated catalog can mark an entry with `"zeroWidth": true` to test layers.
+local preview, a curated catalog can mark an entry with `"overlaying": true` to test layers.
+
+Select **Trending this week** or **Top all time** to browse 7TV. In Discord, discovery emotes can be
+composed by ID when the operator enables `use7TVAddedEmotes`. Adding them to the composer does not
+add them to the server.
+
+Click an emote to see its tags. Right-click for a compact menu of available actions. Use **Select
+emotes** to add several to a composition or, if you manage server emotes, add or remove up to 12 at
+a time. The tag search uses comma-separated terms. Discovery searches 7TV tags, and the catalog
+searches available provider tags and Botge labels such as **Animated**, **Overlaying**, or
+**Added**.
 
 ## Publish a catalog
 
@@ -51,7 +70,7 @@ and images. This version uses no user accounts, bot credentials, or server data.
 ## Launch in Discord
 
 1. Deploy the [protected Cloudflare Worker](#protect-the-hosted-entry-page), or serve
-   `dist/activity/` on a public HTTPS host if you want a public demo.
+   `activity/dist/` on a public HTTPS host if you want a public demo.
 2. In Botge’s Discord Developer Portal, open **Activities → URL Mappings** and point `/` at that
    host. Enable **Activities** under **Activities → Settings**.
 3. Open **Botge** in Discord’s App Launcher and choose **Launch**. Discord creates that entry point
@@ -83,46 +102,35 @@ For Discord, add these URL mappings alongside the existing `/` mapping:
 Deploy the rebuilt site as described above. Use the same flag with `npm run dev -w activity` to
 preview discovery locally.
 
-### Add to this server
+## Server catalog, emote access, and voice
 
-This optional action uses Botge’s added-emote catalog for the Discord server where the Activity is
-open. It checks the same add permissions and duplicates as `/emote-add`. Use **Open on 7TV** to
-manage an upstream set through 7TV.
+The server catalog shows enabled global emotes, configured guild sets, and individually added
+emotes. Members can browse the catalog. Guild administrators can open **Server emote settings** to
+configure provider sets and grant add/remove access to role IDs or to all members. Open an emote in
+7TV discovery to add it. Open an individually added emote in the catalog to remove it.
 
-1. Enable `general.use7TVAddedEmotes` in the bot’s configuration.
-2. In Discord’s **OAuth2** page, add `https://127.0.0.1` under **Redirects** as the Activity
-   placeholder. Set `DISCORD_ACTIVITY_CLIENT_SECRET` in the bot’s `.env` to the Client Secret from
-   that page. The Activity requests only the `identify` scope for an add. Botge exchanges the code
-   and checks the user’s Discord server membership and roles before writing.
-3. Run the updated bot. For Compose, add `-f compose.activity.yaml` after the base stack file to
-   publish the API on the host’s loopback interface at port 3080. On a `botge_control` installation,
-   put the contents of that override in `compose.override.yaml` alongside the installed
-   `compose.yaml`, then recreate the Botge container.
-4. Point a public HTTPS reverse proxy or tunnel at `http://127.0.0.1:3080`. Add the `/botge-api` URL
-   mapping with that public hostname as the target.
-5. Build and upload the static site with both feature flags:
+Open **Bot voice settings** to select a channel, optionally set the emoji status, or choose **Stay
+disconnected**. Botge remembers the selection across restarts.
+
+1. Set the desired provider switches in `botge.config.json`. Enable `use7TVAddedEmotes` for add and
+   remove.
+2. Add `https://127.0.0.1` to the application's OAuth2 redirects. Set `APP_ID`,
+   `DISCORD_ACTIVITY_CLIENT_SECRET`, and `DISCORD_ACTIVITY_PUBLIC_KEY` in the bot environment. The
+   Activity requests the `identify` scope, and the bot checks the permissions required by each
+   request.
+3. Run the Rust bot. On Compose, use `compose.activity.yaml` to publish the API on port 3080 of the
+   host loopback interface. On a `botge_control` installation, put its contents in the installed
+   `compose.override.yaml`.
+4. Map `/botge-api` to your HTTPS proxy or Funnel for that API. Keep the root mapping on the
+   Activity Worker's hostname.
+5. Build the site and publish it as described below:
 
    ```sh
-   VITE_ENABLE_7TV_DISCOVERY=true VITE_ENABLE_ACTIVITY_ADDS=true npm run build -w activity
+   VITE_ENABLE_ACTIVITY_CATALOG=true VITE_ENABLE_ACTIVITY_SETTINGS=true \
+     VITE_ENABLE_7TV_DISCOVERY=true VITE_ENABLE_ACTIVITY_ADDS=true npm run build -w activity
    ```
 
-The OAuth2 secret belongs in the bot’s environment. Test **Add to this server** from a 7TV discovery
-result inside Discord with a user permitted to add emotes.
-
-## Server catalog
-
-Use **Platform** to pick a provider and **Added emotes** to show only individually added entries.
-
-Enable `VITE_ENABLE_ACTIVITY_CATALOG=true` when building the Activity. In Discord, **Catalog** then
-shows the current server’s enabled global, configured set, and individually added emotes. Members
-can read the catalog, and **Refresh server emotes** reloads it. The local browser preview uses the
-curated catalog.
-
-Set up the same OAuth2 redirect, bot-side secret, HTTPS endpoint, and `/botge-api` mapping described
-under [Add to this server](#add-to-this-server). Browsing does not require
-`general.use7TVAddedEmotes`. Botge verifies server membership before returning emote metadata.
-
-Add the CDN mappings for the providers the server uses:
+Add the CDN mappings for the providers you enable:
 
 | Prefix        | Target                 |
 | ------------- | ---------------------- |
@@ -131,16 +139,9 @@ Add the CDN mappings for the providers the server uses:
 | `/ffz-cdn`    | `cdn.frankerfacez.com` |
 | `/twitch-cdn` | `static-cdn.jtvnw.net` |
 
-To enable the server catalog, discovery, and adds in one build:
-
-```sh
-VITE_ENABLE_ACTIVITY_CATALOG=true VITE_ENABLE_7TV_DISCOVERY=true \
-  VITE_ENABLE_ACTIVITY_ADDS=true npm run build -w activity
-```
-
 ## Proxy authentication
 
-To require Discord’s signed proxy headers for catalog reads and emote adds:
+The Rust API requires Discord’s signed proxy headers for Activity requests:
 
 1. Enable **Proxy Authentication** in Botge’s **Activities → Settings**.
 2. Copy the application **Public Key** from **General Information** into
@@ -149,9 +150,9 @@ To require Discord’s signed proxy headers for catalog reads and emote adds:
    tunnel for `/botge-api`, let it forward `X-Signature-Ed25519`, `X-Signature-Timestamp`, and
    `X-Discord-Proxy-Payload`.
 
-With the key configured, the Activity API rejects missing, invalid, and expired signatures before
-exchanging an OAuth code. OAuth and server membership checks still apply. The frontend build needs
-no key or additional flags.
+The Activity API rejects missing, invalid, and expired signatures before exchanging an OAuth code.
+Server settings require a membership check. **My emote border** saves the color for the
+authenticated Discord user. Configure the public key on the Worker and in the bot environment.
 
 See [Discord’s proxy authentication guide][discord-proxy-auth].
 

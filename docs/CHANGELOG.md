@@ -527,7 +527,7 @@
 - fix discord attachment gif creation [\#17](https://github.com/MrewyOrg/Botge/issues/17)
 - add tenor support [\#16](https://github.com/MrewyOrg/Botge/issues/16)
 - support discord non-global emojis [\#15](https://github.com/MrewyOrg/Botge/issues/15)
-- Zero-width emotes [\#12](https://github.com/MrewyOrg/Botge/issues/12)
+- Overlaying emotes [\#12](https://github.com/MrewyOrg/Botge/issues/12)
 - Local reverse proxy for CDN assets [\#9](https://github.com/MrewyOrg/Botge/issues/9)
 - EventEmitter too many listeners [\#8](https://github.com/MrewyOrg/Botge/issues/8)
 - 1.0 release [\#6](https://github.com/MrewyOrg/Botge/issues/6)

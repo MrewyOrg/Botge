@@ -25,7 +25,8 @@ const cSpellSettings: Readonly<CSpellSettings> = defineConfig({
     '.git/HEAD',
     '.git/index',
     '.git/ORIG_HEAD',
-    '.git/packed-refs'
+    '.git/packed-refs',
+    'Cargo.lock'
   ],
 
   // Shared by multiple files; keep file-specific vocabulary in each file's header.
@@ -44,6 +45,7 @@ const cSpellSettings: Readonly<CSpellSettings> = defineConfig({
     'BTTV',
     'buildx',
     'chromadb',
+    'clippy',
     'dbaeumer',
     'DeepL',
     'dorny',
@@ -58,6 +60,7 @@ const cSpellSettings: Readonly<CSpellSettings> = defineConfig({
     'joshbolduc',
     'jtvnw',
     'Knip',
+    'libwebp',
     'Meili',
     'Meilisearch',
     'Mrewy',
@@ -66,11 +69,13 @@ const cSpellSettings: Readonly<CSpellSettings> = defineConfig({
     'nvmrc',
     'Ollama',
     'pingme',
+    'redb',
     'rego',
     'RRGGBB',
     'sarif',
     'socat',
     'tsandall',
+    'tungstenite',
     'xlaoyu'
   ]
 });

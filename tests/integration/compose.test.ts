@@ -21,25 +21,31 @@ describe.runIf(process.env['BOTGE_TEST_COMPOSE'] === 'true')('Compose integratio
     const override = join(directory, 'override.json');
     await writeFile(
       override,
-      JSON.stringify({ services: { nginx: { volumes: [`${directory}/cache:/var/www/cache:rw`] } } })
+      JSON.stringify({
+        services: {
+          botge: { environment: { BOTGE_REGISTER_COMMANDS: 'false' } },
+          nginx: { volumes: [`${directory}/cache:/var/www/cache:rw`] }
+        }
+      })
     );
     const projectDirectory = fileURLToPath(new URL('../../', import.meta.url));
     environment = await new DockerComposeEnvironment(projectDirectory, [
-      'compose.full.yaml',
+      'compose.yaml',
       'compose.build.yaml',
       override
     ])
       .withBuild()
       .withProjectName(`botge-test-${randomUUID()}`)
-      .withWaitStrategy('botge-1', Wait.forLogMessage(/Logged in as/u))
+      .withWaitStrategy('botge-1', Wait.forLogMessage(/Discord gateway ready/u))
       .up();
   }, 180_000);
 
-  test('starts the bot and its dependencies', () => {
-    expect(environment).toBeDefined();
-    for (const service of ['botge', 'nginx', 'meilisearch', 'chromadb']) {
-      expect(environment?.getContainer(`${service}-1`).getId()).toBeTruthy();
-    }
+  test('reaches nginx over the Compose network after the bot logs in', async () => {
+    if (environment === undefined) throw new Error('Compose did not start.');
+    const health = await environment
+      .getContainer('botge-1')
+      .exec(['wget', '-q', '--spider', 'http://nginx/healthz']);
+    expect(health.exitCode).toBe(0);
   });
 
   afterAll(async () => {

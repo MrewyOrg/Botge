@@ -3,7 +3,7 @@
 package docker
 
 # METADATA
-# description: Allows local inputs, the Botge repository, pinned Node images and the SBOM scanner.
+# description: Allows Botge sources, pinned base images and the SBOM scanner.
 # scope: rule
 default allow := false
 
@@ -15,7 +15,7 @@ allow if {
 }
 
 allow if {
-	input.image.fullRepo == "dhi.io/node"
+	input.image.fullRepo == "dhi.io/alpine-base"
 	input.image.isCanonical
 }
 

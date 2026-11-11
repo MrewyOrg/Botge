@@ -1,12 +1,12 @@
 {
   "extends": "../tsconfig.base.json",
-  "include": ["src/**/*.ts", "worker/**/*.ts"],
+  "include": ["src/**/*.ts", "worker/**/*.ts", "tests/**/*.ts", "vitest.config.ts"],
   "compilerOptions": {
     "composite": false,
     "declaration": true,
     "noEmit": true,
     "lib": ["ESNext", "DOM"],
     "types": ["node", "vite/client"],
-    "tsBuildInfoFile": "../dist/activity.tsbuildinfo"
+    "tsBuildInfoFile": "../node_modules/.cache/botge/activity.tsbuildinfo"
   }
 }

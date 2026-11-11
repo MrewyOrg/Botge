@@ -1,12 +1,25 @@
+import assert from 'node:assert/strict';
+
 import { ESLint } from 'eslint';
 import { expect, test } from 'vitest';
-
-import { requireValue } from 'src/utils/validation.ts';
 
 const eslint = new ESLint({ flags: ['unstable_native_nodejs_ts_config'] });
 const rule = '@typescript-eslint/prefer-readonly-parameter-types';
 
-test.each([
+async function assertRule(code: string, ruleId: string, expected: number): Promise<void> {
+  // Use an existing file in the root TypeScript project for type-aware linting.
+  const [result] = await eslint.lintText(code, { filePath: 'eslint.config.ts' });
+  assert.ok(result, 'Expected a lint result');
+  assert.equal(result.fatalErrorCount, 0);
+  assert.equal(
+    result.messages.filter(
+      (message: Readonly<{ ruleId: string | null }>) => message.ruleId === ruleId
+    ).length,
+    expected
+  );
+}
+
+for (const { name, code, expected } of [
   {
     name: 'ordinary mutable array',
     code: 'export function check(values: number[]): void { values.push(1); }',
@@ -18,58 +31,17 @@ test.each([
     expected: 0
   },
   {
-    name: 'explicit mutable array',
-    code: "import type { MutableArray } from '../types.ts'; export function check(values: MutableArray<number>): void { values.push(1); }",
-    expected: 0
-  },
-  {
     name: 'nested mutable array',
     code: 'export function check(values: Readonly<{ items: number[] }>): number { return values.items.length; }',
     expected: 1
-  },
-  {
-    name: 'unrelated type with the same name',
-    code: 'type MutableArray<T> = T[]; export function check(values: MutableArray<number>): void { values.push(1); }',
-    expected: 1
   }
-])(
-  'readonly parameter policy: $name',
-  async ({ code, expected }: Readonly<{ code: string; expected: number }>) => {
-    // Use a file in the source project so the parser can supply type information.
-    // lintText changes only the parser's in-memory document.
-    const result = requireValue(
-      (await eslint.lintText(code, { filePath: 'src/utils/log-error.ts' }))[0],
-      'Expected result fixture.'
-    );
-    expect(result.fatalErrorCount).toBe(0);
-    expect(
-      result.messages.filter(
-        (message: Readonly<{ ruleId: string | null }>) => message.ruleId === rule
-      )
-    ).toHaveLength(expected);
-  },
-  15_000
-);
+]) {
+  test(`readonly parameter policy: ${name}`, async () => {
+    await assertRule(code, rule, expected);
+  }, 15_000);
+}
 
-test('explicit mutable arrays are recognized from the separate test project', async () => {
-  const result = requireValue(
-    (
-      await eslint.lintText(
-        "import type { MutableArray } from 'src/types.ts'; export function check(values: MutableArray<number>): void { values.push(1); }",
-        { filePath: 'tests/utils/shared-types.test.ts' }
-      )
-    )[0],
-    'Expected result fixture.'
-  );
-  expect(result.fatalErrorCount).toBe(0);
-  expect(
-    result.messages.filter(
-      (message: Readonly<{ ruleId: string | null }>) => message.ruleId === rule
-    )
-  ).toEqual([]);
-}, 15_000);
-
-test.each([
+for (const { name, code, ruleId, expected } of [
   {
     name: 'async callbacks cannot be passed to a void callback argument',
     ruleId: '@typescript-eslint/no-misused-promises',
@@ -119,55 +91,24 @@ test.each([
     expected: 0
   },
   {
-    name: 'bitwise operations outside the provider decoder are rejected',
+    name: 'bitwise operations are rejected',
     ruleId: 'no-bitwise',
     code: 'export const masked = 3 & 1;',
     expected: 1
   }
-])(
-  'ESLint policy: $name',
-  async ({
-    code,
-    ruleId,
-    expected
-  }: Readonly<{ code: string; ruleId: string; expected: number }>) => {
-    const result = requireValue(
-      (await eslint.lintText(code, { filePath: 'src/utils/log-error.ts' }))[0],
-      'Expected result fixture.'
-    );
-    expect(result.fatalErrorCount).toBe(0);
-    expect(
-      result.messages.filter(
-        (message: Readonly<{ ruleId: string | null }>) => message.ruleId === ruleId
-      )
-    ).toHaveLength(expected);
-  },
-  15_000
-);
-
-test('the provider decoder only permits the bitwise AND operation', async () => {
-  const result = requireValue(
-    (
-      await eslint.lintText('export const masked = 3 & 1; export const combined = 3 | 1;', {
-        filePath: 'src/emotes/emote-to-asset.ts'
-      })
-    )[0],
-    'Expected result fixture.'
-  );
-  expect(result.fatalErrorCount).toBe(0);
-  expect(
-    result.messages.filter(
-      (message: Readonly<{ ruleId: string | null }>) => message.ruleId === 'no-bitwise'
-    )
-  ).toHaveLength(1);
-}, 15_000);
+]) {
+  test(`ESLint policy: ${name}`, async () => {
+    await assertRule(code, ruleId, expected);
+  }, 15_000);
+}
 
 test('global language options keep typed linting scoped to TypeScript', async () => {
-  const source: unknown = await eslint.calculateConfigForFile('src/utils/log-error.ts');
+  const source: unknown = await eslint.calculateConfigForFile('eslint.config.ts');
   const javascript: unknown = await eslint.calculateConfigForFile('policy-check.js');
   expect(source).toMatchObject({
     languageOptions: { sourceType: 'module', parserOptions: { projectService: true } }
   });
-  expect(javascript).not.toHaveProperty('languageOptions.parserOptions.projectService');
   expect(source).not.toHaveProperty('languageOptions.parserOptions.ecmaFeatures.impliedStrict');
+  expect(javascript).not.toHaveProperty('languageOptions.parserOptions.projectService');
+  expect(javascript).not.toHaveProperty('languageOptions.parserOptions.ecmaFeatures.impliedStrict');
 });

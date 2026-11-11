@@ -40,37 +40,7 @@ const config: readonly Readonly<Config>[] = defineConfig([
         'error',
         { args: 'all', argsIgnorePattern: '^_', reportUsedIgnorePattern: true }
       ],
-      '@typescript-eslint/prefer-readonly-parameter-types': [
-        'warn',
-        {
-          allow: [
-            // Mutation is explicit at the parameter or registry declaration.
-            // File paths are relative to each TypeScript project's directory.
-            ...['types.ts', '../src/types.ts', 'src/types.ts'].map((path) => ({
-              from: 'file' as const,
-              name: 'MutableArray',
-              path
-            })),
-            // SDK handles expose mutable state and are used to perform API updates.
-            {
-              from: 'package',
-              name: [
-                'Interaction',
-                'ChatInputCommandInteraction',
-                'ButtonInteraction',
-                'AutocompleteInteraction',
-                'ModalSubmitInteraction',
-                'RoleSelectMenuInteraction',
-                'Client',
-                'TextChannel',
-                'Message',
-                'MessageContextMenuCommandInteraction'
-              ],
-              package: 'discord.js'
-            }
-          ]
-        }
-      ],
+      '@typescript-eslint/prefer-readonly-parameter-types': 'warn',
       // Numbers in URLs, component IDs, and user-facing counts have unambiguous string forms.
       '@typescript-eslint/restrict-template-expressions': ['error', { allowNumber: true }],
       '@typescript-eslint/strict-void-return': 'off', // Collection callbacks may intentionally discard ordinary return values.
@@ -160,38 +130,6 @@ const config: readonly Readonly<Config>[] = defineConfig([
     files: ['tests/integration/**/*.ts'],
     // This suite type-checks separately after its dependencies are installed.
     extends: [configs.disableTypeChecked]
-  },
-  {
-    name: 'test-doubles',
-    files: ['tests/**/*.ts'],
-    // Partial SDK mocks intentionally implement only the behavior under test.
-    rules: { '@typescript-eslint/no-unsafe-type-assertion': 'off' }
-  },
-  {
-    name: 'emote-provider-bit-flags',
-    files: ['src/emotes/emote-to-asset.ts'],
-    // 7TV defines zero-width emotes using numeric bit masks.
-    rules: { 'no-bitwise': ['error', { allow: ['&'] }] }
-  },
-  {
-    name: 'database-registry-result',
-    files: ['src/database/open-databases.ts'],
-    rules: { '@typescript-eslint/no-unsafe-type-assertion': 'off' }
-  },
-  {
-    name: 'database-query-row-types',
-    files: ['src/database/base-database.ts'],
-    // SQL strings cannot infer row shapes; callers explicitly supply the selected columns' types.
-    rules: {
-      '@typescript-eslint/no-unnecessary-type-parameters': 'off',
-      // SQL query strings and the registry determine row shapes beyond TypeScript's inference.
-      '@typescript-eslint/no-unsafe-type-assertion': 'off',
-      // SQLite accepts native binary views; the binding array itself remains readonly.
-      '@typescript-eslint/prefer-readonly-parameter-types': [
-        'warn',
-        { allow: [{ from: 'package', name: 'SQLInputValue', package: 'node:sqlite' }] }
-      ]
-    }
   }
 ]);
 

@@ -1,4 +1,5 @@
-import html from '../../dist/activity/index.html';
+// Bundle the HTML in the Worker. public/.assetsignore keeps it off the public asset routes.
+import html from '../dist/index.html';
 import { type ActivityPageRequest, serveActivityPage } from './serve-activity-page.ts';
 
 export default {

@@ -1,5 +1,6 @@
 services:
   botge:
+    # Clear the registry image so the local build gets its own Compose image name.
     image: !reset null
     build:
       context: .

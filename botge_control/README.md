@@ -16,21 +16,21 @@ Botge.
 sudo apt-get update
 sudo apt-get install -y ca-certificates curl
 curl --fail --silent --show-error --location --create-dirs \
-  https://raw.githubusercontent.com/MrewyOrg/Botge/main/botge_control/setup \
-  --output botge_control/setup
+  https://raw.githubusercontent.com/MrewyOrg/Botge/main/botge_control/setup.sh \
+  --output botge_control/setup.sh
 ```
 
 Review the downloaded script, then run it with your control name:
 
 ```bash
 BOTGE_CONTROL_NAME=botge_control
-sudo bash botge_control/setup "$BOTGE_CONTROL_NAME"
+sudo bash botge_control/setup.sh "$BOTGE_CONTROL_NAME"
 BOTGE_DOWNLOAD_DIR="/opt/$BOTGE_CONTROL_NAME"
 ```
 
 The name determines the Linux account, systemd units, `/run/<control-name>.sock`, and
 `/opt/<control-name>`. Use 1-24 lowercase letters, digits, underscores, or hyphens, starting with a
-letter or underscore. UID `4242` is fixed in [config](config); a second name alone cannot support
+letter or underscore. UID `4242` is fixed in [config](config.sh); a second name alone cannot support
 another installation on the same VM.
 
 Setup preserves existing control config, Compose files, application settings, and secrets. To rerun:
@@ -38,6 +38,9 @@ Setup preserves existing control config, Compose files, application settings, an
 ```bash
 sudo bash "$BOTGE_DOWNLOAD_DIR/botge_control/setup" "$BOTGE_CONTROL_NAME"
 ```
+
+If your installed setup script predates the `.sh` source filenames, download and run the current
+`setup.sh` first. It updates the saved setup script and keeps the installed command paths.
 
 ## Configure and start
 
@@ -92,8 +95,8 @@ or sudo. That account can run the client with `BOTGE_CONTROL_SOCKET` set to the 
 
 ## Inspect and troubleshoot
 
-Run the [diagnostic script](inspect) to collect socket status, handler logs, rootless Docker status,
-container status, and Botge logs:
+Run the [diagnostic script](inspect.sh) to collect socket status, handler logs, rootless Docker
+status, container status, and Botge logs:
 
 ```bash
 sudo bash "$BOTGE_DOWNLOAD_DIR/botge_control/inspect"

@@ -1,4 +1,4 @@
-// cspell:words kohler
+// cspell:words kohler tamasfe vadimcn
 
 {
   "recommendations": [
@@ -11,9 +11,14 @@
     "ahmadalli.vscode-nginx-conf",
     "dotenv.dotenv-vscode",
     "redhat.vscode-yaml",
+    "rust-lang.rust-analyzer",
+    "tamasfe.even-better-toml",
     "tsandall.opa",
     "TypeScriptTeam.native-preview",
     "xlaoyu.npmrc-helper",
+
+    // Native debugging
+    "vadimcn.vscode-lldb",
 
     // Formatting and validation
     "DavidAnson.vscode-markdownlint",

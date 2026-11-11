@@ -2,9 +2,9 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/MrewyOrg/Botge/blob/main/botge.config.schema.json",
   "title": "Botge Configuration Schema",
-  "description": "General boolean switches default to false. Ollama is disabled unless explicitly enabled. Review docs/TERMS.md before enabling integrations.",
+  "description": "Emote sources are opt-in. Review docs/TERMS.md before enabling providers.",
   "type": "object",
-  "additionalProperties": false,
+  "additionalProperties": true,
   "properties": {
     "$schema": {
       "type": "string",
@@ -13,18 +13,8 @@
     },
     "general": {
       "type": "object",
-      "additionalProperties": false,
+      "additionalProperties": true,
       "properties": {
-        "updateClipsOnStartup": {
-          "type": "boolean",
-          "default": false,
-          "description": "Refresh Twitch clips on startup instead of refreshing creator names and game IDs."
-        },
-        "autoCompleteOnly7TVPersonal": {
-          "type": "boolean",
-          "default": false,
-          "description": "Only show 7TV personal emotes on autocomplete with /emote."
-        },
         "use7TVGlobalEmotes": {
           "type": "boolean",
           "default": false,
@@ -33,265 +23,30 @@
         "use7TVPersonalEmotes": {
           "type": "boolean",
           "default": false,
-          "description": "Allow emotes from server-configured personal 7TV sets. Disabled by default; review docs/TERMS.md before enabling."
+          "description": "Enable the 7TV set selected in the server Activity settings."
         },
         "use7TVAddedEmotes": {
           "type": "boolean",
           "default": false,
-          "description": "Allow individually added 7TV emotes and direct 7TV emote URLs. Disabled by default; review docs/TERMS.md before enabling."
+          "description": "Enable individually added 7TV emotes and direct 7TV emote references."
         },
         "useBTTVEmotes": {
           "type": "boolean",
           "default": false,
-          "description": "Allow BTTV emotes, including global, personal, and applicable added emotes. Disabled by default; review docs/TERMS.md before enabling."
+          "description": "Enable BetterTTV global, channel, and shared emotes."
         },
         "useFFZEmotes": {
           "type": "boolean",
           "default": false,
-          "description": "Allow FFZ emotes, including global, personal, and applicable added emotes. Disabled by default; review docs/TERMS.md before enabling."
+          "description": "Enable FrankerFaceZ global and channel emotes."
         },
         "useTwitchEmotes": {
           "type": "boolean",
           "default": false,
-          "description": "Allow Twitch emotes, including global, personal, and applicable added emotes. Disabled by default; review docs/TERMS.md before enabling."
-        },
-        "activeSlashCommands": {
-          "type": "array",
-          "items": {
-            "type": "string",
-            "enum": [
-              "emote",
-              "emote-compose",
-              "emote-search",
-              "clip",
-              "emote-add",
-              "chatgpt",
-              "translate",
-              "emote-shortcuts",
-              "temporary",
-              "emoji-hunt",
-              "remind",
-              "poe2-stats",
-              "settings",
-              "reminders",
-              "media",
-              "media-list",
-              "quote",
-              "quote-list",
-              "clear-messages"
-            ]
-          },
-          "default": [
-            "emote",
-            "emote-compose",
-            "emote-search",
-            "clip",
-            "emote-add",
-            "chatgpt",
-            "translate",
-            "emote-shortcuts",
-            "temporary",
-            "emoji-hunt",
-            "remind",
-            "poe2-stats",
-            "settings",
-            "reminders",
-            "media",
-            "media-list",
-            "quote",
-            "quote-list",
-            "clear-messages"
-          ],
-          "description": "Slash commands to activate.",
-          "uniqueItems": true
-        },
-        "activeContextMenuCommands": {
-          "type": "array",
-          "items": {
-            "type": "string",
-            "enum": [
-              "Explain with ChatGPT",
-              "Save Media",
-              "Delete Saved Media",
-              "Translate to English",
-              "Save Quote",
-              "Delete Saved Quote"
-            ]
-          },
-          "default": [
-            "Explain with ChatGPT",
-            "Save Media",
-            "Delete Saved Media",
-            "Translate to English",
-            "Save Quote",
-            "Delete Saved Quote"
-          ],
-          "description": "Context menu commands to activate.",
-          "uniqueItems": true
+          "description": "Enable Twitch global emotes. Requires Twitch API credentials."
         }
       },
       "default": {}
-    },
-    "ollama": {
-      "type": "object",
-      "additionalProperties": false,
-      "$defs": {
-        "promptLines": {
-          "type": "array",
-          "items": { "type": "string" },
-          "description": "Prompt lines, joined with newlines. \"{name}\" is replaced by Botge.",
-          "minItems": 1
-        }
-      },
-      "properties": {
-        "enabled": {
-          "type": "boolean",
-          "default": false,
-          "description": "Enable Ollama-powered chat replies and semantic storage."
-        },
-        "botName": {
-          "type": "string",
-          "default": "Botge",
-          "description": "Name the bot uses in chat.",
-          "minLength": 1
-        },
-        "baseUrl": {
-          "type": "string",
-          "default": "http://localhost:11434",
-          "description": "Base URL of the Ollama instance.",
-          "pattern": "^https?://",
-          "minLength": 1
-        },
-        "model": {
-          "type": "string",
-          "default": "gemma4:26b",
-          "description": "Chat model.",
-          "minLength": 1
-        },
-        "embeddingModel": {
-          "type": "string",
-          "default": "nomic-embed-text",
-          "description": "Embedding model. Changing it uses a separate message collection; existing history is not migrated automatically.",
-          "minLength": 1
-        },
-        "options": {
-          "type": "object",
-          "additionalProperties": false,
-          "description": "Ollama model options sent with every chat request.",
-          "properties": {
-            "temperature": { "type": "number", "default": 0.85, "minimum": 0 },
-            "num_ctx": { "type": "integer", "default": 8192, "minimum": 1 },
-            "top_p": { "type": "number", "default": 0.9, "minimum": 0, "maximum": 1 }
-          },
-          "required": ["temperature", "num_ctx", "top_p"]
-        },
-        "systemPrompts": {
-          "type": "object",
-          "additionalProperties": false,
-          "properties": {
-            "scoreReplyOpportunity": {
-              "$ref": "#/properties/ollama/$defs/promptLines",
-              "description": "System prompt for deciding whether to reply. Must ask for JSON with score, should_reply and reason."
-            },
-            "generateReply": {
-              "$ref": "#/properties/ollama/$defs/promptLines",
-              "description": "System prompt for writing the reply."
-            }
-          },
-          "required": ["scoreReplyOpportunity", "generateReply"]
-        },
-        "behavior": {
-          "type": "object",
-          "additionalProperties": false,
-          "properties": {
-            "replyScoreThreshold": {
-              "type": "number",
-              "default": 2,
-              "description": "Minimum score needed to reply.",
-              "minimum": 0,
-              "maximum": 10
-            },
-            "contextWindow": {
-              "type": "integer",
-              "default": 30,
-              "description": "Recent messages sent to the model.",
-              "minimum": 1
-            },
-            "evaluationChance": {
-              "type": "number",
-              "minimum": 0,
-              "maximum": 1,
-              "default": 0.8,
-              "description": "Chance a non-mention message is evaluated."
-            },
-            "cooldownSeconds": {
-              "type": "number",
-              "default": 60,
-              "description": "Minimum seconds between replies in a channel.",
-              "minimum": 0
-            },
-            "ragResults": {
-              "type": "integer",
-              "default": 5,
-              "description": "Semantic search hits to retrieve.",
-              "minimum": 0
-            },
-            "ragWindowSize": {
-              "type": "integer",
-              "default": 2,
-              "description": "Messages to include before and after each semantic hit.",
-              "minimum": 0
-            }
-          },
-          "required": [
-            "replyScoreThreshold",
-            "contextWindow",
-            "evaluationChance",
-            "cooldownSeconds",
-            "ragResults",
-            "ragWindowSize"
-          ]
-        },
-        "chroma": {
-          "type": "object",
-          "additionalProperties": false,
-          "properties": {
-            "url": {
-              "type": "string",
-              "default": "http://chromadb:8000",
-              "description": "ChromaDB URL.",
-              "pattern": "^https?://"
-            }
-          },
-          "required": ["url"]
-        },
-        "activeChatChannels": {
-          "type": "array",
-          "items": { "type": "string", "pattern": "^[0-9]{17,20}$" },
-          "description": "Channel IDs the bot chats in.",
-          "uniqueItems": true
-        }
-      },
-      "required": ["enabled"],
-      "allOf": [
-        {
-          "if": { "properties": { "enabled": { "const": true } } },
-          "then": {
-            "required": [
-              "botName",
-              "baseUrl",
-              "model",
-              "embeddingModel",
-              "options",
-              "systemPrompts",
-              "behavior",
-              "chroma",
-              "activeChatChannels"
-            ]
-          }
-        }
-      ],
-      "default": { "enabled": false }
     }
   }
 }

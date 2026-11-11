@@ -1,9 +1,10 @@
+import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 
-import { afterEach, beforeEach, expect, test } from 'vitest';
+import { afterEach, beforeEach, test } from 'vitest';
 
 let directory: string;
 let commands: string;
@@ -51,99 +52,102 @@ test.each([
   ['UP', 'compose up -d --wait --wait-timeout 120'],
   ['STOP', 'compose stop'],
   ['DEPLOY', 'compose up -d --no-deps --pull always --wait --wait-timeout 120 botge']
-])('handler accepts %s and waits for Compose when starting containers', (request, expected) => {
-  const result = spawnSync('bash', [resolve('botge_control/bin/botge_control')], {
-    input: request + '\n',
-    encoding: 'utf8',
-    env: environment
-  });
-  expect(result.status).toBe(0);
-  expect(result.stdout).toBe('OK\n');
-  expect(readFileSync(commands, 'utf8')).toContain(expected);
-});
-
-test.each(['RESTART', 'DEPLOY; touch unexpected', '', 'x'.repeat(100)])(
-  'handler denies malformed input without running Docker: %s',
-  (request) => {
-    const result = spawnSync('bash', [resolve('botge_control/bin/botge_control')], {
+] as const)(
+  'handler accepts %s and waits for Compose when starting containers',
+  (request, expected) => {
+    const result = spawnSync('bash', [resolve('botge_control/bin/botge_control.sh')], {
       input: request + '\n',
       encoding: 'utf8',
       env: environment
     });
-    expect(result.status).not.toBe(0);
-    expect(['DENIED\n', 'ERROR\n']).toContain(result.stdout);
-    expect(readFileSync(commands, 'utf8')).toBe('');
+    assert.equal(result.status, 0);
+    assert.equal(result.stdout, 'OK\n');
+    assert.ok(readFileSync(commands, 'utf8').includes(expected));
+  }
+);
+
+test.each(['RESTART', 'DEPLOY; touch unexpected', '', 'x'.repeat(100)])(
+  'handler denies malformed input without running Docker: %s',
+  (request) => {
+    const result = spawnSync('bash', [resolve('botge_control/bin/botge_control.sh')], {
+      input: request + '\n',
+      encoding: 'utf8',
+      env: environment
+    });
+    assert.notEqual(result.status, 0);
+    assert.ok(['DENIED\n', 'ERROR\n'].includes(result.stdout));
+    assert.equal(readFileSync(commands, 'utf8'), '');
   }
 );
 
 test('busy operations cannot run Docker', () => {
-  const result = spawnSync('bash', [resolve('botge_control/bin/botge_control')], {
+  const result = spawnSync('bash', [resolve('botge_control/bin/botge_control.sh')], {
     input: 'DEPLOY\n',
     encoding: 'utf8',
     env: { ...environment, TEST_LOCK_STATUS: '1' }
   });
-  expect(result.status).toBe(1);
-  expect(result.stdout).toBe('BUSY\n');
-  expect(readFileSync(commands, 'utf8')).toBe('');
+  assert.equal(result.status, 1);
+  assert.equal(result.stdout, 'BUSY\n');
+  assert.equal(readFileSync(commands, 'utf8'), '');
 });
 
 test('Compose failure is reported and cannot be disguised by cleanup', () => {
-  const result = spawnSync('bash', [resolve('botge_control/bin/botge_control')], {
+  const result = spawnSync('bash', [resolve('botge_control/bin/botge_control.sh')], {
     input: 'DEPLOY\n',
     encoding: 'utf8',
     env: { ...environment, TEST_DOCKER_STATUS: '1' }
   });
-  expect(result.status).toBe(1);
-  expect(result.stdout).toBe('ERROR\n');
-  expect(readFileSync(commands, 'utf8')).not.toContain('image prune');
+  assert.equal(result.status, 1);
+  assert.equal(result.stdout, 'ERROR\n');
+  assert.ok(!readFileSync(commands, 'utf8').includes('image prune'));
 });
 
 test('cleanup failure does not falsely report a successful deployment as failed', () => {
-  const result = spawnSync('bash', [resolve('botge_control/bin/botge_control')], {
+  const result = spawnSync('bash', [resolve('botge_control/bin/botge_control.sh')], {
     input: 'DEPLOY\n',
     encoding: 'utf8',
     env: { ...environment, TEST_PRUNE_STATUS: '1' }
   });
-  expect(result.status).toBe(0);
-  expect(result.stdout).toBe('OK\n');
-  expect(result.stderr).toContain('cleanup failed');
+  assert.equal(result.status, 0);
+  assert.equal(result.stdout, 'OK\n');
+  assert.ok(result.stderr.includes('cleanup failed'));
 });
 
 test.each(['up', 'stop', 'deploy'])('client sends the %s request and accepts only OK', (action) => {
-  const result = spawnSync('bash', [resolve('scripts/botge-control'), action], {
+  const result = spawnSync('bash', [resolve('scripts/botge-control.sh'), action], {
     encoding: 'utf8',
     env: environment
   });
-  expect(result.status).toBe(0);
-  expect(readFileSync(commands, 'utf8')).toBe(action.toUpperCase() + '\n');
+  assert.equal(result.status, 0);
+  assert.equal(readFileSync(commands, 'utf8'), action.toUpperCase() + '\n');
 });
 
 test.each(['BUSY', 'ERROR', 'DENIED', 'unexpected'])(
   'client reports a non-success response: %s',
   (response) => {
-    const result = spawnSync('bash', [resolve('scripts/botge-control'), 'deploy'], {
+    const result = spawnSync('bash', [resolve('scripts/botge-control.sh'), 'deploy'], {
       encoding: 'utf8',
       env: { ...environment, TEST_RESPONSE: response }
     });
-    expect(result.status).toBe(1);
-    expect(result.stderr).toContain(response);
+    assert.equal(result.status, 1);
+    assert.ok(result.stderr.includes(response));
   }
 );
 
 test('client rejects unexpected arguments before opening a connection', () => {
-  const result = spawnSync('bash', [resolve('scripts/botge-control'), 'deploy', 'extra'], {
+  const result = spawnSync('bash', [resolve('scripts/botge-control.sh'), 'deploy', 'extra'], {
     encoding: 'utf8',
     env: environment
   });
-  expect(result.status).toBe(1);
-  expect(readFileSync(commands, 'utf8')).toBe('');
+  assert.equal(result.status, 1);
+  assert.equal(readFileSync(commands, 'utf8'), '');
 });
 
 test('client reports transport errors', () => {
-  const result = spawnSync('bash', [resolve('scripts/botge-control'), 'deploy'], {
+  const result = spawnSync('bash', [resolve('scripts/botge-control.sh'), 'deploy'], {
     encoding: 'utf8',
     env: { ...environment, TEST_TRANSPORT_STATUS: '7' }
   });
-  expect(result.status).toBe(1);
-  expect(result.stderr).toContain('Unable to communicate');
+  assert.equal(result.status, 1);
+  assert.ok(result.stderr.includes('Unable to communicate'));
 });

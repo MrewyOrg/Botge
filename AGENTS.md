@@ -1,128 +1,79 @@
 # Project guidance
 
-Botge is a TypeScript Discord bot for Twitch-style emotes, clips, saved media, quotes, reminders,
-translation, and optional AI integrations. Read [README.md](README.md) for setup and configuration.
+Botge is a Rust Discord bot for emotes and voice. The Discord Activity and Cloudflare Worker remain
+TypeScript. Start with the [README](README.md) and [architecture guide](docs/ARCHITECTURE.md).
 
 ## Project map
 
-- `src/index.ts`: calls `startApplication` from `src/application.ts`, which owns service
-  construction, scheduled jobs, and login. Test application startup with mocked services; importing
-  the application module alone does not start the bot.
-- `src/bot/`: bot orchestration, managers, command dispatch, and reminder registration.
-- `src/handlers/`: Discord entry points grouped into `commands/`, `interactions/`, and `messages/`.
-  Shared component IDs and current settings permission checks live beside interaction handlers.
-- `src/discord/`: guild/user models, permissions, command definitions and registration.
-- `src/emotes/`: catalogs, provider stores, live 7TV subscriptions, URLs, and `rendering/` helpers.
-  See [the emote guide](src/emotes/README.md) for source priority and WebSocket recovery.
-- `src/message-builders/`: Discord response builders and their supporting functions.
-- `src/api/`: external integrations grouped by provider (`twitch/`, `reddit/`, `ollama/`), plus
-  shared URL caching; `src/database/`: SQLite persistence.
-- See [the API guide](src/api/README.md) for shared HTTP/authentication helpers and vector-store
-  state compatibility.
-- New database classes use the shared bases and register in `src/database/open-databases.ts`. See
-  [the database guide](src/database/README.md) for examples and compatibility requirements.
-- `src/config/`: configuration parsing/defaults, shared loaded configuration, Ollama prompt
-  resolution, and runtime directory paths. `load-config.ts` can be imported safely in tests;
-  `botge-config.ts` and `ollama-config.ts` read local configuration when imported.
-- `src/utils/`: general-purpose helpers; `src/types.ts`: shared types.
-- `activity/`: optional static Discord Emote Browser. See [setup](activity/README.md).
-- `tests/`: Vitest suites grouped by subsystem; see [the test guide](tests/README.md). The opt-in
-  Docker Compose suite lives in `tests/integration/`.
-- `compose.yaml` and `compose.full.yaml`: container stacks. `compose.build.yaml` opts into a local
-  build with the `Dockerfile`; nginx configuration lives in `nginx/`.
-- `botge_control/` and `scripts/botge-control`: Linux deployment and control tooling. Read
-  [the control guide](botge_control/README.md) before changing this tooling.
+- `src/main.rs` starts the Discord gateway, Activity API, and workers. `src/config.rs` reads
+  operator settings, including provider opt-ins.
+- `src/commands.rs` owns the Discord emote command definitions, registration, and replies.
+  `src/commands/clear.rs` handles message cleanup. `src/discord.rs` handles gateway events, OAuth
+  identity, and guild permissions.
+- `src/emotes/` handles provider snapshots, 7TV events, and bounded image rendering.
+  `src/activity.rs` exposes the catalog, added emotes, and settings through Axum. `src/proxy.rs`
+  verifies Discord's Activity proxy signatures.
+- `src/storage.rs` owns redb transactions. `src/voice.rs` reconciles saved guild settings with
+  Discord voice state.
+- `activity/` is an npm workspace with its own browser and Worker tests. See its
+  [setup guide](activity/README.md). Root `vitest.config.ts` runs both the Activity and tooling
+  suites. See the [test guide](tests/README.md) for integration tests.
+- `Dockerfile` builds the Rust production image. `compose.yaml` runs Botge and nginx, and
+  `compose.build.yaml` selects a local build. `compose.activity.yaml` exposes the Activity API on
+  the host loopback interface. Read the [control guide](botge_control/README.md) before changing
+  deployment tooling.
 
 ## Development and validation
 
-Use npm and the committed `package-lock.json`. Follow `package.json` engine requirements and
-`.nvmrc`; install dependencies with `npm ci` when needed.
+Use the dated Rust nightly in `rust-toolchain.toml`, Cargo's committed lockfile, and npm with the
+committed workspace lockfile. Follow `.nvmrc` and the package engines. Install Node dependencies
+with `npm ci`.
 
-- Build application: `npm run build`.
-- Check production compilation: `npm run build:production` (use a temporary `--outDir` when needed).
-- Check all TypeScript projects: `npm run typecheck`.
-- Run the standard offline checks: `npm run check` (types, ESLint, Knip, and local tests).
-- Find unused files, exports, and dependencies: `npm run knip`.
-- Generate coverage reports: `npm run test:coverage`; generated reports live in `coverage/`. Each
-  source file must reach 80% statements, branches, functions, and lines.
-- Type-check tests separately: `npx tsc --project tests --noEmit`.
-- Run local tests once: `npm test -- --run` (no credentials or services required).
-- Run a focused test: `npx vitest run tests/<area>/<name>.test.ts`.
-- Lint TypeScript: `npm run eslint`.
-- Check Markdown: `npm run markdownlint`.
-- Check spelling: `npm run cspell`.
-- Lint shell scripts: `npm run lint:shell` (requires ShellCheck).
-- Lint workflows and inline shell: `npm run lint:workflows` (requires actionlint and ShellCheck).
-- Format changed files: `npx prettier --write <files>`.
+- Rust checks: `cargo fmt --all --check`, `cargo clippy --locked --all-targets -- -D warnings`, and
+  `cargo test --locked`. `Cargo.toml` defines the lint policy. Check Rustdoc with
+  `cargo doc --locked --no-deps --document-private-items`.
+- Rust coverage: `sh scripts/check-rust-coverage.sh`. BotgeQL requires above 80% branch coverage and
+  at least 80% line, function, and region coverage per source file. Tests use loopback provider and
+  Discord fixtures, temporary redb databases, and FFmpeg 9 or later with libwebp and FFprobe. The
+  opt-in Compose test connects to Discord.
+- TypeScript checks: `npm run check` runs the shared tooling and Activity checks. Use
+  `npm run test:coverage -w activity` for Activity coverage and `npm run check:markup -w activity`
+  for its build, HTML, and SCSS validation.
+- Documentation and tooling: `npm run markdownlint`, `npm run cspell`, `npm run lint:shell`, and
+  `npm run lint:workflows`. Use Prettier for supported non-Rust files and Regal for Rego.
 
-Choose checks appropriate to the change. For TypeScript changes, build and run relevant tests;
-type-check tests when changing them. For documentation changes, check formatting and Markdown.
-Report checks that failed or could not run, including the reason.
-
-`npm test` invokes Vitest without forcing a single run. Use `npx vitest run` for a single run. Opt
-into the separately installed Compose integration suite through the
-[test guide](tests/README.md#compose-integration). It logs a real bot into Discord. Check for an
-existing stack before running it. `npm start` prunes Docker images and starts the stack; it is not a
-validation command.
+Choose checks appropriate to the change. Report failures and checks you could not run.
 
 ## Implementation conventions
 
-- The ongoing refactor focuses on modernization, cleanup, and correctness while preserving the
-  project's purpose. The large existing changes are part of that refactor; preserve them.
-  `botge_control/` and its associated deployment tooling are a separate new feature, outside the
-  refactor scope unless explicitly requested.
-- A request to "check" a file means review correctness, modernity, and useful improvements. Apply
-  fixes within the requested scope while preserving the file's fundamental purpose.
-- Follow nearby code and the repository's ESLint, Prettier, and TypeScript configurations. Use two
-  spaces, single quotes, and semicolons.
-- Group imports at the top: Node built-ins, external packages, then project modules, with a blank
-  line between groups. Sort module paths and named imports alphabetically, keeping type-only imports
-  beside their source module. Preserve the order of imports used only for side effects.
-- Use camelCase for variables and parameters, PascalCase for types/classes, and UPPER_SNAKE_CASE for
-  fixed module constants. Mutable counters use camelCase. Prefer descriptive names over trailing
-  underscores; preserve external API and stored-data field names.
-- Use ESM and `.ts` extensions for relative TypeScript imports. Use `import type` for type-only
-  imports and retain explicit types where required by isolated declarations.
-- Use readonly properties and arrays for data inputs and snapshots, and ReadonlyMap/ReadonlySet for
-  collections that callers only read. Keep state and shared registries mutable where they are
-  updated. Use `MutableArray<T>` from `src/types.ts` for parameters that intentionally modify an
-  array; ordinary array parameters are checked by the readonly rule. Narrow helper inputs to the
-  fields or methods they use before adding lint exceptions.
-- Preserve the existing separation between handlers, message builders, API clients, and database
-  classes. Keep domain-specific helpers beside their owners; reserve `utils/` for general-purpose
-  functions. Extend existing modules before adding another abstraction or dependency.
-- When adding commands, add names in `src/discord/command-names.ts` and definitions in
-  `src/discord/slash-commands.ts` or `src/discord/context-menu-commands.ts`. Command selection lives
-  in `src/discord/commands.ts`, dispatch in `src/bot/create-command-handlers.ts`, and registration
-  in `src/discord/update-commands.ts`. Default command lists come from `command-names.ts`; keep the
-  schema's enums/defaults synchronized. Explicit config lists override these defaults.
-- When changing configuration, keep `src/config/load-config.ts` validation/defaults, shared types,
-  `botge.config.schema.json`, `botge.example.config.jsonc`, and setup documentation consistent.
-  Schema defaults alone do not apply runtime defaults. Preserve explicit false values and empty
-  command lists. Use `.env.example` for environment examples.
-- Use `src/api/http.ts` for bounded HTTP requests and status handling; use Node's built-in global
-  `WebSocket` for 7TV. Keep WebSocket enabled in `node.config.json`.
-- Validate untrusted API/WebSocket data before narrowing it to domain types. The unsafe assertion
-  rule is enabled for application code; documented exceptions cover SQLite mapping and partial test
-  doubles. Async event and timer callbacks must start work through a synchronous callback and handle
-  rejections.
-- Add focused regression coverage for behavior changes when useful; avoid tests that only repeat
-  implementation details. Keep external services mocked where practical.
+- Start with Rustdoc to find the relevant modules and understand their contracts. Read the
+  implementation when changing behavior or verifying security, state, or concurrency guarantees.
+  Describe defaults, failure cases, and side effects at boundaries. Keep helper and data type
+  comments brief, and update them with the code.
+- Use conventional Rust names and rustfmt with the repository's two-space indentation. Keep features
+  focused, interfaces small, and errors explicit. Keep Discord and Axum concerns in their adapters
+  and redb transactions in storage. Run blocking database operations off the async executor.
+- Validate provider, Discord, and browser input at the boundary. Preserve provider opt-in switches.
+  Verify guild membership and action permissions in the API before writing. Bound external requests
+  and rendering work.
+- Test observable behavior, especially denied requests, concurrent changes, and reconnects. Put Rust
+  unit tests beside their modules in `tests.rs` so coverage measures production code.
+- For TypeScript, use two spaces, single quotes, semicolons, and ESM imports with `.ts` relative
+  extensions. Group imports by Node, dependencies, and project code. Keep type-only imports beside
+  their modules, use readonly types for snapshots, and validate untrusted input.
+- Keep runtime defaults, example config, schema, and setup docs aligned. Use `.env.example` for new
+  environment options. Update the architecture diagrams when changing request or deployment flows.
 
-## Workspace and runtime data
+## Workspace and deployment
 
-- Preserve existing uncommitted work and keep edits scoped to the task.
-- Edit source files rather than generated `dist/` output or `coverage/` reports. Leave
-  `node_modules/` generated.
-- Treat `.env` and `botge.config.json` as local configuration. Do not expose credentials or copy
-  local values into examples, documentation, tests, or commits.
-- Preserve `data/`, SQLite databases, Docker volumes, and `nginx/cache/`. Use isolated temporary
-  data for tests that write files or databases.
-- Deployment scripts can alter host accounts, Docker services, and stored data. Validate script
-  changes without executing setup, teardown, import, or deployment as routine checks.
-
-Keep this file concise and update it when project workflows change. Link to existing documentation
-instead of duplicating setup instructions.
-
-Workflow triggers, production approvals, and local lint setup are documented in
-[the workflow guide](.github/workflows/README.md). Keep the pre-merge deployment flow intact.
+- Preserve existing uncommitted work. A request to check code includes correctness, modernity, and
+  useful fixes within its purpose.
+- Treat `.env` and `botge.config.json` as local configuration. Preserve `data/`, SQLite and redb
+  files, Docker volumes, and nginx cache. Keep credentials out of logs, tests, and commits.
+- Edit source files. Leave generated `target/`, `activity/dist/`, `coverage/`, and `node_modules/`
+  alone.
+- Use a separate Discord application for live testing. Enable command registration locally only with
+  that test application. Check for an existing stack before running the Compose test.
+- Validate deployment scripts without executing setup, teardown, import, or deployment as routine
+  checks. Keep the approval-gated pre-merge deployment described in the
+  [workflow guide](.github/workflows/README.md).
