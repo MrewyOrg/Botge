@@ -1,7 +1,9 @@
 # Project guidance
 
 Botge is a Rust Discord bot for emotes and voice. The Discord Activity and Cloudflare Worker remain
-TypeScript. Start with the [README](README.md) and [architecture guide](docs/ARCHITECTURE.md).
+TypeScript. Start with the [README](README.md) and [architecture guide](docs/ARCHITECTURE.md). The
+[wiki](https://github.com/MrewyOrg/Botge/wiki) is the main user and hosting documentation. Keep
+implementation references versioned in the repository and avoid duplicating wiki guides.
 
 ## Project map
 
@@ -16,7 +18,7 @@ TypeScript. Start with the [README](README.md) and [architecture guide](docs/ARC
 - `src/storage.rs` owns redb transactions. `src/voice.rs` reconciles saved guild settings with
   Discord voice state.
 - `activity/` is an npm workspace with its own browser and Worker tests. See its
-  [setup guide](activity/README.md). Root `vitest.config.ts` runs both the Activity and tooling
+  [workspace guide](activity/README.md). Root `vitest.config.ts` runs both the Activity and tooling
   suites. See the [test guide](tests/README.md) for integration tests.
 - `Dockerfile` builds the Rust production image. `compose.yaml` runs Botge and nginx, and
   `compose.build.yaml` selects a local build. `compose.activity.yaml` exposes the Activity API on

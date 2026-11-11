@@ -1,28 +1,9 @@
-# Botge roadmap
+# Roadmap
 
-The Rust bot covers emote composition, shortcuts, voice, message clearing, and the Discord Activity.
-See the [command guide](COMMANDS.md) for the available features.
+Track remaining Rust ports, priorities, dependencies, and completion criteria in the
+[Rust ports project view](https://github.com/orgs/MrewyOrg/projects/2/views/6). The
+[wiki roadmap](https://github.com/MrewyOrg/Botge/wiki/Roadmap) explains the proposed phases.
 
-## Remaining ports
-
-- [ ] **Reminders** — `/remind` and `/reminders`. Decide how scheduling, delivery retries, and
-      missed reminders should work before implementing them.
-- [ ] **Quotes** — `/quote`, `/quote-list`, and the save and delete context menus.
-- [ ] **Saved media** — `/media`, `/media-list`, the save and delete context menus, and the `.`
-      message shortcut. Review preview attribution and link expiration.
-- [ ] **Twitch clips** — `/clip`. Review link sharing, metadata retention, and embeds before
-      choosing a storage or search design.
-- [ ] **Translation** — `/translate` and the message context menu. Review provider data handling and
-      output attribution.
-- [ ] **AI** — `/chatgpt`, the explanation context menu, and optional Ollama replies. Decide whether
-      conversation memory belongs in the port and how retention and deletion would work.
-
-## Other features to decide on
-
-- [ ] `/temporary` for expiring replies.
-- [ ] `/emoji-hunt` for the server emoji game.
-- [ ] `/poe2-stats` for Path of Exile 2 statistics.
-- [ ] Tenor previews for saved media, Twitch channel emote sets, and direct provider links.
-
-The Activity replaces server settings and adding and removing emotes. `/emote-compose` handles
-single emotes and uses autocomplete for discovery.
+The saved [typescript-final](https://github.com/MrewyOrg/Botge/tree/typescript-final) tag provides
+reference code for remaining ports. Current supported behavior is documented in the
+[command guide](https://github.com/MrewyOrg/Botge/wiki/Commands).
