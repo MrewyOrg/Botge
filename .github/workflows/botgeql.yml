@@ -135,6 +135,7 @@ jobs:
     timeout-minutes: 20
     env:
       CARGO_INCREMENTAL: '0'
+      OPUS_BUNDLED: '1'
     steps:
       - name: Require successful change detection
         env:
@@ -203,13 +204,9 @@ jobs:
             rust-tools-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('rust-toolchain.toml',
             'scripts/install-test-ffmpeg.sh', '.github/workflows/botgeql.yml') }}
 
-      - name: Install Rust native dependencies
+      - name: Check Rust toolchain
         if: needs.changes.outputs.rust == 'true'
         run: |
-          if ! pkg-config --exists opus; then
-            sudo apt-get -o Acquire::Retries=2 update --error-on=any
-            sudo apt-get -o Acquire::Retries=2 install --yes --no-install-recommends libopus-dev pkg-config
-          fi
           rustup show active-toolchain
           cargo --version
 
