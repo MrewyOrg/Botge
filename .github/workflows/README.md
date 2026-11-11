@@ -12,6 +12,21 @@ built HTML. Rust branch, line, function, and region coverage appear in the job l
 rerun validation. Pushes to `dev` or `main`, including branch synchronization, do not trigger
 BotgeQL; an open PR still reruns when its head branch changes.
 
+BotgeQL compares the complete PR against its base and filters each validation stage by its inputs.
+Formatting, documentation, and commit checks always run. Rust source, manifests, toolchain,
+formatting, rendering dependencies, and coverage scripts enable Rust checks. TypeScript and Node
+configuration enable static checks. Activity code and assets enable its tests, while browser build
+inputs enable HTML and SCSS validation. Tooling tests, shell lint, and workflow lint have separate
+filters. Changing BotgeQL itself exercises every stage. Required job names stay present and succeed
+when their optional steps have no matching changes. Failure to classify changes fails validation.
+
+Rust checks cache Cargo downloads and build artifacts with toolchain and manifest keys. Pinned
+coverage and FFmpeg tools have a separate cache keyed by the toolchain, installer, and workflow.
+Workflow lint caches its pinned actionlint binary and reuses installed ShellCheck. Native package
+installation runs only when Opus development files or ShellCheck are absent. npm prefers its cached
+downloads and omits the install-time audit request. Cache availability follows GitHub's branch and
+PR isolation rules; cold runs still install and build dependencies.
+
 Tests use temporary configuration, local fixtures, and mocked services. Deployment credentials are
 unnecessary for validation.
 
