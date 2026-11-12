@@ -1,5 +1,7 @@
 import type { Config } from 'prettier';
+import * as prettierPluginNginx from 'prettier-plugin-nginx';
 import * as prettierPluginSh from 'prettier-plugin-sh';
+import prettierPluginToml from 'prettier-plugin-toml';
 
 const config: Readonly<Config> = {
   endOfLine: 'lf',
@@ -7,7 +9,7 @@ const config: Readonly<Config> = {
   experimentalTernaries: true,
   htmlWhitespaceSensitivity: 'strict',
   objectWrap: 'collapse',
-  plugins: [prettierPluginSh],
+  plugins: [prettierPluginNginx, prettierPluginSh, prettierPluginToml],
   printWidth: 100,
   proseWrap: 'always',
   quoteProps: 'consistent',

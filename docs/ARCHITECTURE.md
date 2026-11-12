@@ -3,6 +3,23 @@
 The production image builds one [Rust binary](../Cargo.toml). Discord commands and the Activity API
 share the same emote catalog. The [Activity and Worker](../activity/README.md) are TypeScript.
 
+## Diagram exports
+
+The PNG diagrams describe the current Rust implementation:
+
+- [Bot modules](architecture.png): adapters, shared services, rendering, and persistence.
+- [Request and data flow](request-flow.png): Discord commands and authenticated Activity requests.
+- [Deployment topology](deployment.png): Compose services, persistent data, and the optional API
+  tunnel.
+- [Development and release workflow](development-workflow.png): local hooks, PR validation, and
+  approved deployment.
+- [Startup and shutdown](startup.png): initialization, optional services, and gateway readiness.
+- [Discord interactions](discord-interactions.png): commands, autocomplete, confirmation modals, and
+  messages.
+
+The Activity write path in the request-flow diagram illustrates a guild voice-settings save.
+Personal border requests identify the caller without requiring guild authorization.
+
 ## Startup and dependencies
 
 ```mermaid
@@ -82,6 +99,11 @@ timing. Animated compositions export WebP with variable frame delays and use the
 animation's duration.
 
 ## Validate the Rust bot
+
+`rust-toolchain.toml` pins the nightly shared by development, CI, and Docker. Development installs
+the default profile, LLVM coverage tools, and standard library sources for editor navigation. CI
+installs only the compiler, Clippy, rustfmt, and LLVM coverage tools; the Docker builder installs
+only the minimal compiler profile. See the [workflow guide](../.github/workflows/README.md).
 
 Install Rust through rustup and provide Opus development headers and libraries through your package
 manager. Use `opus` and `pkg-config` on macOS with Homebrew or `libopus-dev` and `pkg-config` on

@@ -20,6 +20,11 @@ inputs enable HTML and SCSS validation. Tooling tests, shell lint, and workflow 
 filters. Changing BotgeQL itself exercises every stage. Required job names stay present and succeed
 when their optional steps have no matching changes. Failure to classify changes fails validation.
 
+Rust checks use the channel pinned in `rust-toolchain.toml`, installing the minimal profile with
+Clippy, rustfmt, and LLVM coverage tools. `RUSTUP_TOOLCHAIN` keeps subsequent steps from selecting
+the development components. The Docker builder uses the same channel with only the minimal profile.
+Local development uses the default profile, LLVM coverage tools, and standard library sources.
+
 Rust checks cache Cargo downloads and build artifacts with toolchain and manifest keys. Pinned
 coverage and FFmpeg tools have a separate cache keyed by the toolchain, installer, and workflow.
 Workflow lint caches its pinned actionlint binary and reuses installed ShellCheck. Rust builds use

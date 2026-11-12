@@ -64,7 +64,14 @@ Choose checks appropriate to the change. Report failures and checks you could no
   extensions. Group imports by Node, dependencies, and project code. Keep type-only imports beside
   their modules, use readonly types for snapshots, and validate untrusted input.
 - Keep runtime defaults, example config, schema, and setup docs aligned. Use `.env.example` for new
-  environment options. Update the architecture diagrams when changing request or deployment flows.
+  environment options.
+- Update diagrams only when a change makes their depicted components, relationships, or flows
+  inaccurate. Minor fixes, formatting, dependency updates, and internal refactors that leave the
+  depicted behavior unchanged do not require diagram updates. Update only the affected PNGs in the
+  same change: `docs/architecture.png`, `docs/request-flow.png`, `docs/deployment.png`,
+  `docs/development-workflow.png`, `docs/startup.png`, and `docs/discord-interactions.png`. Keep
+  their modern dark style consistent and verify labels and connections against the implementation.
+  Update the corresponding Mermaid diagrams and diagram links in `docs/ARCHITECTURE.md` as needed.
 
 ## Workspace and deployment
 

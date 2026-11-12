@@ -3,7 +3,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "build": "vite build --base=./",
+    "build": "vite build --base=./ --target=esnext",
     "check:markup": "npm run build && html-validate --preset standard --max-warnings 0 index.html dist/index.html",
     "dev": "vite --host 127.0.0.1",
     "test": "vitest run",

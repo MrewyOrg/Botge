@@ -1,6 +1,6 @@
 [toolchain]
-# Use the same nightly locally, in CI, and in the production image build.
-channel = "nightly-2026-11-10"
-profile = "minimal"
-# Clippy and rustfmt check the source. LLVM tools produce the branch coverage report.
-components = ["clippy", "rustfmt", "llvm-tools-preview"]
+# Shared nightly pin. CI and Docker select smaller component sets from this channel.
+channel = 'nightly-2026-11-10'
+profile = 'default'
+# LLVM tools support local coverage; standard library sources support editor navigation.
+components = ['llvm-tools-preview', 'rust-src']

@@ -37,7 +37,7 @@ Implementation details stay versioned with the code.
 ## Project information
 
 Review the [terms](docs/TERMS.md) and [privacy guidance](docs/PRIVACY.md) before hosting. See
-[releases](https://github.com/MrewyOrg/Botge/releases), the [changelog](docs/CHANGELOG.md),
+[releases](https://github.com/MrewyOrg/Botge/releases),
 [discussions](https://github.com/MrewyOrg/Botge/discussions), and
 [issues](https://github.com/MrewyOrg/Botge/issues).
 
