@@ -1,8 +1,65 @@
 //! Checks catalog precedence, browser mappings, and operator-controlled provider access.
 
+#![allow(
+  clippy::missing_errors_doc,
+  clippy::missing_panics_doc,
+  reason = "Test failures are expressed through returned fixture errors and assertion panics"
+)]
+
 use serde_json::Value;
 
 use super::*;
+
+pub(crate) use super::providers::tests::{SEVEN_ID, seven_example};
+
+#[test]
+fn bounds_policy_fields_and_preserves_queries_without_creating_ambiguous_tokens() -> Result<()> {
+  for id in ["", "123456789012345678901", "not-digits"] {
+    assert!(
+      !GuildEmotes {
+        bttv_twitch_id: Some(id.into()),
+        ..GuildEmotes::default()
+      }
+      .valid()
+    );
+  }
+  for name in [String::new(), "x".repeat(26)] {
+    assert!(
+      !GuildEmotes {
+        ffz_channel: Some(name),
+        ..GuildEmotes::default()
+      }
+      .valid()
+    );
+  }
+  assert!(
+    !GuildEmotes {
+      allowed_roles: vec!["42".into(); 26],
+      ..GuildEmotes::default()
+    }
+    .valid()
+  );
+  assert!(!valid_seven_id("0123456789012345678901234/"));
+  assert!(!valid_seven_id("01234567890123456789012345/"));
+  assert!(cdn_url("https://:secret@cdn.7tv.app/image.png", Source::SevenTv).is_none());
+  let mut emotes = [
+    example("x", "1"),
+    example("A Wave", "2"),
+    example("Other", "3"),
+  ];
+  emotes[0].image.push_str("?quality=high");
+  emotes[2].source = Source::BetterTtv;
+  emotes[2].image = "https://cdn.betterttv.net/emote/3/2x.png".into();
+  let catalog = serde_json::to_value(browser_catalog(&emotes))?;
+  assert_eq!(
+    catalog.pointer("/0/image"),
+    Some(&serde_json::json!("/7tv-cdn/emote/1/2x.png?quality=high"))
+  );
+  assert_eq!(catalog.pointer("/0/composeToken"), None);
+  assert_eq!(catalog.pointer("/1/composeToken"), None);
+  assert_eq!(catalog.pointer("/2/sevenTVId"), None);
+  Ok(())
+}
 
 impl Emotes {
   /// Redirects provider requests to a local fixture while the client is still uniquely owned.
@@ -20,7 +77,7 @@ pub(crate) fn example(name: &str, id: &str) -> Emote {
     name: name.into(),
     source: Source::SevenTv,
     image: format!("https://cdn.7tv.app/emote/{id}/2x.png"),
-    sizes: Default::default(),
+    sizes: std::collections::BTreeMap::default(),
     animated: false,
     overlaying: false,
     tags: Vec::new(),
@@ -113,7 +170,8 @@ async fn disabled_provider_blocks_added_emotes_and_catalog_is_empty() -> Result<
   let guild = NonZeroU64::MIN;
   assert!(store.add_emote(guild, example("Stored", "1"))?);
   let disabled = Emotes::new(Providers::default(), Arc::clone(&store), None)?;
-  assert!(disabled.catalog(Some(guild)).await?.is_empty());
+  let catalog = disabled.catalog(Some(guild)).await?;
+  assert!(catalog.is_empty(), "unexpected catalog emotes: {catalog:?}");
   assert!(
     disabled
       .fetch_added("01234567890123456789012345")
@@ -129,7 +187,8 @@ async fn disabled_provider_blocks_added_emotes_and_catalog_is_empty() -> Result<
     None,
   )?;
   assert_eq!(enabled.catalog(Some(guild)).await?.len(), 1);
-  assert!(enabled.catalog(None).await?.is_empty());
+  let catalog = enabled.catalog(None).await?;
+  assert!(catalog.is_empty(), "unexpected catalog emotes: {catalog:?}");
   assert!(enabled.fetch_added("invalid").await?.is_none());
   Ok(())
 }

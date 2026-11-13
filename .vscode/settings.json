@@ -228,15 +228,13 @@
   // File icons
   "vsicons.associations.files": [
     {
-      "extensions": ["main.rs", "botge.config.json", "botge.example.config.jsonc", "README.md"],
+      "extensions": ["botge.config.json", "botge.example.config.jsonc"],
       "filename": true,
       "format": "png",
       "icon": "botge"
-    },
-    { "extensions": ["compose.test.ts"], "filename": true, "icon": "docker" }
+    }
   ],
   "vsicons.associations.folders": [
-    { "extensions": ["botge_control"], "icon": "server" },
     { "extensions": ["discord"], "format": "svg", "icon": "discord" }
   ],
   "vsicons.customIconFolderPath": "assets",

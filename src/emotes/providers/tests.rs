@@ -1,5 +1,11 @@
 //! Uses local provider responses to exercise normalization, cache expiry, and shared refreshes.
 
+#![allow(
+  clippy::missing_errors_doc,
+  clippy::missing_panics_doc,
+  reason = "Test failures are expressed through returned fixture errors and assertion panics"
+)]
+
 use std::sync::atomic::{AtomicUsize, Ordering};
 
 use axum::{
@@ -12,6 +18,130 @@ use serde_json::{Value, json};
 use super::*;
 use crate::tests::TestServer;
 
+#[tokio::test]
+async fn bounds_refresh_admission_and_evicts_the_oldest_snapshot() -> Result<()> {
+  let server =
+    TestServer::start(Router::new().route("/new", get(|| async { Json(json!([])) }))).await?;
+  let mut client = ProviderClient::new(None)?;
+  client.test_origin = Some(server.origin.clone());
+  let client = Arc::new(client);
+  for index in 0..MAX_REFRESHES {
+    let (_sender, receiver) = watch::channel(None);
+    client
+      .refreshing
+      .lock()
+      .await
+      .insert(format!("pending-{index}"), receiver);
+  }
+  assert_eq!(
+    client
+      .cached(Feed::BetterTtv, "pending-0".into())
+      .await
+      .as_ref(),
+    []
+  );
+  assert_eq!(
+    client
+      .cached(Feed::BetterTtv, "uncached".into())
+      .await
+      .as_ref(),
+    []
+  );
+  let stale = Arc::from([crate::emotes::tests::example("Stale", "stale")]);
+  client.cache.lock().await.insert(
+    "stale".into(),
+    Cached {
+      emotes: Arc::clone(&stale),
+      expires: Instant::now(),
+      set_id: None,
+    },
+  );
+  assert_eq!(
+    client
+      .cached(Feed::BetterTtv, "stale".into())
+      .await
+      .as_ref(),
+    stale.as_ref()
+  );
+  client.refreshing.lock().await.clear();
+  {
+    let mut cache = client.cache.lock().await;
+    cache.clear();
+    let now = Instant::now();
+    for index in 0..64 {
+      cache.insert(
+        format!("old-{index}"),
+        Cached {
+          emotes: Arc::from([]),
+          expires: now + Duration::from_secs(index),
+          set_id: None,
+        },
+      );
+    }
+    drop(cache);
+  }
+  assert_eq!(
+    client
+      .refresh(Feed::BetterTtv, "https://provider.example/new")
+      .await
+      .as_ref(),
+    []
+  );
+  let cache = client.cache.lock().await;
+  assert_eq!(cache.len(), 64);
+  assert!(!cache.contains_key("old-0"));
+  assert!(cache.contains_key("https://provider.example/new"));
+  drop(cache);
+  Ok(())
+}
+
+#[tokio::test]
+async fn rejects_oversized_chunked_responses_and_invalid_provider_metadata() -> Result<()> {
+  let server = TestServer::start(
+    Router::new()
+      .route(
+        "/chunked",
+        get(|| async {
+          axum::response::Response::new(axum::body::Body::from_stream(futures_util::stream::iter(
+            [Ok::<_, std::io::Error>(vec![0_u8; 8])],
+          )))
+        }),
+      )
+      .route(
+        "/invalid",
+        get(|| async { Json(json!({"id":"invalid","emotes":[]})) }),
+      )
+      .route("/broken", get(|| async { "invalid JSON" })),
+  )
+  .await?;
+  let mut client = ProviderClient::new(None)?;
+  client.test_origin = Some(server.origin.clone());
+  let response = client
+    .http
+    .get(server.origin.join("chunked")?)
+    .send()
+    .await?;
+  assert_eq!(response.content_length(), None);
+  assert!(bounded_bytes(response, 4).await.is_err());
+  let (_, id) = client
+    .fetch(Feed::SevenTv, "https://provider.example/invalid")
+    .await?;
+  assert_eq!(id, None);
+  assert!(
+    client
+      .fetch(Feed::SevenTv, "https://provider.example/broken")
+      .await
+      .is_err()
+  );
+  assert!(
+    client
+      .fetch(Feed::Twitch, "https://provider.example/invalid")
+      .await
+      .is_err()
+  );
+  Ok(())
+}
+
 pub(crate) const SEVEN_ID: &str = "01234567890123456789012345";
 
 /// Builds a 7TV response with a fixed ID and both static and animated image variants.
@@ -20,59 +150,6 @@ pub(crate) fn seven_example(name: &str, animated: bool, flags: u32) -> Value {
       "id": SEVEN_ID, "name": name, "animated": animated, "flags": flags,
       "host": { "files": [{ "name": "2x.png" }, { "name": "2x.gif" }] }
   })
-}
-
-#[test]
-fn filters_unavailable_or_unsafe_provider_assets() -> Result<()> {
-  for (id, name, listed) in [
-    ("invalid-id", "Wave", true),
-    (SEVEN_ID, " ", true),
-    (SEVEN_ID, "Unlisted", false),
-  ] {
-    let mut entry: SevenEmote = serde_json::from_value(seven_example(name, false, 0))?;
-    entry.id = id.into();
-    entry.listed = Some(listed);
-    assert!(entry.into_emote(None).is_none());
-  }
-  let set = json!({"emotes":[
-      {"name": "SetAlias", "flags": 1, "data": seven_example("Original", true, 0)},
-      {"name": "Hidden", "flags": 0, "data": seven_example("Hidden", false, 1)},
-      {"name": "Unavailable", "flags": 0, "data": null}
-  ]});
-  let entries = parse_feed(Feed::SevenTv, &serde_json::to_vec(&set)?)?;
-  assert_eq!(entries.len(), 1);
-  let emote = entries.first().context("missing 7TV emote")?;
-  assert_eq!(emote.name, "SetAlias");
-  assert!(emote.overlaying && emote.animated && !emote.added);
-  assert!(emote.image.ends_with(".gif"));
-
-  let bttv = br#"[{"id":"bad/path","code":"Bad","animated":false},{"id":"valid","code":"Hi","animated":true}]"#;
-  assert_eq!(
-    parse_feed(Feed::BetterTtv, bttv)?
-      .first()
-      .map(|emote| emote.image.ends_with(".gif")),
-    Some(true)
-  );
-  let ffz = br#"{"room":{"set":7},"sets":{"7":{"emoticons":[{"id":12,"name":"Hi","urls":{"1":"//cdn.frankerfacez.com/emote/12/1"}},{"id":13,"name":"Bad","urls":{"1":"https://other.example/image"}}]}}}"#;
-  assert_eq!(parse_feed(Feed::Ffz, ffz)?.len(), 1);
-  let global = br#"{"default_sets":[3,4],"sets":{"3":{"emoticons":[{"id":3,"name":"First","urls":{"1":"/emote/3/1"}}]},"4":{"emoticons":[{"id":4,"name":"Second","urls":{"1":"/emote/4/1"}}]},"5":{"emoticons":[{"id":5,"name":"Other","urls":{"1":"/emote/5/1"}}]}}}"#;
-  let global = parse_feed(Feed::Ffz, global)?;
-  assert_eq!(
-    global
-      .iter()
-      .map(|emote| emote.name.as_str())
-      .collect::<Vec<_>>(),
-    ["First", "Second"]
-  );
-  let twitch = br#"{"data":[{"id":"valid","name":"Hi","format":["animated"]},{"id":"bad/path","name":"Bad","format":[]}]}"#;
-  assert_eq!(
-    parse_feed(Feed::Twitch, twitch)?
-      .first()
-      .map(|emote| emote.animated),
-    Some(true)
-  );
-  assert!(parse_feed(Feed::BetterTtvChannel, b"bad").is_err());
-  Ok(())
 }
 
 #[tokio::test]
@@ -115,19 +192,17 @@ async fn fetches_all_enabled_feeds_and_reuses_cached_results() -> Result<()> {
     4
   );
   let without_twitch_credentials = Arc::new(ProviderClient::new(None)?);
-  assert!(
-    without_twitch_credentials
-      .catalog(
-        Providers {
-          twitch: true,
-          ..Providers::default()
-        },
-        &guild,
-        None
-      )
-      .await
-      .is_empty()
-  );
+  let catalog = without_twitch_credentials
+    .catalog(
+      Providers {
+        twitch: true,
+        ..Providers::default()
+      },
+      &guild,
+      None,
+    )
+    .await;
+  assert!(catalog.is_empty(), "unexpected catalog emotes: {catalog:?}");
   let added = client
     .added(SEVEN_ID)
     .await?
@@ -235,40 +310,5 @@ async fn slow_autocomplete_feeds_finish_one_shared_refresh_after_the_deadline() 
   );
   assert_eq!(client.catalog(policy, &guild, deadline).await, cached);
   assert_eq!(requests.load(Ordering::Relaxed), 1);
-  Ok(())
-}
-
-#[test]
-fn retains_published_scales_and_falls_back_to_nearest_available() -> Result<()> {
-  let mut seven = seven_example("Sizes", false, 0);
-  *seven
-    .get_mut("host")
-    .and_then(|host| host.get_mut("files"))
-    .context("missing files")? = json!([{"name":"1x.webp"}, {"name":"4x.webp"}]);
-  let emote = serde_json::from_value::<SevenEmote>(seven)?
-    .into_emote(None)
-    .context("missing emote")?;
-  assert!(emote.image_at(1).ends_with("1x.webp"));
-  assert!(emote.image_at(2).ends_with("1x.webp"));
-  assert!(emote.image_at(3).ends_with("4x.webp"));
-  assert!(emote.image_at(4).ends_with("4x.webp"));
-  let bttv = parse_feed(
-    Feed::BetterTtv,
-    br#"[{"id":"valid","code":"Hi","animated":true}]"#,
-  )?;
-  let emote = bttv.first().context("missing BTTV")?;
-  assert!(emote.image_at(1).ends_with("1x.gif"));
-  assert!(emote.image_at(4).ends_with("3x.gif"));
-  let ffz = parse_feed(Feed::Ffz, br#"{"sets":{"3":{"emoticons":[{"id":12,"name":"Hi","urls":{"1":"/emote/12/1","4":"/emote/12/4","2":"https://evil.example/2"}}]}}}"#)?;
-  let emote = ffz.first().context("missing FFZ")?;
-  assert!(emote.image_at(2).ends_with("/1"));
-  assert!(emote.image_at(3).ends_with("/4"));
-  let twitch = parse_feed(
-    Feed::Twitch,
-    br#"{"data":[{"id":"valid","name":"Hi","format":["animated"],"scale":["1.0","3.0"]}]}"#,
-  )?;
-  let emote = twitch.first().context("missing Twitch")?;
-  assert!(emote.image_at(2).ends_with("animated/dark/1.0"));
-  assert!(emote.image_at(4).ends_with("animated/dark/3.0"));
   Ok(())
 }

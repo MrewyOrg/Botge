@@ -1,0 +1,27 @@
+# cspell:words uninlined
+
+# Internal APIs are documented too; Botge is a binary crate with crate-visible services.
+check-private-items = true
+
+# This binary has no downstream Rust API whose compatibility should suppress useful lints.
+avoid-breaking-exported-api = false
+
+# Panic-prone shortcuts remain forbidden in constant evaluation too.
+allow-expect-in-consts = false
+allow-unwrap-in-consts = false
+
+# Capture named format arguments even when another argument needs an expression.
+allow-mixed-uninlined-format-args = false
+
+# Keep service interfaces small and large buffers off thread stacks (size is in bytes).
+too-many-arguments-threshold = 6
+array-size-threshold = 8192
+
+# Database transactions must finish in synchronous storage work before awaiting anything.
+await-holding-invalid-types = ['redb::ReadTransaction', 'redb::WriteTransaction']
+
+# These APIs can block Tokio worker threads; use asynchronous waits or the blocking pool.
+disallowed-methods = [
+  { path = 'std::thread::sleep', reason = 'Use an asynchronous timer instead of blocking a worker thread', replacement = 'tokio::time::sleep' },
+  { path = 'tokio::task::block_in_place', reason = 'Run blocking storage work on the blocking pool', replacement = 'tokio::task::spawn_blocking' },
+]

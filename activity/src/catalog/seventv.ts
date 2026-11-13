@@ -1,5 +1,7 @@
 /* Fetches public 7TV discovery pages and accepts preview media only from the expected CDN. */
 
+import type { DeepReadonly, MarkRequired } from 'ts-essentials';
+
 import { type BrowserEmote, parseEmoteTags, tagTerms } from './catalog.ts';
 import { isSevenTVEmoteId } from './seventv-id.ts';
 import { isRecord } from '../validation.ts';
@@ -51,7 +53,7 @@ function previewPath(images: readonly unknown[], id: string): string | undefined
 export function parseDiscoveryPage(
   data: unknown,
   embedded: boolean
-): Readonly<{ emotes: readonly BrowserEmote[]; pageCount: number }> {
+): DeepReadonly<{ emotes: readonly MarkRequired<BrowserEmote, 'sevenTVId'>[]; pageCount: number }> {
   const root = isRecord(data) && !Object.hasOwn(data, 'errors') ? data['data'] : undefined;
   const emotes = isRecord(root) ? root['emotes'] : undefined;
   const page = isRecord(emotes) ? emotes['search'] : undefined;

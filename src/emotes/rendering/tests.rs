@@ -1,70 +1,49 @@
 // cspell:words ANMF
 
-//! Renders small media fixtures with FFmpeg and checks the resulting bytes and playback timing.
+//! Renders small media fixtures with `FFmpeg` and checks the resulting bytes and playback timing.
+
+#![allow(
+  clippy::missing_errors_doc,
+  clippy::missing_panics_doc,
+  reason = "Test failures are expressed through returned fixture errors and assertion panics"
+)]
 
 use axum::{Router, routing::get};
 use base64::{Engine as _, engine::general_purpose::STANDARD};
 
-use super::*;
-
-#[test]
-fn fits_extreme_aspect_ratios_without_integer_overflow() {
-  let tall = Dimensions {
-    width: 1,
-    height: 2_097_152,
-    frames: 1,
-  };
-  assert_eq!(tall.fit(2_097_152, 2048), (1, 2_097_152));
-  let wide = Dimensions {
-    width: 2_097_152,
-    height: 1,
-    frames: 1,
-  };
-  assert_eq!(wide.fit(2048, 2048), (2048, 1));
-}
+use super::webp::tests::delays;
 
 #[tokio::test]
-async fn bounds_mixed_native_sizes_and_border_padding() -> Result<()> {
-  let directory = tempfile::tempdir()?;
-  let path = directory.path().join("input.png");
-  fs::write(&path, crate::tests::png_pixel()?).await?;
-  // The actual pixel supplies cheap input; declared dimensions exercise layout planning.
-  for dimensions in [vec![(2000, 100), (100, 1000)], vec![(8192, 1)]] {
-    let assets: Vec<_> = dimensions
-      .into_iter()
-      .map(|(width, height)| Asset {
-        info: Dimensions {
-          width,
-          height,
-          frames: 1,
-        },
-        duration_ms: None,
-        path: path.clone(),
-        overlay: false,
-        webp_animation: None,
-      })
-      .collect();
-    for border in [None, Some(0xff7700)] {
-      let output = render(
-        directory.path(),
-        &assets,
-        RenderOptions {
-          size_pixels: None,
-          stretch: false,
-          border,
-        },
-      )
-      .await?;
-      let (width, height) = crate::tests::png_dimensions(&output.bytes)?;
-      assert!(width <= MAX_CANVAS_WIDTH, "canvas was {width}×{height}");
-      assert!(
-        width > 2000,
-        "layout discarded too much resolution: {width}"
-      );
-    }
+#[expect(
+  clippy::literal_string_with_formatting_args,
+  reason = "Braces identify an Axum route capture"
+)]
+async fn keeps_original_bytes_and_filenames_for_each_supported_image_format() -> Result<()> {
+  let server = crate::tests::TestServer::start(Router::new().route(
+    "/7tv/emote/{format}/2x.png",
+    get(
+      |axum::extract::Path(format): axum::extract::Path<String>| async move {
+        match format.as_str() {
+          "gif" => b"GIF89a".to_vec(),
+          "jpg" => vec![255, 216, 255],
+          "webp" => b"RIFF1234WEBP".to_vec(),
+          _ => vec![],
+        }
+      },
+    ),
+  ))
+  .await?;
+  let http = Client::new();
+  for format in ["gif", "jpg", "webp"] {
+    let layer = Layer::emote(&crate::emotes::tests::example("Original", format))
+      .context("invalid fixture layer")?;
+    let image = original(&http, &layer, Some(&server.origin)).await?;
+    assert_eq!(image.filename, format!("emote.{format}"));
+    assert_eq!(image_type(&image.bytes), Some(format));
   }
   Ok(())
 }
+use super::*;
 
 #[tokio::test]
 async fn rejects_decoder_memory_and_animation_work_before_starting_ffmpeg() -> Result<()> {
@@ -102,6 +81,21 @@ async fn rejects_decoder_memory_and_animation_work_before_starting_ffmpeg() -> R
 
 #[test]
 fn accepts_only_discord_media_and_maps_the_provider_cache() -> Result<()> {
+  assert_eq!(
+    Layer::discord("<:Wave:42>")
+      .context("missing static emoji")?
+      .url
+      .path(),
+    "/emojis/42.png"
+  );
+  assert_eq!(image_type(b"RIFF0000xxxx"), None);
+  for invalid in [
+    "https://:secret@cdn.discordapp.com/emojis/42.png",
+    "https://cdn.discordapp.com/emojis/42.png#fragment",
+    "https://cdn.discordapp.com/unsupported",
+  ] {
+    assert!(Layer::discord(invalid).is_none());
+  }
   let emoji = Layer::discord("<a:Wave:42>").context("expected custom emoji")?;
   assert_eq!(
     emoji.url.as_str(),
@@ -146,7 +140,7 @@ const ANIMATED_BASE: &str = concat!(
 );
 
 // 4×8 yellow, cyan, and magenta frames with delays of 101, 89, and 59 ms.
-const ANIMATED_OVERLAY: &str = concat!(
+pub(super) const ANIMATED_OVERLAY: &str = concat!(
   "UklGRrQAAABXRUJQVlA4WAoAAAACAAAAAwAABwAAQU5JTQYAAAD/////AwBBTk1GKAAAAAAA",
   "AAAAAAMAAAcAAGUAAAJWUDhMEAAAAC8DwAEAB9D//kf/AxHR/wBBTk1GKAAAAAAAAAAAAAMA",
   "AAcAAFkAAABWUDhMEAAAAC8DwAEAB9D/6H//AxHR/wBBTk1GKAAAAAAAAAAAAAMAAAcAADsA",
@@ -154,19 +148,6 @@ const ANIMATED_OVERLAY: &str = concat!(
 );
 
 // cspell:enable
-
-/// Reads the encoded frame delays directly from the WebP container.
-fn delays(image: &Image) -> Vec<u32> {
-  webp_chunks(&image.bytes)
-    .filter(|(tag, _)| *tag == b"ANMF")
-    .filter_map(|(_, data)| {
-      image
-        .bytes
-        .get(data.start + 12..data.end)
-        .and_then(frame_delay)
-    })
-    .collect()
-}
 
 #[tokio::test]
 async fn downloads_originals_and_stacks_static_columns_with_a_gap() -> Result<()> {
@@ -220,6 +201,10 @@ async fn downloads_originals_and_stacks_static_columns_with_a_gap() -> Result<()
 }
 
 #[tokio::test]
+#[expect(
+  clippy::too_many_lines,
+  reason = "Keep the sequential fixture setup, actions, and assertions in one scenario"
+)]
 async fn preserves_webp_timing_and_syncs_static_and_animated_overlays() -> Result<()> {
   let pixel = crate::tests::png_pixel()?;
   let base = STANDARD.decode(ANIMATED_BASE)?;
@@ -358,56 +343,6 @@ async fn rejects_non_images_and_oversized_inputs() -> Result<()> {
       .err()
       .context("accepted invalid input")?;
     assert_eq!(error.to_string(), expected);
-  }
-  Ok(())
-}
-
-#[tokio::test]
-async fn keeps_browser_playback_duration_when_frames_are_too_short() -> Result<()> {
-  // Delays below 11 ms exercise frame-boundary adjustment. The 31 ms case also forces
-  // the retry path because three frames cannot each receive at least 11 ms.
-  for (input, expected) in [
-    ([20, 10, 20], &[20, 11, 19][..]),
-    ([4, 7, 20], &[11, 20][..]),
-    ([20, 20, 10], &[20, 19, 11][..]),
-  ] {
-    let mut bytes = STANDARD.decode(ANIMATED_OVERLAY)?;
-    let starts: Vec<_> = webp_chunks(&bytes)
-      .filter(|(tag, _)| *tag == b"ANMF")
-      .map(|(_, range)| range.start + 12)
-      .collect();
-    for (start, delay) in starts.into_iter().zip(input) {
-      bytes
-        .get_mut(start..start + 3)
-        .context("missing frame duration")?
-        .copy_from_slice(&[delay, 0, 0]);
-    }
-    let dir = tempfile::tempdir()?;
-    let path = dir.path().join("input.webp");
-    fs::write(&path, &bytes).await?;
-    let (info, _) = inspect(&path).await?;
-    let animation = webp_animation(&bytes).context("missing fixture animation")?;
-    let duration = animation.duration_ms;
-    let output = render(
-      dir.path(),
-      &[Asset {
-        info,
-        duration_ms: Some(duration),
-        path,
-        overlay: false,
-        webp_animation: Some(animation),
-      }],
-      RenderOptions {
-        size_pixels: Some(24),
-        stretch: false,
-        border: None,
-      },
-    )
-    .await?;
-    assert_eq!(delays(&output), expected);
-    let path = dir.path().join(output.filename);
-    fs::write(&path, output.bytes).await?;
-    assert_eq!(inspect(&path).await?.1, Some(duration));
   }
   Ok(())
 }

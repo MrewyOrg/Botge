@@ -1,8 +1,70 @@
 //! Exercises persistence, malformed data, and atomic updates in temporary redb databases.
 
+#![allow(
+  clippy::missing_errors_doc,
+  clippy::missing_panics_doc,
+  reason = "Test failures are expressed through returned fixture errors and assertion panics"
+)]
+
 use std::{sync::Barrier, thread};
 
 use super::*;
+
+mod faults;
+
+impl Store {
+  /// Restores the voice table after a fixture deliberately replaced its schema.
+  pub(crate) fn restore_voice_table(&self) -> Result<()> {
+    let transaction = self.0.begin_write()?;
+    transaction.delete_table(TableDefinition::<u32, u64>::new("voice_settings"))?;
+    transaction.open_table(VOICE_SETTINGS)?;
+    transaction.commit()?;
+    Ok(())
+  }
+  /// Replaces a temporary database table with an incompatible schema for failure-path tests.
+  pub(crate) fn invalidate_table(&self, name: &str) -> Result<()> {
+    let transaction = self.0.begin_write()?;
+    transaction.delete_table(TableDefinition::<NonZeroU64, &str>::new(name))?;
+    transaction.open_table(TableDefinition::<u32, u64>::new(name))?;
+    transaction.commit()?;
+    Ok(())
+  }
+}
+
+#[test]
+fn rejects_malformed_backups_and_full_catalogs_without_changing_saved_data() -> Result<()> {
+  let directory = tempfile::tempdir()?;
+  for (index, definition) in [VOICE_SETTINGS, GUILD_EMOTES, ADDED_EMOTES]
+    .into_iter()
+    .enumerate()
+  {
+    let path = directory.path().join(format!("invalid-{index}.redb"));
+    {
+      let store = Store::open(&path)?;
+      let transaction = store.0.begin_write()?;
+      transaction
+        .open_table(definition)?
+        .insert(NonZeroU64::MIN, "not JSON")?;
+      transaction.commit()?;
+    }
+    assert!(Store::verify_backup(&path).is_err());
+  }
+  let store = Store::open(&directory.path().join("full.redb"))?;
+  let entries: Vec<_> = (0..1000)
+    .map(|index| crate::emotes::tests::example(&format!("Emote{index}"), &index.to_string()))
+    .collect();
+  let transaction = store.0.begin_write()?;
+  transaction
+    .open_table(ADDED_EMOTES)?
+    .insert(NonZeroU64::MIN, serde_json::to_string(&entries)?.as_str())?;
+  transaction.commit()?;
+  assert!(!store.add_emote(
+    NonZeroU64::MIN,
+    crate::emotes::tests::example("Overflow", "1001")
+  )?);
+  assert_eq!(store.added_emotes(NonZeroU64::MIN)?, entries);
+  Ok(())
+}
 
 #[test]
 fn offline_backup_is_readable_and_restores_saved_data() -> Result<()> {
@@ -13,7 +75,7 @@ fn offline_backup_is_readable_and_restores_saved_data() -> Result<()> {
   assert!(!source.exists());
   {
     let store = Store::open(&source)?;
-    store.save_emote_border(NonZeroU64::MIN, Some(0x123456))?;
+    store.save_emote_border(NonZeroU64::MIN, Some(0x0012_3456))?;
     store.save_voice_settings(NonZeroU64::MIN, &VoiceSettings::default())?;
     store.save_guild_emotes(NonZeroU64::MIN, &GuildEmotes::default())?;
   }
@@ -22,7 +84,7 @@ fn offline_backup_is_readable_and_restores_saved_data() -> Result<()> {
   Store::verify_backup(&backup)?;
   assert_eq!(std::fs::read(&backup)?, bytes);
   let restored = Store::open(&backup)?;
-  assert_eq!(restored.emote_border(NonZeroU64::MIN)?, Some(0x123456));
+  assert_eq!(restored.emote_border(NonZeroU64::MIN)?, Some(0x0012_3456));
   drop(restored);
   std::fs::write(&backup, "not a database")?;
   assert!(Store::verify_backup(&backup).is_err());
@@ -185,11 +247,13 @@ fn persists_emote_settings_and_added_emotes_with_atomic_duplicate_checks() -> Re
   assert!(store.add_emote(guild, first.clone())?);
   assert!(!store.add_emote(guild, crate::emotes::tests::example("wave", "2"))?);
   assert!(!store.add_emote(guild, crate::emotes::tests::example("Other", "1"))?);
-  assert!(store.added_emotes(other)?.is_empty());
+  let added = store.added_emotes(other)?;
+  assert!(added.is_empty(), "unexpected added emotes: {added:?}");
   assert_eq!(store.added_emotes(guild)?, vec![first]);
   assert!(store.remove_emote(guild, "1")?);
   assert!(!store.remove_emote(guild, "1")?);
-  assert!(store.added_emotes(guild)?.is_empty());
+  let added = store.added_emotes(guild)?;
+  assert!(added.is_empty(), "unexpected added emotes: {added:?}");
   Ok(())
 }
 
@@ -215,15 +279,15 @@ fn concurrent_adds_keep_distinct_emotes_and_reject_duplicate_names() -> Result<(
     let distinct = add("Other", "3");
     let first = first
       .join()
-      .map_err(|_| anyhow::anyhow!("writer panicked"))??;
+      .map_err(|_error| anyhow::anyhow!("writer panicked"))??;
     let duplicate = duplicate
       .join()
-      .map_err(|_| anyhow::anyhow!("writer panicked"))??;
+      .map_err(|_error| anyhow::anyhow!("writer panicked"))??;
     assert_ne!(first, duplicate);
     assert!(
       distinct
         .join()
-        .map_err(|_| anyhow::anyhow!("writer panicked"))??
+        .map_err(|_error| anyhow::anyhow!("writer panicked"))??
     );
 
     let mut ids: Vec<_> = store

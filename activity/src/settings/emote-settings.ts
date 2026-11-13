@@ -1,8 +1,11 @@
 /* Validates complete emote settings responses before updating the editable guild form. */
 
+import type { DeepReadonly } from 'ts-essentials';
+
 import { isRecord, requireValue } from '../validation.ts';
 
-type EmoteSettings = Readonly<{
+/** Complete guild provider and role-policy snapshot, including immutable selected roles. */
+export type EmoteSettings = DeepReadonly<{
   sevenTvSet: string | null;
   bttvTwitchId: string | null;
   ffzChannel: string | null;
@@ -16,7 +19,7 @@ function nullableText(value: unknown): value is string | null {
   return value === null || typeof value === 'string';
 }
 
-type Role = Readonly<{ id: string; name: string }>;
+type Role = { readonly id: string; readonly name: string };
 
 /**
  * Validates a complete settings snapshot, including every selected and available role.
@@ -27,7 +30,7 @@ type Role = Readonly<{ id: string; name: string }>;
  */
 function parseSettings(
   payload: unknown
-): Readonly<{ emotes: EmoteSettings; roles: readonly Role[] }> {
+): DeepReadonly<{ emotes: EmoteSettings; roles: readonly Role[] }> {
   if (isRecord(payload) && typeof payload['message'] === 'string')
     throw new Error(payload['message']);
   if (

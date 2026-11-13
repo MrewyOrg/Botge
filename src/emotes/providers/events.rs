@@ -17,6 +17,10 @@ use super::ProviderClient;
 
 impl ProviderClient {
   /// Reconnects with a delay when the provider closes the stream or the heartbeat expires.
+  #[expect(
+    clippy::infinite_loop,
+    reason = "The reconnect worker runs until its task is cancelled during shutdown"
+  )]
   pub(crate) async fn watch_sets(&self, endpoint: &str) {
     loop {
       if let Err(error) = self.event_session(endpoint).await {
@@ -32,6 +36,12 @@ impl ProviderClient {
   /// Each subscription pass compares the cache with the active subscriptions and removes
   /// subscriptions for evicted sets. Incoming updates mark their matching snapshots stale
   /// so a subsequent read can fetch fresh entries.
+  ///
+  /// # Errors
+  ///
+  /// Returns an error for connection, subscription, read, or decoding failures, or an expired
+  /// heartbeat deadline. A clean close returns successfully. The outer worker reconnects
+  /// after either outcome; the new session marks existing cached sets stale.
   async fn event_session(&self, endpoint: &str) -> Result<()> {
     let config = WebSocketConfig::default()
       .max_message_size(Some(1024 * 1024))
@@ -81,7 +91,7 @@ impl ProviderClient {
               }
               subscriptions = desired;
           }
-          _ = &mut heartbeat => anyhow::bail!("7TV heartbeat timed out"),
+          () = &mut heartbeat => anyhow::bail!("7TV heartbeat timed out"),
       }
     }
   }

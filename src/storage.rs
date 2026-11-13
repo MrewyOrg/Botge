@@ -31,6 +31,11 @@ pub(crate) struct Store(Database);
 
 impl Store {
   /// Opens an offline backup read-only and reads all expected tables without creating a file.
+  ///
+  /// # Errors
+  ///
+  /// Returns an error if the backup cannot be opened read-only, an expected table is missing
+  /// or incompatible, a row cannot be read, or a stored JSON value cannot be decoded.
   pub(crate) fn verify_backup(path: &Path) -> Result<()> {
     let database = redb::ReadOnlyDatabase::open(path)?;
     let transaction = database.begin_read()?;
@@ -57,6 +62,15 @@ impl Store {
       .set_cache_size(8 * 1024 * 1024)
       .create(path)
       .with_context(|| format!("could not open {}", path.display()))?;
+    Self::initialize(db)
+  }
+
+  /// Initializes the typed tables on an already opened redb handle.
+  ///
+  /// # Errors
+  ///
+  /// Returns an error if a table has an incompatible schema or initialization cannot commit.
+  fn initialize(db: Database) -> Result<Self> {
     let transaction = db.begin_write()?;
     transaction.open_table(VOICE_SETTINGS)?;
     transaction.open_table(GUILD_EMOTES)?;
@@ -67,6 +81,10 @@ impl Store {
   }
 
   /// Returns the user's packed RGB color, or `None` if no border is saved.
+  ///
+  /// # Errors
+  ///
+  /// Returns an error if the read transaction, table lookup, or row access fails.
   pub(crate) fn emote_border(&self, user: NonZeroU64) -> Result<Option<u32>> {
     let transaction = self.0.begin_read()?;
     let table = transaction.open_table(EMOTE_BORDERS)?;
@@ -74,6 +92,14 @@ impl Store {
   }
 
   /// Upserts a user preference or removes its row when the color is cleared.
+  ///
+  /// Callers must limit a supplied color to packed 24-bit RGB; this layer stores the value
+  /// as received rather than revalidating the HTTP color syntax.
+  ///
+  /// # Errors
+  ///
+  /// Returns an error if the write transaction, table update, or commit fails.
+  /// A successful return confirms that the preference was committed.
   pub(crate) fn save_emote_border(&self, user: NonZeroU64, color: Option<u32>) -> Result<()> {
     let transaction = self.0.begin_write()?;
     {
@@ -89,6 +115,11 @@ impl Store {
   }
 
   /// Defaults an absent row to no selected channel and reports malformed rows as errors.
+  ///
+  /// # Errors
+  ///
+  /// Returns an error if the database cannot be read or a saved row is malformed.
+  /// An absent row uses defaults; a malformed row never silently falls back to defaults.
   pub(crate) fn voice_settings(&self, guild: NonZeroU64) -> Result<VoiceSettings> {
     let transaction = self.0.begin_read()?;
     let table = transaction.open_table(VOICE_SETTINGS)?;
@@ -99,6 +130,11 @@ impl Store {
   }
 
   /// Validates the preference before replacing the existing row.
+  ///
+  /// # Errors
+  ///
+  /// Returns an error for invalid settings, JSON serialization failure, or a failed database
+  /// transaction. Validation finishes before a write transaction is opened.
   pub(crate) fn save_voice_settings(
     &self,
     guild: NonZeroU64,
@@ -118,6 +154,11 @@ impl Store {
   ///
   /// Returns only persisted rows. A malformed row fails the scan so the worker can log
   /// the error and retry on its next pass.
+  ///
+  /// # Errors
+  ///
+  /// Returns an error if the snapshot cannot be read or any saved row is malformed.
+  /// No partial list is returned.
   pub(crate) fn all_voice_settings(&self) -> Result<Vec<(NonZeroU64, VoiceSettings)>> {
     let transaction = self.0.begin_read()?;
     let table = transaction.open_table(VOICE_SETTINGS)?;
@@ -131,6 +172,10 @@ impl Store {
   }
 
   /// Reads the guild's provider and access rules, defaulting only when the row is absent.
+  ///
+  /// # Errors
+  ///
+  /// Returns an error if the database cannot be read or a saved policy cannot be decoded.
   pub(crate) fn guild_emotes(&self, guild: NonZeroU64) -> Result<GuildEmotes> {
     let transaction = self.0.begin_read()?;
     let table = transaction.open_table(GUILD_EMOTES)?;
@@ -141,6 +186,11 @@ impl Store {
   }
 
   /// Validates and replaces the guild's complete emote policy in one transaction.
+  ///
+  /// # Errors
+  ///
+  /// Returns an error for invalid policy values, serialization failure, or a failed write
+  /// transaction. Invalid settings leave the existing row unchanged.
   pub(crate) fn save_guild_emotes(&self, guild: NonZeroU64, settings: &GuildEmotes) -> Result<()> {
     anyhow::ensure!(settings.valid(), "invalid guild emote settings");
     let value = serde_json::to_string(settings)?;
@@ -153,6 +203,10 @@ impl Store {
   }
 
   /// Returns the guild's individual additions in storage order, or an empty list.
+  ///
+  /// # Errors
+  ///
+  /// Returns an error if the saved additions cannot be read or decoded.
   pub(crate) fn added_emotes(&self, guild: NonZeroU64) -> Result<Vec<Emote>> {
     let transaction = self.0.begin_read()?;
     read_emotes(&transaction.open_table(ADDED_EMOTES)?, guild)
@@ -162,6 +216,11 @@ impl Store {
   ///
   /// Conflicts include a duplicate ID or a case-insensitive name match in the guild's saved
   /// additions. The transaction checks and appends under the same write lock.
+  ///
+  /// # Errors
+  ///
+  /// Returns an error if the saved list cannot be read, serialized, or committed.
+  /// Duplicate or full-list rejection is reported as `Ok(false)`, not an error.
   pub(crate) fn add_emote(&self, guild: NonZeroU64, emote: Emote) -> Result<bool> {
     self.change_added(guild, move |entries| {
       if entries.len() >= 1000
@@ -177,6 +236,11 @@ impl Store {
   }
 
   /// Removes the matching addition and returns whether a change was committed.
+  ///
+  /// # Errors
+  ///
+  /// Returns an error if the saved list cannot be read, serialized, or committed.
+  /// An absent ID is reported as `Ok(false)`.
   pub(crate) fn remove_emote(&self, guild: NonZeroU64, id: &str) -> Result<bool> {
     self.change_added(guild, |entries| {
       let before = entries.len();
@@ -186,6 +250,11 @@ impl Store {
   }
 
   /// Reads, edits, and commits the guild's list in one transaction to prevent lost updates.
+  ///
+  /// # Errors
+  ///
+  /// Returns an error if reading, serializing, or committing the list fails.
+  /// If `change` returns `false`, the transaction is dropped without committing.
   fn change_added(
     &self,
     guild: NonZeroU64,
@@ -207,6 +276,11 @@ impl Store {
 }
 
 /// Decodes the additions from either a read or a write transaction's open table.
+///
+/// # Errors
+///
+/// Returns an error if the row lookup fails or its JSON cannot be decoded.
+/// An absent row produces an empty list.
 fn read_emotes(
   table: &impl redb::ReadableTable<NonZeroU64, &'static str>,
   guild: NonZeroU64,

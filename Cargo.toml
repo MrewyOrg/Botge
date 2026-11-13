@@ -1,8 +1,8 @@
-# cspell:words dalek rustls serde webpki
+# cspell:words dalek rustls serde uninlined webpki
 
 [package]
 name = 'botge'
-version = '5.2.0'
+version = '5.3.0'
 edition = '2024'
 description = 'Discord bot for emotes, overlays, and the Botge Activity'
 license = 'MIT'
@@ -51,6 +51,7 @@ tracing = '0.1'
 tracing-subscriber = { version = '0.3', features = ['env-filter'] }
 
 [dev-dependencies]
+tokio = { version = '1', features = ['test-util'] }
 tower = { version = '0.5', features = ['util'] }
 
 [lints.rust]
@@ -66,14 +67,85 @@ elided_lifetimes_in_paths = 'deny'
 unreachable_pub = 'deny'
 unused_lifetimes = 'deny'
 unused_mut = 'deny'
+missing_docs = 'deny'
+
+[lints.rustdoc]
+# Validate links, markup, code blocks, and crate documentation, including private-item docs.
+all = { level = 'deny', priority = -1 }
 
 [lints.clippy]
+# Keep the standard lint groups strict, then opt into focused additional checks below.
+all = { level = 'deny', priority = -1 }
+pedantic = { level = 'deny', priority = -1 }
+nursery = { level = 'deny', priority = -1 }
+
+# Explicit crate visibility documents service boundaries in this binary crate.
+redundant_pub_crate = 'allow'
+
+# Select compatible restriction lints rather than enabling the conflicting group.
+clone_on_ref_ptr = 'deny'
+create_dir = 'deny'
+empty_drop = 'deny'
+exit = 'deny'
+filetype_is_file = 'deny'
+fn_to_numeric_cast_any = 'deny'
+get_unwrap = 'deny'
+infinite_loop = 'deny'
+let_underscore_future = 'deny'
+let_underscore_must_use = 'deny'
+lossy_float_literal = 'deny'
+map_err_ignore = 'deny'
+mixed_read_write_in_expression = 'deny'
+mutex_atomic = 'deny'
+mutex_integer = 'deny'
+path_buf_push_overwrite = 'deny'
+rc_buffer = 'deny'
+rc_mutex = 'deny'
+rest_pat_in_fully_bound_structs = 'deny'
+string_slice = 'deny'
+suspicious_xor_used_as_pow = 'deny'
+try_err = 'deny'
+unneeded_field_pattern = 'deny'
+verbose_file_reads = 'deny'
+
+# Document fallible and panicking APIs and keep documentation markup valid.
+doc_markdown = 'deny'
+missing_errors_doc = 'deny'
+missing_panics_doc = 'deny'
+missing_safety_doc = 'deny'
+unnecessary_safety_doc = 'deny'
+
 # Release synchronous locks and borrows before suspending an async task.
 await_holding_lock = 'deny'
 await_holding_refcell_ref = 'deny'
+await_holding_invalid_type = 'deny'
+disallowed_methods = 'deny'
 
 # Require exclusive borrows only for operations that need them.
 needless_pass_by_ref_mut = 'deny'
+too_many_arguments = 'deny'
+
+# Keep large buffers off worker stacks and make formatting captures explicit.
+large_stack_arrays = 'deny'
+large_const_arrays = 'deny'
+uninlined_format_args = 'deny'
+
+# Make numeric narrowing, signedness, and precision changes explicit and reviewable.
+checked_conversions = 'deny'
+cast_lossless = 'deny'
+cast_possible_truncation = 'deny'
+cast_possible_wrap = 'deny'
+cast_precision_loss = 'deny'
+cast_sign_loss = 'deny'
+float_cmp = 'deny'
+
+# Infallible conversion traits and clock arithmetic must not hide failure paths.
+fallible_impl_from = 'deny'
+unchecked_time_subtraction = 'deny'
+
+# Avoid hidden cloning and unnecessary conversion allocations.
+implicit_clone = 'deny'
+inefficient_to_string = 'deny'
 
 # Propagate errors and handle bounds explicitly.
 expect_used = 'deny'

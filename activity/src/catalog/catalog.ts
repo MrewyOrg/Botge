@@ -1,5 +1,7 @@
 /* Validates catalog snapshots and applies local filters without changing catalog order. */
 
+import type { DeepReadonly } from 'ts-essentials';
+
 import { isComposeToken } from '../composer/compose-layout.ts';
 import { isSevenTVEmoteId } from './seventv-id.ts';
 import { isRecord } from '../validation.ts';
@@ -13,7 +15,7 @@ import { isRecord } from '../validation.ts';
  *
  * @see {@link parseCatalog}
  */
-export type BrowserEmote = Readonly<{
+export type BrowserEmote = DeepReadonly<{
   name: string;
   source: string;
   image: string;

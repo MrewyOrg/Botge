@@ -6,14 +6,18 @@ deployment → merge. Merging does not deploy again.
 ## Validation
 
 [BotgeQL](botgeql.yml) runs on PRs to `dev` and is called by Build and Deploy for PRs to `main`. It
-checks formatting, documentation, commit conventions, Rust lints and coverage, TypeScript types,
-ESLint, unused code, Activity HTML/SCSS, tests, ShellCheck, and actionlint. Pushes alone do not run
-it; changes to an open PR and PR title edits do.
+checks formatting, documentation, commit conventions, Rust lints, Rustdoc, and coverage, TypeScript
+types, ESLint, unused code, Activity HTML/SCSS, tests, ShellCheck, and actionlint. Pushes alone do
+not run it; changes to an open PR and PR title edits do.
 
 Change detection compares the complete PR against its base. Formatting, documentation, and commit
 checks always run; other stages run when their inputs change. Editing BotgeQL exercises every stage.
 Required jobs remain present when optional stages are skipped. Failed change detection fails
 validation. Tests use temporary data, loopback fixtures, and mocks without deployment credentials.
+Rust coverage requires at least 90% lines, functions, regions, and branches per source file. The
+combined TypeScript suite requires 90% statements, branches, functions, and lines per runtime source
+file, including repository tooling, the Activity, and its Worker. Declaration-only files are
+excluded.
 
 Development, CI, and Docker share the dated Rust channel in `rust-toolchain.toml`. Development uses
 the default profile, LLVM tools, and standard-library sources. CI selects the minimal profile plus

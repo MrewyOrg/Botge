@@ -1,8 +1,19 @@
 //! Exercises Discord identity, guild permissions, and channel filtering with local REST routes.
 
+#![allow(
+  clippy::missing_errors_doc,
+  clippy::missing_panics_doc,
+  reason = "Test failures are expressed through returned fixture errors and assertion panics"
+)]
+#![allow(
+  clippy::let_underscore_must_use,
+  reason = "Fixture receivers may close during teardown, and tracing initialization is shared"
+)]
+
 use axum::{
   Json, Router,
   http::StatusCode,
+  response::IntoResponse as _,
   routing::{get, post},
 };
 use serde_json::{Value, json};
@@ -10,13 +21,145 @@ use serde_json::{Value, json};
 use super::*;
 use crate::tests::{TestServer, http_for, user};
 
+#[tokio::test]
+async fn distinguishes_client_rejection_and_sanitizes_transport_and_decode_failures()
+-> anyhow::Result<()> {
+  let server = TestServer::start(
+    Router::new()
+      .route(
+        "/api/v10/oauth2/token",
+        post(|body: String| async move {
+          if body.ends_with("code=bad-client") {
+            (
+              StatusCode::BAD_REQUEST,
+              Json(json!({"error":"invalid_client"})),
+            )
+          } else if body.ends_with("code=bad-json") {
+            (StatusCode::OK, Json(json!({})))
+          } else {
+            (
+              StatusCode::OK,
+              Json(json!({"access_token":"good","expires_in":3600})),
+            )
+          }
+        }),
+      )
+      .route(
+        "/api/v10/users/@me",
+        get(|headers: axum::http::HeaderMap| async move {
+          match headers
+            .get("authorization")
+            .and_then(|value| value.to_str().ok())
+          {
+            Some("Bearer bad-id") => (StatusCode::OK, Json(json!({"id":"invalid"}))),
+            Some("Bearer bad-json") => (StatusCode::OK, Json(json!({}))),
+            Some("Bearer unavailable") => (StatusCode::SERVICE_UNAVAILABLE, Json(json!({}))),
+            _ => (StatusCode::OK, Json(user("2"))),
+          }
+        }),
+      )
+      .route(
+        "/api/v10/guilds/1",
+        get(|| async {
+          (
+            StatusCode::SERVICE_UNAVAILABLE,
+            Json(json!({"code":0,"message":"unavailable"})),
+          )
+        }),
+      )
+      .route(
+        "/api/v10/guilds/1/members/2",
+        get(|| async {
+          Json(json!({"user":user("2"),"roles":[],"deaf":false,"mute":false,"flags":0}))
+        }),
+      ),
+  )
+  .await?;
+  let access = DiscordAccess::new(
+    NonZeroU64::MIN,
+    "fixture".into(),
+    UserId::new(42),
+    Arc::new(http_for(&server)),
+  )?;
+  let token = GuildAccess::exchange_code(&access, "good")
+    .await
+    .map_err(|_error| anyhow::anyhow!("token exchange failed"))?;
+  assert_eq!(token.access_token, "good");
+  for code in ["bad-client", "bad-json"] {
+    let error = access
+      .exchange_code(code)
+      .await
+      .err()
+      .ok_or_else(|| anyhow::anyhow!("bad OAuth response accepted"))?;
+    assert_eq!(error.into_response().status(), StatusCode::BAD_GATEWAY);
+  }
+  for token in ["bad-id", "bad-json", "unavailable", "invalid\nheader"] {
+    assert!(
+      access
+        .identify(&Credential::AccessToken(token.into()))
+        .await
+        .is_err()
+    );
+  }
+  let credential = Credential::AccessToken("good".into());
+  assert!(
+    access
+      .membership(NonZeroU64::MIN, &credential)
+      .await
+      .is_err()
+  );
+  assert!(
+    access
+      .voice_channels(NonZeroU64::MIN, &credential)
+      .await
+      .is_err()
+  );
+  drop(server);
+  let error = access
+    .identify(&credential)
+    .await
+    .err()
+    .ok_or_else(|| anyhow::anyhow!("closed transport accepted"))?;
+  assert_eq!(error.into_response().status(), StatusCode::BAD_GATEWAY);
+  Ok(())
+}
+
+#[tokio::test]
+async fn waits_for_ready_after_the_gateway_reconnects() -> anyhow::Result<()> {
+  let directory = tempfile::tempdir()?;
+  let store = Arc::new(crate::storage::Store::open(
+    &directory.path().join("botge.redb"),
+  )?);
+  let commands = Commands::new(
+    Arc::new(crate::emotes::Emotes::new(
+      crate::config::Providers::default(),
+      store,
+      None,
+    )?),
+    None,
+  );
+  let (ready, receiver) = watch::channel(true);
+  let events = Events {
+    commands,
+    register_commands: false,
+    registration: tokio::sync::OnceCell::new(),
+    ready,
+    voice_changed: Arc::new(Notify::new()),
+  };
+  events.set_gateway_stage(serenity::gateway::ConnectionStage::Disconnected);
+  assert!(!*receiver.borrow());
+  events.set_gateway_stage(serenity::gateway::ConnectionStage::Connected);
+  assert!(!*receiver.borrow());
+  Ok(())
+}
+
 /// Redirects OAuth fixtures to a loopback port while preserving the fixed API paths.
 pub(super) fn redirect_oauth(
   mut request: reqwest::Request,
   origin: Option<&str>,
 ) -> Result<reqwest::Request, ApiError> {
   if let Some(origin) = origin {
-    let origin = reqwest::Url::parse(origin).map_err(|_| ApiError::UNAUTHORIZED)?;
+    let origin = reqwest::Url::parse(origin).map_err(|_error| ApiError::UNAUTHORIZED)?;
     if origin.scheme() != "http" || origin.host_str() != Some("127.0.0.1") {
       return Err(ApiError::UNAUTHORIZED);
     }
@@ -26,7 +169,7 @@ pub(super) fn redirect_oauth(
       .map_err(|()| ApiError::UNAUTHORIZED)?;
     url
       .set_host(Some("127.0.0.1"))
-      .map_err(|_| ApiError::UNAUTHORIZED)?;
+      .map_err(|_error| ApiError::UNAUTHORIZED)?;
     url
       .set_port(origin.port())
       .map_err(|()| ApiError::UNAUTHORIZED)?;
@@ -46,13 +189,13 @@ fn oauth_fixtures_preserve_paths_and_reject_non_loopback_destinations() -> anyho
     assert!(redirect_oauth(client.post(endpoint).build()?, Some(origin)).is_err());
   }
   let original = redirect_oauth(client.post(endpoint).build()?, None)
-    .map_err(|_| anyhow::anyhow!("original request rejected"))?;
+    .map_err(|_error| anyhow::anyhow!("original request rejected"))?;
   assert_eq!(original.url().as_str(), endpoint);
   let redirected = redirect_oauth(
     client.post(endpoint).build()?,
     Some("http://127.0.0.1:1234/ignored"),
   )
-  .map_err(|_| anyhow::anyhow!("loopback request rejected"))?;
+  .map_err(|_error| anyhow::anyhow!("loopback request rejected"))?;
   assert_eq!(
     redirected.url().as_str(),
     "http://127.0.0.1:1234/api/v10/oauth2/token"
@@ -76,6 +219,10 @@ fn guild() -> Value {
 }
 
 #[tokio::test]
+#[expect(
+  clippy::too_many_lines,
+  reason = "Keep the sequential fixture setup, actions, and assertions in one scenario"
+)]
 async fn reuses_one_code_exchange_and_rechecks_identity_and_permissions() -> anyhow::Result<()> {
   use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
   let exchanges = Arc::new(AtomicUsize::new(0));
@@ -158,14 +305,14 @@ async fn reuses_one_code_exchange_and_rechecks_identity_and_permissions() -> any
   let token = access
     .exchange_code("one-use")
     .await
-    .map_err(|_| anyhow::anyhow!("exchange failed"))?;
+    .map_err(|_error| anyhow::anyhow!("exchange failed"))?;
   let credential = Credential::AccessToken(token.access_token);
   for _ in 0..3 {
     assert!(
       access
         .membership(NonZeroU64::MIN, &credential)
         .await
-        .map_err(|_| anyhow::anyhow!("membership failed"))?
+        .map_err(|_error| anyhow::anyhow!("membership failed"))?
         .administrator
     );
   }
@@ -174,7 +321,7 @@ async fn reuses_one_code_exchange_and_rechecks_identity_and_permissions() -> any
     !access
       .membership(NonZeroU64::MIN, &credential)
       .await
-      .map_err(|_| anyhow::anyhow!("membership failed"))?
+      .map_err(|_error| anyhow::anyhow!("membership failed"))?
       .administrator
   );
   revoked.store(true, Ordering::Relaxed);
@@ -183,7 +330,6 @@ async fn reuses_one_code_exchange_and_rechecks_identity_and_permissions() -> any
     .await
     .err()
     .ok_or_else(|| anyhow::anyhow!("revoked token accepted"))?;
-  use axum::response::IntoResponse as _;
   assert_eq!(error.into_response().status(), StatusCode::UNAUTHORIZED);
   assert_eq!(exchanges.load(Ordering::Relaxed), 1);
   assert_eq!(identities.load(Ordering::Relaxed), 5);
@@ -194,6 +340,9 @@ async fn reuses_one_code_exchange_and_rechecks_identity_and_permissions() -> any
 /// The `owner` code resolves to the guild owner. Other valid codes resolve to a regular member.
 pub(crate) fn fixture_routes() -> Router {
   Router::new()
+    .route("/api/v10/applications/42/commands", get(||async { Json(Vec::<Value>::new()) }).post(|Json(body):Json<Value>|async move {
+      Json(json!({"id":"7","application_id":"42","type":1,"name":body.get("name"),"description":"Fixture","version":"1"}))
+    }))
     .route(
       "/api/v10/oauth2/token",
       post(|body: String| async move {
@@ -279,7 +428,7 @@ async fn authenticates_members_and_filters_the_channels_that_the_bot_can_join() 
   let owner = access
     .membership(NonZeroU64::MIN, &Credential::Code("owner".into()))
     .await
-    .map_err(|_| anyhow::anyhow!("owner lookup failed"))?;
+    .map_err(|_error| anyhow::anyhow!("owner lookup failed"))?;
   assert!(owner.administrator);
   assert_eq!(
     owner.available_roles.first().map(|role| role.name.as_str()),
@@ -288,17 +437,17 @@ async fn authenticates_members_and_filters_the_channels_that_the_bot_can_join() 
   let identity = access
     .user_id(&Credential::Code("owner".into()))
     .await
-    .map_err(|_| anyhow::anyhow!("identity lookup failed"))?;
+    .map_err(|_error| anyhow::anyhow!("identity lookup failed"))?;
   assert_eq!(identity.get(), 2);
   let member = access
     .membership(NonZeroU64::MIN, &Credential::Code("member".into()))
     .await
-    .map_err(|_| anyhow::anyhow!("member lookup failed"))?;
+    .map_err(|_error| anyhow::anyhow!("member lookup failed"))?;
   assert!(!member.administrator);
   let channels = access
     .voice_channels(NonZeroU64::MIN, &Credential::Code("owner".into()))
     .await
-    .map_err(|_| anyhow::anyhow!("channel lookup failed"))?;
+    .map_err(|_error| anyhow::anyhow!("channel lookup failed"))?;
   assert_eq!(
     channels
       .iter()
@@ -318,7 +467,6 @@ async fn authenticates_members_and_filters_the_channels_that_the_bot_can_join() 
       .await
       .is_err()
   );
-  use axum::response::IntoResponse as _;
   for (code, expected) in [
     ("invalid", StatusCode::UNAUTHORIZED),
     ("misconfigured", StatusCode::BAD_GATEWAY),

@@ -25,9 +25,14 @@ pub(crate) struct ProxyAuthenticator(VerifyingKey);
 
 impl ProxyAuthenticator {
   /// Decodes the configured Ed25519 public key from exactly 32 hex-encoded bytes.
+  ///
+  /// # Errors
+  ///
+  /// Returns an error unless the configured value decodes to exactly 32 bytes and forms
+  /// a valid Ed25519 verification key.
   pub(crate) fn new(public_key: &str) -> anyhow::Result<Self> {
     let bytes = <[u8; 32]>::try_from(hex::decode(public_key)?)
-      .map_err(|_| anyhow::anyhow!("Discord proxy public key must be 32 bytes"))?;
+      .map_err(|_error| anyhow::anyhow!("Discord proxy public key must be 32 bytes"))?;
     Ok(Self(VerifyingKey::from_bytes(&bytes)?))
   }
 

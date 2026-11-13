@@ -38,7 +38,6 @@
     "MS-SarifVSCode.sarif-viewer",
 
     // Appearance
-    "aaron-bond.better-comments",
     "vscode-icons-team.vscode-icons"
   ],
   "unwantedRecommendations": ["christian-kohler.npm-intellisense"]

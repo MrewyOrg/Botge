@@ -24,7 +24,10 @@ enum ConnectionChange {
 }
 
 /// Chooses whether to apply a join, leave an existing call, or leave the guild idle.
-fn connection_change(current: Option<NonZeroU64>, desired: Option<NonZeroU64>) -> ConnectionChange {
+const fn connection_change(
+  current: Option<NonZeroU64>,
+  desired: Option<NonZeroU64>,
+) -> ConnectionChange {
   if let Some(channel) = desired {
     // Reapply the join even for the selected channel so the driver can recover.
     ConnectionChange::Join(channel)
@@ -55,7 +58,7 @@ pub(crate) async fn reconcile(
   periodic.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
   loop {
     tokio::select! {
-        _ = changed.notified() => (),
+        () = changed.notified() => (),
         _ = periodic.tick() => (),
     }
     let store = Arc::clone(&store);
@@ -79,7 +82,7 @@ pub(crate) async fn reconcile(
       match result {
         Ok(Ok(())) => (),
         Ok(Err(error)) => {
-          tracing::warn!(%guild, "could not apply voice settings: {error:#}")
+          tracing::warn!(%guild, "could not apply voice settings: {error:#}");
         }
         Err(_) => tracing::warn!(%guild, "timed out applying voice settings"),
       }
@@ -92,6 +95,11 @@ pub(crate) async fn reconcile(
 /// A cleared selection removes the existing voice connection. When joining, status is
 /// applied after Discord confirms gateway membership, while media setup can finish or
 /// retry separately. Media failures are logged without undoing the join.
+///
+/// # Errors
+///
+/// Returns gateway join, mute, leave, or status-update errors. Gateway changes may already be
+/// applied. Media-driver failures are logged and retried later without undoing membership.
 async fn apply(
   songbird: &Songbird,
   http: &Http,
@@ -135,18 +143,38 @@ async fn apply(
   apply_status(http, guild, channel, settings.status(), known_statuses).await?;
 
   // Preserve the gateway membership and status if the media transport needs another retry.
-  match tokio::time::timeout(Duration::from_secs(8), driver).await {
-    Ok(Ok(())) => (),
-    Ok(Err(error)) => tracing::warn!(%guild, %error, "voice media connection failed"),
-    Err(_) => tracing::warn!(%guild, "voice media connection timed out"),
+  if let Err(error) = wait_for_media(driver).await {
+    tracing::warn!(%guild, %error, "voice media connection failed");
   }
   Ok(())
+}
+
+/// Waits for media transport independently of the already confirmed gateway membership.
+///
+/// # Errors
+///
+/// Returns the transport failure, or an error if connection takes longer than eight seconds.
+async fn wait_for_media<E>(
+  driver: impl std::future::Future<Output = Result<(), E>>,
+) -> anyhow::Result<()>
+where
+  E: std::error::Error + Send + Sync + 'static,
+{
+  tokio::time::timeout(Duration::from_secs(8), driver)
+    .await
+    .context("voice media connection timed out")?
+    .map_err(anyhow::Error::new)
 }
 
 /// Sends changed status text and records it only after Discord accepts the request.
 ///
 /// The cache key includes the guild and channel. `None` clears the local record and skips
 /// the HTTP call, so a later enabled preference can be sent again.
+///
+/// # Errors
+///
+/// Returns an error if Discord rejects the status update or it exceeds eight seconds.
+/// The cache is updated only after a successful response.
 async fn apply_status(
   http: &Http,
   guild: NonZeroU64,

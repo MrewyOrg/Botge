@@ -11,9 +11,10 @@ const viteUserConfig: Readonly<ViteUserConfig> = defineConfig({
     coverage: {
       provider: 'v8',
       include: ['src/**/*.ts', 'worker/**/*.ts'],
+      exclude: ['**/*.d.ts'],
       reporter: ['text-summary', 'html', 'json', 'json-summary'],
       reportsDirectory: '../coverage/activity',
-      thresholds: { perFile: true, statements: 80, branches: 80, functions: 80, lines: 80 }
+      thresholds: { perFile: true, statements: 90, branches: 90, functions: 90, lines: 90 }
     }
   }
 });

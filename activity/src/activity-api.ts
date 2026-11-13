@@ -1,34 +1,43 @@
 /* Serializes authenticated API requests and owns the lifetime of one in-memory OAuth session. */
 
+import type { DeepReadonly, ValueOf } from 'ts-essentials';
+
+import type { EmoteSettings } from './settings/emote-settings.ts';
+import type { VoiceSettings } from './settings/voice-settings.ts';
 import { isRecord } from './validation.ts';
 
+/** Route-specific JSON bodies. Read routes take no operation fields. */
+type ActivityFields = {
+  'catalog': undefined;
+  'emotes': { readonly emoteId: string };
+  'emotes/remove': { readonly emoteId: string };
+  'emotes/batch': { readonly action: 'add' | 'remove'; readonly emoteIds: readonly string[] };
+  'settings': undefined;
+  'settings/voice': { readonly voice: VoiceSettings };
+  'settings/emotes': { readonly emotes: EmoteSettings };
+  'settings/emotes/read': undefined;
+  'settings/border': { readonly color: string };
+  'settings/border/read': undefined;
+};
+
 /** Supported Botge API routes, relative to the Activity proxy mapping. */
-export type ActivityPath =
-  | 'catalog'
-  | 'emotes'
-  | 'emotes/remove'
-  | 'emotes/batch'
-  | 'settings'
-  | 'settings/voice'
-  | 'settings/emotes'
-  | 'settings/emotes/read'
-  | 'settings/border'
-  | 'settings/border/read';
+type ActivityPath = keyof ActivityFields;
+
+/** Keeps each route correlated with its required body, including forwarded calls. */
+export type ActivityOperation = ValueOf<{
+  [Path in ActivityPath]: ActivityFields[Path] extends undefined ?
+    readonly [path: Path, guildId: string, fields?: never]
+  : readonly [path: Path, guildId: string, fields: DeepReadonly<ActivityFields[Path]>];
+}>;
 
 /**
- * Performs one operation with a guild context and the session's current bearer token.
+ * Performs one guild operation with the current bearer token.
  *
- * @param path - Botge route relative to the API mapping.
- * @param guildId - Discord guild ID; the server independently verifies caller access.
- * @param fields - Operation-specific JSON fields, excluding the guild ID.
- * @returns Decoded JSON, including application error payloads for the caller to validate.
+ * @param operation - Route, guild ID, and the route's required JSON fields.
+ * @returns Untrusted JSON, including application errors; callers validate the result.
  * @throws `Error` if authentication, transport, or JSON decoding fails.
  */
-type ActivityRequest = (
-  path: ActivityPath,
-  guildId: string,
-  fields?: Readonly<Record<string, unknown>>
-) => Promise<unknown>;
+type ActivityRequest = (...operation: ActivityOperation) => Promise<unknown>;
 
 /**
  * Bounds a Discord SDK operation to 15 seconds.
@@ -43,14 +52,12 @@ type ActivityRequest = (
  * @throws `Error` when the deadline expires; command rejections propagate unchanged.
  */
 export async function waitForDiscord<T>(operation: () => Promise<T>): Promise<T> {
-  let timer: ReturnType<typeof setTimeout> | undefined;
-  const timeout = new Promise<never>((_resolve, reject) => {
-    timer = setTimeout(() => {
-      reject(new Error('Discord did not respond. Try again or reopen the Activity.'));
-    }, 15_000);
-  });
+  const timeout = Promise.withResolvers<never>();
+  const timer = setTimeout(() => {
+    timeout.reject(new Error('Discord did not respond. Try again or reopen the Activity.'));
+  }, 15_000);
   try {
-    return await Promise.race([operation(), timeout]);
+    return await Promise.race([operation(), timeout.promise]);
   } finally {
     clearTimeout(timer);
   }
@@ -68,16 +75,14 @@ export async function waitForDiscord<T>(operation: () => Promise<T>): Promise<T>
  * @returns A request function sharing one token and queue across the instance's guild contexts.
  * @see {@link waitForDiscord}
  */
-export function createActivityApi(
-  commands: Readonly<{
-    authorize: () => Promise<Readonly<{ code: string }>>;
-    authenticate: (token: string) => Promise<unknown>;
-  }>
-): ActivityRequest {
+export function createActivityApi(commands: {
+  readonly authorize: () => Promise<{ readonly code: string }>;
+  readonly authenticate: (token: string) => Promise<unknown>;
+}): ActivityRequest {
   let requestQueue = Promise.resolve();
-  let accessToken: Readonly<{ value: string; expiresAt: number }> | undefined;
+  let accessToken: { readonly value: string; readonly expiresAt: number } | undefined;
 
-  return async (path, guildId, fields) => {
+  return async (...[path, guildId, fields]) => {
     const request = requestQueue.then(async () => {
       const authorize = async (): Promise<string> => {
         const { code } = await waitForDiscord(commands.authorize);
@@ -112,7 +117,7 @@ export function createActivityApi(
         };
         return token;
       };
-      const send = async (): Promise<Readonly<{ payload: unknown; expired: boolean }>> => {
+      const send = async (): Promise<{ readonly payload: unknown; readonly expired: boolean }> => {
         const token =
           accessToken !== undefined && accessToken.expiresAt > Date.now() ?
             accessToken.value

@@ -25,6 +25,11 @@ pub(crate) fn router(ready: watch::Receiver<bool>) -> Router {
 }
 
 /// Checks readiness without loading credentials or opening the database.
+///
+/// # Errors
+///
+/// Returns an error if the HTTP client cannot be initialized, the request fails or exceeds
+/// the two-second deadline, or the endpoint returns an HTTP error status.
 pub(crate) async fn check(url: &str) -> anyhow::Result<()> {
   reqwest::Client::builder()
     .timeout(Duration::from_secs(2))

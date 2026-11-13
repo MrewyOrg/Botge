@@ -36,12 +36,16 @@ unrelated suites for documentation-only edits.
   `cargo clippy --locked --all-targets -- -D warnings`; `cargo test --locked`
 - **Rust public/internal contracts or Rustdoc:**
   `cargo doc --locked --no-deps --document-private-items`
-- **Rust behavior or tests where coverage matters:** `sh scripts/check-rust-coverage.sh`; read
-  `tests/README.md` for tools, thresholds, and FFmpeg prerequisites
-- **Activity/browser/Worker TypeScript or shared JS tooling:** `npm run check` (shared static checks
-  and both Vitest projects)
-- **Activity runtime behavior or tests:** `npm run test:coverage -w activity` when assessing
-  coverage
+- **Rust behavior or tests:** `sh scripts/check-rust-coverage.sh` runs tests and enforces the
+  per-file coverage gate; do not repeat plain `cargo test` when this already covers the change. Read
+  `tests/README.md` for tools, thresholds, and FFmpeg prerequisites.
+- **Activity/browser/Worker TypeScript or shared JS tooling:** `npm run check:static` and
+  `npm run test:coverage` cover shared static checks, both Vitest projects, and the per-file
+  coverage gate. Use `npm run check` when coverage is outside the change scope.
+- **Activity-only coverage:** `npm run test:coverage -w activity` writes `coverage/activity/`; the
+  root command also covers repository tooling and writes `coverage/typescript/`.
+- **TypeScript contracts or utility types:** Include `npm run typecheck`, normally through the
+  shared static checks. Vitest execution alone does not validate `expectTypeOf` assertions.
 - **Activity HTML, styles, or build configuration:** `npm run check:markup -w activity`; inspect
   `activity/README.md` for additional style checks
 - **Control scripts or shared tooling tests:** `npm test -- --run --project Tooling`;
@@ -55,9 +59,22 @@ unrelated suites for documentation-only edits.
 - **Docker/Compose/deployment configuration:** Read `botge_control/README.md`, `docs/PRODUCTION.md`,
   and relevant tooling tests; use static validation and fixtures
 
-Check the current scripts before choosing a filtered test invocation. A full `npm run check` already
-includes the Tooling and Activity tests; do not repeat them without a coverage requirement, new
-change, or unresolved failure.
+Check the current scripts before choosing a filtered test invocation. Both `npm run check` and
+`npm run test:coverage` already run the Tooling and Activity tests; do not repeat those tests
+without a new change, a distinct coverage configuration to verify, or an unresolved failure. Run
+Activity builds and tests sequentially: Worker entry tests mock the generated HTML module, which a
+concurrent build can replace.
+
+Coverage must meet the repository's configured per-file gates, currently 90% for Rust lines,
+functions, regions, and branches and TypeScript statements, branches, functions, and lines. Inspect
+individual files and missing paths, not only aggregate percentages. Add behavior tests or fix source
+contracts where appropriate; do not lower thresholds or exclude executable code to obtain a pass.
+TypeScript declaration-only `.d.ts` files have no runtime coverage.
+
+For modernization, follow `AGENTS.md`: verify features against the pinned Rust nightly and the
+configured TypeScript compiler, Node, bundler, and browser targets. Build output alone does not
+prove runtime API support. Check immutable snapshot and route-payload contracts with type checks
+alongside observable behavior tests; document new runtime requirements or experimental gates.
 
 Provider and Discord behavior should use loopback fixtures; storage changes should use temporary
 databases. Render tests need FFmpeg 9 or later with libwebp and FFprobe. Report missing

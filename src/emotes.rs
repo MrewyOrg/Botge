@@ -16,18 +16,25 @@ use providers::ProviderClient;
 /// The upstream provider used for media allowlisting and catalog labels.
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub(crate) enum Source {
+  /// 7TV set feeds and individual additions.
+  #[doc(alias = "7TV")]
   #[serde(rename = "7TV")]
   SevenTv,
+  /// BTTV global and channel feeds.
+  #[doc(alias = "BTTV")]
   #[serde(rename = "BTTV")]
   BetterTtv,
+  /// FFZ global and channel feeds.
+  #[doc(alias = "FrankerFaceZ")]
   #[serde(rename = "FFZ")]
   Ffz,
+  /// Twitch global emotes, enabled only with operator credentials.
   Twitch,
 }
 
 impl Source {
   /// Returns the provider hostname and the path prefix used by the image cache.
-  fn cdn(self) -> (&'static str, &'static str) {
+  const fn cdn(self) -> (&'static str, &'static str) {
     match self {
       Self::SevenTv => ("cdn.7tv.app", "7tv"),
       Self::BetterTtv => ("cdn.betterttv.net", "bttv"),
@@ -62,7 +69,18 @@ pub(crate) struct Emote {
 
 impl Emote {
   /// Chooses the nearest published scale, preferring the smaller scale on a tie.
-  /// Older persisted entries without variants retain their original image.
+  ///
+  /// Older persisted entries without variants retain [`Self::image`].
+  ///
+  /// # Examples
+  ///
+  /// With published scales 1, 2, and 4:
+  ///
+  /// | Requested scale | Selected scale |
+  /// | --- | --- |
+  /// | 1 | 1 |
+  /// | 3 | 2 |
+  /// | 4 | 4 |
   pub(crate) fn image_at(&self, scale: u16) -> &str {
     self
       .sizes
@@ -235,6 +253,10 @@ pub(crate) struct Emotes {
 
 impl Emotes {
   /// Sets up provider access with the operator's fixed policy and shared persistence.
+  ///
+  /// # Errors
+  ///
+  /// Returns an error if the bounded provider HTTP client cannot be initialized.
   pub(crate) fn new(
     policy: Providers,
     store: Arc<Store>,
@@ -251,11 +273,21 @@ impl Emotes {
   ///
   /// With no guild, uses only enabled global feeds. Storage failures are returned to the
   /// caller, while provider outages can leave individual feeds stale or empty.
+  ///
+  /// # Errors
+  ///
+  /// Returns an error if guild settings or additions cannot be read, including failure of the
+  /// blocking database task. Provider outages use stale or empty snapshots instead.
   pub(crate) async fn catalog(&self, guild: Option<NonZeroU64>) -> Result<Vec<Emote>> {
     self.catalog_with_timeout(guild, None).await
   }
 
   /// Limits the interaction's wait without cancelling a shared provider refresh.
+  ///
+  /// # Errors
+  ///
+  /// Returns the same storage and task errors as [`Self::catalog`]. Feed timeouts contribute
+  /// cached or empty results without cancelling the shared refresh.
   pub(crate) async fn catalog_for_autocomplete(
     &self,
     guild: Option<NonZeroU64>,
@@ -266,6 +298,10 @@ impl Emotes {
   }
 
   /// Loads guild state on the blocking pool and forwards the wait limit to each feed.
+  ///
+  /// # Errors
+  ///
+  /// Returns an error if the blocking database task fails or saved guild state cannot be decoded.
   async fn catalog_with_timeout(
     &self,
     guild: Option<NonZeroU64>,
@@ -290,17 +326,26 @@ impl Emotes {
   }
 
   /// Reports the operator's switch for individually added 7TV emotes.
-  pub(crate) fn added_emotes_enabled(&self) -> bool {
+  pub(crate) const fn added_emotes_enabled(&self) -> bool {
     self.policy.seven_added
   }
 
   /// Reads a user's render preference off the async executor.
+  ///
+  /// # Errors
+  ///
+  /// Returns an error if the blocking task fails or the saved border cannot be read.
   pub(crate) async fn border_for_user(&self, user: NonZeroU64) -> Result<Option<u32>> {
     let store = Arc::clone(&self.store);
     tokio::task::spawn_blocking(move || store.emote_border(user)).await?
   }
 
   /// Fetches one validated 7TV ID when individual emotes are enabled.
+  ///
+  /// # Errors
+  ///
+  /// Returns an error for provider transport, HTTP, body-limit, or decoding failures.
+  /// Disabled additions, invalid IDs, and unavailable emotes produce `Ok(None)`.
   pub(crate) async fn fetch_added(&self, id: &str) -> Result<Option<Emote>> {
     if !self.added_emotes_enabled() || !valid_seven_id(id) {
       return Ok(None);

@@ -76,3 +76,37 @@ test.each([
   });
   expect(settings.querySelector('fieldset')?.disabled).toBe(true);
 });
+
+test('ignores duplicate loads and premature saves, then keeps failed saves editable', async () => {
+  const pending = Promise.withResolvers<unknown>();
+  const request = vi
+    .fn<() => Promise<unknown>>()
+    .mockReturnValueOnce(pending.promise)
+    .mockRejectedValueOnce('unavailable');
+  mountEmoteBorderSettings(request);
+  const settings = panel();
+  const form = requireValue(settings.querySelector('form'), 'Missing border form.');
+  form.dispatchEvent(new Event('submit', { cancelable: true }));
+  expect(request).not.toHaveBeenCalled();
+  settings.dispatchEvent(new Event('toggle'));
+  settings.open = true;
+  settings.dispatchEvent(new Event('toggle'));
+  settings.dispatchEvent(new Event('toggle'));
+  expect(request).toHaveBeenCalledOnce();
+  pending.resolve({ color: '' });
+  await vi.waitFor(() => {
+    expect(settings.getAttribute('aria-busy')).toBeNull();
+  });
+  form.dispatchEvent(new Event('submit', { cancelable: true }));
+  await vi.waitFor(() => {
+    expect(settings.querySelector('[role="status"]')?.textContent).toBe(
+      'Could not load emote border.'
+    );
+  });
+  expect(settings.querySelector('fieldset')?.disabled).toBe(false);
+  settings.open = false;
+  settings.dispatchEvent(new Event('toggle'));
+  settings.open = true;
+  settings.dispatchEvent(new Event('toggle'));
+  expect(request).toHaveBeenCalledTimes(2);
+});

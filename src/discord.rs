@@ -33,6 +33,10 @@ pub(crate) struct DiscordAccess {
 
 impl DiscordAccess {
   /// Creates the OAuth client and shares the bot HTTP client for guild queries.
+  ///
+  /// # Errors
+  ///
+  /// Returns an error if the shared Discord HTTP client cannot be initialized.
   pub(crate) fn new(
     application_id: NonZeroU64,
     secret: String,
@@ -109,6 +113,11 @@ impl DiscordAccess {
   }
 
   /// Resolves identity for every request, including token reuse, so revoked tokens are rejected.
+  ///
+  /// # Errors
+  ///
+  /// Returns an authorization error for a revoked token or invalid identity; code-exchange,
+  /// transport, HTTP, and response-decoding failures are mapped to client-safe API errors.
   async fn identify(&self, credential: &Credential) -> Result<UserId, ApiError> {
     #[derive(Deserialize)]
     struct Identity {
@@ -140,6 +149,11 @@ impl DiscordAccess {
   }
 
   /// Sends a request built from a fixed Discord endpoint, using loopback fixtures in tests.
+  ///
+  /// # Errors
+  ///
+  /// Returns a sanitized upstream error if the HTTP client cannot be initialized or the
+  /// request fails. Response statuses are interpreted by the caller.
   async fn send_oauth(&self, request: reqwest::Request) -> Result<reqwest::Response, ApiError> {
     #[cfg(test)]
     let request = tests::redirect_oauth(request, self.http.proxy.as_deref())?;
@@ -153,16 +167,19 @@ impl DiscordAccess {
 
 /// Shares one bounded, non-redirecting Discord transport independently of request state.
 /// Concurrent initialization retains one client and propagates configuration errors.
+///
+/// # Errors
+///
+/// Returns the HTTP-client construction error; a failed initialization does not publish a
+/// partial client and a later call can retry.
 fn discord_client() -> Result<&'static reqwest::Client, reqwest::Error> {
   static CLIENT: OnceLock<reqwest::Client> = OnceLock::new();
-  if let Some(client) = CLIENT.get() {
-    return Ok(client);
-  }
-  let client = reqwest::Client::builder()
-    .timeout(Duration::from_secs(10))
-    .redirect(reqwest::redirect::Policy::none())
-    .build()?;
-  Ok(CLIENT.get_or_init(|| client))
+  CLIENT.get_or_try_init(|| {
+    reqwest::Client::builder()
+      .timeout(Duration::from_secs(10))
+      .redirect(reqwest::redirect::Policy::none())
+      .build()
+  })
 }
 
 /// Keeps OAuth transport and decoding errors out of logs because they may contain credentials.
@@ -176,11 +193,20 @@ impl GuildAccess for DiscordAccess {
   }
 
   /// Resolves the OAuth caller without requesting guild details.
+  ///
+  /// # Errors
+  ///
+  /// Returns credential, Discord transport, or identity-decoding errors from [`Self::identify`].
   async fn user_id(&self, credential: &Credential) -> Result<NonZeroU64, ApiError> {
     NonZeroU64::new(self.identify(credential).await?.get()).ok_or(ApiError::UNAUTHORIZED)
   }
 
   /// Fetches the caller's membership and returns role choices only to administrators.
+  ///
+  /// # Errors
+  ///
+  /// Returns credential errors or failures reading the current guild and member. Missing
+  /// or inaccessible Discord records become membership-denial errors.
   async fn membership(
     &self,
     guild: NonZeroU64,
@@ -219,6 +245,11 @@ impl GuildAccess for DiscordAccess {
   }
 
   /// Lists voice channels where Botge has both View Channel and Connect permissions.
+  ///
+  /// # Errors
+  ///
+  /// Returns an error for invalid credentials, insufficient administrator access, or failed
+  /// Discord guild, member, or channel lookups.
   async fn voice_channels(
     &self,
     guild: NonZeroU64,
@@ -282,6 +313,15 @@ pub(crate) struct Events {
   pub(crate) voice_changed: Arc<Notify>,
 }
 
+impl Events {
+  /// Invalidates readiness during reconnects; only Ready or Resumed may restore it.
+  fn set_gateway_stage(&self, stage: serenity::gateway::ConnectionStage) {
+    if stage != serenity::gateway::ConnectionStage::Connected {
+      self.ready.send_replace(false);
+    }
+  }
+}
+
 #[async_trait]
 impl EventHandler for Events {
   /// Signals readiness and attempts global registration if the operator enabled it.
@@ -333,9 +373,7 @@ impl EventHandler for Events {
     _context: Context,
     event: serenity::gateway::ShardStageUpdateEvent,
   ) {
-    if event.new != serenity::gateway::ConnectionStage::Connected {
-      self.ready.send_replace(false);
-    }
+    self.set_gateway_stage(event.new);
   }
 }
 

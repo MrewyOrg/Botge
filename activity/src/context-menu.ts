@@ -4,7 +4,7 @@ import { requireValue } from './validation.ts';
 
 type MenuTrigger = Readonly<Pick<HTMLButtonElement, 'focus' | 'getBoundingClientRect'>>;
 
-type MenuAction = Readonly<{ label: string; run: () => void }>;
+type MenuAction = { readonly label: string; readonly run: () => void };
 
 /**
  * Mounts the emote action menu and its keyboard and dismissal handlers.
@@ -16,7 +16,7 @@ type MenuAction = Readonly<{ label: string; run: () => void }>;
  * @returns A controller that replaces the menu's actions whenever it opens.
  * @throws `Error` if the required menu markup is missing.
  */
-export function createContextMenu(): Readonly<{
+export function createContextMenu(): {
   /**
    * Opens the action menu and focuses its first action.
    *
@@ -25,8 +25,13 @@ export function createContextMenu(): Readonly<{
    * @param y - Pointer coordinate in the viewport; keyboard anchoring uses the tile's bottom edge.
    * @param actions - Ordered labels and callbacks for the current emote.
    */
-  open: (trigger: MenuTrigger, x: number, y: number, actions: readonly MenuAction[]) => void;
-}> {
+  readonly open: (
+    trigger: MenuTrigger,
+    x: number,
+    y: number,
+    actions: readonly MenuAction[]
+  ) => void;
+} {
   const menu = requireValue(
     document.querySelector<HTMLElement>('#emote-context-menu'),
     'Missing emote context menu.'
@@ -39,7 +44,7 @@ export function createContextMenu(): Readonly<{
     menu.hidden = true;
   }
 
-  document.addEventListener('pointerdown', (event: Readonly<{ target: unknown }>) => {
+  document.addEventListener('pointerdown', (event: { readonly target: unknown }) => {
     if (event.target instanceof Node && !menu.contains(event.target)) close();
   });
   window.addEventListener('resize', () => {
@@ -62,7 +67,7 @@ export function createContextMenu(): Readonly<{
         return;
       }
 
-      const buttons = [...menu.querySelectorAll('button')];
+      const buttons: readonly HTMLButtonElement[] = [...menu.querySelectorAll('button')];
       const active = document.activeElement;
       const index = active instanceof HTMLButtonElement ? buttons.indexOf(active) : -1;
       switch (event.key) {
@@ -88,7 +93,7 @@ export function createContextMenu(): Readonly<{
   return {
     open(trigger, x, y, actions): void {
       owner = trigger;
-      const buttons = actions.map(({ label, run }) => {
+      const buttons: readonly HTMLButtonElement[] = actions.map(({ label, run }) => {
         const button = document.createElement('button');
         button.type = 'button';
         button.tabIndex = -1;

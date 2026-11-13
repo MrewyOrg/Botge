@@ -71,20 +71,17 @@ evidence, owner, expiry, and follow-up fix.
 
 ### Findings requiring triage
 
-The 2026-11-12 full-lockfile audit found 17 Rust vulnerability entries and five maintenance
-warnings. Affected versions included crypto-bigint 0.5.5, libcrux-aesgcm 0.0.7,
-libcrux-chacha20poly1305 0.0.7, libcrux-kem 0.0.7, libcrux-secrets 0.0.5, libcrux-sha3 0.0.8,
-ringbuf 0.4.8, rustls 0.22.4, and rustls-webpki 0.102.8. Dependency refreshes have not resolved
-these paths. Serenity brings the older TLS stack; Songbird brings ringbuf. Some cryptography entries
-are absent from the default host feature graph. Trace dependencies with
-`cargo tree -i PACKAGE@VERSION`, including `--target all` and production feature selections. A
-lockfile finding does not establish runtime reachability. `cargo audit --json` reports the current
-critical-only policy; it does not reproduce the historical full inventory.
+The 2026-11-12 full-lockfile audit recorded 17 Rust vulnerability entries and five maintenance
+warnings, including older TLS, voice-buffer, and cryptography dependencies. This is a dated
+inventory, not a current audit result. Trace affected packages with `cargo tree -i PACKAGE@VERSION`,
+including `--target all` and production feature selections. Lockfile findings alone do not prove
+runtime reachability. `cargo audit --json` applies the repository's critical-only policy.
 
-Discord Activity SDK 2.5.0 depends on Zod 3, affected by the high-severity
-[collection validation denial of service](https://github.com/advisories/GHSA-mrhx-c7xc-m3w5). No
-compatible fix is available. This remains informational under the critical-only policy; an untested
-Zod 4 override is not a fix. Lower-severity tooling findings also remain visible in npm audit.
+The pinned Discord Activity SDK 2.5.0 uses Zod 3, affected by the high-severity
+[collection validation denial of service](https://github.com/advisories/GHSA-mrhx-c7xc-m3w5). The
+advisory identifies Zod 4.6.6 as patched; overriding the SDK's dependency across a major version
+requires compatibility validation. This remains informational under the critical-only policy.
+Lower-severity tooling findings also remain visible in npm audit.
 
 ## Monitoring and repository controls
 

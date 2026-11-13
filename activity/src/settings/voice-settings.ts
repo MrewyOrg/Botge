@@ -1,15 +1,18 @@
 /* Edits saved guild voice preferences; saving confirms persistence, not a completed voice move. */
 
+import type { DeepReadonly } from 'ts-essentials';
+
 import { isRecord, requireValue } from '../validation.ts';
 
-type VoiceSettings = Readonly<{
-  channelId: string | null;
-  statusEnabled: boolean;
+/** Saved guild voice preferences; clearing a channel preserves the status text. */
+export type VoiceSettings = {
+  readonly channelId: string | null;
+  readonly statusEnabled: boolean;
   /** Retained when status updates are disabled or the saved channel is cleared. */
-  statusEmoji: string | null;
-}>;
+  readonly statusEmoji: string | null;
+};
 
-type VoiceChannel = Readonly<{ id: string; name: string }>;
+type VoiceChannel = { readonly id: string; readonly name: string };
 
 type SettingsRequest = (voice?: VoiceSettings) => Promise<unknown>;
 
@@ -22,7 +25,7 @@ type SettingsRequest = (voice?: VoiceSettings) => Promise<unknown>;
  */
 function parseSettings(
   response: unknown
-): Readonly<{ voice: VoiceSettings; channels: readonly VoiceChannel[] }> {
+): DeepReadonly<{ voice: VoiceSettings; channels: readonly VoiceChannel[] }> {
   if (!isRecord(response)) throw new Error('Invalid settings response.');
   if (typeof response['message'] === 'string') throw new Error(response['message']);
   const { voice, channels } = response;

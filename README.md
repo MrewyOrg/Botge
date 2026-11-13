@@ -1,7 +1,8 @@
 # <img src="assets/botge-icon.png" alt="Botge logo" width="48" height="48"> Botge
 
 [![Build and deploy](https://github.com/MrewyOrg/Botge/actions/workflows/build-and-deploy.yml/badge.svg?event=pull_request)](https://github.com/MrewyOrg/Botge/actions/workflows/build-and-deploy.yml?query=event%3Apull_request)
-[![Coverage threshold: 80% per file](https://img.shields.io/badge/coverage_threshold-80%25_per_file-blue)](.github/workflows/botgeql.yml)
+[![Rust coverage threshold: 90% per file](https://img.shields.io/badge/Rust_coverage_threshold-90%25_per_file-blue)](.github/workflows/botgeql.yml)
+[![TypeScript coverage threshold: 90% per file](https://img.shields.io/badge/TypeScript_coverage_threshold-90%25_per_file-blue)](.github/workflows/botgeql.yml)
 [![CodeQL](https://github.com/MrewyOrg/Botge/actions/workflows/codeql.yml/badge.svg?branch=main&event=push)](https://github.com/MrewyOrg/Botge/actions/workflows/codeql.yml?query=branch%3Amain+event%3Apush)
 [![License](https://img.shields.io/github/license/MrewyOrg/Botge)](LICENSE.txt)
 

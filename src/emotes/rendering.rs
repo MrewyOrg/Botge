@@ -1,14 +1,21 @@
 // cspell:words ANMF apng bgra hstack isnan nostdin rsplit setsar settb
 
-//! Downloads bounded image inputs and renders attachments with FFmpeg.
+//! Downloads bounded image inputs and renders attachments with `FFmpeg`.
 //!
 //! [`Layer`] identifies a validated remote image and its place in a composition. The
-//! renderer stages inputs in a temporary directory, probes them, and invokes FFmpeg with
+//! renderer stages inputs in a temporary directory, probes them, and invokes `FFmpeg` with
 //! local-only protocols. [`original`] bypasses conversion when the caller needs the source
 //! bytes, and [`compose`] handles resizing, borders, and multiple layers.
+//!
+//! [`mod@layout`] owns fitting and filter graphs, [`probe`] validates local media, and [`webp`]
+//! reads animation metadata and normalizes frame timing.
+
+mod layout;
+mod probe;
+mod webp;
 
 use std::{
-  ops::Range,
+  fmt::Write as _,
   path::{Path, PathBuf},
   process::Stdio,
   time::Duration,
@@ -22,10 +29,14 @@ use tokio::{fs, process::Command};
 
 use super::{Emote, Source, cdn_url, providers::bounded_bytes};
 
+use layout::layout;
+use probe::inspect;
+use webp::{WebpAnimation, normalize_webp_timing, webp_animation};
+
 const MAX_INPUTS: usize = 32;
 const MAX_ASSET: usize = 2 * 1024 * 1024;
 const MAX_ATTACHMENT: usize = 20 * 1024 * 1024;
-const MAX_CANVAS_WIDTH: u32 = 2048;
+
 // Bound simultaneous decoder canvases and the source animation's decoded pixel work.
 const MAX_SOURCE_PIXELS: u64 = 16 * 1024 * 1024;
 const MAX_FRAME_PIXELS: u64 = 256 * 1024 * 1024;
@@ -145,6 +156,11 @@ fn image_type(bytes: &[u8]) -> Option<&'static str> {
 }
 
 /// Downloads a layer within the input byte budget and identifies its image format.
+///
+/// # Errors
+///
+/// Returns an error if the provider request fails, exceeds the input byte limit, or lacks a
+/// supported image signature. No image decoding occurs here.
 async fn fetch(
   http: &Client,
   layer: &Layer,
@@ -222,7 +238,7 @@ pub(crate) async fn compose(
         total <= 20 * 1024 * 1024,
         "composition inputs exceed 20 MiB"
       );
-      let file = temp.path().join(format!("{}.{}", assets.len(), ext));
+      let file = temp.path().join(format!("{}.{ext}", assets.len()));
       let webp_animation = if ext == "webp" {
         webp_animation(&bytes)
       } else {
@@ -249,52 +265,15 @@ pub(crate) async fn compose(
 }
 
 /// First video stream dimensions and its number of image packets.
+///
+/// [`inspect`] rejects zero dimensions and bounds decoded pixel counts before construction
+/// reaches layout planning.
 #[derive(Deserialize)]
 struct Dimensions {
   width: u32,
   height: u32,
   #[serde(skip)]
   frames: usize,
-}
-
-impl Dimensions {
-  /// Fits within the height and width bounds while preserving aspect ratio.
-  fn fit(&self, height: u32, max_width: u32) -> (u32, u32) {
-    let source_width = u64::from(self.width);
-    let source_height = u64::from(self.height);
-    let width = (source_width * u64::from(height) + source_height / 2) / source_height;
-    if width > u64::from(max_width) {
-      (
-        max_width,
-        ((source_height * u64::from(max_width) + source_width / 2) / source_width).max(1) as u32,
-      )
-    } else {
-      (width.max(1) as u32, height)
-    }
-  }
-}
-
-/// The optional timestamp and duration reported for one input packet.
-#[derive(Deserialize)]
-struct Packet {
-  pts_time: Option<String>,
-  duration_time: Option<String>,
-}
-
-impl Packet {
-  /// Converts usable packet timing into the playback time at the packet's end.
-  fn end(&self) -> Option<Duration> {
-    let pts = self.pts_time.as_deref()?.parse::<f64>().ok()?;
-    let duration = self.duration_time.as_deref()?.parse::<f64>().ok()?;
-    Duration::try_from_secs_f64(pts + duration).ok()
-  }
-}
-
-/// The fields requested from FFprobe to validate an input and determine its duration.
-#[derive(Deserialize)]
-struct Probe {
-  streams: Vec<Dimensions>,
-  packets: Vec<Packet>,
 }
 
 /// Probed media staged for one render. The composition owns the temporary directory.
@@ -307,334 +286,16 @@ struct Asset {
   webp_animation: Option<WebpAnimation>,
 }
 
-/// Validates dimensions and reads playback timing from a local image.
-///
-/// Uses the first video stream. Zero or one packet is treated as static. For multiple packets,
-/// the duration is the latest usable packet end rounded up to a millisecond. FFprobe has a
-/// separate five-second deadline for each input and is terminated if that deadline expires.
-async fn inspect(path: &Path) -> Result<(Dimensions, Option<u64>)> {
-  let mut command = Command::new("ffprobe");
-  command.kill_on_drop(true).stdin(Stdio::null());
-  let result = tokio::time::timeout(
-    Duration::from_secs(5),
-    command
-      .args([
-        "-v",
-        "error",
-        "-protocol_whitelist",
-        "file,pipe",
-        "-format_whitelist",
-        IMAGE_FORMATS,
-        "-max_pixels",
-        "4194304",
-        "-threads",
-        "1",
-        "-select_streams",
-        "v:0",
-        "-show_entries",
-        "stream=width,height:packet=pts_time,duration_time",
-        "-of",
-        "json",
-      ])
-      .arg(path)
-      .output(),
-  )
-  .await
-  .context("FFprobe exceeded its 5-second time budget")??;
-  anyhow::ensure!(
-    result.status.success(),
-    "FFprobe could not read the emote: {}",
-    String::from_utf8_lossy(&result.stderr)
-  );
-  let probe: Probe = serde_json::from_slice(&result.stdout)?;
-  let mut dimensions = probe
-    .streams
-    .into_iter()
-    .next()
-    .context("missing emote dimensions")?;
-  anyhow::ensure!(
-    dimensions.width > 0
-      && dimensions.height > 0
-      && dimensions.width.saturating_mul(dimensions.height) <= 4_194_304,
-    "emote dimensions exceed the pixel limit"
-  );
-  dimensions.frames = probe.packets.len().max(1);
-  let duration_ms = if probe.packets.len() > 1 {
-    let duration = probe
-      .packets
-      .iter()
-      .filter_map(Packet::end)
-      .max()
-      .filter(|duration| !duration.is_zero())
-      .context("missing emote frame timing")?;
-    Some(u64::try_from(duration.as_micros().div_ceil(1000))?)
-  } else {
-    None
-  };
-  Ok((dimensions, duration_ms))
-}
-
-/// The loop count and frame duration read directly from an animated WebP container.
-struct WebpAnimation {
-  /// A loop count of zero means repeat indefinitely.
-  loops: u16,
-  duration_ms: u64,
-}
-
-/// Walks RIFF chunk headers and returns the bounds of each payload without copying it.
-fn webp_chunks(bytes: &[u8]) -> impl Iterator<Item = (&[u8], Range<usize>)> {
-  let mut start = 12usize;
-  std::iter::from_fn(move || {
-    let header_end = start.checked_add(8)?;
-    let header = bytes.get(start..header_end)?;
-    let tag = header.get(..4)?;
-    let length = u32::from_le_bytes(header.get(4..8)?.try_into().ok()?) as usize;
-    let end = header_end.checked_add(length)?;
-    bytes.get(header_end..end)?;
-    start = end.checked_add(length % 2)?;
-    Some((tag, header_end..end))
-  })
-}
-
-/// Decodes the 24-bit little-endian delay field of a WebP animation frame.
-fn frame_delay(bytes: &[u8]) -> Option<u32> {
-  let [a, b, c] = bytes.get(..3)?.try_into().ok()?;
-  Some(u32::from_le_bytes([a, b, c, 0]))
-}
-
-/// Reads the container's loop count and sums its per-frame delays.
-///
-/// A zero-delay frame contributes 100 ms. These values supplement FFprobe for animated WebP,
-/// where the renderer needs the source's loop count and playback duration.
-fn webp_animation(bytes: &[u8]) -> Option<WebpAnimation> {
-  let mut loops = None;
-  let mut duration_ms = 0;
-  for (tag, data) in webp_chunks(bytes) {
-    if tag == b"ANIM" {
-      loops = Some(u16::from_le_bytes(
-        bytes.get(data.start + 4..data.end)?.try_into().ok()?,
-      ));
-    } else if tag == b"ANMF" {
-      let delay = frame_delay(bytes.get(data.start + 12..data.end)?)?;
-      duration_ms += u64::from(if delay == 0 { 100 } else { delay });
-    }
-  }
-  Some(WebpAnimation {
-    loops: loops?,
-    duration_ms,
-  })
-}
-
-/// Moves frame boundaries to avoid Chromium treating delays of 10 ms or less as 100 ms.
-///
-/// Intermediate boundaries stay as close to the encoded ones as the minimum frame delay
-/// permits. The final boundary is fixed at `duration_ms` to preserve the total playback time.
-///
-/// A `false` result means the caller must discard or overwrite the buffer. An error late in
-/// the rewrite can leave earlier frame delays changed.
-fn normalize_webp_timing(bytes: &mut [u8], duration_ms: u64) -> bool {
-  let mut frames = Vec::new();
-  for (tag, data) in webp_chunks(bytes) {
-    if tag == b"ANMF" {
-      let start = data.start + 12;
-      let Some(delay) = bytes.get(start..data.end).and_then(frame_delay) else {
-        return false;
-      };
-      frames.push((start, delay));
-    }
-  }
-  let count = frames.len() as u64;
-  if duration_ms < count * MIN_WEBP_FRAME_MS {
-    return false;
-  }
-  let mut encoded_end = 0;
-  let mut output_start = 0;
-  for (index, (offset, delay)) in frames.into_iter().enumerate() {
-    encoded_end += u64::from(delay);
-    let remaining = count - index as u64 - 1;
-    let output_end = if remaining == 0 {
-      duration_ms
-    } else {
-      encoded_end.clamp(
-        output_start + MIN_WEBP_FRAME_MS,
-        duration_ms - remaining * MIN_WEBP_FRAME_MS,
-      )
-    };
-    let adjusted = output_end - output_start;
-    if adjusted > 0x00ff_ffff {
-      return false;
-    }
-    let Some(target) = bytes.get_mut(offset..offset + 3) else {
-      return false;
-    };
-    let [a, b, c, ..] = adjusted.to_le_bytes();
-    target.copy_from_slice(&[a, b, c]);
-    output_start = output_end;
-  }
-  true
-}
-
-/// Adds a horizontal stack or forwards a single input under the requested output label.
-fn stack(filters: &mut Vec<String>, labels: &[String], output: &str) {
-  let inputs = labels
-    .iter()
-    .map(|label| format!("[{label}]"))
-    .collect::<String>();
-  if labels.len() == 1 {
-    filters.push(format!("{inputs}null[{output}]"));
-  } else {
-    filters.push(format!("{inputs}hstack=inputs={}[{output}]", labels.len()));
-  }
-}
-
-/// Builds the FFmpeg filter graph for stacked columns and synchronized overlays.
-///
-/// For a single input the graph scales directly to the requested size. Multi-input renders
-/// group overlays into columns, then stack those columns into the final canvas. Each group is
-/// synchronized before overlaying so changes in an animated overlay advance a static base.
-fn layout(assets: &[Asset], options: &RenderOptions) -> String {
-  // Reserve border padding inside the final attachment's width budget.
-  let max_width = MAX_CANVAS_WIDTH - options.border.map_or(0, |_| 8);
-  if let [asset] = assets {
-    let (width, height) = options.size_pixels.map_or_else(
-      || asset.info.fit(asset.info.height, max_width),
-      |size| {
-        let size = u32::from(size.clamp(24, 256));
-        asset.info.fit(size, size)
-      },
-    );
-    return format!("[0:v]format=rgba,scale={width}:{height},setsar=1[canvas]");
-  }
-
-  // Each base starts a column. Leading overlays form a column of their own.
-  let groups: Vec<_> = assets.chunk_by(|_, next| next.overlay).collect();
-  let mut height = options.size_pixels.map_or_else(
-    || {
-      assets
-        .iter()
-        .map(|asset| asset.info.height)
-        .max()
-        .unwrap_or(1)
-    },
-    |size| u32::from(size.clamp(24, 256)),
-  );
-  // Both width planning and layer rendering must use the same fit calculation.
-  let layer_size = |asset: &Asset, height: u32| {
-    let target_height = if options.size_pixels.is_none() {
-      height.min(asset.info.height)
-    } else {
-      height
-    };
-    asset.info.fit(target_height, 3 * height)
-  };
-  let column_width = |group: &[Asset], height: u32| {
-    group
-      .iter()
-      .map(|asset| layer_size(asset, height).0)
-      .max()
-      .unwrap_or(1)
-  };
-  let gap = |height: u32| (height / 16).max(1);
-  let budget_width = |height| {
-    let widths: Vec<_> = groups
-      .iter()
-      .map(|group| u64::from(column_width(group, height)))
-      .collect();
-    let width =
-      widths.iter().sum::<u64>() + groups.len().saturating_sub(1) as u64 * u64::from(gap(height));
-    let staging_width: u64 = widths
-      .iter()
-      .zip(&groups)
-      .map(|(width, group)| width * group.len() as u64)
-      .sum();
-    width.max(staging_width.div_ceil(2))
-  };
-  if budget_width(height) > u64::from(max_width) {
-    // Native-size caps and integer rounding make width non-proportional to height.
-    // Search the monotone sizing function instead of applying a one-shot ratio.
-    let mut low = 1;
-    let mut high = height;
-    while low < high {
-      let middle = low + (high - low).div_ceil(2);
-      if budget_width(middle) <= u64::from(max_width) {
-        low = middle;
-      } else {
-        high = middle - 1;
-      }
-    }
-    height = low;
-  }
-
-  let mut filters = Vec::new();
-  let mut columns = Vec::new();
-  let mut index = 0;
-  for group in groups {
-    let width = column_width(group, height);
-    let mut labels = Vec::new();
-    for (position, asset) in group.iter().enumerate() {
-      let (w, h) = if options.stretch && position != 0 {
-        (width, height)
-      } else {
-        layer_size(asset, height)
-      };
-      let label = format!("layer{index}");
-      filters.push(format!(
-                "[{index}:v]format=rgba,scale={w}:{h},pad={width}:{height}:(ow-iw)/2:(oh-ih)/2:color=black@0,setsar=1[{label}]"
-            ));
-      labels.push(label);
-      index += 1;
-    }
-
-    let mut column = format!("column{index}");
-    if labels.len() == 1 {
-      stack(&mut filters, &labels, &column);
-    } else {
-      // Stack first so every layer advances on the union of the input timestamps.
-      // Overlay otherwise advances only when its main input supplies a frame.
-      let synced = format!("synced{index}");
-      stack(&mut filters, &labels, &synced);
-      let splits = (0..labels.len())
-        .map(|position| format!("[split{index}_{position}]"))
-        .collect::<String>();
-      filters.push(format!("[{synced}]split={}{splits}", labels.len()));
-      let mut previous = None;
-      for position in 0..labels.len() {
-        let slice = format!("slice{index}_{position}");
-        let x = width as usize * position;
-        filters.push(format!(
-          "[split{index}_{position}]crop={width}:{height}:{x}:0:exact=1[{slice}]"
-        ));
-        previous = if let Some(base) = previous {
-          let output = format!("overlay{index}_{position}");
-          filters.push(format!("[{base}][{slice}]overlay=format=rgb[{output}]"));
-          Some(output)
-        } else {
-          Some(slice)
-        };
-      }
-      if let Some(layer) = previous {
-        column = layer;
-      }
-    }
-    if index < assets.len() {
-      let spaced = format!("spaced{index}");
-      let width = width + gap(height);
-      filters.push(format!(
-        "[{column}]pad={width}:{height}:0:0:color=black@0[{spaced}]"
-      ));
-      column = spaced;
-    }
-    columns.push(column);
-  }
-  stack(&mut filters, &columns, "canvas");
-  filters.join(";")
-}
-
 /// Renders a PNG or WebP and fits animation timing within one rendering deadline.
 ///
 /// Uses WebP for an animated result or a single WebP input. If frame delays cannot fit the
 /// target playback duration, a second encode samples fewer boundaries. Both attempts share
 /// the same deadline, and the result is returned only after timing normalization succeeds.
+///
+/// # Errors
+///
+/// Returns an error for excessive decoded pixels or animation work, failed encoding, the
+/// shared 25-second deadline, or animation timing that cannot be preserved.
 async fn render(directory: &Path, assets: &[Asset], options: RenderOptions) -> Result<Image> {
   let mut source_pixels = 0u64;
   let mut frame_pixels = 0u64;
@@ -677,7 +338,7 @@ async fn render(directory: &Path, assets: &[Asset], options: RenderOptions) -> R
   Ok(Image { bytes, filename })
 }
 
-/// Runs FFmpeg with local-only protocols and enforces the attachment size limit.
+/// Runs `FFmpeg` with local-only protocols and enforces the attachment size limit.
 ///
 /// Filter labels form a pipeline: layout produces `canvas`, optional padding produces
 /// `decorated`, and frame sampling produces the mapped output `out`.
@@ -685,6 +346,15 @@ async fn render(directory: &Path, assets: &[Asset], options: RenderOptions) -> R
 /// `sample` supplies a playback duration for the retry filter, which drops frame boundaries
 /// that are too close together. Animated output uses a millisecond time base and preserves a
 /// single WebP's loop count when available. Multi-input animation loops indefinitely.
+///
+/// # Errors
+///
+/// Returns an error if `FFmpeg` cannot run or exits unsuccessfully, the output cannot be read,
+/// or the encoded attachment exceeds the byte budget. Its caller owns the overall deadline.
+#[expect(
+  clippy::too_many_lines,
+  reason = "Keep the ordered encoder setup and output validation together"
+)]
 async fn encode(
   output: &Path,
   assets: &[Asset],
@@ -733,18 +403,20 @@ async fn encode(
   }
   let mut filters = layout(assets, options);
   if let Some(color) = options.border {
-    filters.push_str(&format!(
+    write!(
+      filters,
       ";[canvas]format=rgba,pad=iw+8:ih+8:4:4:color=0x{color:06x}[decorated]"
-    ));
+    )?;
   } else {
     filters.push_str(";[canvas]null[decorated]");
   }
   if let Some(duration) = sample {
     // Dense bursts may contain more frames than fit at the browser's minimum delay.
     let last_start = duration.saturating_sub(MIN_WEBP_FRAME_MS);
-    filters.push_str(&format!(
-            ";[decorated]settb=1/1000,select='isnan(prev_selected_pts)+gte(pts-prev_selected_pts,{MIN_WEBP_FRAME_MS})*lte(pts,{last_start})'[out]"
-        ));
+    write!(
+      filters,
+      ";[decorated]settb=1/1000,select='isnan(prev_selected_pts)+gte(pts-prev_selected_pts,{MIN_WEBP_FRAME_MS})*lte(pts,{last_start})'[out]"
+    )?;
   } else {
     filters.push_str(";[decorated]null[out]");
   }
