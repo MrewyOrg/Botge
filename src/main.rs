@@ -6,7 +6,29 @@
 //! Maintenance flags return before credentials or storage are loaded. Normal startup creates
 //! shared services, then races the gateway, HTTP listeners, and shutdown signal; an exit from
 //! any branch stops the workers and Discord shards.
+//!
+//! # Module boundaries
+//!
+//! - [`commands`] adapts interactions and prefix messages to [`emotes`].
+//! - [`activity`] validates HTTP input; [`discord`] verifies identity and current permissions.
+//! - [`storage`] owns synchronous transactions; [`voice`] applies committed preferences.
+//! - [`proxy`] authenticates the Activity proxy independently of the OAuth caller.
+//!
+//! # Maintenance entry points
+//!
+//! These modes return before the normal gateway and worker lifecycle starts:
+//!
+//! ```sh
+//! botge --version
+//! botge --healthcheck
+//! botge --verify-database /path/to/offline-backup.redb
+//! ```
+//!
+//! Database verification reads the backup without loading Discord credentials or creating a file.
+//! The health check queries the local readiness listener and does not open storage.
 
+// The pinned nightly provides fallible OnceLock initialization without building duplicate clients.
+#![feature(once_cell_try)]
 // Songbird's async voice calls need a deeper Send trait check.
 #![recursion_limit = "256"]
 
@@ -73,7 +95,13 @@ impl Options {
   /// The bot token is required. Supplying Activity credentials also requires an application
   /// ID and enables the Activity listener, which defaults to the loopback address on port 3080.
   /// Command registration and the message prefix are enabled only by the literal value `true`.
-  fn read(get: impl Fn(&str) -> Option<String>) -> Result<Self> {
+  /// The lookup is borrowed so cold startup parsing shares one implementation across providers.
+  ///
+  /// # Errors
+  ///
+  /// Returns an error for a missing bot token, incomplete Activity credentials, a noncanonical
+  /// application ID, or invalid configured listener addresses or cache URL.
+  fn read(get: &dyn Fn(&str) -> Option<String>) -> Result<Self> {
     let token = get("DISCORD_TOKEN")
       .filter(|value| !value.trim().is_empty())
       .context("DISCORD_TOKEN is required")?;
@@ -129,32 +157,48 @@ impl Options {
 fn initialize_tls() {
   // Reqwest and voice dependencies enable different providers; feature inference is ambiguous.
   // An existing selection is preserved if initialization is called more than once.
+  #[expect(
+    clippy::let_underscore_must_use,
+    reason = "An already installed process-wide TLS provider is valid"
+  )]
   let _ = rustls::crypto::aws_lc_rs::default_provider().install_default();
 }
 
 /// Handles maintenance flags before loading credentials; otherwise starts the bot services.
+///
+/// # Errors
+///
+/// Returns maintenance-check, environment, initialization, or service errors. Maintenance
+/// commands finish before normal Discord credentials and storage are loaded.
+///
+/// # Panics
+///
+/// Panics if the Tokio runtime cannot be initialized, a tracing subscriber is already
+/// installed, or version output cannot be written to standard output.
 #[tokio::main]
 async fn main() -> Result<()> {
   initialize_tls();
-  if env::args().nth(1).as_deref() == Some("--verify-database") {
-    let path = env::args()
-      .nth(2)
-      .context("--verify-database requires an offline backup path")?;
-    return Store::verify_backup(Path::new(&path));
-  }
-  if env::args().nth(1).as_deref() == Some("--healthcheck") {
-    return health::check("http://127.0.0.1:3081/readyz").await;
-  }
-  if env::args().nth(1).as_deref() == Some("--version") {
-    println!("Botge {}", env!("CARGO_PKG_VERSION"));
-    return Ok(());
+  let mut arguments = env::args().skip(1);
+  match arguments.next().as_deref() {
+    Some("--verify-database") => {
+      let path = arguments
+        .next()
+        .context("--verify-database requires an offline backup path")?;
+      return Store::verify_backup(Path::new(&path));
+    }
+    Some("--healthcheck") => return health::check("http://127.0.0.1:3081/readyz").await,
+    Some("--version") => {
+      println!("Botge {}", env!("CARGO_PKG_VERSION"));
+      return Ok(());
+    }
+    _ => (),
   }
   tracing_subscriber::fmt()
     .with_env_filter(
       EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("botge=info")),
     )
     .init();
-  let options = Options::read(|key| env::var(key).ok())?;
+  let options = Options::read(&|key| env::var(key).ok())?;
   let http = Http::new(&options.token);
   run(
     options,
@@ -170,6 +214,11 @@ async fn main() -> Result<()> {
 /// Storage, configuration, and the optional listener are initialized before spawning workers.
 /// Once running, the gateway, Activity listener, and shutdown future race. The first to finish
 /// determines the result, and the worker tasks are stopped before the Discord shards shut down.
+///
+/// # Errors
+///
+/// Returns an error when initialization fails or the first terminating service or shutdown
+/// future fails. Changes already applied before that failure are not rolled back.
 async fn run(
   options: Options,
   http: Http,
@@ -232,12 +281,19 @@ async fn run(
       result = axum::serve(health_listener, health_router) => result.context("Health listener stopped"),
       result = shutdown => result.context("could not listen for shutdown"),
   };
-  voice_worker.abort();
-  if let Some(worker) = set_worker {
-    worker.abort();
-  }
+  abort_workers(&voice_worker, set_worker.as_ref());
   shards.shutdown_all().await;
   result
+}
+
+/// Requests cancellation before the Discord gateway is shut down.
+///
+/// Cancellation is immediate to request; the runtime drops each task at its next suspension.
+fn abort_workers(voice: &tokio::task::JoinHandle<()>, sets: Option<&tokio::task::JoinHandle<()>>) {
+  voice.abort();
+  if let Some(sets) = sets {
+    sets.abort();
+  }
 }
 
 /// Requests message content only when the operator enables prefix commands.
@@ -257,6 +313,11 @@ fn gateway_intents(prefix_compose: bool) -> GatewayIntents {
 ///
 /// An enabled listener needs a valid proxy key and the bot's Discord identity. Configuration,
 /// identity lookup, or bind failures abort startup rather than silently disabling the API.
+///
+/// # Errors
+///
+/// Returns an error for an invalid proxy key, unavailable bot identity, failed HTTP client
+/// initialization, or a listener bind failure. Disabled Activity configuration returns `Ok(None)`.
 async fn activity_server(
   options: Option<ActivityOptions>,
   http: &Arc<Http>,
@@ -283,6 +344,11 @@ async fn activity_server(
 }
 
 /// Keeps the Activity branch pending when disabled so it cannot end the bot's service loop.
+///
+/// # Errors
+///
+/// Returns an error if the bound address cannot be read or the HTTP listener fails.
+/// The disabled branch remains pending until its caller cancels it.
 async fn serve_activity(api: Option<(TcpListener, axum::Router)>) -> std::io::Result<()> {
   let Some((listener, router)) = api else {
     return std::future::pending().await;
@@ -292,6 +358,10 @@ async fn serve_activity(api: Option<(TcpListener, axum::Router)>) -> std::io::Re
 }
 
 /// Waits for Ctrl-C or, on Unix, the termination signal sent by container runtimes.
+///
+/// # Errors
+///
+/// Returns an error if platform signal handlers cannot be installed or Ctrl-C listening fails.
 async fn shutdown_signal() -> std::io::Result<()> {
   #[cfg(unix)]
   {

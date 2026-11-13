@@ -40,6 +40,10 @@ fn denied(member: Option<&Member>, app_permissions: Option<Permissions>) -> Opti
 }
 
 /// Opens a confirmation bound to the invoking user, channel, and interaction.
+///
+/// # Errors
+///
+/// Returns an error if the confirmation modal or permission-denial response cannot be sent.
 pub(super) async fn open(http: &Http, command: &CommandInteraction) -> Result<()> {
   let response = if command.guild_id.is_none()
     || !command.channel.as_ref().is_some_and(|channel| {
@@ -115,6 +119,11 @@ fn confirmed_before(modal: &ModalInteraction) -> Option<MessageId> {
 }
 
 /// Rechecks permissions at submission before deleting any messages.
+///
+/// # Errors
+///
+/// Returns Discord HTTP or deletion errors after validating the confirmation. Earlier
+/// deletions remain applied if a later request fails.
 pub(super) async fn confirm(http: &Http, modal: ModalInteraction) -> Result<()> {
   if !modal.data.custom_id.starts_with(PREFIX) {
     return Ok(());
@@ -147,6 +156,11 @@ pub(super) async fn confirm(http: &Http, modal: ModalInteraction) -> Result<()> 
 ///
 /// Counts only successful deletions. A concurrent deletion is harmless, but another
 /// Discord error ends the scan and earlier deletions remain applied.
+///
+/// # Errors
+///
+/// Returns an error if history cannot be read or a deletion fails for a reason other than an
+/// already-deleted message. Successfully deleted messages are not restored.
 async fn purge(http: &Http, channel: ChannelId, mut before: MessageId) -> Result<usize> {
   let mut count = 0;
   loop {

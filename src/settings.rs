@@ -5,6 +5,22 @@ use std::num::NonZeroU64;
 use serde::{Deserialize, Serialize};
 
 /// Saved voice selection and status preference for one guild.
+///
+/// [`Self::default`] disconnects the bot and disables status updates. A disabled status
+/// toggle retains its text; [`Self::status`] controls whether the worker should send it.
+/// Call [`Self::is_valid`] before persistence.
+///
+/// # Examples
+///
+/// A disconnected preference can retain text for later reuse:
+///
+/// ```json
+/// {
+///   "channelId": null,
+///   "statusEnabled": false,
+///   "statusEmoji": "🌴"
+/// }
+/// ```
 #[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub(crate) struct VoiceSettings {

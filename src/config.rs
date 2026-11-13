@@ -15,6 +15,10 @@ pub(crate) struct Config {
 }
 
 /// Operator opt-ins that apply even when a guild has saved provider selections.
+#[expect(
+  clippy::struct_excessive_bools,
+  reason = "Each provider opt-in is an independent configuration switch"
+)]
 #[derive(Clone, Copy, Default, Deserialize)]
 #[serde(default)]
 pub(crate) struct Providers {
@@ -34,7 +38,7 @@ pub(crate) struct Providers {
 
 impl Providers {
   /// The event stream tracks set changes. Individual additions are fetched by ID.
-  pub(crate) fn watches_seven_tv_sets(self) -> bool {
+  pub(crate) const fn watches_seven_tv_sets(self) -> bool {
     self.seven_global || self.seven_personal
   }
 }

@@ -6,6 +6,9 @@
 //! the default catalog image is nearest to scale 2, with a smaller-scale tie break.
 
 mod events;
+mod normalization;
+
+use normalization::parse_feed;
 
 use std::{
   collections::HashMap,
@@ -15,15 +18,17 @@ use std::{
 
 use anyhow::{Context as _, Result};
 use futures_util::future::join_all;
-use reqwest::{Client, StatusCode, Url};
+#[cfg(test)]
+use reqwest::Url;
+use reqwest::{Client, StatusCode};
 use serde::{Deserialize, de::DeserializeOwned};
 use tokio::sync::{Mutex, watch};
 
-use super::{Emote, GuildEmotes, Source, cdn_url, safe_id, valid_seven_id};
+use super::{Emote, GuildEmotes, valid_seven_id};
 use crate::config::Providers;
 
 const MAX_PAYLOAD: usize = 4 * 1024 * 1024;
-const REFRESH: Duration = Duration::from_secs(900);
+const REFRESH: Duration = Duration::from_mins(15);
 const MAX_REFRESHES: usize = 16;
 
 // Share each snapshot as a slice. Refreshes replace the whole snapshot.
@@ -64,6 +69,10 @@ pub(super) struct ProviderClient {
 
 impl ProviderClient {
   /// Configures bounded requests and disables redirects on the shared HTTP client.
+  ///
+  /// # Errors
+  ///
+  /// Returns an error if the shared bounded HTTP client cannot be constructed.
   pub(super) fn new(twitch: Option<(String, String)>) -> Result<Self> {
     Ok(Self {
       http: Client::builder()
@@ -80,7 +89,7 @@ impl ProviderClient {
   }
 
   /// Borrows the client so callers can reuse its connections and request policy.
-  pub(super) fn http(&self) -> &Client {
+  pub(super) const fn http(&self) -> &Client {
     &self.http
   }
 
@@ -90,6 +99,13 @@ impl ProviderClient {
   }
 
   /// In tests, maps a provider path to the fixture's origin.
+  #[cfg_attr(
+    not(test),
+    expect(
+      clippy::unused_self,
+      reason = "Test builds use the client-specific loopback origin"
+    )
+  )]
   fn endpoint(&self, url: &str) -> String {
     #[cfg(test)]
     if let Some(origin) = &self.test_origin
@@ -105,6 +121,11 @@ impl ProviderClient {
   ///
   /// A 404 or unusable record returns `Ok(None)`. Transport, HTTP, and decoding failures
   /// are reported to the caller. This lookup reads the provider directly.
+  ///
+  /// # Errors
+  ///
+  /// Returns transport, non-404 HTTP, body-limit, and JSON decoding errors. A missing,
+  /// ID-mismatched, or unusable record produces `Ok(None)`.
   pub(super) async fn added(&self, id: &str) -> Result<Option<Emote>> {
     let response = self
       .get(&format!("https://7tv.io/v3/emotes/{id}"))
@@ -113,8 +134,8 @@ impl ProviderClient {
     if response.status() == StatusCode::NOT_FOUND {
       return Ok(None);
     }
-    let data: SevenEmote = decode(response).await?;
-    Ok((data.id == id).then(|| data.into_emote(None)).flatten())
+    let bytes = bounded_bytes(response, MAX_PAYLOAD).await?;
+    normalization::parse_added(&bytes, id)
   }
 
   /// Combines enabled feeds in catalog order, with stale snapshots available on timeout.
@@ -207,13 +228,16 @@ impl ProviderClient {
         return Arc::clone(&entry.emotes);
       }
       if let Some(refresh) = refreshing.get(&url) {
+        drop(cache);
         refresh.clone()
       } else {
         if refreshing.len() >= MAX_REFRESHES {
           return entry.map_or_else(|| Arc::from([]), |entry| Arc::clone(&entry.emotes));
         }
+        drop(cache);
         let (sender, refresh) = watch::channel(None);
         refreshing.insert(url.clone(), refresh.clone());
+        drop(refreshing);
         let client = Arc::clone(self);
         // Autocomplete can time out without cancelling the shared refresh.
         tokio::spawn(async move {
@@ -274,9 +298,20 @@ impl ProviderClient {
   ///
   /// Twitch requests obtain an application access token before fetching the emotes. The set
   /// ID is extracted only for 7TV and lets the event worker subscribe to changes for the feed.
+  ///
+  /// # Errors
+  ///
+  /// Returns an error for missing Twitch credentials, failed token or feed requests,
+  /// oversized bodies, or malformed feed metadata.
   async fn fetch(&self, feed: Feed, url: &str) -> Result<(Vec<Emote>, Option<String>)> {
+    /// Minimal response used to associate a feed with its WebSocket subscription.
+    #[derive(Deserialize)]
+    struct SetId {
+      id: Option<String>,
+    }
+
     let request = self.get(url);
-    let response = if let Feed::Twitch = feed {
+    let response = if matches!(feed, Feed::Twitch) {
       let (id, secret) = self
         .twitch
         .as_ref()
@@ -303,11 +338,6 @@ impl ProviderClient {
       request.send().await?
     };
     let bytes = bounded_bytes(response, MAX_PAYLOAD).await?;
-    /// Minimal response used to associate a feed with its WebSocket subscription.
-    #[derive(Deserialize)]
-    struct SetId {
-      id: Option<String>,
-    }
     let id = if matches!(feed, Feed::SevenTv) {
       serde_json::from_slice::<SetId>(&bytes)?
         .id
@@ -319,75 +349,11 @@ impl ProviderClient {
   }
 }
 
-/// Normalizes the provider response and discards entries that cannot become usable emotes.
-fn parse_feed(feed: Feed, bytes: &[u8]) -> Result<Vec<Emote>> {
-  match feed {
-    Feed::SevenTv => {
-      let set: SevenSet = serde_json::from_slice(bytes)?;
-      Ok(
-        set
-          .emotes
-          .into_iter()
-          .filter_map(|entry| {
-            let flags = entry.flags;
-            entry.data?.into_emote(Some((entry.name, flags)))
-          })
-          .collect(),
-      )
-    }
-    Feed::BetterTtv => {
-      let list: Vec<BetterTtvEmote> = serde_json::from_slice(bytes)?;
-      Ok(
-        list
-          .into_iter()
-          .filter_map(BetterTtvEmote::into_emote)
-          .collect(),
-      )
-    }
-    Feed::BetterTtvChannel => {
-      let list: BetterTtvChannel = serde_json::from_slice(bytes)?;
-      Ok(
-        list
-          .channel_emotes
-          .into_iter()
-          .chain(list.shared_emotes)
-          .filter_map(BetterTtvEmote::into_emote)
-          .collect(),
-      )
-    }
-    Feed::Ffz => {
-      let FfzSets {
-        room,
-        default_sets,
-        mut sets,
-      } = serde_json::from_slice(bytes)?;
-      let set_ids = room.map_or_else(
-        || default_sets.unwrap_or_else(|| vec![3]),
-        |room| vec![room.set],
-      );
-      Ok(
-        set_ids
-          .into_iter()
-          .filter_map(|id| sets.remove(&id.to_string()))
-          .flat_map(|set| set.emoticons)
-          .filter_map(FfzEmote::into_emote)
-          .collect(),
-      )
-    }
-    Feed::Twitch => {
-      let response: TwitchSet = serde_json::from_slice(bytes)?;
-      Ok(
-        response
-          .data
-          .into_iter()
-          .filter_map(TwitchEmote::into_emote)
-          .collect(),
-      )
-    }
-  }
-}
-
 /// Deserializes JSON after reading the response within the provider byte limit.
+///
+/// # Errors
+///
+/// Returns HTTP, response-size, body-read, or deserialization errors from the bounded response.
 async fn decode<T: DeserializeOwned>(response: reqwest::Response) -> Result<T> {
   Ok(serde_json::from_slice(
     &bounded_bytes(response, MAX_PAYLOAD).await?,
@@ -422,276 +388,10 @@ pub(super) async fn bounded_bytes(
   Ok(output)
 }
 
-/// The emote entries returned for one 7TV set.
-#[derive(Deserialize)]
-struct SevenSet {
-  #[serde(default)]
-  emotes: Vec<SevenEntry>,
-}
-/// A set entry with its own name and flags. An unavailable emote can omit `data`.
-#[derive(Deserialize)]
-struct SevenEntry {
-  name: String,
-  flags: u32,
-  data: Option<SevenEmote>,
-}
-/// A 7TV emote record before availability and media validation.
-#[derive(Deserialize)]
-struct SevenEmote {
-  id: String,
-  name: String,
-  flags: u32,
-  listed: Option<bool>,
-  #[serde(default)]
-  tags: Vec<String>,
-  animated: bool,
-  host: SevenHost,
-}
-/// Lists the media variants actually published for a 7TV emote.
-#[derive(Deserialize)]
-struct SevenHost {
-  files: Vec<SevenFile>,
-}
-/// A published variant name, such as `2x.webp`.
-#[derive(Deserialize)]
-struct SevenFile {
-  name: String,
-}
-
-impl SevenEmote {
-  /// Uses the set-specific name and flags when present, including overlay behavior.
-  fn into_emote(self, entry: Option<(String, u32)>) -> Option<Emote> {
-    if !valid_seven_id(&self.id) || self.flags & (1 | 65_536) != 0 || self.listed == Some(false) {
-      return None;
-    }
-    let added = entry.is_none();
-    let (name, overlaying) = entry.map_or((self.name, self.flags & 256 != 0), |(name, flags)| {
-      (name, flags & 1 != 0)
-    });
-    if !valid_name(&name) {
-      return None;
-    }
-    let mut sizes = std::collections::BTreeMap::new();
-    for scale in 1u16..=4 {
-      let extensions: &[&str] = if self.animated {
-        &["webp", "gif"]
-      } else {
-        &["png", "webp"]
-      };
-      if let Some(file) = extensions
-        .iter()
-        .map(|ext| format!("{scale}x.{ext}"))
-        .find(|name| self.host.files.iter().any(|file| file.name == *name))
-      {
-        sizes.insert(
-          scale,
-          format!("https://cdn.7tv.app/emote/{}/{file}", self.id),
-        );
-      }
-    }
-    let image = sizes
-      .iter()
-      .min_by_key(|(scale, _)| (scale.abs_diff(2), **scale))?
-      .1
-      .clone();
-    Some(Emote {
-      id: self.id,
-      name,
-      source: Source::SevenTv,
-      image,
-      sizes,
-      animated: self.animated,
-      overlaying,
-      tags: self.tags.into_iter().take(32).collect(),
-      added,
-    })
-  }
-}
-
-/// BTTV's channel-owned and shared emotes, kept separate in the provider response.
-#[derive(Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct BetterTtvChannel {
-  channel_emotes: Vec<BetterTtvEmote>,
-  shared_emotes: Vec<BetterTtvEmote>,
-}
-/// The BTTV fields used to construct a CDN image URL.
-#[derive(Deserialize)]
-struct BetterTtvEmote {
-  id: String,
-  code: String,
-  animated: bool,
-}
-
-impl BetterTtvEmote {
-  /// Builds the three published BTTV scales with a 2× catalog default.
-  fn into_emote(self) -> Option<Emote> {
-    if !safe_id(&self.id) || !valid_name(&self.code) {
-      return None;
-    }
-    let ext = if self.animated { "gif" } else { "png" };
-    let image = format!("https://cdn.betterttv.net/emote/{}/2x.{ext}", self.id);
-    let sizes = (1..=3)
-      .map(|scale| {
-        (
-          scale,
-          format!("https://cdn.betterttv.net/emote/{}/{scale}x.{ext}", self.id),
-        )
-      })
-      .collect();
-    Some(Emote {
-      id: self.id,
-      name: self.code,
-      source: Source::BetterTtv,
-      image,
-      sizes,
-      animated: self.animated,
-      overlaying: false,
-      tags: Vec::new(),
-      added: false,
-    })
-  }
-}
-
-/// FFZ sets and the metadata selecting the channel or global set IDs.
-#[derive(Deserialize)]
-struct FfzSets {
-  sets: HashMap<String, FfzSet>,
-  room: Option<FfzRoom>,
-  default_sets: Option<Vec<u64>>,
-}
-/// Selects the FFZ set attached to a channel.
-#[derive(Deserialize)]
-struct FfzRoom {
-  set: u64,
-}
-/// The emote records belonging to one FFZ set.
-#[derive(Deserialize)]
-struct FfzSet {
-  emoticons: Vec<FfzEmote>,
-}
-/// An FFZ emote with CDN URLs keyed by image scale.
-#[derive(Deserialize)]
-struct FfzEmote {
-  id: u64,
-  name: String,
-  urls: HashMap<String, String>,
-}
-
-impl FfzEmote {
-  /// Chooses an available image scale and validates the resolved CDN URL.
-  fn into_emote(self) -> Option<Emote> {
-    if !valid_name(&self.name) {
-      return None;
-    }
-    let sizes: std::collections::BTreeMap<u16, String> = self
-      .urls
-      .into_iter()
-      .filter_map(|(scale, url)| {
-        let scale = scale
-          .parse::<u16>()
-          .ok()
-          .filter(|scale| [1, 2, 4].contains(scale))?;
-        let url = Url::parse("https://cdn.frankerfacez.com")
-          .ok()?
-          .join(&url)
-          .ok()?;
-        Some((scale, cdn_url(url.as_str(), Source::Ffz)?.to_string()))
-      })
-      .collect();
-    let image = sizes
-      .iter()
-      .min_by_key(|(scale, _)| (scale.abs_diff(2), **scale))?
-      .1
-      .clone();
-    Some(Emote {
-      id: self.id.to_string(),
-      name: self.name,
-      source: Source::Ffz,
-      image,
-      sizes,
-      animated: false,
-      overlaying: false,
-      tags: Vec::new(),
-      added: false,
-    })
-  }
-}
-
 /// The application access token returned by Twitch's client credentials exchange.
 #[derive(Deserialize)]
 struct TwitchToken {
   access_token: String,
-}
-/// Twitch's global emote response envelope.
-#[derive(Deserialize)]
-struct TwitchSet {
-  data: Vec<TwitchEmote>,
-}
-/// A Twitch emote and the image formats offered for it.
-#[derive(Deserialize)]
-struct TwitchEmote {
-  id: String,
-  name: String,
-  format: Vec<String>,
-  #[serde(default = "twitch_scales")]
-  scale: Vec<String>,
-}
-
-/// Supplies the standard scales when a Twitch response omits its advertised scale list.
-fn twitch_scales() -> Vec<String> {
-  vec!["1.0".into(), "2.0".into(), "3.0".into()]
-}
-
-impl TwitchEmote {
-  /// Keeps advertised dark-theme scales, preferring animated media and a scale-2 default.
-  fn into_emote(self) -> Option<Emote> {
-    if !safe_id(&self.id) || !valid_name(&self.name) {
-      return None;
-    }
-    let animated = self.format.iter().any(|format| format == "animated");
-    let format = if animated { "animated" } else { "static" };
-    let sizes: std::collections::BTreeMap<u16, String> = self
-      .scale
-      .iter()
-      .filter_map(|scale| {
-        let number = match scale.as_str() {
-          "1.0" => 1,
-          "2.0" => 2,
-          "3.0" => 3,
-          _ => return None,
-        };
-        Some((
-          number,
-          format!(
-            "https://static-cdn.jtvnw.net/emoticons/v2/{}/{format}/dark/{scale}",
-            self.id
-          ),
-        ))
-      })
-      .collect();
-    let image = sizes
-      .iter()
-      .min_by_key(|(scale, _)| (scale.abs_diff(2), **scale))?
-      .1
-      .clone();
-    Some(Emote {
-      id: self.id,
-      name: self.name,
-      source: Source::Twitch,
-      image,
-      sizes,
-      animated,
-      overlaying: false,
-      tags: Vec::new(),
-      added: false,
-    })
-  }
-}
-
-/// Rejects blank, oversized, or control-character names before catalog insertion.
-fn valid_name(name: &str) -> bool {
-  !name.trim().is_empty() && name.chars().count() <= 80 && !name.chars().any(char::is_control)
 }
 
 #[cfg(test)]

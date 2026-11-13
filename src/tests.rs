@@ -1,4 +1,16 @@
+// cspell:words nocapture
+
 //! Shared loopback fixtures and tests that exercise the bot's service lifecycle.
+
+#![allow(
+  clippy::missing_errors_doc,
+  clippy::missing_panics_doc,
+  reason = "Test failures are expressed through returned fixture errors and assertion panics"
+)]
+#![allow(
+  clippy::let_underscore_must_use,
+  reason = "Fixture receivers may close during teardown, and tracing initialization is shared"
+)]
 
 use std::{collections::HashMap, time::Duration};
 
@@ -8,6 +20,7 @@ use axum::{
   routing::{get, patch, post, put},
 };
 use base64::{Engine as _, engine::general_purpose::STANDARD};
+use ed25519_dalek::Signer as _;
 use futures_util::{SinkExt as _, StreamExt as _};
 use reqwest::Url;
 use serde_json::{Value, json};
@@ -15,6 +28,174 @@ use tokio::{net::TcpListener, sync::mpsc, task::JoinHandle};
 use tokio_tungstenite::{accept_async, tungstenite::Message};
 
 use super::*;
+
+/// Captures logs from one fixture subscriber without changing the process-wide subscriber.
+#[derive(Clone, Default)]
+pub(crate) struct TestLogs(Arc<std::sync::Mutex<Vec<u8>>>);
+
+impl TestLogs {
+  /// Returns an owned subscriber that can move into a spawned task independently of this handle.
+  pub(crate) fn subscriber(&self) -> impl tracing::Subscriber + Send + Sync + use<> {
+    let writer = self.clone();
+    tracing_subscriber::fmt()
+      .without_time()
+      .with_ansi(false)
+      .with_max_level(tracing::Level::TRACE)
+      .with_writer(move || writer.clone())
+      .finish()
+  }
+  /// Returns complete UTF-8 output accumulated by this fixture.
+  pub(crate) fn text(&self) -> Result<String> {
+    let bytes = self
+      .0
+      .lock()
+      .map_err(|_error| anyhow::anyhow!("fixture log lock poisoned"))?
+      .clone();
+    Ok(String::from_utf8(bytes)?)
+  }
+}
+
+impl std::io::Write for TestLogs {
+  fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
+    self
+      .0
+      .lock()
+      .map_err(|_error| std::io::Error::other("fixture log lock poisoned"))?
+      .extend_from_slice(bytes);
+    Ok(bytes.len())
+  }
+  fn flush(&mut self) -> std::io::Result<()> {
+    Ok(())
+  }
+}
+
+#[tokio::test]
+async fn rejects_activity_startup_when_identity_or_listener_is_unavailable() -> Result<()> {
+  let directory = tempfile::tempdir()?;
+  let store = Arc::new(Store::open(&directory.path().join("botge.redb"))?);
+  let emotes = Arc::new(emotes::Emotes::new(
+    config::Providers::default(),
+    Arc::clone(&store),
+    None,
+  )?);
+  let valid = TestServer::start(discord::tests::fixture_routes()).await?;
+  let rejected = TestServer::start(Router::new().route(
+    "/api/v10/users/@me",
+    get(|| async {
+      (
+        StatusCode::SERVICE_UNAVAILABLE,
+        Json(json!({"code":0,"message":"unavailable"})),
+      )
+    }),
+  ))
+  .await?;
+  let occupied = TcpListener::bind("127.0.0.1:0").await?;
+  let key = ed25519_dalek::SigningKey::from_bytes(&[19; 32]);
+  for (server, address_error) in [(&valid, true), (&rejected, false)] {
+    let options = ActivityOptions {
+      secret: "fixture".into(),
+      public_key: hex::encode(key.verifying_key().as_bytes()),
+      application_id: NonZeroU64::MIN,
+      address: occupied.local_addr()?,
+    };
+    let error = activity_server(
+      Some(options),
+      &Arc::new(http_for(server)),
+      Arc::clone(&store),
+      Arc::clone(&emotes),
+      Arc::new(Notify::new()),
+    )
+    .await
+    .err()
+    .context("invalid Activity startup was accepted")?;
+    if address_error {
+      assert_eq!(
+        error
+          .downcast_ref::<std::io::Error>()
+          .map(std::io::Error::kind),
+        Some(std::io::ErrorKind::AddrInUse)
+      );
+    } else {
+      assert!(error.is::<serenity::Error>());
+    }
+  }
+  Ok(())
+}
+
+#[cfg(unix)]
+#[tokio::test]
+async fn handles_termination_in_an_isolated_process() -> Result<()> {
+  if let Some(mode) = std::env::var_os("BOTGE_SIGNAL_FIXTURE") {
+    let signal = shutdown_signal();
+    tokio::pin!(signal);
+    assert!(futures_util::poll!(signal.as_mut()).is_pending());
+    let status = tokio::process::Command::new("kill")
+      .arg(if mode == "interrupt" { "-INT" } else { "-TERM" })
+      .arg(std::process::id().to_string())
+      .status()
+      .await?;
+    assert!(status.success());
+    tokio::time::timeout(Duration::from_secs(2), signal).await??;
+    return Ok(());
+  }
+  for mode in ["interrupt", "terminate"] {
+    let output = tokio::process::Command::new(std::env::current_exe()?)
+      .args([
+        "--exact",
+        "tests::handles_termination_in_an_isolated_process",
+        "--nocapture",
+      ])
+      .env("BOTGE_SIGNAL_FIXTURE", mode)
+      .output()
+      .await?;
+    assert!(
+      output.status.success(),
+      "signal fixture failed: {}",
+      String::from_utf8_lossy(&output.stderr)
+    );
+  }
+  Ok(())
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn aborts_queued_provider_work_and_reports_startup_and_shutdown_failures() -> Result<()> {
+  let directory = tempfile::tempdir()?;
+  let config = directory.path().join("botge.config.json");
+  std::fs::write(&config, r#"{"general":{"use7TVGlobalEmotes":true}}"#)?;
+  let http = TestServer::start(discord::tests::fixture_routes()).await?;
+  let occupied = TcpListener::bind("127.0.0.1:0").await?;
+  for busy in [true, false] {
+    let options = Options {
+      token: "fixture".into(),
+      data: directory.path().into(),
+      activity: None,
+      twitch: None,
+      cache: None,
+      register_commands: false,
+      prefix_compose: false,
+      health_address: if busy {
+        occupied.local_addr()?
+      } else {
+        "127.0.0.1:0".parse()?
+      },
+    };
+    // On this current-thread runtime, spawned tasks cannot run until this task yields.
+    // The ready shutdown aborts the provider before any 7TV contact; REST uses loopback.
+    let result = run(options, http_for(&http), &config, async {
+      Err(std::io::Error::other("fixture shutdown failure"))
+    })
+    .await;
+    let error = result
+      .err()
+      .context("startup or shutdown failure was lost")?;
+    assert!(error.to_string().contains(if busy {
+      "could not bind health listener"
+    } else {
+      "could not listen for shutdown"
+    }));
+  }
+  Ok(())
+}
 
 /// An HTTP fixture that owns its server task and aborts it on drop.
 pub(crate) struct TestServer {
@@ -79,7 +260,7 @@ pub(crate) fn png_dimensions(bytes: &[u8]) -> Result<(u32, u32)> {
 }
 
 /// Wraps a gateway event with the sequence number expected by Serenity.
-fn dispatch(event: &str, sequence: u64, data: Value) -> Message {
+fn dispatch(event: &str, sequence: u64, data: &Value) -> Message {
   Message::Text(
     json!({"op":0, "t":event, "s":sequence, "d":data})
       .to_string()
@@ -88,6 +269,10 @@ fn dispatch(event: &str, sequence: u64, data: Value) -> Message {
 }
 
 /// Simulates Discord's gateway handshake and forwards requested voice channels to the test.
+#[expect(
+  clippy::too_many_lines,
+  reason = "Keep the sequential fixture setup, actions, and assertions in one scenario"
+)]
 async fn gateway(
   socket: tokio::net::TcpStream,
   url: &str,
@@ -116,7 +301,7 @@ async fn gateway(
           .send(dispatch(
             "READY",
             sequence,
-            json!({
+            &json!({
                 "v":10,"user":user("42"),"guilds":[{"id":"1","unavailable":false}],
                 "session_id":"fixture","resume_gateway_url":url,"application":{"id":"42","flags":0}
             }),
@@ -124,14 +309,20 @@ async fn gateway(
           .await?;
         sequence += 1;
         socket
-          .send(dispatch("RESUMED", sequence, json!({})))
+          .send(dispatch("RESUMED", sequence, &json!({})))
           .await?;
         sequence += 1;
-        socket.send(dispatch("INTERACTION_CREATE", sequence, json!({
+        socket.send(dispatch("INTERACTION_CREATE", sequence, &json!({
                     "type":2, "id":"9","application_id":"42","data":{"id":"7","name":"emote-shortcuts","type":1},
                     "guild_id":"1","channel_id":"42","token":"interaction","version":1,
-                    "locale":"en-US","entitlements":[],"attachment_size_limit":10485760
+                    "locale":"en-US","entitlements":[],"attachment_size_limit":10_485_760
                 }))).await?;
+        sequence += 1;
+        socket.send(dispatch("INTERACTION_CREATE", sequence, &json!({
+          "type":4,"id":"10","application_id":"42","data":{"id":"7","name":"emote-compose","type":1,"options":[]},
+          "guild_id":"1","channel_id":"42","token":"autocomplete","version":1,
+          "locale":"en-US","entitlements":[],"attachment_size_limit":10_485_760
+        }))).await?;
         let intents = payload
           .pointer("/d/intents")
           .and_then(Value::as_u64)
@@ -142,6 +333,7 @@ async fn gateway(
           (10, "42", "+Wave"),
           (11, "3", "+ Wave"),
           (12, "3", "+Wave Wave:3"),
+          (13, "3", "+Missing:5"),
         ] {
           let mut message = serde_json::to_value(serenity::all::Message::default())?;
           let fields = message.as_object_mut().context("missing message fields")?;
@@ -154,7 +346,7 @@ async fn gateway(
           ]);
           sequence += 1;
           socket
-            .send(dispatch("MESSAGE_CREATE", sequence, message))
+            .send(dispatch("MESSAGE_CREATE", sequence, &message))
             .await?;
         }
       }
@@ -168,7 +360,7 @@ async fn gateway(
         }
         let _ = states.send(channel.clone());
         sequence += 1;
-        socket.send(dispatch("VOICE_STATE_UPDATE", sequence, json!({
+        socket.send(dispatch("VOICE_STATE_UPDATE", sequence, &json!({
                     "guild_id":"1","channel_id":channel,"user_id":"42","session_id":"fixture",
                     "deaf":false,"mute":false,"self_deaf":false,"self_mute":true,"self_video":false,"suppress":false
                 }))).await?;
@@ -180,7 +372,7 @@ async fn gateway(
             .send(dispatch(
               "VOICE_SERVER_UPDATE",
               sequence,
-              json!({"guild_id":"1","token":"voice","endpoint":"127.0.0.1:1"}),
+              &json!({"guild_id":"1","token":"voice","endpoint":"127.0.0.1:1"}),
             ))
             .await?;
         }
@@ -188,7 +380,7 @@ async fn gateway(
       Some(1) => {
         socket
           .send(Message::Text(r#"{"op":11,"d":null}"#.into()))
-          .await?
+          .await?;
       }
       _ => (),
     }
@@ -198,22 +390,22 @@ async fn gateway(
 
 #[test]
 fn loads_runtime_configuration_and_rejects_partial_activity_credentials() -> Result<()> {
-  assert!(Options::read(|_| None).is_err());
+  assert!(Options::read(&|_| None).is_err());
   let mut env = HashMap::from([("DISCORD_TOKEN", "fixture")]);
-  let options = Options::read(|key| env.get(key).map(ToString::to_string))?;
+  let options = Options::read(&|key| env.get(key).map(ToString::to_string))?;
   assert!(options.activity.is_none());
   assert!(!options.prefix_compose);
   assert_eq!(options.data, PathBuf::from("data"));
   env.insert("HEALTH_BIND_HOST", "invalid");
-  assert!(Options::read(|key| env.get(key).map(ToString::to_string)).is_err());
+  assert!(Options::read(&|key| env.get(key).map(ToString::to_string)).is_err());
   env.remove("HEALTH_BIND_HOST");
   env.insert("DISCORD_ACTIVITY_CLIENT_SECRET", "fixture");
-  assert!(Options::read(|key| env.get(key).map(ToString::to_string)).is_err());
+  assert!(Options::read(&|key| env.get(key).map(ToString::to_string)).is_err());
   env.insert("DISCORD_ACTIVITY_PUBLIC_KEY", "fixture");
-  assert!(Options::read(|key| env.get(key).map(ToString::to_string)).is_err());
+  assert!(Options::read(&|key| env.get(key).map(ToString::to_string)).is_err());
   env.insert("DISCORD_ACTIVITY_CLIENT_SECRET", "");
   env.insert("APP_ID", "42");
-  assert!(Options::read(|key| env.get(key).map(ToString::to_string)).is_err());
+  assert!(Options::read(&|key| env.get(key).map(ToString::to_string)).is_err());
   env.insert("DISCORD_ACTIVITY_CLIENT_SECRET", "fixture");
   env.extend([
     ("APP_ID", "42"),
@@ -224,7 +416,7 @@ fn loads_runtime_configuration_and_rejects_partial_activity_credentials() -> Res
     ("BOTGE_REGISTER_COMMANDS", "true"),
     ("BOTGE_ENABLE_PREFIX_COMPOSE", "true"),
   ]);
-  let options = Options::read(|key| env.get(key).map(ToString::to_string))?;
+  let options = Options::read(&|key| env.get(key).map(ToString::to_string))?;
   assert_eq!(
     options.activity.map(|api| api.address.to_string()),
     Some("127.0.0.1:3080".into())
@@ -232,11 +424,11 @@ fn loads_runtime_configuration_and_rejects_partial_activity_credentials() -> Res
   assert!(options.twitch.is_some() && options.cache.is_some() && options.register_commands);
   assert!(options.prefix_compose);
   env.insert("ACTIVITY_BIND_HOST", "invalid");
-  assert!(Options::read(|key| env.get(key).map(ToString::to_string)).is_err());
+  assert!(Options::read(&|key| env.get(key).map(ToString::to_string)).is_err());
   env.insert("ACTIVITY_BIND_HOST", "::1");
-  assert!(Options::read(|key| env.get(key).map(ToString::to_string)).is_ok());
+  assert!(Options::read(&|key| env.get(key).map(ToString::to_string)).is_ok());
   env.insert("LOCAL_CACHE_BASE", "invalid");
-  assert!(Options::read(|key| env.get(key).map(ToString::to_string)).is_err());
+  assert!(Options::read(&|key| env.get(key).map(ToString::to_string)).is_err());
   Ok(())
 }
 
@@ -254,6 +446,10 @@ fn only_requests_message_content_when_prefix_compose_is_enabled() {
 }
 
 #[tokio::test]
+#[expect(
+  clippy::too_many_lines,
+  reason = "Keep the sequential fixture setup, actions, and assertions in one scenario"
+)]
 async fn starts_gateway_and_http_reconciles_voice_and_handles_shutdown() -> Result<()> {
   let _ = tracing_subscriber::fmt()
     .with_max_level(tracing::Level::WARN)
@@ -310,8 +506,14 @@ async fn starts_gateway_and_http_reconciles_voice_and_handles_shutdown() -> Resu
       .route(
         "/api/v10/channels/42/messages",
         post(move |body: axum::body::Bytes| async move {
+          if body.starts_with(b"{") {
+            return (
+              StatusCode::BAD_REQUEST,
+              Json(serenity::all::Message::default()),
+            );
+          }
           let _ = message_tx.send(body);
-          Json(serenity::all::Message::default())
+          (StatusCode::OK, Json(serenity::all::Message::default()))
         }),
       )
       .route(
@@ -329,7 +531,7 @@ async fn starts_gateway_and_http_reconciles_voice_and_handles_shutdown() -> Resu
     data: dir.path().into(),
     twitch: None,
     cache: Some(http.origin.clone()),
-    register_commands: false,
+    register_commands: true,
     prefix_compose: true,
     health_address: "127.0.0.1:0".parse()?,
     activity: Some(ActivityOptions {
@@ -390,7 +592,6 @@ async fn starts_gateway_and_http_reconciles_voice_and_handles_shutdown() -> Resu
       StatusCode::NO_CONTENT
     );
 
-    use ed25519_dalek::Signer as _;
     let now = std::time::SystemTime::now()
       .duration_since(std::time::UNIX_EPOCH)?
       .as_secs();
@@ -469,11 +670,16 @@ async fn refuses_to_start_with_an_unusable_data_path_or_invalid_config() -> Resu
   let directory = tempfile::tempdir()?;
   let config_path = directory.path().join("botge.config.json");
   std::fs::write(&config_path, "invalid JSON")?;
+  let corrupt_data = directory.path().join("corrupt");
+  std::fs::create_dir_all(&corrupt_data)?;
+  let corrupt_database = corrupt_data.join("botge.redb");
+  std::fs::write(&corrupt_database, "invalid database")?;
   for (data, expected) in [
     (config_path.clone(), "could not create the data directory"),
     (directory.path().join("data"), "invalid configuration"),
+    (corrupt_data, "could not open"),
   ] {
-    let mut options = Options::read(|key| (key == "DISCORD_TOKEN").then(|| "fixture".into()))?;
+    let mut options = Options::read(&|key| (key == "DISCORD_TOKEN").then(|| "fixture".into()))?;
     options.data = data;
     let result = run(
       options,
@@ -487,6 +693,10 @@ async fn refuses_to_start_with_an_unusable_data_path_or_invalid_config() -> Resu
       .context("invalid startup configuration was accepted")?;
     assert!(error.to_string().contains(expected));
   }
+  assert_eq!(
+    std::fs::read(&corrupt_database)?.as_slice(),
+    b"invalid database"
+  );
   Ok(())
 }
 

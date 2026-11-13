@@ -1,5 +1,11 @@
 //! Signs deterministic payloads to isolate signature, timestamp, and expiration checks.
 
+#![allow(
+  clippy::missing_errors_doc,
+  clippy::missing_panics_doc,
+  reason = "Test failures are expressed through returned fixture errors and assertion panics"
+)]
+
 use super::*;
 use axum::http::HeaderValue;
 use ed25519_dalek::{Signer as _, SigningKey};
