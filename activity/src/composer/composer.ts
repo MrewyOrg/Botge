@@ -1,11 +1,34 @@
-import type { BrowserEmote } from './catalog.ts';
-import { groupEmoteLayers, MAX_EMOTE_COMPOSE_INPUTS } from './compose-layout.ts';
-import { requireValue } from './validation.ts';
+/* Keeps composition order, preview columns, and copied command tokens in sync. */
 
-/** Manages an ordered browser preview and the tokens copied into the Discord compose command. */
+import type { BrowserEmote } from '../catalog/catalog.ts';
+import { groupEmoteLayers, MAX_EMOTE_COMPOSE_INPUTS } from './compose-layout.ts';
+import { requireValue } from '../validation.ts';
+
+/**
+ * Mounts an empty composer and keeps its preview and command tokens synchronized.
+ *
+ * @remarks
+ * Adding or clearing layers redraws the controls. Reordering and removal restore keyboard
+ * focus to a surviving action. Inputs without compose tokens are ignored.
+ *
+ * @returns Controls for adding layers and checking the shared composition limit.
+ * @throws `Error` if required composer markup is missing.
+ * @see {@link MAX_EMOTE_COMPOSE_INPUTS}
+ * @see {@link groupEmoteLayers}
+ */
 export function createComposer(): Readonly<{
+  /**
+   * Adds one composable emote if capacity remains.
+   * @param emote - Catalog or discovery entry.
+   */
   add: (emote: BrowserEmote) => void;
+  /**
+   * Adds composable entries in order, stopping at the input limit.
+   * @param emotes - Candidate layers in selection order.
+   * @returns The number of entries accepted.
+   */
   addMany: (emotes: readonly BrowserEmote[]) => number;
+  /** Reports whether the composer has reached its input limit. */
   full: () => boolean;
 }> {
   const panel = requireValue(

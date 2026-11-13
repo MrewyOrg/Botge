@@ -2,11 +2,11 @@
 
 import { beforeEach, expect, test, vi } from 'vitest';
 
-import html from '../index.html?raw';
-import type { BrowserEmote } from '../src/catalog.ts';
-import { MAX_EMOTE_COMPOSE_INPUTS } from '../src/compose-layout.ts';
-import { createComposer } from '../src/composer.ts';
-import { requireValue } from '../src/validation.ts';
+import html from '../../index.html?raw';
+import type { BrowserEmote } from '../../src/catalog/catalog.ts';
+import { MAX_EMOTE_COMPOSE_INPUTS } from '../../src/composer/compose-layout.ts';
+import { createComposer } from '../../src/composer/composer.ts';
+import { requireValue } from '../../src/validation.ts';
 
 const base = {
   name: 'Wave',

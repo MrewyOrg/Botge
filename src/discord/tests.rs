@@ -75,6 +75,121 @@ fn guild() -> Value {
   })
 }
 
+#[tokio::test]
+async fn reuses_one_code_exchange_and_rechecks_identity_and_permissions() -> anyhow::Result<()> {
+  use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
+  let exchanges = Arc::new(AtomicUsize::new(0));
+  let identities = Arc::new(AtomicUsize::new(0));
+  let revoked = Arc::new(AtomicBool::new(false));
+  let owner = Arc::new(AtomicBool::new(true));
+  let routes = Router::new()
+    .route(
+      "/api/v10/guilds/1/members/{id}",
+      get(|| async {
+        Json(json!({"user":user("2"),"roles":[],"deaf":false,"mute":false,"flags":0}))
+      }),
+    )
+    .route(
+      "/api/v10/oauth2/token",
+      post({
+        let exchanges = Arc::clone(&exchanges);
+        move || {
+          let exchanges = Arc::clone(&exchanges);
+          async move {
+            if exchanges.fetch_add(1, Ordering::Relaxed) == 0 {
+              (
+                StatusCode::OK,
+                Json(json!({"access_token":"session", "expires_in":3600})),
+              )
+            } else {
+              (
+                StatusCode::BAD_REQUEST,
+                Json(json!({"error":"invalid_grant"})),
+              )
+            }
+          }
+        }
+      }),
+    )
+    .route(
+      "/api/v10/users/@me",
+      get({
+        let identities = Arc::clone(&identities);
+        let revoked = Arc::clone(&revoked);
+        move || {
+          let identities = Arc::clone(&identities);
+          let revoked = Arc::clone(&revoked);
+          async move {
+            identities.fetch_add(1, Ordering::Relaxed);
+            if revoked.load(Ordering::Relaxed) {
+              Err(StatusCode::UNAUTHORIZED)
+            } else {
+              Ok(Json(user("2")))
+            }
+          }
+        }
+      }),
+    )
+    .route(
+      "/api/v10/guilds/{guild}",
+      get({
+        let owner = Arc::clone(&owner);
+        move || {
+          let owner = Arc::clone(&owner);
+          async move {
+            let mut value = guild();
+            if !owner.load(Ordering::Relaxed)
+              && let Some(id) = value.get_mut("owner_id")
+            {
+              *id = json!("3");
+            }
+            Json(value)
+          }
+        }
+      }),
+    );
+  let server = TestServer::start(routes).await?;
+  let access = DiscordAccess::new(
+    NonZeroU64::MIN,
+    "fixture".into(),
+    UserId::new(42),
+    Arc::new(http_for(&server)),
+  )?;
+  let token = access
+    .exchange_code("one-use")
+    .await
+    .map_err(|_| anyhow::anyhow!("exchange failed"))?;
+  let credential = Credential::AccessToken(token.access_token);
+  for _ in 0..3 {
+    assert!(
+      access
+        .membership(NonZeroU64::MIN, &credential)
+        .await
+        .map_err(|_| anyhow::anyhow!("membership failed"))?
+        .administrator
+    );
+  }
+  owner.store(false, Ordering::Relaxed);
+  assert!(
+    !access
+      .membership(NonZeroU64::MIN, &credential)
+      .await
+      .map_err(|_| anyhow::anyhow!("membership failed"))?
+      .administrator
+  );
+  revoked.store(true, Ordering::Relaxed);
+  let error = access
+    .user_id(&credential)
+    .await
+    .err()
+    .ok_or_else(|| anyhow::anyhow!("revoked token accepted"))?;
+  use axum::response::IntoResponse as _;
+  assert_eq!(error.into_response().status(), StatusCode::UNAUTHORIZED);
+  assert_eq!(exchanges.load(Ordering::Relaxed), 1);
+  assert_eq!(identities.load(Ordering::Relaxed), 5);
+  Ok(())
+}
+
 /// Supplies OAuth and guild responses for both access checks and bot startup tests.
 /// The `owner` code resolves to the guild owner. Other valid codes resolve to a regular member.
 pub(crate) fn fixture_routes() -> Router {
@@ -102,7 +217,10 @@ pub(crate) fn fixture_routes() -> Router {
         } else {
           "3"
         };
-        (StatusCode::OK, Json(json!({"access_token":user})))
+        (
+          StatusCode::OK,
+          Json(json!({"access_token":user,"expires_in":3600})),
+        )
       }),
     )
     .route(
@@ -159,7 +277,7 @@ async fn authenticates_members_and_filters_the_channels_that_the_bot_can_join() 
   let http = Arc::new(http_for(&server));
   let access = DiscordAccess::new(NonZeroU64::MIN, "fixture".into(), UserId::new(42), http)?;
   let owner = access
-    .membership(NonZeroU64::MIN, "owner")
+    .membership(NonZeroU64::MIN, &Credential::Code("owner".into()))
     .await
     .map_err(|_| anyhow::anyhow!("owner lookup failed"))?;
   assert!(owner.administrator);
@@ -168,17 +286,17 @@ async fn authenticates_members_and_filters_the_channels_that_the_bot_can_join() 
     Some("Artists")
   );
   let identity = access
-    .user_id("owner")
+    .user_id(&Credential::Code("owner".into()))
     .await
     .map_err(|_| anyhow::anyhow!("identity lookup failed"))?;
   assert_eq!(identity.get(), 2);
   let member = access
-    .membership(NonZeroU64::MIN, "member")
+    .membership(NonZeroU64::MIN, &Credential::Code("member".into()))
     .await
     .map_err(|_| anyhow::anyhow!("member lookup failed"))?;
   assert!(!member.administrator);
   let channels = access
-    .voice_channels(NonZeroU64::MIN, "owner")
+    .voice_channels(NonZeroU64::MIN, &Credential::Code("owner".into()))
     .await
     .map_err(|_| anyhow::anyhow!("channel lookup failed"))?;
   assert_eq!(
@@ -190,23 +308,33 @@ async fn authenticates_members_and_filters_the_channels_that_the_bot_can_join() 
   );
   assert!(
     access
-      .voice_channels(NonZeroU64::MIN, "member")
+      .voice_channels(NonZeroU64::MIN, &Credential::Code("member".into()))
       .await
       .is_err()
   );
-  assert!(access.membership(NonZeroU64::MAX, "owner").await.is_err());
+  assert!(
+    access
+      .membership(NonZeroU64::MAX, &Credential::Code("owner".into()))
+      .await
+      .is_err()
+  );
   use axum::response::IntoResponse as _;
   for (code, expected) in [
     ("invalid", StatusCode::UNAUTHORIZED),
     ("misconfigured", StatusCode::BAD_GATEWAY),
   ] {
     let error = access
-      .identify(code)
+      .identify(&Credential::Code(code.into()))
       .await
       .err()
       .ok_or_else(|| anyhow::anyhow!("OAuth unexpectedly succeeded"))?;
     assert_eq!(error.into_response().status(), expected);
   }
-  assert!(access.identify("unavailable").await.is_err());
+  assert!(
+    access
+      .identify(&Credential::Code("unavailable".into()))
+      .await
+      .is_err()
+  );
   Ok(())
 }

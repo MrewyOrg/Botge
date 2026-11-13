@@ -7,6 +7,13 @@ Browser code lives in `src/`, and the Cloudflare entry point and proxy authentic
 `worker/`. The workspace shares the repository's npm lockfile. Run these commands from the
 repository root.
 
+`src/index.ts` wires the page together. `catalog/` owns catalog parsing, filtering, and 7TV
+discovery; `composer/` owns composition order and preview layers; `settings/` owns the three
+settings forms. The feature entry modules are `catalog/catalog.ts` and `composer/composer.ts`.
+`activity-api.ts` owns the queued OAuth session, while `context-menu.ts` and `validation.ts` provide
+shared helpers. Tests mirror these feature folders under `tests/`; Worker tests live in
+`tests/worker/`.
+
 ```sh
 npm ci
 npm run dev -w activity
@@ -25,9 +32,12 @@ The Activity suite covers the browser and Worker without running the bot. Covera
 `coverage/activity/`, with an 80% minimum per source file. Rust API tests live beside
 [the API implementation](../src/activity/tests.rs). See the [test guide](../tests/README.md).
 
-API calls are queued and obtain a fresh OAuth code each time. SDK readiness and authorization have
-15-second deadlines; HTTP calls have a 45-second deadline. Only an HTTP 401 `oauth_expired` response
-is retried, once. Other failures release the queue without automatically repeating writes.
+API calls are queued. `/auth` exchanges one OAuth code for an access token, then the browser
+authenticates the Discord SDK and keeps the token in memory until shortly before expiry. API
+requests send that token in a bearer header; the bot checks identity and current guild permissions
+for each operation. SDK waits have 15-second deadlines; HTTP calls have a 45-second deadline. Only
+an HTTP 401 `oauth_expired` response renews the token and retries once. Other failures release the
+queue without automatically repeating writes.
 
 ## Curated preview catalog
 

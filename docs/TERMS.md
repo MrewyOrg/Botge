@@ -18,12 +18,12 @@ redistribution subject to its notice requirements. Deployment rules do not remov
 software-license rights. The license does not grant rights in third-party emotes, clips, GIFs,
 brands, or submitted content.
 
-The supplied `assets/botge-icon.png` and `assets/banner.png` were generated with OpenAI tools. They
-may be reused with Botge under the repository's license to the extent the project has rights to
-grant. AI generation is not proof of non-infringement, exclusivity, trademark availability, or
-copyright protection. OpenAI assigns its output rights to the customer to the extent permitted by
-law, but outputs can resemble other outputs and third-party rights remain applicable. See the
-applicable [OpenAI terms](https://openai.com/policies/eu-terms-of-use/) and
+The supplied `assets/botge-icon.png` and `activity/src/assets/banner.png` were generated with OpenAI
+tools. They may be reused with Botge under the repository's license to the extent the project has
+rights to grant. AI generation is not proof of non-infringement, exclusivity, trademark
+availability, or copyright protection. OpenAI assigns its output rights to the customer to the
+extent permitted by law, but outputs can resemble other outputs and third-party rights remain
+applicable. See the applicable [OpenAI terms](https://openai.com/policies/eu-terms-of-use/) and
 [services agreement](https://openai.com/policies/services-agreement/). No trademark-clearance search
 has been performed for these assets. In the United States, purely AI-generated expression is not
 copyrightable without sufficient human authorship; other jurisdictions may differ. See the

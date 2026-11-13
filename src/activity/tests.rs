@@ -14,10 +14,28 @@ use tower::ServiceExt as _;
 use super::*;
 
 /// Maps test authorization codes to fixed identities and guild permissions.
+/// `admin` can change settings, `manager` carries role 42, and `member` has no elevated role.
+/// The counter measures guild authorization independently of provider lookups.
 struct TestAccess(Arc<AtomicUsize>);
 
+/// In this fixture, codes and tokens encode the same fixed test identity.
+fn fixture_identity(credential: &Credential) -> &str {
+  match credential {
+    Credential::Code(value) | Credential::AccessToken(value) => value,
+  }
+}
+
 impl GuildAccess for TestAccess {
-  async fn user_id(&self, code: &str) -> Result<NonZeroU64, ApiError> {
+  async fn exchange_code(&self, code: &str) -> Result<AccessToken, ApiError> {
+    self.user_id(&Credential::Code(code.into())).await?;
+    Ok(AccessToken {
+      access_token: code.into(),
+      expires_in: 3600,
+    })
+  }
+
+  async fn user_id(&self, credential: &Credential) -> Result<NonZeroU64, ApiError> {
+    let code = fixture_identity(credential);
     match code {
       "admin" => Ok(NonZeroU64::MIN),
       "member" => Ok(NonZeroU64::MAX),
@@ -25,7 +43,12 @@ impl GuildAccess for TestAccess {
     }
   }
 
-  async fn membership(&self, _guild: NonZeroU64, code: &str) -> Result<Membership, ApiError> {
+  async fn membership(
+    &self,
+    _guild: NonZeroU64,
+    credential: &Credential,
+  ) -> Result<Membership, ApiError> {
+    let code = fixture_identity(credential);
     self.0.fetch_add(1, Ordering::Relaxed);
     match code {
       "admin" | "manager" | "member" => Ok(Membership {
@@ -46,8 +69,10 @@ impl GuildAccess for TestAccess {
   async fn voice_channels(
     &self,
     _guild: NonZeroU64,
-    code: &str,
+    credential: &Credential,
   ) -> Result<Vec<VoiceChannel>, ApiError> {
+    self.0.fetch_add(1, Ordering::Relaxed);
+    let code = fixture_identity(credential);
     match code {
       "admin" => Ok(vec![VoiceChannel {
         id: "42".into(),
@@ -118,10 +143,23 @@ impl Fixture {
     body: &Value,
     signed: bool,
   ) -> anyhow::Result<(StatusCode, Value)> {
+    self.post_with_token(path, body, signed, None).await
+  }
+
+  async fn post_with_token(
+    &self,
+    path: &str,
+    body: &Value,
+    signed: bool,
+    token: Option<&str>,
+  ) -> anyhow::Result<(StatusCode, Value)> {
     let mut request = Request::builder()
       .method(Method::POST)
       .uri(path)
       .header(header::CONTENT_TYPE, "application/json");
+    if let Some(token) = token {
+      request = request.header(header::AUTHORIZATION, token);
+    }
     if signed {
       let now = SystemTime::now().duration_since(UNIX_EPOCH)?.as_secs();
       let payload = json!({ "created_at": now, "expires_at": now + 60 }).to_string();
@@ -144,6 +182,59 @@ impl Fixture {
     let body = to_bytes(response.into_body(), 8192).await?;
     Ok((status, serde_json::from_slice(&body)?))
   }
+}
+
+#[tokio::test]
+async fn exchanges_codes_and_reuses_tokens_without_skipping_write_authorization()
+-> anyhow::Result<()> {
+  let fixture = Fixture::new()?;
+  let body = json!({"guildId":"1", "code":"admin"});
+  assert_eq!(
+    fixture.post("/auth", &body, false).await?.0,
+    StatusCode::UNAUTHORIZED
+  );
+  let (status, token) = fixture.post("/auth", &body, true).await?;
+  assert_eq!(status, StatusCode::OK);
+  assert_eq!(token, json!({"accessToken":"admin", "expiresIn":3600}));
+  let voice = json!({"channelId":null,"statusEnabled":false,"statusEmoji":null});
+  let change = json!({"guildId":"1","voice":voice});
+  for _ in 0..3 {
+    assert_eq!(
+      fixture
+        .post_with_token("/settings/voice", &change, true, Some("Bearer admin"))
+        .await?
+        .0,
+      StatusCode::OK
+    );
+  }
+  assert_eq!(fixture.membership_calls.load(Ordering::Relaxed), 3);
+  for (token, status) in [
+    ("Bearer member", StatusCode::FORBIDDEN),
+    ("Bearer expired", StatusCode::UNAUTHORIZED),
+    ("Bearer ", StatusCode::BAD_REQUEST),
+    ("Basic admin", StatusCode::BAD_REQUEST),
+    ("Bearer invalid token", StatusCode::BAD_REQUEST),
+  ] {
+    assert_eq!(
+      fixture
+        .post_with_token("/settings/voice", &change, true, Some(token))
+        .await?
+        .0,
+      status
+    );
+  }
+  assert_eq!(
+    fixture
+      .post_with_token("/auth", &json!({"guildId":"1"}), true, Some("Bearer admin"))
+      .await?
+      .0,
+    StatusCode::BAD_REQUEST
+  );
+  assert_eq!(
+    fixture.store.voice_settings(NonZeroU64::MIN)?,
+    serde_json::from_value(voice)?
+  );
+  Ok(())
 }
 
 #[tokio::test]

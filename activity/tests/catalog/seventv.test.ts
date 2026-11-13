@@ -1,6 +1,6 @@
 import { afterEach, expect, test, vi } from 'vitest';
 
-import { fetchDiscoveryPage, parseDiscoveryPage } from '../src/seventv.ts';
+import { fetchDiscoveryPage, parseDiscoveryPage } from '../../src/catalog/seventv.ts';
 
 const id = '01234567890123456789012345';
 const emote = {
@@ -28,6 +28,9 @@ test('uses public, safe previews and ignores malformed or unlisted results', () 
         { ...emote, flags: { ...emote.flags, publicListed: false } },
         { ...emote, images: [{ url: 'https://example.com/emote.png' }] },
         { ...emote, id: '../../unsafe' },
+        { ...emote, defaultName: ' ' },
+        { ...emote, defaultName: 'bad\nname' },
+        { ...emote, defaultName: 'x'.repeat(81) },
         null
       ]),
       true
@@ -50,6 +53,16 @@ test('uses public, safe previews and ignores malformed or unlisted results', () 
 test('rejects GraphQL errors and invalid response shapes', () => {
   expect(() => parseDiscoveryPage({ errors: [{ message: 'Rate limited' }] }, false)).toThrow();
   expect(() => parseDiscoveryPage({ data: {} }, false)).toThrow();
+});
+
+test('counts Unicode code points when validating discovery name length', () => {
+  const name = '🐱'.repeat(80);
+  expect(parseDiscoveryPage(page([{ ...emote, defaultName: name }]), false).emotes[0]?.name).toBe(
+    name
+  );
+  expect(parseDiscoveryPage(page([{ ...emote, defaultName: name + '🐱' }]), false).emotes).toEqual(
+    []
+  );
 });
 
 test.each([

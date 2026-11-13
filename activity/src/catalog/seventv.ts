@@ -1,7 +1,10 @@
+/* Fetches public 7TV discovery pages and accepts preview media only from the expected CDN. */
+
 import { type BrowserEmote, parseEmoteTags, tagTerms } from './catalog.ts';
 import { isSevenTVEmoteId } from './seventv-id.ts';
-import { isRecord } from './validation.ts';
+import { isRecord } from '../validation.ts';
 
+/** Public 7TV rankings supported by the discovery browser. */
 export type DiscoveryMode = 'trending' | 'top';
 
 const PAGE_SIZE = 24;
@@ -33,7 +36,18 @@ function previewPath(images: readonly unknown[], id: string): string | undefined
   return undefined;
 }
 
-/** Keeps safe, public discovery results with media on the expected 7TV CDN. */
+/**
+ * Validates a discovery page and discards unsafe or malformed emote entries.
+ *
+ * @remarks
+ * Entries must be public, listed, non-private, and non-NSFW. Preview URLs must match the
+ * expected 7TV CDN path. Invalid page metadata rejects the page rather than hiding a failure.
+ *
+ * @param data - Untrusted GraphQL JSON response.
+ * @param embedded - Rewrites accepted previews to the Activity's CDN mapping when true.
+ * @returns Accepted emotes and the provider's page count.
+ * @throws `Error` if GraphQL reports errors or the page structure is invalid.
+ */
 export function parseDiscoveryPage(
   data: unknown,
   embedded: boolean
@@ -57,6 +71,9 @@ export function parseDiscoveryPage(
     if (
       !isSevenTVEmoteId(id)
       || typeof defaultName !== 'string'
+      || defaultName.trim() === ''
+      || Array.from(defaultName).length > 80
+      || /\p{Cc}/u.test(defaultName)
       || !isRecord(flags)
       || flags['nsfw'] !== false
       || flags['private'] !== false
@@ -86,6 +103,25 @@ export function parseDiscoveryPage(
   return { emotes: entries, pageCount };
 }
 
+/**
+ * Fetches one public discovery page within a 12-second HTTP deadline.
+ *
+ * @remarks
+ * A caller abort cancels the request alongside the deadline. Embedded Activities use mapped
+ * proxy routes; standalone previews contact the public 7TV endpoints.
+ *
+ * @param mode - Ranking to request.
+ * @param page - One-based provider page number.
+ * @param query - Name search text; surrounding whitespace is removed.
+ * @param motion - Animated or static filter value, or an empty string.
+ * @param embedded - Uses Activity URL mappings when true.
+ * @param signal - Cancels a superseded discovery request.
+ * @param overlay - Overlaying or regular filter value; defaults to no filter.
+ * @param tags - Comma-separated tag terms; defaults to no tag filter.
+ * @returns The validated page from {@link parseDiscoveryPage}.
+ * @throws `Error` if the HTTP request or page validation fails.
+ * @throws `DOMException` if the request is aborted or exceeds its deadline.
+ */
 export async function fetchDiscoveryPage(
   mode: DiscoveryMode,
   page: number,

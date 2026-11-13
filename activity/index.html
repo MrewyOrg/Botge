@@ -1,4 +1,8 @@
 <!doctype html>
+<!--
+  Copyright (c) 2026 MrewyOrg. Licensed under the MIT license.
+  See LICENSE.txt in the project root for license information.
+-->
 <html lang="en">
   <head>
     <meta charset="utf-8" />
@@ -12,7 +16,7 @@
         <div class="masthead-brand">
           <img
             class="masthead-art"
-            src="../assets/banner.png"
+            src="./src/assets/banner.png"
             width="680"
             height="240"
             alt="Botge"
@@ -25,6 +29,8 @@
           <p>Browse, build, and preview emote compositions.</p>
         </div>
       </header>
+
+      <noscript><p>Enable JavaScript to browse emotes and use the Activity settings.</p></noscript>
 
       <div class="workspace">
         <nav class="workspace-nav" aria-label="Emote workspace">
@@ -134,9 +140,9 @@
         <section id="activity-settings" aria-labelledby="settings-heading" hidden>
           <h1 id="settings-heading" tabindex="-1">Settings</h1>
           <details id="emote-border-settings" class="composer settings-panel" hidden>
-            <summary>My emote border</summary>
+            <summary id="emote-border-heading">My emote border</summary>
             <form>
-              <fieldset disabled>
+              <fieldset aria-labelledby="emote-border-heading" disabled>
                 <label><input name="enabled" type="checkbox" /> Enable emote border</label>
                 <label>
                   Border color
@@ -149,9 +155,9 @@
           </details>
 
           <details id="voice-settings" class="composer settings-panel" hidden>
-            <summary>Bot voice settings</summary>
+            <summary id="voice-settings-heading">Bot voice settings</summary>
             <form>
-              <fieldset disabled>
+              <fieldset aria-labelledby="voice-settings-heading" disabled>
                 <label>Voice channel<select id="voice-channel"></select></label>
                 <label
                   ><input id="voice-status-enabled" type="checkbox" /> Set voice channel
@@ -165,9 +171,9 @@
           </details>
 
           <details id="emote-settings" class="composer settings-panel" hidden>
-            <summary>Server emote settings</summary>
+            <summary id="emote-settings-heading">Server emote settings</summary>
             <form>
-              <fieldset disabled>
+              <fieldset aria-labelledby="emote-settings-heading" disabled>
                 <label>7TV emote set ID <input name="seven-tv-set" maxlength="26" /></label>
                 <label
                   >BTTV channel's Twitch user ID
@@ -209,6 +215,6 @@
         <p id="copy-message" role="status"></p>
       </dialog>
     </main>
-    <script type="module" src="/src/main.ts"></script>
+    <script type="module" src="/src/index.ts"></script>
   </body>
 </html>

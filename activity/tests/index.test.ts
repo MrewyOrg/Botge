@@ -10,6 +10,7 @@ const sdk = vi.hoisted(() => ({
   ready: vi.fn<() => Promise<void>>(),
   commands: {
     authorize: vi.fn<() => Promise<{ code: string }>>(),
+    authenticate: vi.fn<() => Promise<unknown>>(),
     openExternalLink: vi.fn<() => Promise<void>>()
   }
 }));
@@ -63,6 +64,7 @@ async function waitForText(selector: string, expected: string): Promise<void> {
 beforeEach(() => {
   vi.resetModules();
   vi.resetAllMocks();
+  sdk.commands.authenticate.mockResolvedValue({});
   vi.stubEnv('VITE_ENABLE_ACTIVITY_ADDS', 'false');
   vi.stubEnv('VITE_ENABLE_ACTIVITY_CATALOG', 'false');
   vi.stubEnv('VITE_ENABLE_7TV_DISCOVERY', 'false');
@@ -99,7 +101,7 @@ test('browses and paginates the local catalog, previews an emote, and copies its
   Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText } });
 
   try {
-    await import('../src/main.ts');
+    await import('../src/index.ts');
     await waitForText('#message', 'Showing 48 of 50');
     expect(document.querySelector('header.masthead img[alt="Botge"]')).not.toBeNull();
     expect(document.querySelector('#composer[open]')).not.toBeNull();
@@ -167,7 +169,7 @@ test('browses and paginates the local catalog, previews an emote, and copies its
 
 test('uses the demo when the curated catalog is empty', async () => {
   vi.stubGlobal('fetch', vi.fn().mockResolvedValue(Response.json([])));
-  await import('../src/main.ts');
+  await import('../src/index.ts');
   await waitForText('#results', 'Botge');
   expect(element('#results').textContent).toContain('Demo');
 });
@@ -175,7 +177,7 @@ test('uses the demo when the curated catalog is empty', async () => {
 test('reports a failed curated catalog load', async () => {
   const error = vi.spyOn(console, 'error').mockReturnValue(undefined);
   vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(null, { status: 503 })));
-  await import('../src/main.ts');
+  await import('../src/index.ts');
   await waitForText('#message', 'Could not load emotes');
   expect(error).toHaveBeenCalledOnce();
 });
@@ -193,6 +195,8 @@ test('refreshes the server catalog, browses discovery, and adds an emote through
   let addCount = 0;
   let discoveryCount = 0;
   const fetch = vi.fn((path: string) => {
+    if (path === '/botge-api/auth')
+      return Response.json({ accessToken: 'access-token', expiresIn: 3600 });
     if (path === '/botge-api/catalog') {
       catalogCount += 1;
       if (catalogCount === 2) return Response.json({ message: 'Catalog unavailable.' });
@@ -234,7 +238,7 @@ test('refreshes the server catalog, browses discovery, and adds an emote through
   });
   vi.stubGlobal('fetch', fetch);
 
-  await import('../src/main.ts');
+  await import('../src/index.ts');
   await waitForText('#message', 'Showing 2 of 2');
   expect(element('#results li').textContent).toContain('Overlay');
   click('#results button');
@@ -255,6 +259,10 @@ test('refreshes the server catalog, browses discovery, and adds an emote through
   expect(element('#compose-add').hidden).toBe(false);
   click('#compose-add');
   expect(input('#composer-input').value).toBe(`7tv:${discoveryId}`);
+  click('#select-emotes');
+  click('#results button');
+  expect(element('#selection-add').hidden).toBe(false);
+  expect(element('#selection-add').hasAttribute('disabled')).toBe(false);
   element('#results button').dispatchEvent(
     new MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: 44, clientY: 52 })
   );
@@ -266,11 +274,14 @@ test('refreshes the server catalog, browses discovery, and adds an emote through
       button.textContent === 'Add to this server'
   );
   requireValue(serverAction, 'Missing add to server action').click();
+  expect(element('#selection-add').hasAttribute('disabled')).toBe(true);
   await waitForText('#message', 'Added emote.');
+  expect(element('#selection-add').hasAttribute('disabled')).toBe(false);
+  click('#select-emotes');
   expect(fetch).toHaveBeenCalledWith(
     '/botge-api/emotes',
     expect.objectContaining({
-      body: JSON.stringify({ emoteId: discoveryId, code: 'oauth-code', guildId: sdk.guildId })
+      body: JSON.stringify({ emoteId: discoveryId, guildId: sdk.guildId })
     }) as unknown
   );
   click('#results button');
@@ -303,21 +314,25 @@ test('loads and saves voice settings through the Discord Activity API', async ()
   const channels = [{ id: '42', name: 'Voice channel' }];
   const disconnected = { channelId: null, statusEnabled: false, statusEmoji: '<:Botge:123>' };
   const borderBodies: string[] = [];
-  const fetch = vi.fn((path: string, init: Readonly<{ body: string }>) => {
-    if (path === '/botge-api/settings/border/read') {
-      borderBodies.push(init.body);
-      return borderBodies.length === 1 ?
-          Response.json({ code: 'oauth_expired', message: 'Expired' }, { status: 401 })
-        : Response.json({ color: 'FF7700' });
+  const fetch = vi.fn(
+    (path: string, init: Readonly<{ body: string; headers: Readonly<Record<string, string>> }>) => {
+      if (path === '/botge-api/auth')
+        return Response.json({ accessToken: `access-token-${issuedCodes}`, expiresIn: 3600 });
+      if (path === '/botge-api/settings/border/read') {
+        borderBodies.push(JSON.stringify([init.body, init.headers['Authorization']]));
+        return borderBodies.length === 1 ?
+            Response.json({ code: 'oauth_expired', message: 'Expired' }, { status: 401 })
+          : Response.json({ color: 'FF7700' });
+      }
+      if (path === '/botge-api/settings') return Response.json({ voice, channels });
+      if (path === '/botge-api/settings/voice')
+        return Response.json({ voice: disconnected, channels });
+      return Response.json([]);
     }
-    if (path === '/botge-api/settings') return Response.json({ voice, channels });
-    if (path === '/botge-api/settings/voice')
-      return Response.json({ voice: disconnected, channels });
-    return Response.json([]);
-  });
+  );
   vi.stubGlobal('fetch', fetch);
 
-  await import('../src/main.ts');
+  await import('../src/index.ts');
   const panel = requireValue(
     document.querySelector<HTMLDetailsElement>('#voice-settings'),
     'Missing settings'
@@ -345,7 +360,7 @@ test('loads and saves voice settings through the Discord Activity API', async ()
   });
   expect(borderBodies).toHaveLength(2);
   expect(new Set(borderBodies).size).toBe(2);
-  expect(sdk.commands.authorize).toHaveBeenCalledTimes(3);
+  expect(sdk.commands.authorize).toHaveBeenCalledTimes(2);
 
   channel.value = '';
   input('#voice-status-enabled').checked = false;
@@ -354,14 +369,68 @@ test('loads and saves voice settings through the Discord Activity API', async ()
   expect(fetch).toHaveBeenCalledWith(
     '/botge-api/settings/voice',
     expect.objectContaining({
-      body: JSON.stringify({ voice: disconnected, code: 'oauth-code-4', guildId: sdk.guildId })
+      body: JSON.stringify({ voice: disconnected, guildId: sdk.guildId })
     }) as unknown
   );
   expect(input('#voice-status-emoji').value).toBe('<:Botge:123>');
+  click('#voice-settings button');
+  await waitForText('#voice-feedback', 'Saved.');
+  expect(sdk.commands.authorize).toHaveBeenCalledTimes(2);
+  expect(sdk.commands.authenticate).toHaveBeenCalledTimes(2);
+  expect(fetch).toHaveBeenLastCalledWith(
+    '/botge-api/settings/voice',
+    expect.objectContaining({
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer access-token-2' }
+    }) as unknown
+  );
+  // Renew before expiry even when Discord has not returned a 401.
+  const now = Date.now();
+  vi.spyOn(Date, 'now').mockReturnValue(now + 3_600_000);
+  click('#voice-settings button');
+  await waitForText('#voice-feedback', 'Saved.');
+  expect(sdk.commands.authorize).toHaveBeenCalledTimes(3);
+  expect(sdk.commands.authenticate).toHaveBeenCalledTimes(3);
   click('#catalog-link');
   expect(element('#catalog-page').hidden).toBe(false);
   expect(element('#activity-settings').hidden).toBe(true);
 });
+
+test.each([
+  { payload: null, sdkFailure: false },
+  { payload: { accessToken: '', expiresIn: 3600 }, sdkFailure: false },
+  { payload: { accessToken: 'session', expiresIn: 0 }, sdkFailure: false },
+  { payload: { accessToken: 'session', expiresIn: 3600 }, sdkFailure: true }
+])(
+  'recovers after rejected session initialization: %j',
+  async ({ payload, sdkFailure }: Readonly<{ payload: unknown; sdkFailure: boolean }>) => {
+    vi.stubGlobal('location', new URL('https://12345.discordsays.com/'));
+    vi.stubEnv('VITE_ENABLE_ACTIVITY_CATALOG', 'true');
+    sdk.ready.mockResolvedValue();
+    sdk.commands.authorize.mockResolvedValue({ code: 'oauth-code' });
+    if (sdkFailure)
+      sdk.commands.authenticate.mockRejectedValueOnce(new Error('Rejected')).mockResolvedValue({});
+    let exchanges = 0;
+    let catalogRequests = 0;
+    const fetch = vi.fn((path: string) => {
+      if (path === '/botge-api/auth') {
+        exchanges += 1;
+        return Response.json(
+          exchanges === 1 ? payload : { accessToken: 'session', expiresIn: 3600 }
+        );
+      }
+      catalogRequests += 1;
+      return Response.json({ canManageEmotes: true, emotes: [serverEmote] });
+    });
+    vi.stubGlobal('fetch', fetch);
+    await import('../src/index.ts');
+    await waitForText('#message', 'Could not load server emotes.');
+    expect(catalogRequests).toBe(0);
+    click('#refresh-catalog');
+    await waitForText('#message', 'Showing 1 of 1');
+    expect(exchanges).toBe(2);
+    expect(catalogRequests).toBe(1);
+  }
+);
 
 test('removes an individually added emote and refreshes the server catalog', async () => {
   vi.stubGlobal('location', new URL('https://12345.discordsays.com/'));
@@ -370,6 +439,8 @@ test('removes an individually added emote and refreshes the server catalog', asy
   sdk.commands.authorize.mockResolvedValue({ code: 'oauth-code' });
   let removed = false;
   const fetch = vi.fn((path: string) => {
+    if (path === '/botge-api/auth')
+      return Response.json({ accessToken: 'access-token', expiresIn: 3600 });
     if (path.endsWith('/emotes/remove')) {
       removed = true;
       return Response.json({ message: 'Removed emote.', removed: true });
@@ -377,7 +448,7 @@ test('removes an individually added emote and refreshes the server catalog', asy
     return Response.json({ canManageEmotes: true, emotes: removed ? [] : [serverEmote] });
   });
   vi.stubGlobal('fetch', fetch);
-  await import('../src/main.ts');
+  await import('../src/index.ts');
   await waitForText('#message', 'Showing 1 of 1');
   click('#results button');
   expect(element('#remove').hidden).toBe(false);
@@ -408,6 +479,8 @@ test('selects several emotes and uses bulk composer and server actions', async (
     image: `/7tv-cdn/emote/${id}/2x.webp`
   }));
   const fetch = vi.fn((path: string) => {
+    if (path === '/botge-api/auth')
+      return Response.json({ accessToken: 'access-token', expiresIn: 3600 });
     if (path === '/botge-api/catalog')
       return Response.json({ canManageEmotes: true, canComposeDiscovery: true, emotes: entries });
     if (path === '/botge-api/emotes/batch') {
@@ -443,7 +516,7 @@ test('selects several emotes and uses bulk composer and server actions', async (
     });
   });
   vi.stubGlobal('fetch', fetch);
-  await import('../src/main.ts');
+  await import('../src/index.ts');
   await waitForText('#results', 'Wave');
   click('#top-mode');
   await waitForText('#results', 'Discovered1');
@@ -457,12 +530,7 @@ test('selects several emotes and uses bulk composer and server actions', async (
   expect(fetch).toHaveBeenCalledWith(
     '/botge-api/emotes/batch',
     expect.objectContaining({
-      body: JSON.stringify({
-        action: 'add',
-        emoteIds: ids,
-        code: 'oauth-code',
-        guildId: sdk.guildId
-      })
+      body: JSON.stringify({ action: 'add', emoteIds: ids, guildId: sdk.guildId })
     }) as unknown
   );
   click('#selection-add');
@@ -470,12 +538,7 @@ test('selects several emotes and uses bulk composer and server actions', async (
   expect(fetch).toHaveBeenCalledWith(
     '/botge-api/emotes/batch',
     expect.objectContaining({
-      body: JSON.stringify({
-        action: 'add',
-        emoteIds: [nextId],
-        code: 'oauth-code',
-        guildId: sdk.guildId
-      })
+      body: JSON.stringify({ action: 'add', emoteIds: [nextId], guildId: sdk.guildId })
     }) as unknown
   );
   await waitForText('#message', 'Showing 2 7TV emotes');
@@ -488,12 +551,7 @@ test('selects several emotes and uses bulk composer and server actions', async (
   expect(fetch).toHaveBeenCalledWith(
     '/botge-api/emotes/batch',
     expect.objectContaining({
-      body: JSON.stringify({
-        action: 'remove',
-        emoteIds: ids,
-        code: 'oauth-code',
-        guildId: sdk.guildId
-      })
+      body: JSON.stringify({ action: 'remove', emoteIds: ids, guildId: sdk.guildId })
     }) as unknown
   );
   expect(updates).toBe(3);
@@ -517,7 +575,8 @@ test('releases the API queue after stalled authorization and ignores its late re
     )
     .mockResolvedValue({ code: 'recovered-code' });
   const fetch = vi.fn((path: string) =>
-    path === '/botge-api/settings' ?
+    path === '/botge-api/auth' ? Response.json({ accessToken: 'access-token', expiresIn: 3600 })
+    : path === '/botge-api/settings' ?
       Response.json({
         voice: { channelId: '42', statusEnabled: false, statusEmoji: null },
         channels: [{ id: '42', name: 'Voice' }]
@@ -525,7 +584,7 @@ test('releases the API queue after stalled authorization and ignores its late re
     : Response.json([])
   );
   vi.stubGlobal('fetch', fetch);
-  await import('../src/main.ts');
+  await import('../src/index.ts');
   await vi.waitFor(() => {
     expect(element('#voice-settings').hidden).toBe(false);
   });
@@ -554,7 +613,7 @@ test('releases the API queue after stalled authorization and ignores its late re
     expect(sdk.commands.authorize).toHaveBeenCalledTimes(2);
     finishAuthorization?.({ code: 'late-code' });
     await vi.advanceTimersByTimeAsync(1);
-    expect(fetch).toHaveBeenCalledTimes(2);
+    expect(fetch).toHaveBeenCalledTimes(3);
   } finally {
     vi.useRealTimers();
   }
@@ -569,7 +628,7 @@ test('reports stalled SDK readiness instead of loading forever', async () => {
   });
   vi.useFakeTimers();
   try {
-    await import('../src/main.ts');
+    await import('../src/index.ts');
     await vi.advanceTimersByTimeAsync(15_000);
     expect(element('#message').textContent).toContain('Reopen the Activity');
     expect(sdk.commands.authorize).not.toHaveBeenCalled();
@@ -584,12 +643,13 @@ test('does not retry a non-401 response carrying an OAuth error marker', async (
   sdk.ready.mockResolvedValue();
   sdk.commands.authorize.mockResolvedValue({ code: 'oauth-code' });
   const fetch = vi.fn((path: string) =>
-    path.startsWith('/botge-api/') ?
+    path === '/botge-api/auth' ? Response.json({ accessToken: 'access-token', expiresIn: 3600 })
+    : path.startsWith('/botge-api/') ?
       Response.json({ code: 'oauth_expired', message: 'Upstream failed.' }, { status: 502 })
     : Response.json([])
   );
   vi.stubGlobal('fetch', fetch);
-  await import('../src/main.ts');
+  await import('../src/index.ts');
   await vi.waitFor(() => {
     expect(element('#voice-settings').hidden).toBe(false);
   });

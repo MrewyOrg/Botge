@@ -1,7 +1,18 @@
-import { isComposeToken } from './compose-layout.ts';
-import { isSevenTVEmoteId } from './seventv-id.ts';
-import { isRecord } from './validation.ts';
+/* Validates catalog snapshots and applies local filters without changing catalog order. */
 
+import { isComposeToken } from '../composer/compose-layout.ts';
+import { isSevenTVEmoteId } from './seventv-id.ts';
+import { isRecord } from '../validation.ts';
+
+/**
+ * Emote metadata accepted by catalog parsing or public discovery.
+ *
+ * @remarks
+ * Entries are snapshots. Optional compose tokens and 7TV IDs enable the corresponding UI
+ * actions; their absence does not make an emote invalid for browsing.
+ *
+ * @see {@link parseCatalog}
+ */
 export type BrowserEmote = Readonly<{
   name: string;
   source: string;
@@ -10,6 +21,7 @@ export type BrowserEmote = Readonly<{
   added?: boolean;
   overlaying?: boolean;
   tags?: readonly string[];
+  /** A single command-input token; absent when direct composition is unavailable. */
   composeToken?: string;
   sevenTVId?: string;
 }>;
@@ -20,6 +32,12 @@ function isMappedImage(path: string): boolean {
   return url !== null && url.pathname + url.search === path;
 }
 
+/**
+ * Normalizes provider tags without reordering their first occurrences.
+ *
+ * @param value - Untrusted tag values.
+ * @returns Up to 32 distinct nonempty strings after trimming; other values are ignored.
+ */
 export function parseEmoteTags(value: readonly unknown[]): readonly string[] {
   return [
     ...new Set(
@@ -31,7 +49,19 @@ export function parseEmoteTags(value: readonly unknown[]): readonly string[] {
   ].slice(0, 32);
 }
 
-/** Validates bundled demo entries and server entries against their respective image paths. */
+/**
+ * Validates a complete demo or server catalog before it reaches the UI.
+ *
+ * @remarks
+ * Demo images must use local emote paths. Server images must use canonical mapped CDN paths.
+ * Legacy zero-width metadata is accepted, while malformed entries reject the whole snapshot.
+ *
+ * @param input - Untrusted JSON catalog array.
+ * @param server - Selects server validation and metadata; defaults to false for demo entries.
+ * @returns Validated entries in their original order, with normalized labels and tags.
+ * @throws `Error` if the catalog or any required entry field is invalid.
+ * @see {@link BrowserEmote}
+ */
 export function parseCatalog(input: unknown, server = false): readonly BrowserEmote[] {
   if (!Array.isArray(input)) throw new Error('Expected an emote catalog array.');
   return input.map((entry: unknown) => {
@@ -73,6 +103,12 @@ export function parseCatalog(input: unknown, server = false): readonly BrowserEm
   });
 }
 
+/**
+ * Combines built-in labels with provider tags.
+ *
+ * @param emote - Validated catalog or discovery entry.
+ * @returns Distinct provider, motion, overlay, added-state, and custom tags in display order.
+ */
 export function emoteTags(emote: BrowserEmote): readonly string[] {
   return [
     ...new Set([
@@ -85,6 +121,12 @@ export function emoteTags(emote: BrowserEmote): readonly string[] {
   ];
 }
 
+/**
+ * Parses comma-separated tag search terms.
+ *
+ * @param value - User-entered tag filter.
+ * @returns Up to 12 nonempty lowercase terms after trimming.
+ */
 export function tagTerms(value: string): readonly string[] {
   return value
     .toLowerCase()
@@ -94,7 +136,27 @@ export function tagTerms(value: string): readonly string[] {
     .slice(0, 12);
 }
 
-/** Applies catalog filters. Every comma-separated tag term must match at least one tag. */
+/**
+ * Applies catalog filters while preserving catalog order.
+ *
+ * @remarks
+ * Name and tag matching ignore case. Each tag term must occur in at least one of the
+ * emote's built-in or provider tags. Empty categorical filters accept all values.
+ *
+ * @param emotes - Validated catalog snapshot.
+ * @param query - Name substring; surrounding whitespace is ignored.
+ * @param source - Exact provider label, or an empty string for all providers.
+ * @param motion - Animated or static filter value, or an empty string.
+ * @param addedOnly - Requires an individually added emote when true; defaults to false.
+ * @param overlay - Overlaying or regular filter value; defaults to no filter.
+ * @param tags - Comma-separated tag substrings; defaults to no tag filter.
+ * @returns Entries matching every active filter.
+ *
+ * @example
+ * ```ts
+ * filterEmotes(catalog, 'wave', '7TV', 'animated', false, 'overlaying', 'dance,greeting');
+ * ```
+ */
 export function filterEmotes(
   emotes: readonly BrowserEmote[],
   query: string,

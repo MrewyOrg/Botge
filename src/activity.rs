@@ -2,9 +2,10 @@
 
 //! Activity HTTP handlers for Discord-authenticated settings and catalog operations.
 //!
-//! Requests carry Discord proxy signature headers and an Activity OAuth code. The signature
-//! authenticates the proxy request. The OAuth code identifies the caller, whose guild membership
-//! and permissions are checked separately for operations scoped to a guild. Border preferences
+//! Requests carry Discord proxy signature headers and an OAuth bearer token (legacy callers
+//! may send a one-use code). The signature authenticates the proxy request. Discord identifies
+//! the token holder, whose guild membership and permissions are checked separately for operations
+//! scoped to a guild. Border preferences
 //! belong to the authenticated user across guilds. The health route only reports HTTP readiness.
 
 use std::{
@@ -53,27 +54,52 @@ pub(crate) struct Membership {
   pub(crate) available_roles: Vec<GuildRole>,
 }
 
-/// Resolves Discord identity and guild access from the Activity's OAuth code.
+/// A one-use authorization code or an access token obtained from that code.
+/// Neither credential is logged or persisted by the API.
+pub(crate) enum Credential {
+  Code(String),
+  AccessToken(String),
+}
+
+/// Short-lived browser authentication returned by the code-exchange endpoint.
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct AccessToken {
+  pub(crate) access_token: String,
+  pub(crate) expires_in: u64,
+}
+
+/// Resolves Discord identity and guild access from validated Activity credentials.
 pub(crate) trait GuildAccess: Send + Sync + 'static {
+  /// Exchanges a one-use Discord authorization code for a browser-held access token.
+  fn exchange_code(&self, code: &str)
+  -> impl Future<Output = Result<AccessToken, ApiError>> + Send;
+
   /// Returns the authenticated account ID for a user-scoped operation.
-  fn user_id(&self, code: &str) -> impl Future<Output = Result<NonZeroU64, ApiError>> + Send;
+  fn user_id(
+    &self,
+    credential: &Credential,
+  ) -> impl Future<Output = Result<NonZeroU64, ApiError>> + Send;
 
   /// Resolves the caller's current membership, role IDs, and administrator status in `guild`.
   fn membership(
     &self,
     guild: NonZeroU64,
-    code: &str,
+    credential: &Credential,
   ) -> impl Future<Output = Result<Membership, ApiError>> + Send;
 
   /// Requires the caller to administer `guild` and returns the channels Botge can join.
   fn voice_channels(
     &self,
     guild: NonZeroU64,
-    code: &str,
+    credential: &Credential,
   ) -> impl Future<Output = Result<Vec<VoiceChannel>, ApiError>> + Send;
 }
 
 /// Shared dependencies and the request limit for a single Activity API instance.
+///
+/// Handlers validate the proxy and input, authorize through Discord, then use the blocking
+/// database helper. A successful settings response confirms persistence, not voice completion.
 struct Activity<A> {
   access: A,
   proxy: ProxyAuthenticator,
@@ -136,11 +162,12 @@ impl IntoResponse for ApiError {
   }
 }
 
-/// The guild context and authorization code supplied to Activity reads.
+/// Guild context with an optional legacy code; browser requests use a bearer header.
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 struct ReadSettings {
   guild_id: String,
+  #[serde(default)]
   code: String,
 }
 
@@ -149,6 +176,7 @@ struct ReadSettings {
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 struct SaveSettings {
   guild_id: String,
+  #[serde(default)]
   code: String,
   voice: VoiceSettings,
 }
@@ -162,7 +190,7 @@ struct SettingsResponse {
 
 /// Builds the Activity router with shared storage, emote resolution, and Discord access.
 ///
-/// The Activity posts JSON containing its OAuth code even for reads. These responses carry
+/// The Activity posts JSON even for reads. These responses carry
 /// `Cache-Control: no-store` because permissions and preferences depend on the current caller.
 /// The body limit and the per-handler concurrency limit bound separate parts of request work.
 pub(crate) fn router<A: GuildAccess>(
@@ -174,6 +202,7 @@ pub(crate) fn router<A: GuildAccess>(
 ) -> Router {
   Router::new()
     .route("/healthz", get(|| async { StatusCode::NO_CONTENT }))
+    .route("/auth", post(authenticate::<A>))
     .route("/settings", post(read_settings::<A>))
     .route("/settings/voice", post(save_settings::<A>))
     .route("/catalog", post(read_catalog::<A>))
@@ -212,14 +241,14 @@ impl<A: GuildAccess> Activity<A> {
   ///
   /// # Errors
   ///
-  /// An invalid signature yields 401. A malformed guild ID or code yields 400. A full
+  /// An invalid signature yields 401. A malformed guild ID or credential yields 400. A full
   /// semaphore yields 503 immediately, so a burst of requests cannot queue inside the API.
   fn validate(
     &self,
     headers: &HeaderMap,
     guild: &str,
     code: &str,
-  ) -> Result<(NonZeroU64, tokio::sync::SemaphorePermit<'_>), ApiError> {
+  ) -> Result<(NonZeroU64, Credential, tokio::sync::SemaphorePermit<'_>), ApiError> {
     let now = SystemTime::now()
       .duration_since(UNIX_EPOCH)
       .map_err(ApiError::internal)?
@@ -231,39 +260,85 @@ impl<A: GuildAccess> Activity<A> {
       ));
     }
     let guild = discord_id(guild).ok_or(ApiError::INVALID)?;
-    if code.is_empty()
-      || code.len() > 512
-      || !code
-        .bytes()
-        .all(|byte| byte.is_ascii_alphanumeric() || byte == b'_' || byte == b'-')
-    {
-      return Err(ApiError::INVALID);
-    }
+    let credential = if let Some(value) = headers.get(header::AUTHORIZATION) {
+      let token = value
+        .to_str()
+        .ok()
+        .and_then(|value| value.strip_prefix("Bearer "))
+        .filter(|token| {
+          !token.is_empty()
+            && token.len() <= 2048
+            && token.bytes().all(|byte| {
+              byte.is_ascii_alphanumeric()
+                || matches!(byte, b'_' | b'-' | b'.' | b'~' | b'+' | b'/' | b'=')
+            })
+        })
+        .ok_or(ApiError::INVALID)?;
+      Credential::AccessToken(token.to_owned())
+    } else {
+      if code.is_empty()
+        || code.len() > 512
+        || !code
+          .bytes()
+          .all(|byte| byte.is_ascii_alphanumeric() || byte == b'_' || byte == b'-')
+      {
+        return Err(ApiError::INVALID);
+      }
+      Credential::Code(code.to_owned())
+    };
     let permit = self.slots.try_acquire().map_err(|_| {
       ApiError(
         StatusCode::SERVICE_UNAVAILABLE,
         "Botge is busy. Try again shortly.",
       )
     })?;
-    Ok((guild, permit))
+    Ok((guild, credential, permit))
   }
 
   /// Caps the time spent resolving the caller's guild membership.
-  async fn member(&self, guild: NonZeroU64, code: &str) -> Result<Membership, ApiError> {
-    tokio::time::timeout(Duration::from_secs(20), self.access.membership(guild, code))
-      .await
-      .map_err(ApiError::upstream)?
-  }
-
-  /// Caps the administrator and bot permission lookups needed for the channel picker.
-  async fn channels(&self, guild: NonZeroU64, code: &str) -> Result<Vec<VoiceChannel>, ApiError> {
+  async fn member(
+    &self,
+    guild: NonZeroU64,
+    credential: &Credential,
+  ) -> Result<Membership, ApiError> {
     tokio::time::timeout(
-      Duration::from_secs(25),
-      self.access.voice_channels(guild, code),
+      Duration::from_secs(20),
+      self.access.membership(guild, credential),
     )
     .await
     .map_err(ApiError::upstream)?
   }
+
+  /// Caps the administrator and bot permission lookups needed for the channel picker.
+  async fn channels(
+    &self,
+    guild: NonZeroU64,
+    credential: &Credential,
+  ) -> Result<Vec<VoiceChannel>, ApiError> {
+    tokio::time::timeout(
+      Duration::from_secs(25),
+      self.access.voice_channels(guild, credential),
+    )
+    .await
+    .map_err(ApiError::upstream)?
+  }
+}
+
+/// Exchanges a code once; subsequent API calls carry the returned bearer token.
+/// Proxy authentication and the API concurrency limit apply before contacting Discord.
+async fn authenticate<A: GuildAccess>(
+  State(state): State<Arc<Activity<A>>>,
+  headers: HeaderMap,
+  Json(request): Json<ReadSettings>,
+) -> Result<Json<AccessToken>, ApiError> {
+  let (_, credential, _permit) = state.validate(&headers, &request.guild_id, &request.code)?;
+  let Credential::Code(code) = credential else {
+    return Err(ApiError::INVALID);
+  };
+  let token = tokio::time::timeout(Duration::from_secs(20), state.access.exchange_code(&code))
+    .await
+    .map_err(ApiError::upstream)??;
+  Ok(Json(token))
 }
 
 /// Returns the saved voice preference and the channels the bot can currently join.
@@ -275,8 +350,8 @@ async fn read_settings<A: GuildAccess>(
   headers: HeaderMap,
   Json(request): Json<ReadSettings>,
 ) -> Result<Json<SettingsResponse>, ApiError> {
-  let (guild, _permit) = state.validate(&headers, &request.guild_id, &request.code)?;
-  let channels = state.channels(guild, &request.code).await?;
+  let (guild, credential, _permit) = state.validate(&headers, &request.guild_id, &request.code)?;
+  let channels = state.channels(guild, &credential).await?;
   let store = Arc::clone(&state.store);
   let voice = tokio::task::spawn_blocking(move || store.voice_settings(guild))
     .await
@@ -296,11 +371,11 @@ async fn save_settings<A: GuildAccess>(
   headers: HeaderMap,
   Json(request): Json<SaveSettings>,
 ) -> Result<Json<SettingsResponse>, ApiError> {
-  let (guild, _permit) = state.validate(&headers, &request.guild_id, &request.code)?;
+  let (guild, credential, _permit) = state.validate(&headers, &request.guild_id, &request.code)?;
   if !request.voice.is_valid() {
     return Err(ApiError::INVALID);
   }
-  let channels = state.channels(guild, &request.code).await?;
+  let channels = state.channels(guild, &credential).await?;
   if request
     .voice
     .channel_id
@@ -327,6 +402,7 @@ async fn save_settings<A: GuildAccess>(
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 struct ChangeEmote {
   guild_id: String,
+  #[serde(default)]
   code: String,
   emote_id: String,
 }
@@ -336,6 +412,7 @@ struct ChangeEmote {
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 struct SaveEmoteSettings {
   guild_id: String,
+  #[serde(default)]
   code: String,
   emotes: GuildEmotes,
 }
@@ -350,8 +427,8 @@ async fn read_catalog<A: GuildAccess>(
   headers: HeaderMap,
   Json(request): Json<ReadSettings>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
-  let (guild, _permit) = state.validate(&headers, &request.guild_id, &request.code)?;
-  let member = state.member(guild, &request.code).await?;
+  let (guild, credential, _permit) = state.validate(&headers, &request.guild_id, &request.code)?;
+  let member = state.member(guild, &credential).await?;
   let settings = state.emote_settings(guild).await?;
   let entries = state
     .emotes
@@ -378,11 +455,11 @@ async fn add_emote<A: GuildAccess>(
   headers: HeaderMap,
   Json(request): Json<ChangeEmote>,
 ) -> Result<(StatusCode, Json<serde_json::Value>), ApiError> {
-  let (guild, _permit) = state.validate(&headers, &request.guild_id, &request.code)?;
+  let (guild, credential, _permit) = state.validate(&headers, &request.guild_id, &request.code)?;
   if !valid_seven_id(&request.emote_id) {
     return Err(ApiError::INVALID);
   }
-  state.authorize_change(guild, &request.code).await?;
+  state.authorize_change(guild, &credential).await?;
   let emote = state.lookup_emote(&request.emote_id).await?;
   let catalog = state
     .emotes
@@ -405,11 +482,11 @@ async fn remove_emote<A: GuildAccess>(
   headers: HeaderMap,
   Json(request): Json<ChangeEmote>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
-  let (guild, _permit) = state.validate(&headers, &request.guild_id, &request.code)?;
+  let (guild, credential, _permit) = state.validate(&headers, &request.guild_id, &request.code)?;
   if !valid_seven_id(&request.emote_id) {
     return Err(ApiError::INVALID);
   }
-  state.authorize_change(guild, &request.code).await?;
+  state.authorize_change(guild, &credential).await?;
   state.remove_from_catalog(guild, request.emote_id).await?;
   Ok(Json(
     serde_json::json!({ "message": "Removed emote.", "removed": true }),
@@ -429,6 +506,7 @@ enum EmoteAction {
 /// One operation applied to a batch of distinct 7TV IDs.
 struct ChangeEmotes {
   guild_id: String,
+  #[serde(default)]
   code: String,
   action: EmoteAction,
   emote_ids: Vec<String>,
@@ -453,7 +531,7 @@ async fn change_emotes<A: GuildAccess>(
   headers: HeaderMap,
   Json(request): Json<ChangeEmotes>,
 ) -> Result<Json<Vec<EmoteChange>>, ApiError> {
-  let (guild, _permit) = state.validate(&headers, &request.guild_id, &request.code)?;
+  let (guild, credential, _permit) = state.validate(&headers, &request.guild_id, &request.code)?;
   let mut seen = std::collections::HashSet::new();
   if request.emote_ids.is_empty()
     || request.emote_ids.len() > 12
@@ -464,7 +542,7 @@ async fn change_emotes<A: GuildAccess>(
   {
     return Err(ApiError::INVALID);
   }
-  state.authorize_change(guild, &request.code).await?;
+  state.authorize_change(guild, &credential).await?;
   // The validated batch contains at most twelve entries.
   let mut results = Vec::with_capacity(12);
   match request.action {
@@ -576,14 +654,18 @@ impl<A: GuildAccess> Activity<A> {
   ///
   /// When individual additions are enabled, access comes from administrator privileges, the
   /// guild's everyone setting, or a role listed in the saved manager rules.
-  async fn authorize_change(&self, guild: NonZeroU64, code: &str) -> Result<(), ApiError> {
+  async fn authorize_change(
+    &self,
+    guild: NonZeroU64,
+    credential: &Credential,
+  ) -> Result<(), ApiError> {
     if !self.emotes.added_emotes_enabled() {
       return Err(ApiError(
         StatusCode::FORBIDDEN,
         "Added 7TV emotes are disabled by the operator.",
       ));
     }
-    let member = self.member(guild, code).await?;
+    let member = self.member(guild, credential).await?;
     if !self
       .emote_settings(guild)
       .await?
@@ -601,9 +683,9 @@ impl<A: GuildAccess> Activity<A> {
   async fn authorize_settings(
     &self,
     guild: NonZeroU64,
-    code: &str,
+    credential: &Credential,
   ) -> Result<Vec<GuildRole>, ApiError> {
-    let member = self.member(guild, code).await?;
+    let member = self.member(guild, credential).await?;
     if !member.administrator {
       return Err(ApiError(
         StatusCode::FORBIDDEN,
@@ -638,8 +720,8 @@ async fn read_emote_settings<A: GuildAccess>(
   headers: HeaderMap,
   Json(request): Json<ReadSettings>,
 ) -> Result<Json<EmoteSettingsResponse>, ApiError> {
-  let (guild, _permit) = state.validate(&headers, &request.guild_id, &request.code)?;
-  let roles = state.authorize_settings(guild, &request.code).await?;
+  let (guild, credential, _permit) = state.validate(&headers, &request.guild_id, &request.code)?;
+  let roles = state.authorize_settings(guild, &credential).await?;
   Ok(Json(EmoteSettingsResponse {
     emotes: state.emote_settings(guild).await?,
     roles,
@@ -655,8 +737,8 @@ async fn save_emote_settings<A: GuildAccess>(
   headers: HeaderMap,
   Json(request): Json<SaveEmoteSettings>,
 ) -> Result<Json<EmoteSettingsResponse>, ApiError> {
-  let (guild, _permit) = state.validate(&headers, &request.guild_id, &request.code)?;
-  let roles = state.authorize_settings(guild, &request.code).await?;
+  let (guild, credential, _permit) = state.validate(&headers, &request.guild_id, &request.code)?;
+  let roles = state.authorize_settings(guild, &credential).await?;
   if !request.emotes.valid() {
     return Err(ApiError::INVALID);
   }
@@ -677,6 +759,7 @@ async fn save_emote_settings<A: GuildAccess>(
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 struct SaveBorder {
   guild_id: String,
+  #[serde(default)]
   code: String,
   color: String,
 }
@@ -702,9 +785,9 @@ fn parse_border(color: &str) -> Result<Option<u32>, ApiError> {
 /// Resolves the caller's account for a preference shared across guilds.
 async fn border_user<A: GuildAccess>(
   state: &Activity<A>,
-  code: &str,
+  credential: &Credential,
 ) -> Result<NonZeroU64, ApiError> {
-  tokio::time::timeout(Duration::from_secs(20), state.access.user_id(code))
+  tokio::time::timeout(Duration::from_secs(20), state.access.user_id(credential))
     .await
     .map_err(ApiError::upstream)?
 }
@@ -722,8 +805,8 @@ async fn read_border<A: GuildAccess>(
   headers: HeaderMap,
   Json(request): Json<ReadSettings>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
-  let (_, _permit) = state.validate(&headers, &request.guild_id, &request.code)?;
-  let user = border_user(&state, &request.code).await?;
+  let (_, credential, _permit) = state.validate(&headers, &request.guild_id, &request.code)?;
+  let user = border_user(&state, &credential).await?;
   let store = Arc::clone(&state.store);
   Ok(border_response(
     database(move || store.emote_border(user)).await?,
@@ -738,8 +821,8 @@ async fn save_border<A: GuildAccess>(
   headers: HeaderMap,
   Json(request): Json<SaveBorder>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
-  let (_, _permit) = state.validate(&headers, &request.guild_id, &request.code)?;
-  let user = border_user(&state, &request.code).await?;
+  let (_, credential, _permit) = state.validate(&headers, &request.guild_id, &request.code)?;
+  let user = border_user(&state, &credential).await?;
   let color = parse_border(&request.color)?;
   let store = Arc::clone(&state.store);
   database(move || store.save_emote_border(user, color)).await?;

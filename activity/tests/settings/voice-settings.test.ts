@@ -2,9 +2,9 @@
 
 import { beforeEach, expect, test, vi } from 'vitest';
 
-import html from '../index.html?raw';
-import { requireValue } from '../src/validation.ts';
-import { mountVoiceSettings } from '../src/voice-settings.ts';
+import html from '../../index.html?raw';
+import { requireValue } from '../../src/validation.ts';
+import { mountVoiceSettings } from '../../src/settings/voice-settings.ts';
 
 beforeEach(() => {
   document.body.innerHTML = new DOMParser().parseFromString(html, 'text/html').body.innerHTML;

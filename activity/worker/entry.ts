@@ -2,6 +2,11 @@
 import html from '../dist/index.html';
 import { type ActivityPageRequest, serveActivityPage } from './serve-activity-page.ts';
 
+/**
+ * Cloudflare request adapter for the bundled Activity page.
+ *
+ * @see {@link serveActivityPage}
+ */
 export default {
   fetch(
     request: ActivityPageRequest,

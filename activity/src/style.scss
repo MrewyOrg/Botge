@@ -4,7 +4,8 @@
   --raised: #1a1725;
   --hover: #251d35;
   --line: #332b43;
-  --control: #635576;
+  // Control boundaries keep at least 3:1 contrast against the raised surface.
+  --control: #75658a;
   --text: #f7f3ff;
   --muted: #b5abc6;
   --accent: #cbb8ff;
@@ -256,9 +257,16 @@ p {
   display: flex;
   flex-wrap: wrap;
   gap: 0.4rem;
+  min-width: 0;
   margin: 0 0 0.65rem;
   padding: 0;
   list-style: none;
+
+  li {
+    min-width: 0;
+    max-width: 100%;
+    overflow-wrap: anywhere;
+  }
 }
 
 .tag-list li {
@@ -300,11 +308,6 @@ p {
     .search {
       grid-column: 1 / -1;
     }
-
-    input,
-    select {
-      font-size: 1rem;
-    }
   }
 }
 
@@ -320,6 +323,7 @@ p {
 label {
   display: grid;
   gap: 0.3rem;
+  min-width: 0;
   color: var(--muted);
   font-size: 0.82rem;
   font-weight: 650;
@@ -345,10 +349,19 @@ button {
 }
 
 input[type='checkbox'] {
+  flex: none;
   width: 1rem;
   height: 1rem;
   margin: 0;
   accent-color: var(--accent);
+}
+
+@media (max-width: 30rem) {
+  // Keep settings and preview inputs readable without mobile focus zoom.
+  input,
+  select {
+    font-size: 1rem;
+  }
 }
 
 input[type='color'] {
@@ -628,6 +641,7 @@ dialog {
 
 .settings-panel fieldset {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 0.75rem;
   min-inline-size: 0;
   margin: 0.8rem 0 0;
@@ -689,5 +703,6 @@ dialog {
 }
 
 [hidden] {
+  // Script-controlled visibility must override component display rules.
   display: none !important;
 }

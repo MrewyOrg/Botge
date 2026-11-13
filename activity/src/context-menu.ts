@@ -1,11 +1,30 @@
+/* Owns emote action menu positioning, keyboard navigation, and focus restoration. */
+
 import { requireValue } from './validation.ts';
 
 type MenuTrigger = Readonly<Pick<HTMLButtonElement, 'focus' | 'getBoundingClientRect'>>;
 
 type MenuAction = Readonly<{ label: string; run: () => void }>;
 
-/** Mounts the emote action menu and keeps focus with its trigger when dismissed by keyboard. */
+/**
+ * Mounts the emote action menu and its keyboard and dismissal handlers.
+ *
+ * @remarks
+ * Escape and Tab restore focus to the trigger. Pointer dismissal, scrolling, and resizing
+ * close the menu without moving focus. Choosing an action closes the menu before running it.
+ *
+ * @returns A controller that replaces the menu's actions whenever it opens.
+ * @throws `Error` if the required menu markup is missing.
+ */
 export function createContextMenu(): Readonly<{
+  /**
+   * Opens the action menu and focuses its first action.
+   *
+   * @param trigger - Tile that owns the menu and receives restored keyboard focus.
+   * @param x - Pointer coordinate in the viewport; two zero coordinates select keyboard anchoring.
+   * @param y - Pointer coordinate in the viewport; keyboard anchoring uses the tile's bottom edge.
+   * @param actions - Ordered labels and callbacks for the current emote.
+   */
   open: (trigger: MenuTrigger, x: number, y: number, actions: readonly MenuAction[]) => void;
 }> {
   const menu = requireValue(

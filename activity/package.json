@@ -1,6 +1,17 @@
 {
   "name": "@botge/activity",
   "private": true,
+  "description": "Discord Activity for browsing, composing, and managing Botge emotes and settings.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/MrewyOrg/Botge.git",
+    "directory": "activity"
+  },
+  "homepage": "https://github.com/MrewyOrg/Botge/wiki/Activity",
+  "bugs": {
+    "url": "https://github.com/MrewyOrg/Botge/issues"
+  },
   "type": "module",
   "scripts": {
     "build": "vite build --base=./ --target=esnext",
@@ -20,5 +31,9 @@
     "sass": "^1.108.2",
     "vite": "^8.3.8",
     "vitest": "^5.1.0"
+  },
+  "engines": {
+    "node": ">=26.13.0",
+    "npm": ">=11.20.0"
   }
 }
