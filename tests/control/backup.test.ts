@@ -17,7 +17,8 @@ beforeEach(() => {
     BOTGE_DIR: directory,
     BOTGE_CONTROL_LOCK: join(directory, 'lock'),
     TEST_COMMANDS: join(directory, 'commands'),
-    TEST_VERIFY_STATUS: '0'
+    TEST_VERIFY_STATUS: '0',
+    TEST_CONTAINER_CONFIG: JSON.stringify({ WorkingDir: '/app', Env: [] })
   };
   writeFileSync(join(directory, 'commands'), '');
   for (const [name, source] of Object.entries({
@@ -29,6 +30,7 @@ printf '%s\\n' "$*" >> "$TEST_COMMANDS"
 case "$*" in
   'compose ps -q --status running botge') echo container ;;
   'inspect --format {{.Image}} container') echo sha256:fixture ;;
+  'inspect --format {{json .Config}} container') printf '%s' "$TEST_CONTAINER_CONFIG" ;;
   cp*) printf fixture > "$3" ;;
   run*) exit "$TEST_VERIFY_STATUS" ;;
 esac`
@@ -73,4 +75,44 @@ test('existing backup directories are refused before stopping the bot', () => {
   });
   assert.equal(result.status, 1);
   assert.equal(readFileSync(join(directory, 'commands'), 'utf8'), '');
+});
+
+test.each([
+  { WorkingDir: '/app', Env: ['BOTGE_DATA_DIR=/tmp/data'] },
+  { WorkingDir: '/other', Env: ['BOTGE_DATA_DIR=data'] },
+  { WorkingDir: '/app', Env: ['BOTGE_DATA_DIR='] }
+] as const)(
+  'nonstandard running data directories are refused before stopping or copying',
+  (config) => {
+    const destination = join(directory, 'backup');
+    const result = spawnSync('bash', [resolve('scripts/backup-compose.sh'), destination], {
+      env: { ...environment, TEST_CONTAINER_CONFIG: JSON.stringify(config) },
+      encoding: 'utf8'
+    });
+    assert.equal(result.status, 1);
+    assert.ok(result.stderr.includes('Botge was not stopped'));
+    const calls = readFileSync(join(directory, 'commands'), 'utf8');
+    assert.ok(!calls.includes('compose stop'));
+    assert.ok(!calls.includes('cp container:'));
+    assert.ok(!existsSync(destination));
+  }
+);
+
+test('backup uses the running data directory rather than the caller environment', () => {
+  const result = spawnSync(
+    'bash',
+    [resolve('scripts/backup-compose.sh'), join(directory, 'backup')],
+    {
+      env: {
+        ...environment,
+        BOTGE_DATA_DIR: '/unrelated/host/path',
+        TEST_CONTAINER_CONFIG: JSON.stringify({
+          WorkingDir: '/other',
+          Env: ['BOTGE_DATA_DIR=/app/data']
+        })
+      },
+      encoding: 'utf8'
+    }
+  );
+  assert.equal(result.status, 0, result.stderr);
 });

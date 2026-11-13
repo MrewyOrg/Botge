@@ -1,4 +1,5 @@
 #!/bin/bash
+# cspell:words ltrimstr
 set -euo pipefail
 
 # Run explicitly on the host. The bot is stopped briefly for a consistent redb copy.
@@ -27,6 +28,16 @@ container=$(docker compose ps -q --status running botge)
   echo 'Botge must be running before this backup operation.' >&2
   exit 1
 }
+# Inspect the running container, not a possibly changed Compose file or host environment.
+if ! docker inspect --format '{{json .Config}}' "$container" | jq --exit-status '
+  (.Env // [] | map(select(startswith("BOTGE_DATA_DIR="))) | last // "BOTGE_DATA_DIR=data"
+    | ltrimstr("BOTGE_DATA_DIR=")) as $data |
+  ($data == "/app/data" or $data == "/app/data/" or
+    ((.WorkingDir == "/app") and (["data", "data/", "./data", "./data/"] | index($data) != null)))
+' > /dev/null; then
+  echo 'Backup requires the running database directory to be /app/data. Botge was not stopped.' >&2
+  exit 1
+fi
 image=$(docker inspect --format '{{.Image}}' "$container")
 umask 077
 mkdir "$backup_dir"

@@ -64,8 +64,9 @@ sudo bash "$BOTGE_DOWNLOAD_DIR/botge_control/import_data" /path/to/existing/data
 ```
 
 The script stops destination Botge, locks control operations, and imports as `node`. It refuses
-nonempty volumes. Avoid direct Docker commands during import. After success, start the stack with
-`up`; after failure, inspect any partial data before retrying.
+nonempty volumes and rejects data-directory overrides outside `/app/data`. Keep the image's default
+working directory when using the relative `data` path. Avoid direct Docker commands during import.
+After success, start the stack with `up`; after failure, inspect any partial data before retrying.
 
 ## Grant control access
 

@@ -40,10 +40,14 @@ and host-level restore drills require operator setup.
 
 Run `scripts/backup-compose.sh NEW_DIRECTORY` on the host with `BOTGE_DIR`, `BOTGE_CONTROL_LOCK`,
 and the installed control account's rootless Docker environment. The parent directory must exist;
-the destination must not. The script shares the deployment lock, stops Botge, copies redb, verifies
-all tables read-only with the running image, and writes a checksum and image ID. Its exit trap
-restarts the original container even if copying or verification fails. Upload successful backups to
-encrypted off-host storage. The script does not schedule, upload, or delete backups.
+the destination must not. Backup and import require the container database directory to resolve to
+`/app/data`: use the image default or that explicit absolute path. Backup inspects the running
+container; import checks Compose configuration and the import container. Unsupported data-directory
+or working-directory overrides are rejected before stopping Botge when visible in the preflight. The
+script shares the deployment lock, stops Botge, copies redb, verifies all tables read-only with the
+running image, and writes a checksum and image ID. Its exit trap restarts the original container
+even if copying or verification fails. Upload successful backups to encrypted off-host storage. The
+script does not schedule, upload, or delete backups.
 
 To restore:
 

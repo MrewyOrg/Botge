@@ -32,10 +32,32 @@ if (($# == 1)) && [[ "$1" == --receive ]]; then
     exit 1
   fi
 
+  # Fail before stopping or writing when runtime configuration selects another database path.
+  if ! docker compose config --format json | jq --exit-status '
+    .services.botge |
+    (.environment.BOTGE_DATA_DIR // "data") as $data |
+    ($data == "/app/data" or $data == "/app/data/" or
+      (((.working_dir // "/app") == "/app") and
+        (["data", "data/", "./data", "./data/"] | index($data) != null)))
+  ' > /dev/null; then
+    echo 'Import requires the configured database directory to be /app/data. Botge was not stopped.' >&2
+    exit 1
+  fi
+
   docker compose stop botge < /dev/null
   # Evaluate destination paths and variables in the container, not on the host.
   # shellcheck disable=SC2016
   docker compose run --rm --no-deps -T --user node --entrypoint sh botge -ec '
+    case "${BOTGE_DATA_DIR-data}" in
+      /app/data | /app/data/) ;;
+      data | data/ | ./data | ./data/)
+        test "$PWD" = /app || {
+          echo "Import requires the image working directory to be /app." >&2
+          exit 1
+        }
+        ;;
+      *) echo "Import requires the runtime database directory to be /app/data." >&2; exit 1 ;;
+    esac
     existing="$(find /app/data -mindepth 1 ! -path /app/data/tmp -print -quit)"
     readonly existing
     if [ -n "$existing" ] || [ -L /app/data/tmp ] \
