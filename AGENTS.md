@@ -18,8 +18,11 @@ implementation references versioned in the repository and avoid duplicating wiki
 - `src/storage.rs` owns redb transactions. `src/voice.rs` reconciles saved guild settings with
   Discord voice state.
 - `activity/` is an npm workspace with its own browser and Worker tests. See its
-  [workspace guide](activity/README.md). Root `vitest.config.ts` runs both the Activity and tooling
-  suites. See the [test guide](tests/README.md) for integration tests.
+  [workspace guide](activity/README.md). `activity/src/index.ts` wires the browser; `catalog/`,
+  `composer/`, and `settings/` group its features, with matching test folders. `activity-api.ts`
+  owns the browser's queued OAuth session, and `activity/worker/` verifies HTML requests. Root
+  `vitest.config.ts` runs both the Activity and tooling suites. See the
+  [test guide](tests/README.md) for integration tests.
 - `Dockerfile` builds the Rust production image. `compose.yaml` runs Botge and nginx, and
   `compose.build.yaml` selects a local build. `compose.activity.yaml` exposes the Activity API on
   the host loopback interface. Read the [control guide](botge_control/README.md) before changing
@@ -40,7 +43,8 @@ with `npm ci`.
   opt-in Compose test connects to Discord.
 - TypeScript checks: `npm run check` runs the shared tooling and Activity checks. Use
   `npm run test:coverage -w activity` for Activity coverage and `npm run check:markup -w activity`
-  for its build, HTML, and SCSS validation.
+  for its build, HTML, and SCSS validation. Run Activity builds and tests sequentially: the Worker
+  entry tests mock the generated HTML module, which a concurrent build can replace.
 - Documentation and tooling: `npm run markdownlint`, `npm run cspell`, `npm run lint:shell`, and
   `npm run lint:workflows`. Use Prettier for supported non-Rust files and Regal for Rego.
 
@@ -67,6 +71,11 @@ optional, not a pre-push requirement.
 - For TypeScript, use two spaces, single quotes, semicolons, and ESM imports with `.ts` relative
   extensions. Group imports by Node, dependencies, and project code. Keep type-only imports beside
   their modules, use readonly types for snapshots, and validate untrusted input.
+- Keep the Activity's single `@packageDocumentation` comment in `activity/src/index.ts`. Use
+  ordinary comments for other file overviews so they cannot attach to the next declaration. Put
+  TSDoc immediately above the declaration it describes. Use applicable parameter, return, error,
+  generic, remarks, example, and cross-reference tags; keep built-in exception names in code spans
+  rather than unresolved symbol links.
 - Keep runtime defaults, example config, schema, and setup docs aligned. Use `.env.example` for new
   environment options.
 - Do not automatically regenerate or edit PNG diagrams in `docs/`. Update them only when the user
