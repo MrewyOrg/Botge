@@ -16,21 +16,21 @@ import { requireValue } from '../validation.ts';
  * @see {@link MAX_EMOTE_COMPOSE_INPUTS}
  * @see {@link groupEmoteLayers}
  */
-export function createComposer(): Readonly<{
+export function createComposer(): {
   /**
    * Adds one composable emote if capacity remains.
    * @param emote - Catalog or discovery entry.
    */
-  add: (emote: BrowserEmote) => void;
+  readonly add: (emote: BrowserEmote) => void;
   /**
    * Adds composable entries in order, stopping at the input limit.
    * @param emotes - Candidate layers in selection order.
    * @returns The number of entries accepted.
    */
-  addMany: (emotes: readonly BrowserEmote[]) => number;
+  readonly addMany: (emotes: readonly BrowserEmote[]) => number;
   /** Reports whether the composer has reached its input limit. */
-  full: () => boolean;
-}> {
+  readonly full: () => boolean;
+} {
   const panel = requireValue(
     document.querySelector<HTMLDetailsElement>('#composer'),
     'Missing composer.'
@@ -157,9 +157,11 @@ export function createComposer(): Readonly<{
   render();
 
   function addMany(items: readonly BrowserEmote[]): number {
-    const added = items
+    const added: readonly BrowserEmote[] = items
+      .values()
       .filter((emote) => emote.composeToken !== undefined)
-      .slice(0, MAX_EMOTE_COMPOSE_INPUTS - emotes.length);
+      .take(MAX_EMOTE_COMPOSE_INPUTS - emotes.length)
+      .toArray();
     if (added.length > 0) {
       emotes.push(...added);
       panel.open = true;

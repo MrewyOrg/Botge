@@ -10,7 +10,7 @@ import { type ActivityPageRequest, serveActivityPage } from './serve-activity-pa
 export default {
   fetch(
     request: ActivityPageRequest,
-    env: Readonly<{ DISCORD_ACTIVITY_PUBLIC_KEY?: string }>
+    env: { readonly DISCORD_ACTIVITY_PUBLIC_KEY?: string }
   ): Response {
     return serveActivityPage(request, env.DISCORD_ACTIVITY_PUBLIC_KEY, html);
   }

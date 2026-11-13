@@ -102,3 +102,19 @@ test('fails clearly when the composer markup is missing', () => {
   element('#composer').remove();
   expect(() => createComposer()).toThrow('Missing composer.');
 });
+
+test('ignores stale reorder controls and out-of-range moves', () => {
+  const composer = createComposer();
+  composer.addMany([base, other]);
+  const earlier = requireValue(
+    document.querySelector<HTMLButtonElement>('button[aria-label="Move earlier Wave"]'),
+    'Missing reorder control'
+  );
+  earlier.disabled = false;
+  earlier.click();
+  expect(tokens()).toBe('Wave Smile');
+  const stale = element('button[aria-label="Move earlier Smile"]');
+  element('button[aria-label="Remove Smile"]').click();
+  stale.click();
+  expect(tokens()).toBe('Wave');
+});

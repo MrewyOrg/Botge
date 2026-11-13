@@ -7,12 +7,19 @@ Browser code lives in `src/`, and the Cloudflare entry point and proxy authentic
 `worker/`. The workspace shares the repository's npm lockfile. Run these commands from the
 repository root.
 
-`src/index.ts` wires the page together. `catalog/` owns catalog parsing, filtering, and 7TV
-discovery; `composer/` owns composition order and preview layers; `settings/` owns the three
-settings forms. The feature entry modules are `catalog/catalog.ts` and `composer/composer.ts`.
-`activity-api.ts` owns the queued OAuth session, while `context-menu.ts` and `validation.ts` provide
-shared helpers. Tests mirror these feature folders under `tests/`; Worker tests live in
-`tests/worker/`.
+`src/index.ts` coordinates catalog loading and Discord initialization. Feature ownership:
+
+| Module                             | Responsibility                                             |
+| ---------------------------------- | ---------------------------------------------------------- |
+| `activity-api.ts`                  | Queued OAuth session and route-specific request contracts  |
+| `page-navigation.ts`               | Catalog/settings visibility and URL navigation             |
+| `catalog/`                         | Parsing, discovery, preview actions, and bounded selection |
+| `composer/`                        | Layer order, composition limits, and previews              |
+| `settings/`                        | Voice, provider/role policy, and personal border forms     |
+| `context-menu.ts`, `validation.ts` | Shared UI and boundary helpers                             |
+
+Tests mirror features under `tests/`, including browser integration suites and Worker tests.
+`tests/fixtures/activity-page.ts` shares page and Discord fixtures.
 
 ```sh
 npm ci
@@ -28,9 +35,16 @@ Vite serves the local demo on its printed localhost URL and builds to `activity/
 feature flags and Discord URL mappings are documented in the wiki. HTML validation checks the source
 and built page, and Vite compiles SCSS during the build.
 
+The browser build targets `esnext` and requires ES2025 iterator helpers and `Promise.withResolvers`;
+Vite does not polyfill these runtime APIs. Keep the Discord embedded browser and local Node runtime
+compatible when adopting newer language or platform features.
+
 The Activity suite covers the browser and Worker without running the bot. Coverage reports go to
-`coverage/activity/`, with an 80% minimum per source file. Rust API tests live beside
-[the API implementation](../src/activity/tests.rs). See the [test guide](../tests/README.md).
+`coverage/activity/`, with a 90% minimum for statements, branches, functions, and lines per runtime
+source file. Declaration-only `.d.ts` files have no runtime code and are excluded. The root
+`npm run test:coverage` command applies the same gate to repository tooling and the Activity. Rust
+API tests live beside [the API implementation](../src/activity/tests.rs). See the
+[test guide](../tests/README.md).
 
 API calls are queued. `/auth` exchanges one OAuth code for an access token, then the browser
 authenticates the Discord SDK and keeps the token in memory until shortly before expiry. API

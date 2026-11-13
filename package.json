@@ -43,6 +43,7 @@
     "start": "docker image prune --force && docker compose -f compose.yaml -f compose.build.yaml up --build",
     "stop": "docker compose stop",
     "test": "vitest",
+    "test:coverage": "vitest run --coverage",
     "typecheck": "tsc --build && npm run typecheck -w activity"
   },
   "allowScripts": {
@@ -68,6 +69,7 @@
     "prettier-plugin-nginx": "^2.0.0",
     "prettier-plugin-sh": "^0.20.2",
     "prettier-plugin-toml": "^4.1.0",
+    "ts-essentials": "^10.2.1",
     "typescript": "npm:@typescript/typescript6@^6.0.2",
     "typescript-eslint": "^8.72.2",
     "vitest": "^5.1.0"

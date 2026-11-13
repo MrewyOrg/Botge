@@ -8,11 +8,11 @@ import { createProxyAuthenticator } from './proxy-authentication.ts';
  * @remarks
  * The URL must be absolute. This subset accepts both Cloudflare requests and local fixtures.
  */
-export type ActivityPageRequest = Readonly<{
-  headers: Readonly<Pick<Headers, 'get'>>;
-  method: string;
-  url: string;
-}>;
+export type ActivityPageRequest = {
+  readonly headers: Readonly<Pick<Headers, 'get'>>;
+  readonly method: string;
+  readonly url: string;
+};
 
 /**
  * Serves the Activity HTML after verifying Discord's proxy signature.

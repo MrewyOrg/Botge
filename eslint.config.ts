@@ -45,6 +45,7 @@ const config: readonly Readonly<Config>[] = defineConfig([
       '@typescript-eslint/restrict-template-expressions': ['error', { allowNumber: true }],
       '@typescript-eslint/strict-void-return': 'off', // Collection callbacks may intentionally discard ordinary return values.
 
+      // TypeScript-aware replacements above handle the disabled core rules below.
       'array-callback-return': 'error',
       'block-scoped-var': 'error',
       'eqeqeq': 'error',
@@ -52,7 +53,7 @@ const config: readonly Readonly<Config>[] = defineConfig([
       'new-cap': 'error',
 
       'no-alert': 'error',
-      'no-array-constructor': 'off', // ! @typescript-eslint
+      'no-array-constructor': 'off',
       'no-await-in-loop': 'off', // Pagination and message deletion require sequential requests.
       'no-bitwise': 'error',
       'no-caller': 'error',
@@ -60,18 +61,18 @@ const config: readonly Readonly<Config>[] = defineConfig([
       'no-duplicate-imports': 'error',
       'no-eq-null': 'error',
       'no-empty': 'error',
-      'no-empty-function': 'off', // ! @typescript-eslint
+      'no-empty-function': 'off',
       'no-eval': 'error',
       'no-extend-native': 'error',
       'no-extra-bind': 'error',
       'no-implicit-globals': 'error',
-      'no-implied-eval': 'off', // ! @typescript-eslint
+      'no-implied-eval': 'off',
       'no-inner-declarations': 'error',
-      'no-invalid-this': 'off', // ! @typescript-eslint
+      'no-invalid-this': 'off',
       'no-iterator': 'error',
       'no-lone-blocks': 'error',
-      'no-loop-func': 'off', // ! @typescript-eslint
-      'no-magic-numbers': 'off', // ! @typescript-eslint
+      'no-loop-func': 'off',
+      'no-magic-numbers': 'off',
       'no-multi-assign': 'error',
       'no-new': 'error',
       'no-new-func': 'error',
@@ -90,17 +91,17 @@ const config: readonly Readonly<Config>[] = defineConfig([
       'no-script-url': 'error',
       'no-self-compare': 'error',
       'no-sequences': 'error',
-      'no-shadow': 'off', // ! @typescript-eslint
+      'no-shadow': 'off',
       'no-template-curly-in-string': 'error',
-      'no-throw-literal': 'off', // ! @typescript-eslint
-      'no-unassigned-vars': 'warn', // ?
+      'no-throw-literal': 'off',
+      'no-unassigned-vars': 'warn',
       'no-unmodified-loop-condition': 'error',
       'no-unreachable-loop': 'error',
-      'no-use-before-define': 'off', // ! @typescript-eslint
-      'no-unused-expressions': 'off', // ! @typescript-eslint
-      'no-useless-assignment': 'warn', // ?
+      'no-use-before-define': 'off',
+      'no-unused-expressions': 'off',
+      'no-useless-assignment': 'warn',
       'no-useless-call': 'error',
-      'no-useless-constructor': 'off', // ! @typescript-eslint
+      'no-useless-constructor': 'off',
       'no-useless-rename': 'error',
       'no-useless-return': 'error',
       'no-var': 'error',
@@ -109,13 +110,13 @@ const config: readonly Readonly<Config>[] = defineConfig([
       'prefer-const': 'error',
       'prefer-named-capture-group': 'error',
       'prefer-object-has-own': 'error',
-      'prefer-promise-reject-errors': 'off', // ! @typescript-eslint
+      'prefer-promise-reject-errors': 'off',
       'prefer-regex-literals': 'error',
       'prefer-rest-params': 'error',
       'preserve-caught-error': 'error',
 
       'radix': 'error',
-      'require-await': 'off', // ! @typescript-eslint
+      'require-await': 'off',
       'require-atomic-updates': 'error',
       'require-unicode-regexp': 'error',
       'strict': ['error', 'never'],

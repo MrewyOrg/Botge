@@ -24,7 +24,7 @@ export const MAX_EMOTE_COMPOSE_INPUTS = 32;
 export function groupEmoteLayers<T>(
   items: readonly T[],
   isOverlay: (item: T) => boolean
-): readonly Readonly<{ start: number; layers: readonly T[] }>[] {
+): readonly { readonly start: number; readonly layers: readonly T[] }[] {
   const groups: { start: number; layers: readonly T[] }[] = [];
   let start = 0;
   for (const [index, item] of items.entries()) {

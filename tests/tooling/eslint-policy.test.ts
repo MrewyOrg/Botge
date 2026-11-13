@@ -3,7 +3,9 @@ import assert from 'node:assert/strict';
 import { ESLint } from 'eslint';
 import { expect, test } from 'vitest';
 
-const eslint = new ESLint({ flags: ['unstable_native_nodejs_ts_config'] });
+import config from '../../eslint.config.ts';
+
+const eslint = new ESLint({ overrideConfig: [...config], overrideConfigFile: true });
 const rule = '@typescript-eslint/prefer-readonly-parameter-types';
 
 async function assertRule(code: string, ruleId: string, expected: number): Promise<void> {
@@ -28,6 +30,11 @@ for (const { name, code, expected } of [
   {
     name: 'readonly array',
     code: 'export function check(values: readonly number[]): number { return values.length; }',
+    expected: 0
+  },
+  {
+    name: 'deeply readonly snapshot',
+    code: "import type { DeepReadonly } from 'ts-essentials'; export function check(values: DeepReadonly<{ items: number[] }>): number { return values.items.length; }",
     expected: 0
   },
   {
