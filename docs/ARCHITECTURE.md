@@ -49,6 +49,21 @@ dependencies together. The Activity routes validate input and translate failures
 responses. The Discord adapter exchanges OAuth codes and checks permissions. Storage owns redb
 transactions, and the voice worker applies settings to Discord.
 
+The larger services separate their internal responsibilities into child modules:
+
+- [`commands.rs`](../src/commands.rs) dispatches to [`commands/`](../src/commands/): composition,
+  message prefixes, autocomplete, shortcuts, registration, and cleanup.
+- [`activity.rs`](../src/activity.rs) shares authentication and state across the voice, catalog, and
+  personal border routes in [`activity/`](../src/activity/).
+- [`providers.rs`](../src/emotes/providers.rs) keeps networking and snapshots separate from
+  [`normalization.rs`](../src/emotes/providers/normalization.rs) and
+  [`events.rs`](../src/emotes/providers/events.rs).
+- [`rendering.rs`](../src/emotes/rendering.rs) coordinates downloads and encoding; its
+  [`child modules`](../src/emotes/rendering/) own layout planning, media probing, and WebP timing.
+
+Feature tests live in each child module's `tests.rs`. Parent test modules retain shared fixtures and
+scenarios that exercise dispatch, authentication, networking, or the complete render pipeline.
+
 The internal health listener is independent of the Activity API. It exposes process liveness at
 `/healthz` and gateway readiness at `/readyz`. Ready/Resumed enables readiness; reconnect stages
 remove it without failing liveness. `--healthcheck` checks local readiness, and `--verify-database`
@@ -117,7 +132,7 @@ The renderer synchronizes each overlaying group before compositing so all layers
 timing. Animated compositions export WebP with variable frame delays and use the longest source
 animation's duration.
 
-## Validate the Rust bot
+## Validation
 
 `rust-toolchain.toml` pins the nightly shared by development, CI, and Docker. Development installs
 the default profile, LLVM coverage tools, and standard library sources for editor navigation. CI
@@ -131,9 +146,16 @@ Debian.
 ```sh
 cargo fmt --all --check
 cargo clippy --locked --all-targets -- -D warnings
+cargo doc --locked --no-deps --document-private-items
 sh scripts/check-rust-coverage.sh
-npm run test:coverage -w activity
+npm run check:static
+npm run test:coverage
+npm run check:markup -w activity
 ```
+
+Rust and TypeScript enforce 90% coverage per runtime source file. Rustdoc and Clippy validate
+private contracts as well as public ones. Run Activity builds and tests sequentially because Worker
+tests mock the generated HTML module. See the [test guide](../tests/README.md).
 
 For a live test, export `DISCORD_TOKEN` and `APP_ID` for a separate Discord test application. Export
 `DISCORD_ACTIVITY_CLIENT_SECRET` and `DISCORD_ACTIVITY_PUBLIC_KEY` to enable the local API on
