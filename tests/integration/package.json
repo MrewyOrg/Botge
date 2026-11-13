@@ -15,7 +15,7 @@
   "devDependencies": {
     "@types/node": "^26.6.6",
     "testcontainers": "^12.2.1",
-    "typescript": "npm:@typescript/typescript6@^6.0.3",
+    "typescript": "npm:@typescript/typescript6@^6.0.2",
     "vitest": "^5.1.0"
   },
   "engines": {

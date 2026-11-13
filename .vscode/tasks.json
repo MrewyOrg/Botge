@@ -135,6 +135,8 @@
         "create",
         ".github/codeql/database/actions",
         "--language=actions",
+        "--build-mode=none",
+        "--codescanning-config=.github/codeql/codeql-config.yml",
         "--overwrite"
       ],
 
@@ -153,6 +155,8 @@
         "create",
         ".github/codeql/database/typescript",
         "--language=typescript",
+        "--build-mode=none",
+        "--codescanning-config=.github/codeql/codeql-config.yml",
         "--overwrite"
       ],
 
@@ -193,7 +197,7 @@
         "database",
         "analyze",
         ".github/codeql/database/typescript",
-        ".github/codeql/queries/typescript-security-and-quality.qls",
+        "javascript-security-and-quality.qls",
         "--format=sarif-latest",
         "--output=.github/codeql/output/codeql-typescript-output.sarif"
       ]

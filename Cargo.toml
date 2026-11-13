@@ -2,7 +2,7 @@
 
 [package]
 name = 'botge'
-version = '0.1.0'
+version = '5.1.0'
 edition = '2024'
 description = 'Discord bot for emotes, overlays, and the Botge Activity'
 license = 'MIT'
@@ -18,9 +18,10 @@ futures-util = '0.3'
 hex = '0.4'
 jsonc-parser = { version = '0.34', features = ['serde'] }
 redb = '4.5'
-reqwest = { version = '0.12', default-features = false, features = [
+reqwest = { version = '0.13', default-features = false, features = [
   'json',
-  'rustls-tls',
+  'rustls',
+  'form',
 ] }
 serde = { version = '1', features = ['derive'] }
 serde_json = '1'

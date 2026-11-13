@@ -15,10 +15,10 @@
   },
   "devDependencies": {
     "@vitest/coverage-v8": "^5.1.0",
-    "html-validate": "^11.21.0",
+    "html-validate": "^11.21.1",
     "jsdom": "^31.0.0",
-    "sass": "^1.108.1",
-    "vite": "^8.3.6",
+    "sass": "^1.108.2",
+    "vite": "^8.3.8",
     "vitest": "^5.1.0"
   }
 }

@@ -198,6 +198,21 @@ const refresh = requireValue(
   'Missing catalog refresh.'
 );
 
+/** Bounds SDK waits so a stalled Discord command cannot hold the API queue indefinitely. */
+async function waitForDiscord<T>(operation: () => Promise<T>): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<never>((_resolve, reject) => {
+    timer = setTimeout(() => {
+      reject(new Error('Discord did not respond. Try again or reopen the Activity.'));
+    }, 15_000);
+  });
+  try {
+    return await Promise.race([operation(), timeout]);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 /** Requests a fresh Discord authorization code for each queued Botge API call. */
 async function requestServer(
   path:
@@ -219,25 +234,32 @@ async function requestServer(
   if (client === undefined || applicationId === undefined)
     throw new Error('Open Botge inside Discord.');
   const request = requestQueue.then(async () => {
-    const send = async (): Promise<unknown> => {
-      const { code } = await client.commands.authorize({
-        client_id: applicationId,
-        response_type: 'code',
-        state: '',
-        prompt: 'none',
-        scope: ['identify']
-      });
+    const send = async (): Promise<Readonly<{ payload: unknown; expired: boolean }>> => {
+      const { code } = await waitForDiscord(
+        async () =>
+          await client.commands.authorize({
+            client_id: applicationId,
+            response_type: 'code',
+            state: '',
+            prompt: 'none',
+            scope: ['identify']
+          })
+      );
       const response = await fetch(`/botge-api/${path}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ...fields, code, guildId }),
         signal: AbortSignal.timeout(45_000)
       });
-      return (await response.json()) as unknown;
+      const payload: unknown = await response.json();
+      return {
+        payload,
+        expired: response.status === 401 && isRecord(payload) && payload['code'] === 'oauth_expired'
+      };
     };
-    const payload = await send();
-    // Only an expired OAuth code triggers a retry. Other errors may follow a write.
-    return isRecord(payload) && payload['code'] === 'oauth_expired' ? await send() : payload;
+    const result = await send();
+    // Only an expired OAuth code triggers one retry. Other errors may follow a write.
+    return result.expired ? (await send()).payload : result.payload;
   });
   // Settle the queue on failure as well so later requests can still run.
   requestQueue = request.then(
@@ -692,7 +714,10 @@ selectionRemove.addEventListener('click', () => {
 });
 
 async function loadActivity(): Promise<void> {
-  await discord?.ready();
+  if (discord !== undefined)
+    await waitForDiscord(async () => {
+      await discord.ready();
+    });
   const settingsGuildId = discord?.guildId ?? undefined;
   if (
     import.meta.env['VITE_ENABLE_ACTIVITY_SETTINGS'] === 'true'

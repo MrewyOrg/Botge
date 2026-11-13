@@ -1,0 +1,106 @@
+name: Dependency Security
+
+on:
+  pull_request:
+    branches: [dev]
+  schedule:
+    - cron: '17 6 * * 1'
+  workflow_dispatch:
+  workflow_call:
+
+permissions:
+  contents: read
+
+concurrency:
+  group:
+    dependency-security-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  review:
+    name: Dependency review
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/dependency-review-action@v5.0.0
+        with:
+          fail-on-severity: critical
+
+  audit:
+    name: Dependency audit (${{ matrix.ecosystem }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        ecosystem: [npm, cargo]
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7.1.0
+        if: matrix.ecosystem == 'npm'
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            tests/integration/package-lock.json
+      - name: Audit npm dependencies
+        if: matrix.ecosystem == 'npm'
+        id: npm-root
+        continue-on-error: true
+        run: |
+          npm ci --prefer-offline --ignore-scripts --no-audit
+          npm audit --audit-level=critical
+      - name: Audit integration dependencies
+        if: matrix.ecosystem == 'npm'
+        id: npm-integration
+        continue-on-error: true
+        run: |
+          npm --prefix tests/integration ci --prefer-offline --ignore-scripts --no-audit
+          npm --prefix tests/integration audit --audit-level=critical
+      - name: Require both npm audits
+        if: matrix.ecosystem == 'npm'
+        env:
+          ROOT_RESULT: ${{ steps.npm-root.outcome }}
+          INTEGRATION_RESULT: ${{ steps.npm-integration.outcome }}
+        run: test "$ROOT_RESULT" = success && test "$INTEGRATION_RESULT" = success
+      - name: Restore pinned Rust audit tool
+        if: matrix.ecosystem == 'cargo'
+        id: cargo-audit-cache
+        uses: actions/cache@v6.1.0
+        with:
+          path: ${{ runner.temp }}/botge-audit-tools/bin/cargo-audit
+          key: cargo-audit-${{ runner.os }}-${{ runner.arch }}-0.23.0
+      - name: Install pinned Rust audit tool
+        if: matrix.ecosystem == 'cargo' && steps.cargo-audit-cache.outputs.cache-hit != 'true'
+        shell: bash
+        run: |
+          toolchain=$(sed -n "s/^channel = '\(.*\)'$/\1/p" rust-toolchain.toml)
+          test -n "$toolchain"
+          export RUSTUP_TOOLCHAIN="$toolchain"
+          rustup toolchain install "$toolchain" --profile minimal --no-self-update
+          cargo install cargo-audit --locked --version 0.23.0 --root "$RUNNER_TEMP/botge-audit-tools"
+      - name: Audit Cargo lockfile
+        if: matrix.ecosystem == 'cargo'
+        shell: bash
+        run: |
+          report="$RUNNER_TEMP/cargo-audit.json"
+          status=0
+          "$RUNNER_TEMP/botge-audit-tools/bin/cargo-audit" audit --json > "$report" || status=$?
+          cat "$report"
+          # Exit 1 can mean findings; other statuses indicate a failed audit.
+          if [ "$status" -gt 1 ]; then exit "$status"; fi
+          # The native critical threshold retains unscored advisories. Report them without blocking.
+          jq -e '
+            if (.vulnerabilities.list | type) != "array" then
+              error("Cargo audit did not produce a vulnerability report")
+            else
+              [.vulnerabilities.list[] | select(.advisory.cvss != null)] | length == 0
+            end
+          ' "$report"

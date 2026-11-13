@@ -305,7 +305,19 @@ impl EventHandler for Events {
 
   /// Wakes voice reconciliation after a gateway resume.
   async fn resume(&self, _context: Context, _event: serenity::all::ResumedEvent) {
+    self.ready.send_replace(true);
     self.voice_changed.notify_one();
+  }
+
+  /// Removes readiness while the single gateway shard reconnects; Ready/Resumed restores it.
+  async fn shard_stage_update(
+    &self,
+    _context: Context,
+    event: serenity::gateway::ShardStageUpdateEvent,
+  ) {
+    if event.new != serenity::gateway::ConnectionStage::Connected {
+      self.ready.send_replace(false);
+    }
   }
 }
 

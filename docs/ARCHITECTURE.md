@@ -14,11 +14,13 @@ The PNG diagrams describe the current Rust implementation:
 - [Development and release workflow](development-workflow.png): local hooks, PR validation, and
   approved deployment.
 - [Startup and shutdown](startup.png): initialization, optional services, and gateway readiness.
-- [Discord interactions](discord-interactions.png): commands, autocomplete, confirmation modals, and
-  messages.
+- [Discord interactions](discord-interactions.png): extensible command, autocomplete, modal, and
+  message handling.
 
-The Activity write path in the request-flow diagram illustrates a guild voice-settings save.
-Personal border requests identify the caller without requiring guild authorization.
+Diagrams show architectural boundaries rather than an exhaustive feature list. New ports reuse the
+command and interaction handlers; only implemented handlers are active. The request-flow diagram
+illustrates emote rendering and an Activity voice-settings save. Personal border requests identify
+the caller without requiring guild authorization.
 
 ## Startup and dependencies
 
@@ -27,6 +29,8 @@ flowchart TD
     Start["Rust executable"] --> Store["Open redb database"]
     Start --> Discord["Connect Serenity to Discord"]
     Start --> API["Start Axum when Activity credentials are configured"]
+    Start --> Health["Internal health listener :3081"]
+    Discord --> Health
     Discord --> Ready["Gateway ready"]
     Ready --> Voice["Reconcile saved voice settings with Songbird"]
     Store --> Voice
@@ -44,6 +48,12 @@ The root Cargo manifest builds one executable from [`src/`](../src/). The startu
 dependencies together. The Activity routes validate input and translate failures into HTTP
 responses. The Discord adapter exchanges OAuth codes and checks permissions. Storage owns redb
 transactions, and the voice worker applies settings to Discord.
+
+The internal health listener is independent of the Activity API. It exposes process liveness at
+`/healthz` and gateway readiness at `/readyz`. Ready/Resumed enables readiness; reconnect stages
+remove it without failing liveness. `--healthcheck` checks local readiness, and `--verify-database`
+reads an offline redb backup without loading Discord credentials. See
+[production operations contracts](PRODUCTION.md).
 
 ## Activity request flow
 
@@ -135,20 +145,25 @@ deselection, reconnect, and status permissions on a test server.
 ```mermaid
 flowchart LR
     Dev["dev → PR to main"] --> Quality["BotgeQL validation"]
+    Dev --> Audit["Dependency review and full audit"]
+    Audit --> Paths
     Quality --> Paths{"Image changes?"}
     Paths -->|Yes| Build["Build Linux AMD64 and ARM64 candidate"]
     Paths -->|No| Approval["Approve production job"]
-    Build --> Approval
-    Approval --> Deploy["Promote candidate or record existing image"]
+    Build --> Scan["Scan immutable candidate: critical findings block"]
+    Scan --> Approval
+    Approval --> Deploy["Compose: verify digest and readiness"]
     Deploy --> Merge["Merge to main"]
     Dev --> Security["CodeQL and repository checks"]
     Security --> Merge
 ```
 
 The [deployment workflow](../.github/workflows/README.md) promotes the candidate digest and requests
-the VM update through the control socket over Google Cloud IAP. The
+the VM update through the control socket over Google Cloud IAP. The handler deploys and persists the
+approved image reference. See the [zero-cost policy](PRODUCTION.md#cost-policy). The
 [Activity Worker](../activity/README.md) has its own build and publish steps. For a live release
 check, verify commands, guild catalog permissions, and voice in Discord. Check
 [resource usage](RESOURCE_USAGE.md) during an animated composition with voice connected.
 
-See the [roadmap](ROADMAP.md) for planned commands and integrations.
+See the [roadmap](https://github.com/orgs/MrewyOrg/projects/2/views/6) for planned commands and
+integrations.

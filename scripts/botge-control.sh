@@ -1,8 +1,8 @@
 #!/bin/bash
 set -euo pipefail
 
-if (($# != 1)); then
-  echo 'Usage: botge-control <up|stop|deploy>' >&2
+if (($# < 1 || $# > 2)); then
+  echo 'Usage: botge-control <up|stop|deploy> [sha256:digest]' >&2
   exit 1
 fi
 readonly BOTGE_CONTROL_ACTION="$1"
@@ -15,6 +15,13 @@ case "$BOTGE_CONTROL_ACTION" in
     exit 1
     ;;
 esac
+if (($# == 2)); then
+  if [[ "$BOTGE_CONTROL_ACTION" != deploy || ! "$2" =~ ^sha256:[a-f0-9]{64}$ ]]; then
+    echo 'Only deploy accepts a sha256 image digest.' >&2
+    exit 1
+  fi
+  BOTGE_CONTROL_REQUEST+=" $2"
+fi
 readonly BOTGE_CONTROL_REQUEST
 : "${BOTGE_CONTROL_SOCKET:?Set BOTGE_CONTROL_SOCKET to the control socket path.}"
 

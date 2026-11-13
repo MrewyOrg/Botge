@@ -1,4 +1,4 @@
-# cspell:words botgeql
+# cspell:words botgeql cves
 
 name: Build and Deploy
 
@@ -24,7 +24,6 @@ jobs:
 
   filter-paths:
     name: Filter image paths
-    needs: validate
     runs-on: ubuntu-latest
     timeout-minutes: 5
     permissions:
@@ -49,11 +48,17 @@ jobs:
     outputs:
       build: ${{ steps.changes.outputs.build }}
 
+  security:
+    name: Security
+    uses: $/.github/workflows/dependency-security.yml
+    permissions:
+      contents: read
+
   build:
     name: Build candidate
-    needs: [validate, filter-paths]
+    needs: [validate, security, filter-paths]
     if: needs.filter-paths.outputs.build == 'true' && !github.event.pull_request.draft
-    uses: docker/github-builder/.github/workflows/build.yml@a31d2311da4d55e21b978c1c52bab82ba97d51ee
+    uses: docker/github-builder/.github/workflows/build.yml@81f670be367bfb44c9a238f3b6e747ae61d30d03
     permissions:
       contents: read
       id-token: write
@@ -76,13 +81,39 @@ jobs:
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
 
+  scan:
+    name: Scan candidate image (${{ matrix.platform }})
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        platform: [linux/amd64, linux/arm64]
+    steps:
+      - name: Scan the immutable candidate with Docker Scout
+        uses: docker/scout-action@v1.29.0
+        with:
+          command: cves
+          image: registry://mrewy/botge@${{ needs.build.outputs.digest }}
+          platform: ${{ matrix.platform }}
+          dockerhub-user: ${{ secrets.DOCKER_USERNAME }}
+          dockerhub-password: ${{ secrets.DOCKER_PASSWORD }}
+          only-severities: critical
+          only-fixed: false
+          exit-code: true
+          write-comment: false
+
   deploy:
     name: Deploy
-    needs: [validate, filter-paths, build]
+    needs: [validate, security, filter-paths, build, scan]
     if: >-
       always() && !cancelled() && !github.event.pull_request.draft && needs.validate.result ==
-      'success' && needs.filter-paths.result == 'success' && (needs.build.result == 'success' ||
-      needs.build.result == 'skipped')
+      'success' && needs.security.result == 'success' && needs.filter-paths.result == 'success' &&
+      (needs.build.result == 'success' || needs.build.result == 'skipped') && (needs.scan.result ==
+      'success' || (needs.filter-paths.outputs.build != 'true' && needs.scan.result == 'skipped'))
     runs-on: ubuntu-latest
     timeout-minutes: 20
     environment: production
@@ -166,6 +197,6 @@ jobs:
             --zone="$GCLOUD_ZONE" \
             --tunnel-through-iap \
             --quiet \
-            --command="BOTGE_CONTROL_SOCKET=$(printf '%q' "$BOTGE_CONTROL_SOCKET") bash -s -- deploy" \
+            --command="BOTGE_CONTROL_SOCKET=$(printf '%q' "$BOTGE_CONTROL_SOCKET") bash -s -- deploy $(printf '%q' "$IMAGE_DIGEST")" \
               < scripts/botge-control.sh
           printf 'Deployed candidate: mrewy/botge@%s\n' "$IMAGE_DIGEST" >> "$GITHUB_STEP_SUMMARY"

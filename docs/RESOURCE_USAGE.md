@@ -11,10 +11,10 @@
 | Composition files   | 32 inputs, 2 MiB each and 20 MiB combined.                     |
 | Rendered attachment | Under 8 MiB.                                                   |
 
-Discord command rendering uses temporary files, a two-second FFprobe timeout per input, and a
-15-second FFmpeg timeout. Provider image downloads use nginx when `LOCAL_CACHE_BASE` is set. The
-default Compose stack limits Botge to 512 MiB and provides a 32 MiB temporary filesystem for
-rendering.
+Discord command rendering uses temporary files, a five-second FFprobe timeout per input, and a
+25-second FFmpeg budget within a 40-second overall command deadline. Provider image downloads use
+nginx when `LOCAL_CACHE_BASE` is set. The default Compose stack limits Botge to 512 MiB and provides
+a 32 MiB temporary filesystem for rendering.
 
 Test the peak on the production-size VM with voice connected while rendering animated emotes. See
 the [architecture guide](ARCHITECTURE.md#deployment) for the live release checks.

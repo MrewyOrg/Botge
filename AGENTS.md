@@ -44,7 +44,11 @@ with `npm ci`.
 - Documentation and tooling: `npm run markdownlint`, `npm run cspell`, `npm run lint:shell`, and
   `npm run lint:workflows`. Use Prettier for supported non-Rust files and Regal for Rego.
 
-Choose checks appropriate to the change. Report failures and checks you could not run.
+Choose checks appropriate to the change. Report failures and checks you could not run. If using
+CodeQL, keep databases in `.github/codeql/database/` and reports in `.github/codeql/output/`. Use
+`.github/codeql/codeql-config.yml` to exclude generated files and the suites configured by
+`.github/workflows/codeql.yml`; keep generated artifacts out of commits. Local CodeQL analysis is
+optional, not a pre-push requirement.
 
 ## Implementation conventions
 
@@ -65,16 +69,18 @@ Choose checks appropriate to the change. Report failures and checks you could no
   their modules, use readonly types for snapshots, and validate untrusted input.
 - Keep runtime defaults, example config, schema, and setup docs aligned. Use `.env.example` for new
   environment options.
-- Update diagrams only when a change makes their depicted components, relationships, or flows
-  inaccurate. Minor fixes, formatting, dependency updates, and internal refactors that leave the
-  depicted behavior unchanged do not require diagram updates. Update only the affected PNGs in the
-  same change: `docs/architecture.png`, `docs/request-flow.png`, `docs/deployment.png`,
-  `docs/development-workflow.png`, `docs/startup.png`, and `docs/discord-interactions.png`. Keep
-  their modern dark style consistent and verify labels and connections against the implementation.
-  Update the corresponding Mermaid diagrams and diagram links in `docs/ARCHITECTURE.md` as needed.
+- Do not automatically regenerate or edit PNG diagrams in `docs/`. Update them only when the user
+  explicitly requests it. When requested, keep their modern dark style consistent and verify labels
+  and connections against the implementation. Keep Mermaid diagrams and diagram links in
+  `docs/ARCHITECTURE.md` aligned with relevant source changes.
 
 ## Workspace and deployment
 
+- Keep all project tooling and services free to use. Use public-repository standard GitHub Actions
+  runners. Do not introduce paid managed services, larger runners, paid storage, or trial-credit
+  dependencies. Verify free-tier limits and spending controls before proposing hosted resources; a
+  free CLI or control plane does not make its infrastructure free. See
+  [the cost policy](docs/PRODUCTION.md#cost-policy).
 - Preserve existing uncommitted work. A request to check code includes correctness, modernity, and
   useful fixes within its purpose.
 - Treat `.env` and `botge.config.json` as local configuration. Preserve `data/`, SQLite and redb

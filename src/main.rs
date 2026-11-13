@@ -11,6 +11,7 @@ mod commands;
 mod config;
 mod discord;
 mod emotes;
+mod health;
 mod proxy;
 mod settings;
 mod storage;
@@ -51,6 +52,7 @@ struct Options {
   cache: Option<Url>,
   register_commands: bool,
   prefix_compose: bool,
+  health_address: SocketAddr,
 }
 
 /// Credentials and bind address for an enabled Activity API.
@@ -107,6 +109,14 @@ impl Options {
         .context("invalid LOCAL_CACHE_BASE")?,
       register_commands: get("BOTGE_REGISTER_COMMANDS").as_deref() == Some("true"),
       prefix_compose: get("BOTGE_ENABLE_PREFIX_COMPOSE").as_deref() == Some("true"),
+      health_address: SocketAddr::new(
+        get("HEALTH_BIND_HOST")
+          .map(|host| host.parse::<IpAddr>())
+          .transpose()
+          .context("invalid HEALTH_BIND_HOST")?
+          .unwrap_or(IpAddr::V4(Ipv4Addr::LOCALHOST)),
+        3081,
+      ),
     })
   }
 }
@@ -114,6 +124,15 @@ impl Options {
 /// Handles the version query before reading environment variables or opening the database.
 #[tokio::main]
 async fn main() -> Result<()> {
+  if env::args().nth(1).as_deref() == Some("--verify-database") {
+    let path = env::args()
+      .nth(2)
+      .context("--verify-database requires an offline backup path")?;
+    return Store::verify_backup(Path::new(&path));
+  }
+  if env::args().nth(1).as_deref() == Some("--healthcheck") {
+    return health::check("http://127.0.0.1:3081/readyz").await;
+  }
   if env::args().nth(1).as_deref() == Some("--version") {
     println!("Botge {}", env!("CARGO_PKG_VERSION"));
     return Ok(());
@@ -157,6 +176,10 @@ async fn run(
   let watch_sets = config.general.watches_seven_tv_sets();
   let voice_changed = Arc::new(Notify::new());
   let (ready, voice_ready) = watch::channel(false);
+  let health_router = health::router(ready.subscribe());
+  let health_listener = TcpListener::bind(options.health_address)
+    .await
+    .context("could not bind health listener")?;
   let songbird = Songbird::serenity_from_config(
     VoiceConfig::default()
       .gateway_timeout(Some(Duration::from_secs(10)))
@@ -194,6 +217,7 @@ async fn run(
   let result = tokio::select! {
       result = discord.start() => result.context("Discord gateway stopped"),
       result = serve_activity(api) => result.context("Activity API stopped"),
+      result = axum::serve(health_listener, health_router) => result.context("Health listener stopped"),
       result = shutdown => result.context("could not listen for shutdown"),
   };
   voice_worker.abort();

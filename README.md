@@ -33,8 +33,12 @@ Implementation details stay versioned with the code.
 - [`botge_control/`](botge_control/) contains the
   [Debian installation and control scripts](botge_control/README.md).
 - [GitHub workflows](.github/workflows/README.md) describe validation and approved deployment.
+- [Production contracts](docs/PRODUCTION.md) cover readiness, image verification, and recovery.
 
 ## Project information
+
+The [cost policy](docs/PRODUCTION.md#cost-policy) requires new tooling and infrastructure to remain
+free to use.
 
 Review the [terms](docs/TERMS.md) and [privacy guidance](docs/PRIVACY.md) before hosting. See
 [releases](https://github.com/MrewyOrg/Botge/releases),

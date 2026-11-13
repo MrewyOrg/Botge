@@ -86,14 +86,39 @@ async fn returns_friendly_errors_for_missing_and_ambiguous_input() -> Result<()>
 
 #[tokio::test]
 async fn sends_original_and_resized_images_and_rejects_concurrent_rendering() -> Result<()> {
-  use axum::{Json, Router, routing::get};
+  use axum::{
+    Json, Router,
+    body::Bytes,
+    http::StatusCode,
+    routing::{get, patch, post},
+  };
   use base64::{Engine as _, engine::general_purpose::STANDARD};
   let pixel = STANDARD.decode(
     "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/XioAAAAASUVORK5CYII=",
   )?;
+  let (replies, mut sent) = tokio::sync::mpsc::unbounded_channel();
+  let prefix_replies = replies.clone();
   let discovered_id = "01234567890123456789012345";
   let server = crate::tests::TestServer::start(
     Router::new()
+      .route(
+        "/api/v10/channels/2/messages",
+        post(move |body: Bytes| async move {
+          let _ = prefix_replies.send(body);
+          Json(serenity::all::Message::default())
+        }),
+      )
+      .route(
+        "/api/v10/interactions/9/fixture/callback",
+        post(|| async { StatusCode::NO_CONTENT }),
+      )
+      .route(
+        "/api/v10/webhooks/42/fixture/messages/@original",
+        patch(move |body: Bytes| async move {
+          let _ = replies.send(body);
+          Json(serenity::all::Message::default())
+        }),
+      )
       .route("/7tv/emote/{id}/2x.png", get(move || async move { pixel }))
       .route(
         "/v3/emotes/{id}",
@@ -161,6 +186,51 @@ async fn sends_original_and_resized_images_and_rejects_concurrent_rendering() ->
       commands.answer("emote-compose", &discovery, Some(guild), None).await?,
       Answer::Image(image) if image.bytes.get(16..24) == Some([0, 0, 0, 64, 0, 0, 0, 64].as_slice())
   ));
+  // Exercise both Discord adapters with the same guild and a distinct user's saved border.
+  store.save_emote_border(
+    NonZeroU64::new(3).ok_or_else(|| anyhow::anyhow!("invalid fixture ID"))?,
+    Some(0x112233),
+  )?;
+  let mut user = serde_json::to_value(serenity::all::User::default())?;
+  user
+    .as_object_mut()
+    .ok_or_else(|| anyhow::anyhow!("invalid fixture user"))?
+    .extend([("id".into(), json!("3")), ("bot".into(), json!(false))]);
+  let mut message = serde_json::to_value(Message::default())?;
+  message
+    .as_object_mut()
+    .ok_or_else(|| anyhow::anyhow!("invalid fixture message"))?
+    .extend([
+      ("id".into(), json!("10")),
+      ("channel_id".into(), json!("2")),
+      ("guild_id".into(), json!("1")),
+      ("author".into(), user.clone()),
+      ("content".into(), json!("+Wave")),
+    ]);
+  let http = crate::tests::http_for(&server);
+  commands
+    .respond_message(&http, &serde_json::from_value(message)?)
+    .await?;
+  let interaction = serde_json::from_value(json!({
+    "id":"9", "application_id":"42", "guild_id":"1", "channel_id":"2",
+    "token":"fixture", "version":1, "locale":"en-US", "entitlements":[],
+    "attachment_size_limit":10485760, "user":user,
+    "data":{"id":"7", "type":1, "name":"emote-compose", "options":[
+      {"name":"emotes", "type":3, "value":"Wave"}
+    ]}
+  }))?;
+  commands.respond(&http, interaction).await?;
+  for _ in 0..2 {
+    let body = sent.try_recv()?;
+    let png = body
+      .windows(8)
+      .position(|bytes| bytes == b"\x89PNG\r\n\x1a\n")
+      .ok_or_else(|| anyhow::anyhow!("missing bordered attachment"))?;
+    assert_eq!(
+      body.get(png + 16..png + 24),
+      Some([0, 0, 0, 9, 0, 0, 0, 9].as_slice())
+    );
+  }
   assert_eq!(store.added_emotes(guild)?.len(), 1);
   Ok(())
 }
@@ -319,4 +389,20 @@ fn parses_pixel_sizes_without_changing_emote_ids_or_image_urls() {
   for input in ["Wave:0", "Wave:257", "Wave:65536"] {
     assert!(prefix_size(input).is_err());
   }
+}
+
+#[tokio::test]
+async fn reports_inner_render_timeouts_without_hiding_other_failures() -> Result<()> {
+  let timeout = tokio::time::timeout(Duration::ZERO, std::future::pending::<()>())
+    .await
+    .err()
+    .ok_or_else(|| anyhow::anyhow!("pending operation unexpectedly completed"))?;
+  let answer = render_reply(async {
+    Err(anyhow::Error::new(timeout).context("FFmpeg exceeded its rendering budget"))
+  })
+  .await;
+  assert!(matches!(answer, Answer::Text(text) if text.contains("timed out")));
+  let answer = render_reply(async { Err(anyhow::anyhow!("invalid fixture image")) }).await;
+  assert!(matches!(answer, Answer::Text(text) if text.contains("Could not load or render")));
+  Ok(())
 }

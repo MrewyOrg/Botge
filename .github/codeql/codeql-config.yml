@@ -1,0 +1,9 @@
+name: Botge source analysis
+
+paths-ignore:
+  - target
+  - '**/node_modules'
+  - activity/dist
+  - coverage
+  - .github/codeql/database
+  - .github/codeql/output

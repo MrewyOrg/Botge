@@ -3,6 +3,31 @@ use std::{sync::Barrier, thread};
 use super::*;
 
 #[test]
+fn offline_backup_is_readable_and_restores_saved_data() -> Result<()> {
+  let directory = tempfile::tempdir()?;
+  let source = directory.path().join("source.redb");
+  let backup = directory.path().join("backup.redb");
+  assert!(Store::verify_backup(&source).is_err());
+  assert!(!source.exists());
+  {
+    let store = Store::open(&source)?;
+    store.save_emote_border(NonZeroU64::MIN, Some(0x123456))?;
+    store.save_voice_settings(NonZeroU64::MIN, &VoiceSettings::default())?;
+    store.save_guild_emotes(NonZeroU64::MIN, &GuildEmotes::default())?;
+  }
+  std::fs::copy(&source, &backup)?;
+  let bytes = std::fs::read(&backup)?;
+  Store::verify_backup(&backup)?;
+  assert_eq!(std::fs::read(&backup)?, bytes);
+  let restored = Store::open(&backup)?;
+  assert_eq!(restored.emote_border(NonZeroU64::MIN)?, Some(0x123456));
+  drop(restored);
+  std::fs::write(&backup, "not a database")?;
+  assert!(Store::verify_backup(&backup).is_err());
+  Ok(())
+}
+
+#[test]
 fn refuses_invalid_paths_and_incompatible_database_schemas() -> Result<()> {
   use redb::TableHandle as _;
 

@@ -10,11 +10,11 @@ fi
 case "$(uname -s):$(uname -m)" in
   Linux:x86_64)
     platform=linux64
-    checksum=f95f189668268b8ec2c8acce6ea034cf36f93ba99a09f2654d0cfbd89c5c0ebd
+    checksum=416081d93cb6cdcac9fade4f76d94321964253860b85b80404b5b9fb38dc3499
     ;;
   Linux:aarch64)
     platform=linuxarm64
-    checksum=52f5621dcac3466cda91b5a8be0403c748532050743851910fa4e654123981d1
+    checksum=e0ea66cc042994d33ff9d65ac50a8c71d1011132ec1f08ecef6495ab3df90e80
     ;;
   *)
     printf '%s\n' 'The pinned FFmpeg installer supports Linux AMD64 and ARM64.' >&2
@@ -23,8 +23,8 @@ case "$(uname -s):$(uname -m)" in
 esac
 
 # Use matching tools with the animated WebP demuxer and encoder required by the Rust tests.
-build="ffmpeg-n9.0.2-48-gd4070a14ce-${platform}-lgpl-9.0"
-release=https://github.com/FFmpeg-Builds/FFmpeg-Builds/releases/download/autobuild-2026-11-09-12-42
+build="ffmpeg-n9.0.2-57-gd838f9f9ae-${platform}-lgpl-9.0"
+release=https://github.com/FFmpeg-Builds/FFmpeg-Builds/releases/download/autobuild-2026-11-12-15-40
 directory=$(mktemp -d)
 trap 'rm -rf "$directory"' EXIT
 archive="$directory/ffmpeg.tar.xz"

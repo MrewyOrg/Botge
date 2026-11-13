@@ -5,7 +5,6 @@
 /.github/codeql/output/*
 !/.github/codeql/output/.gitkeep
 /data
-/dist
 /activity/dist/
 /activity/.wrangler/
 /nginx/cache
@@ -17,3 +16,5 @@ node_modules/
 /coverage
 
 /target/
+# Host deployment state and atomic temporary files.
+.botge-image*
