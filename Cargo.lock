@@ -241,6 +241,7 @@ dependencies = [
  "jsonc-parser",
  "redb",
  "reqwest 0.13.5",
+ "rustls 0.23.46",
  "serde",
  "serde_json",
  "serenity",

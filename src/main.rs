@@ -121,9 +121,17 @@ impl Options {
   }
 }
 
+/// Selects one process-wide TLS provider before any client or background task is created.
+fn initialize_tls() {
+  // Reqwest and voice dependencies enable different providers; feature inference is ambiguous.
+  // An existing selection is preserved if initialization is called more than once.
+  let _ = rustls::crypto::aws_lc_rs::default_provider().install_default();
+}
+
 /// Handles the version query before reading environment variables or opening the database.
 #[tokio::main]
 async fn main() -> Result<()> {
+  initialize_tls();
   if env::args().nth(1).as_deref() == Some("--verify-database") {
     let path = env::args()
       .nth(2)

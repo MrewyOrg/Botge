@@ -473,3 +473,14 @@ async fn refuses_to_start_with_an_unusable_data_path_or_invalid_config() -> Resu
   }
   Ok(())
 }
+
+#[test]
+fn initializes_tls_for_clients_with_multiple_provider_features() {
+  initialize_tls();
+  initialize_tls();
+  assert!(rustls::crypto::CryptoProvider::get_default().is_some());
+  // Voice/websocket clients use this builder rather than Reqwest's explicit provider.
+  let _ = rustls::ClientConfig::builder()
+    .with_root_certificates(rustls::RootCertStore::empty())
+    .with_no_client_auth();
+}
