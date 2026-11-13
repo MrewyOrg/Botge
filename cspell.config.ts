@@ -31,6 +31,9 @@ const cSpellSettings: Readonly<CSpellSettings> = defineConfig({
 
   // Shared by multiple files; keep file-specific vocabulary in each file's header.
   words: [
+    'unscored',
+    'healthz',
+    'readyz',
     'frankerfacez',
     'NOCASE',
     'seventv',

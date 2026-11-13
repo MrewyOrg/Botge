@@ -1,3 +1,8 @@
+# cspell:words vsicons
+
 /.husky/_
+/Cargo.lock
 /coverage
 /target/
+# Preserve Discord's original icon assets.
+/assets/vsicons-custom-icons/*.svg

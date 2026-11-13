@@ -9,7 +9,7 @@ const globalConfig: readonly Readonly<Config>[] = defineConfig([
     languageOptions: { ecmaVersion: 'latest', sourceType: 'module' }
   },
   { name: 'globalLinterOptions', linterOptions: { noInlineConfig: true } },
-  globalIgnores(['dist/'], 'globalIgnores')
+  globalIgnores(['activity/dist/', 'target/', 'coverage/'], 'globalIgnores')
 ]);
 
 const config: readonly Readonly<Config>[] = defineConfig([

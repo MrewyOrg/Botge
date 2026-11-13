@@ -25,6 +25,10 @@ The Activity suite covers the browser and Worker without running the bot. Covera
 `coverage/activity/`, with an 80% minimum per source file. Rust API tests live beside
 [the API implementation](../src/activity/tests.rs). See the [test guide](../tests/README.md).
 
+API calls are queued and obtain a fresh OAuth code each time. SDK readiness and authorization have
+15-second deadlines; HTTP calls have a 45-second deadline. Only an HTTP 401 `oauth_expired` response
+is retried, once. Other failures release the queue without automatically repeating writes.
+
 ## Curated preview catalog
 
 For a local or public demo, add entries to `public/catalog.json` and put their images in

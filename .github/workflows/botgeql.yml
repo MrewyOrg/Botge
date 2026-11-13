@@ -204,9 +204,16 @@ jobs:
             rust-tools-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('rust-toolchain.toml',
             'scripts/install-test-ffmpeg.sh', '.github/workflows/botgeql.yml') }}
 
-      - name: Check Rust toolchain
+      - name: Install CI Rust toolchain
         if: needs.changes.outputs.rust == 'true'
         run: |
+          toolchain=$(sed -n "s/^channel = '\(.*\)'$/\1/p" rust-toolchain.toml)
+          test -n "$toolchain"
+          # Override the development component selection for this and subsequent steps.
+          export RUSTUP_TOOLCHAIN="$toolchain"
+          printf 'RUSTUP_TOOLCHAIN=%s\n' "$toolchain" >> "$GITHUB_ENV"
+          rustup toolchain install "$toolchain" --no-self-update --profile minimal \
+            --component clippy,rustfmt,llvm-tools-preview
           rustup show active-toolchain
           cargo --version
 

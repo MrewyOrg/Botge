@@ -181,6 +181,9 @@ fn loads_runtime_configuration_and_rejects_partial_activity_credentials() -> Res
   assert!(options.activity.is_none());
   assert!(!options.prefix_compose);
   assert_eq!(options.data, PathBuf::from("data"));
+  env.insert("HEALTH_BIND_HOST", "invalid");
+  assert!(Options::read(|key| env.get(key).map(ToString::to_string)).is_err());
+  env.remove("HEALTH_BIND_HOST");
   env.insert("DISCORD_ACTIVITY_CLIENT_SECRET", "fixture");
   assert!(Options::read(|key| env.get(key).map(ToString::to_string)).is_err());
   env.insert("DISCORD_ACTIVITY_PUBLIC_KEY", "fixture");
@@ -308,6 +311,7 @@ async fn starts_gateway_and_http_reconciles_voice_and_handles_shutdown() -> Resu
     cache: Some(http.origin.clone()),
     register_commands: false,
     prefix_compose: true,
+    health_address: "127.0.0.1:0".parse()?,
     activity: Some(ActivityOptions {
       secret: "fixture".into(),
       public_key: hex::encode(key.verifying_key().as_bytes()),
@@ -468,4 +472,15 @@ async fn refuses_to_start_with_an_unusable_data_path_or_invalid_config() -> Resu
     assert!(error.to_string().contains(expected));
   }
   Ok(())
+}
+
+#[test]
+fn initializes_tls_for_clients_with_multiple_provider_features() {
+  initialize_tls();
+  initialize_tls();
+  assert!(rustls::crypto::CryptoProvider::get_default().is_some());
+  // Voice/websocket clients use this builder rather than Reqwest's explicit provider.
+  let _ = rustls::ClientConfig::builder()
+    .with_root_certificates(rustls::RootCertStore::empty())
+    .with_no_client_auth();
 }

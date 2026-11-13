@@ -59,6 +59,7 @@ jobs:
         with:
           languages: ${{ matrix.language }}
           build-mode: none
+          config-file: .github/codeql/codeql-config.yml
           queries: security-and-quality
 
       - name: CodeQL analysis

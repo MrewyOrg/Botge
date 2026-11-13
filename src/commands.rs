@@ -342,7 +342,11 @@ async fn render_reply(answer: impl Future<Output = Result<Answer>>) -> Answer {
     Ok(Ok(answer)) => answer,
     Ok(Err(error)) => {
       tracing::warn!(%error, "emote request failed");
-      Answer::Text("Could not load or render those emotes.".into())
+      if error.is::<tokio::time::error::Elapsed>() {
+        Answer::Text("The emote request timed out. Try again.".into())
+      } else {
+        Answer::Text("Could not load or render those emotes.".into())
+      }
     }
     Err(_) => Answer::Text("The emote request timed out. Try again.".into()),
   }

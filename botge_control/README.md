@@ -51,8 +51,9 @@ redb.
 
 The [operations wiki](https://github.com/MrewyOrg/Botge/wiki/Operations) documents start, stop,
 deploy, configuration updates, and log commands. The control handler serializes operations and waits
-up to 120 seconds for Compose services. An `OK` response confirms the Compose operation; verify
-Discord login separately. Image cleanup errors are logged independently.
+up to 120 seconds for Compose services. Digest deployments verify the running image and gateway
+readiness before replying `OK`; previous images are retained for rollback. See
+[production contracts](../docs/PRODUCTION.md) for host upgrades, backups, and recovery.
 
 ## Import an existing data folder
 

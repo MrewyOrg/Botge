@@ -4,7 +4,7 @@ name: Botge
 
 services:
   nginx:
-    image: nginx:mainline-alpine
+    image: nginx:mainline-alpine@sha256:713fc2ebfd92e8217db451477182ee91944b123d2b1ee9fd5a8c6e91ca6c3a11
     mem_limit: 128m
     restart: unless-stopped
     logging: &logging
@@ -26,10 +26,16 @@ services:
     depends_on:
       nginx:
         condition: service_healthy
-    image: mrewy/botge
+    image: ${BOTGE_IMAGE:-mrewy/botge}
     mem_limit: 512m
     restart: unless-stopped
     init: true
+    healthcheck:
+      test: ['CMD', '/app/botge', '--healthcheck']
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 30s
     read_only: true
     # FFmpeg inputs and outputs are temporary. redb data lives in the persistent volume below.
     tmpfs:

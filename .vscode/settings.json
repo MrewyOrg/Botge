@@ -255,14 +255,14 @@
     "editor.defaultFormatter": "esbenp.prettier-vscode",
     "files.trimTrailingWhitespace": false
   },
-  "[nginx]": { "editor.defaultFormatter": "ahmadalli.vscode-nginx-conf" },
+  "[nginx]": { "editor.defaultFormatter": "esbenp.prettier-vscode" },
   "[rego]": {
     "editor.defaultFormatter": "tsandall.opa",
     "editor.insertSpaces": false,
     "editor.tabSize": 4
   },
   "[rust]": { "editor.defaultFormatter": "rust-lang.rust-analyzer" },
-  "[toml]": { "editor.defaultFormatter": "tamasfe.even-better-toml" },
+  "[toml]": { "editor.defaultFormatter": "esbenp.prettier-vscode" },
   // Fix on explicit save; preserve import groups and intentional side-effect imports.
   "[typescript]": {
     "editor.codeActionsOnSave": {

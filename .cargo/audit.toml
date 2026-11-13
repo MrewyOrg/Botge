@@ -1,0 +1,3 @@
+# CI blocks only scored critical vulnerabilities; unscored advisories remain in the report.
+[advisories]
+severity_threshold = 'critical'

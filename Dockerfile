@@ -15,7 +15,11 @@ RUN rustup-init -y --no-modify-path --default-toolchain none
 FROM build-tools AS build
 ARG TARGETARCH
 COPY rust-toolchain.toml ./
-RUN rustup toolchain install --no-self-update
+# Keep the shared channel but omit development and coverage components in the builder.
+RUN toolchain=$(sed -n "s/^channel = '\(.*\)'$/\1/p" rust-toolchain.toml) \
+  && test -n "$toolchain" \
+  && printf "[toolchain]\nchannel = '%s'\nprofile = 'minimal'\n" "$toolchain" > rust-toolchain.toml \
+  && rustup toolchain install --no-self-update
 
 COPY Cargo.toml Cargo.lock ./
 COPY src ./src

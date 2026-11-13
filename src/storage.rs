@@ -25,6 +25,22 @@ const EMOTE_BORDERS: TableDefinition<'static, NonZeroU64, u32> =
 pub(crate) struct Store(Database);
 
 impl Store {
+  /// Opens an offline backup read-only and reads all expected tables without creating a file.
+  pub(crate) fn verify_backup(path: &Path) -> Result<()> {
+    let database = redb::ReadOnlyDatabase::open(path)?;
+    let transaction = database.begin_read()?;
+    for definition in [VOICE_SETTINGS, GUILD_EMOTES, ADDED_EMOTES] {
+      for row in transaction.open_table(definition)?.iter()? {
+        let (_, value) = row?;
+        let _: serde_json::Value = serde_json::from_str(value.value())?;
+      }
+    }
+    for row in transaction.open_table(EMOTE_BORDERS)?.iter()? {
+      let _ = row?;
+    }
+    Ok(())
+  }
+
   /// Creates or opens the database and verifies that the expected tables can be opened.
   ///
   /// # Errors

@@ -102,7 +102,7 @@ test('Compose failure is reported and cannot be disguised by cleanup', () => {
   assert.ok(!readFileSync(commands, 'utf8').includes('image prune'));
 });
 
-test('cleanup failure does not falsely report a successful deployment as failed', () => {
+test('deployment retains previous images for rollback', () => {
   const result = spawnSync('bash', [resolve('botge_control/bin/botge_control.sh')], {
     input: 'DEPLOY\n',
     encoding: 'utf8',
@@ -110,7 +110,63 @@ test('cleanup failure does not falsely report a successful deployment as failed'
   });
   assert.equal(result.status, 0);
   assert.equal(result.stdout, 'OK\n');
-  assert.ok(result.stderr.includes('cleanup failed'));
+  assert.ok(!readFileSync(commands, 'utf8').includes('image prune'));
+});
+
+const digest = 'sha256:' + 'a'.repeat(64);
+
+test('digest deployment verifies readiness and persists only the approved image', () => {
+  stub(
+    'docker',
+    `
+printf '%s\\n' "$*" >> "$TEST_COMMANDS"
+case "$*" in
+  'compose config --format json') printf '{"services":{"botge":{"image":"%s"}}}' "$BOTGE_IMAGE" ;;
+  'compose ps -q botge') echo container ;;
+  'inspect --format {{.Config.Image}} container') echo "$BOTGE_IMAGE" ;;
+  'inspect --format {{.State.Health.Status}} container') echo healthy ;;
+esac
+`
+  );
+  const result = spawnSync('bash', [resolve('botge_control/bin/botge_control.sh')], {
+    input: 'DEPLOY ' + digest + '\n',
+    encoding: 'utf8',
+    env: environment
+  });
+  assert.equal(result.status, 0, result.stderr);
+  assert.equal(readFileSync(join(directory, '.botge-image'), 'utf8'), `mrewy/botge@${digest}\n`);
+});
+
+test('digest deployment refuses a host Compose file that ignores the image pin', () => {
+  stub('docker', 'echo \'{"services":{"botge":{"image":"mrewy/botge:latest"}}}\'\n');
+  const result = spawnSync('bash', [resolve('botge_control/bin/botge_control.sh')], {
+    input: 'DEPLOY ' + digest + '\n',
+    encoding: 'utf8',
+    env: environment
+  });
+  assert.equal(result.status, 1);
+  assert.equal(result.stdout, 'ERROR\n');
+});
+
+test.each(['sha256:bad', 'sha256:' + 'a'.repeat(64) + ';bad'])(
+  'client rejects malformed digest %s',
+  (value) => {
+    const result = spawnSync('bash', [resolve('scripts/botge-control.sh'), 'deploy', value], {
+      encoding: 'utf8',
+      env: environment
+    });
+    assert.equal(result.status, 1);
+    assert.equal(readFileSync(commands, 'utf8'), '');
+  }
+);
+
+test('client forwards an immutable digest without evaluating it', () => {
+  const result = spawnSync('bash', [resolve('scripts/botge-control.sh'), 'deploy', digest], {
+    encoding: 'utf8',
+    env: environment
+  });
+  assert.equal(result.status, 0);
+  assert.equal(readFileSync(commands, 'utf8'), `DEPLOY ${digest}\n`);
 });
 
 test.each(['up', 'stop', 'deploy'])('client sends the %s request and accepts only OK', (action) => {

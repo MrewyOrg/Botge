@@ -3,6 +3,22 @@
 use std::process::Command;
 
 #[test]
+fn maintenance_commands_fail_without_loading_discord_credentials() -> std::io::Result<()> {
+  for arguments in [
+    vec!["--verify-database"],
+    vec!["--verify-database", "/missing/botge-backup.redb"],
+  ] {
+    let result = Command::new(env!("CARGO_BIN_EXE_botge"))
+      .env_remove("DISCORD_TOKEN")
+      .args(arguments)
+      .output()?;
+    assert!(!result.status.success());
+    assert!(!String::from_utf8_lossy(&result.stderr).contains("DISCORD_TOKEN is required"));
+  }
+  Ok(())
+}
+
+#[test]
 fn reports_version_without_a_discord_token() -> std::io::Result<()> {
   let result = Command::new(env!("CARGO_BIN_EXE_botge"))
     .env_remove("DISCORD_TOKEN")

@@ -293,12 +293,12 @@ struct Asset {
 ///
 /// Uses the first video stream. Zero or one packet is treated as static. For multiple packets,
 /// the duration is the latest usable packet end rounded up to a millisecond. FFprobe has a
-/// separate two-second deadline for each input and is terminated if that deadline expires.
+/// separate five-second deadline for each input and is terminated if that deadline expires.
 async fn inspect(path: &Path) -> Result<(Dimensions, Option<u64>)> {
   let mut command = Command::new("ffprobe");
   command.kill_on_drop(true).stdin(Stdio::null());
   let result = tokio::time::timeout(
-    Duration::from_secs(2),
+    Duration::from_secs(5),
     command
       .args([
         "-v",
@@ -321,7 +321,8 @@ async fn inspect(path: &Path) -> Result<(Dimensions, Option<u64>)> {
       .arg(path)
       .output(),
   )
-  .await??;
+  .await
+  .context("FFprobe exceeded its 5-second time budget")??;
   anyhow::ensure!(
     result.status.success(),
     "FFprobe could not read the emote: {}",
@@ -589,7 +590,7 @@ async fn render(directory: &Path, assets: &[Asset], options: RenderOptions) -> R
     "emotes.png"
   };
   let output = directory.join(filename);
-  let bytes = tokio::time::timeout(Duration::from_secs(15), async {
+  let bytes = tokio::time::timeout(Duration::from_secs(25), async {
     let mut bytes = encode(&output, assets, &options, duration_ms, None).await?;
     if let Some(duration) = duration_ms
       && !normalize_webp_timing(&mut bytes, duration)
@@ -603,7 +604,8 @@ async fn render(directory: &Path, assets: &[Asset], options: RenderOptions) -> R
     }
     Ok::<_, anyhow::Error>(bytes)
   })
-  .await??;
+  .await
+  .context("FFmpeg exceeded its 25-second rendering budget")??;
   Ok(Image { bytes, filename })
 }
 
