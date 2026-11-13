@@ -60,6 +60,7 @@ jobs:
             rust:
               - '**/*.rs'
               - 'Cargo.{toml,lock}'
+              - 'clippy.toml'
               - 'rust*.toml'
               - '.cargo/**'
               - 'botge*.config.{json,jsonc}'
@@ -228,11 +229,12 @@ jobs:
         if: needs.changes.outputs.rust == 'true'
         run: printf '%s\n' "$RUNNER_TEMP/botge-test-bin" >> "$GITHUB_PATH"
 
-      - name: Check Rust formatting, lints, and coverage
+      - name: Check Rust formatting, lints, documentation, and coverage
         if: needs.changes.outputs.rust == 'true'
         run: |
           cargo fmt --all --check
           cargo clippy --locked --all-targets -- -D warnings
+          cargo doc --locked --no-deps --document-private-items
           sh scripts/check-rust-coverage.sh
 
       - name: Validate Activity HTML and SCSS
@@ -244,13 +246,9 @@ jobs:
           VITE_ENABLE_ACTIVITY_SETTINGS: 'true'
         run: npm run check:markup -w activity
 
-      - name: Test repository tooling
-        if: needs.changes.outputs.tooling == 'true'
-        run: npm test -- --run --project Tooling
-
-      - name: Test Activity and Worker coverage
-        if: needs.changes.outputs.activity == 'true'
-        run: npm run test:coverage -w activity
+      - name: Test TypeScript and enforce coverage
+        if: needs.changes.outputs.tooling == 'true' || needs.changes.outputs.activity == 'true'
+        run: npm run test:coverage
 
   tooling-lint:
     name: Shell and workflow lint
