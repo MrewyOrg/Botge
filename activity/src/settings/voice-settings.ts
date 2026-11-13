@@ -1,8 +1,11 @@
-import { isRecord, requireValue } from './validation.ts';
+/* Edits saved guild voice preferences; saving confirms persistence, not a completed voice move. */
+
+import { isRecord, requireValue } from '../validation.ts';
 
 type VoiceSettings = Readonly<{
   channelId: string | null;
   statusEnabled: boolean;
+  /** Retained when status updates are disabled or the saved channel is cleared. */
   statusEmoji: string | null;
 }>;
 
@@ -10,6 +13,13 @@ type VoiceChannel = Readonly<{ id: string; name: string }>;
 
 type SettingsRequest = (voice?: VoiceSettings) => Promise<unknown>;
 
+/**
+ * Validates saved voice preferences and the current channel picker entries.
+ *
+ * @param response - Untrusted API response.
+ * @returns Voice settings and channels the bot can currently join.
+ * @throws `Error` if the API reports a failure or a required field is malformed.
+ */
 function parseSettings(
   response: unknown
 ): Readonly<{ voice: VoiceSettings; channels: readonly VoiceChannel[] }> {
@@ -42,6 +52,17 @@ function parseSettings(
   };
 }
 
+/**
+ * Mounts the guild voice settings form.
+ *
+ * @remarks
+ * The first opening loads settings. A saved channel missing from the current channel list
+ * remains selectable so an administrator can clear it. Saving confirms persistence; the bot
+ * applies voice changes asynchronously. Failed saves preserve loaded inputs for retry.
+ *
+ * @param request - Reads with no argument or saves a complete replacement of voice settings.
+ * @throws `Error` if required form markup is missing.
+ */
 export function mountVoiceSettings(request: SettingsRequest): void {
   const panel = requireValue(
     document.querySelector<HTMLDetailsElement>('#voice-settings'),

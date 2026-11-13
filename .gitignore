@@ -1,5 +1,6 @@
 .DS_Store
 /.codex
+/.serena/
 /.github/codeql/database/*
 !/.github/codeql/database/.gitkeep
 /.github/codeql/output/*

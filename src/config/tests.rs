@@ -1,3 +1,5 @@
+//! Verifies configuration defaults, JSON-with-comments parsing, and provider opt-ins.
+
 use super::*;
 
 #[test]

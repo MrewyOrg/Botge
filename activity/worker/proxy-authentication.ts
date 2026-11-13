@@ -1,3 +1,5 @@
+/* Verifies original signed bytes before trusting Discord proxy timestamps. */
+
 import { createPublicKey, verify } from 'node:crypto';
 
 import { isRecord } from '../src/validation.ts';
@@ -9,7 +11,18 @@ function decodeBase64(value: unknown): Buffer | undefined {
   return Buffer.from(value, 'base64');
 }
 
-/** Builds the signature verifier for requests delivered through Discord's Activity proxy. */
+/**
+ * Builds a verifier for requests delivered through Discord's Activity proxy.
+ *
+ * @remarks
+ * The returned predicate expects lowercase header names. It verifies original payload bytes
+ * before parsing claims, then checks the matching creation timestamp, expiry, and a
+ * 30-second allowance for future clock skew. Invalid requests return false.
+ *
+ * @param publicKeyHex - Discord application's 64-character hexadecimal Ed25519 public key.
+ * @returns A predicate accepting hexadecimal or base64 signatures and a base64 proxy payload.
+ * @throws `Error` if the configured public key is malformed.
+ */
 export function createProxyAuthenticator(
   publicKeyHex: string
 ): (headers: Readonly<Record<string, unknown>>) => boolean {

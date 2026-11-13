@@ -1,3 +1,5 @@
+//! Checks liveness independently of gateway readiness through a loopback HTTP server.
+
 use super::*;
 use crate::tests::TestServer;
 

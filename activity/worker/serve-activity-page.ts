@@ -1,12 +1,34 @@
+/* Serves uncached Activity HTML only after proxy authentication; assets use separate routes. */
+
 import { createProxyAuthenticator } from './proxy-authentication.ts';
 
+/**
+ * Minimal HTTP request shape consumed by the HTML gate.
+ *
+ * @remarks
+ * The URL must be absolute. This subset accepts both Cloudflare requests and local fixtures.
+ */
 export type ActivityPageRequest = Readonly<{
   headers: Readonly<Pick<Headers, 'get'>>;
   method: string;
   url: string;
 }>;
 
-/** Serves the Activity HTML after verifying Discord's proxy signature. */
+/**
+ * Serves the Activity HTML after verifying Discord's proxy signature.
+ *
+ * @remarks
+ * Only the root and index page accept GET or HEAD. Every response uses no-store, including
+ * failures. Asset routes are handled separately by the Worker platform.
+ *
+ * @param request - Request with an absolute URL and proxy headers.
+ * @param publicKey - Configured Discord public key; missing or malformed keys fail closed.
+ * @param html - Bundled Activity document to return after authentication.
+ * @returns An uncached response: 200 on success, 401 for failed authentication, 503 for invalid
+ * configuration, 404 for other paths, or 405 for other methods. HEAD responses have no body.
+ * @throws `TypeError` if the request URL is not absolute and valid.
+ * @see {@link createProxyAuthenticator}
+ */
 export function serveActivityPage(
   request: ActivityPageRequest,
   publicKey: string | undefined,

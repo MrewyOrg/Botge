@@ -39,7 +39,7 @@ services:
     read_only: true
     # FFmpeg inputs and outputs are temporary. redb data lives in the persistent volume below.
     tmpfs:
-      - /tmp:size=32m,mode=1777,noexec,nosuid
+      - /tmp:size=64m,mode=1777,noexec,nosuid
     logging: *logging
     volumes:
       - botge-data:/app/data

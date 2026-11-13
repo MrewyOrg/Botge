@@ -1,7 +1,9 @@
 //! Exercises command replies, autocomplete, and registration through local Discord and media fixtures.
 
-use super::*;
+use anyhow::Context as _;
 use serde_json::{Value, json};
+
+use super::*;
 
 /// Decodes fixture options from the same JSON shape used by Discord.
 fn inputs(value: Value) -> Result<Vec<CommandDataOption>> {
@@ -9,7 +11,7 @@ fn inputs(value: Value) -> Result<Vec<CommandDataOption>> {
 }
 
 #[test]
-fn exposes_only_the_ported_commands() -> Result<()> {
+fn exposes_registered_commands_and_clear_permissions() -> Result<()> {
   let commands = serde_json::to_value(definitions())?;
   for (index, expected) in NAMES.into_iter().enumerate() {
     assert_eq!(
@@ -52,6 +54,29 @@ fn suggests_unique_names_ranked_by_match_and_keeps_existing_tokens() {
   assert!(shortcuts(&entries, "other").starts_with("No unique"));
 }
 
+#[test]
+fn shortcuts_preserve_exact_matches_aliases_and_unicode_boundaries() {
+  let entries = ["Wave", "wave", "Waves", "SeaWave", "é猫", "猫"]
+    .map(|name| crate::emotes::tests::example(name, name));
+  assert_eq!(shortcuts(&entries, "Wave"), "`Wave` → `Wave`");
+  assert_eq!(shortcuts(&entries, "Waves"), "`Waves` → `es`");
+  assert_eq!(shortcuts(&entries, "é猫"), "`é猫` → `é`");
+  assert_eq!(shortcuts(&entries, "猫"), "`猫` → `猫`");
+  let spaced = ["A Wave", "A", "Wave"].map(|name| crate::emotes::tests::example(name, name));
+  assert_eq!(shortcuts(&spaced, "A Wave"), "`A Wave` → `A W`");
+  let target = "a".repeat(80);
+  let mut overlap = vec![crate::emotes::tests::example(&target, "target")];
+  for index in 0..80 {
+    let mut name = target.clone();
+    name.replace_range(index..index + 1, "b");
+    overlap.push(crate::emotes::tests::example(&name, &index.to_string()));
+  }
+  assert_eq!(
+    shortcuts(&overlap, &target),
+    format!("`{target}` → `{target}`")
+  );
+}
+
 #[tokio::test]
 async fn returns_friendly_errors_for_missing_and_ambiguous_input() -> Result<()> {
   let directory = tempfile::tempdir()?;
@@ -85,17 +110,14 @@ async fn returns_friendly_errors_for_missing_and_ambiguous_input() -> Result<()>
 }
 
 #[tokio::test]
-async fn sends_original_and_resized_images_and_rejects_concurrent_rendering() -> Result<()> {
+async fn sends_provider_variants_and_compositions_and_rejects_concurrent_rendering() -> Result<()> {
   use axum::{
     Json, Router,
     body::Bytes,
     http::StatusCode,
     routing::{get, patch, post},
   };
-  use base64::{Engine as _, engine::general_purpose::STANDARD};
-  let pixel = STANDARD.decode(
-    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/XioAAAAASUVORK5CYII=",
-  )?;
+  let pixel = crate::tests::png_pixel()?;
   let (replies, mut sent) = tokio::sync::mpsc::unbounded_channel();
   let prefix_replies = replies.clone();
   let discovered_id = "01234567890123456789012345";
@@ -149,8 +171,8 @@ async fn sends_original_and_resized_images_and_rejects_concurrent_rendering() ->
   emotes.use_provider_fixture(server.origin.clone());
   let commands = Commands::new(Arc::new(emotes), Some(server.origin.clone()));
   let name = inputs(json!([{"name":"emotes","type":3,"value":"Wave"}]))?;
-  let size =
-    inputs(json!([{"name":"emotes","type":3,"value":"Wave"},{"name":"size","type":4,"value":64}]))?;
+  let explicit_scale =
+    inputs(json!([{"name":"emotes","type":3,"value":"Wave"},{"name":"size","type":4,"value":2}]))?;
   let compose = inputs(
     json!([{"name":"emotes","type":3,"value":"Wave Wave"},{"name":"fullsize","type":5,"value":true},{"name":"stretch","type":5,"value":false}]),
   )?;
@@ -167,24 +189,24 @@ async fn sends_original_and_resized_images_and_rejects_concurrent_rendering() ->
     matches!(commands.answer("emote-compose", &name, Some(guild), None).await?, Answer::Image(image) if image.filename == "emote.png")
   );
   assert!(
-    matches!(commands.answer("emote-compose", &size, Some(guild), None).await?, Answer::Image(image) if image.filename == "emotes.png")
+    matches!(commands.answer("emote-compose", &explicit_scale, Some(guild), None).await?, Answer::Image(image) if image.filename == "emote.png")
   );
   assert!(
     matches!(commands.answer("emote-compose", &compose, Some(guild), None).await?, Answer::Image(image) if image.filename == "emotes.png")
   );
   assert!(
     matches!(commands.answer("emote-compose", &name, Some(guild), Some(guild)).await?,
-            Answer::Image(image) if image.bytes.get(16..24) == Some([0, 0, 0, 9, 0, 0, 0, 9].as_slice()))
+            Answer::Image(image) if crate::tests::png_dimensions(&image.bytes)? == (9, 9))
   );
   assert!(
     matches!(commands.answer("emote-compose", &compose, Some(guild), Some(guild)).await?,
-            Answer::Image(image) if image.bytes.get(20..24) == Some([0, 0, 1, 8].as_slice()))
+            Answer::Image(image) if crate::tests::png_dimensions(&image.bytes)?.1 == 9)
   );
   let discovery =
     inputs(json!([{"name":"emotes","type":3,"value":format!("Wave 7tv:{discovered_id}")}]))?;
   assert!(matches!(
       commands.answer("emote-compose", &discovery, Some(guild), None).await?,
-      Answer::Image(image) if image.bytes.get(16..24) == Some([0, 0, 0, 64, 0, 0, 0, 64].as_slice())
+      Answer::Image(image) if crate::tests::png_dimensions(&image.bytes)? == (1, 1)
   ));
   // Exercise both Discord adapters with the same guild and a distinct user's saved border.
   store.save_emote_border(
@@ -211,15 +233,17 @@ async fn sends_original_and_resized_images_and_rejects_concurrent_rendering() ->
   commands
     .respond_message(&http, &serde_json::from_value(message)?)
     .await?;
-  let interaction = serde_json::from_value(json!({
+  let mut interaction = json!({
     "id":"9", "application_id":"42", "guild_id":"1", "channel_id":"2",
     "token":"fixture", "version":1, "locale":"en-US", "entitlements":[],
     "attachment_size_limit":10485760, "user":user,
     "data":{"id":"7", "type":1, "name":"emote-compose", "options":[
       {"name":"emotes", "type":3, "value":"Wave"}
     ]}
-  }))?;
-  commands.respond(&http, interaction).await?;
+  });
+  commands
+    .respond(&http, serde_json::from_value(interaction.clone())?)
+    .await?;
   for _ in 0..2 {
     let body = sent.try_recv()?;
     let png = body
@@ -227,10 +251,19 @@ async fn sends_original_and_resized_images_and_rejects_concurrent_rendering() ->
       .position(|bytes| bytes == b"\x89PNG\r\n\x1a\n")
       .ok_or_else(|| anyhow::anyhow!("missing bordered attachment"))?;
     assert_eq!(
-      body.get(png + 16..png + 24),
-      Some([0, 0, 0, 9, 0, 0, 0, 9].as_slice())
+      crate::tests::png_dimensions(body.get(png..).context("missing PNG data")?)?,
+      (9, 9)
     );
   }
+  *interaction
+    .get_mut("attachment_size_limit")
+    .context("missing fixture upload limit")? = json!(1);
+  commands
+    .respond(&http, serde_json::from_value(interaction)?)
+    .await?;
+  let body = sent.try_recv()?;
+  assert!(String::from_utf8_lossy(&body).contains("exceeds Discord's upload limit"));
+  assert!(!body.windows(8).any(|bytes| bytes == b"\x89PNG\r\n\x1a\n"));
   assert_eq!(store.added_emotes(guild)?.len(), 1);
   Ok(())
 }
@@ -327,7 +360,7 @@ async fn sends_name_and_size_choices_to_discord() -> Result<()> {
   let http = crate::tests::http_for(&server);
   for (name, field, kind, value, expected) in [
     ("emote-compose", "emotes", 3, "Wa", json!("Wave")),
-    ("emote-compose", "size", 4, "64", json!(64)),
+    ("emote-compose", "size", 4, "3", json!(3)),
     (
       "emote-compose",
       "emotes",
@@ -371,23 +404,37 @@ fn accepts_the_plus_prefix_only_when_attached_to_a_token() {
 }
 
 #[test]
-fn parses_pixel_sizes_without_changing_emote_ids_or_image_urls() {
+fn parses_provider_sizes_without_changing_emote_ids_or_image_urls() {
   let id = "7tv:123456789012345678901234";
   let url = "https://cdn.discordapp.com/attachments/1/2/emote.png?signature=foo:96";
   for input in ["Wave Hat", "Wave:96 Hat", "<:Wave:42>", id, url] {
     assert_eq!(prefix_size(input), Ok((input, None)));
   }
   for (input, names, size) in [
-    ("Wave Hat:96  ", "Wave Hat", 96),
-    ("Wave:24", "Wave", 24),
-    ("<:Wave:42>:256", "<:Wave:42>", 256),
-    ("7tv:123456789012345678901234:64", id, 64),
-    (&format!("{url} :96"), url, 96),
+    ("Wave Hat:3  ", "Wave Hat", 3),
+    ("Wave:1", "Wave", 1),
+    ("<:Wave:42>:4", "<:Wave:42>", 4),
+    ("7tv:123456789012345678901234:2", id, 2),
+    (&format!("{url} :3"), url, 3),
   ] {
-    assert_eq!(prefix_size(input), Ok((names, Some(size))));
+    assert_eq!(
+      prefix_size(input),
+      Ok((names, Some(size))),
+      "input: {input}"
+    );
   }
-  for input in ["Wave:0", "Wave:257", "Wave:65536"] {
-    assert!(prefix_size(input).is_err());
+  for input in [
+    "Wave:0",
+    "Wave:5",
+    "Wave:24",
+    "Wave:96",
+    "Wave:257",
+    "Wave:65536",
+  ] {
+    assert!(
+      prefix_size(input).is_err(),
+      "accepted invalid size: {input}"
+    );
   }
 }
 

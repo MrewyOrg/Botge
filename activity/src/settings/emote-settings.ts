@@ -1,4 +1,6 @@
-import { isRecord, requireValue } from './validation.ts';
+/* Validates complete emote settings responses before updating the editable guild form. */
+
+import { isRecord, requireValue } from '../validation.ts';
 
 type EmoteSettings = Readonly<{
   sevenTvSet: string | null;
@@ -16,6 +18,13 @@ function nullableText(value: unknown): value is string | null {
 
 type Role = Readonly<{ id: string; name: string }>;
 
+/**
+ * Validates a complete settings snapshot, including every selected and available role.
+ *
+ * @param payload - Untrusted API response.
+ * @returns Editable settings and the available guild roles.
+ * @throws `Error` if the API reports a failure or any required field is malformed.
+ */
 function parseSettings(
   payload: unknown
 ): Readonly<{ emotes: EmoteSettings; roles: readonly Role[] }> {
@@ -37,16 +46,30 @@ function parseSettings(
       bttvTwitchId: payload['bttvTwitchId'],
       ffzChannel: payload['ffzChannel'],
       allowEveryone: payload['allowEveryone'],
-      allowedRoles: payload['allowedRoles'].filter((role: unknown) => typeof role === 'string')
+      allowedRoles: payload['allowedRoles'].map((role: unknown) => {
+        if (typeof role !== 'string') throw new Error('Invalid emote settings response.');
+        return role;
+      })
     },
-    roles: payload['roles'].flatMap((role: unknown) => {
+    roles: payload['roles'].map((role: unknown) => {
       if (!isRecord(role) || typeof role['id'] !== 'string' || typeof role['name'] !== 'string')
-        return [];
-      return [{ id: role['id'], name: role['name'] }];
+        throw new Error('Invalid emote settings response.');
+      return { id: role['id'], name: role['name'] };
     })
   };
 }
 
+/**
+ * Mounts the guild emote-provider and management-policy form.
+ *
+ * @remarks
+ * The first opening loads settings. Complete responses are validated before changing the
+ * form, and saved roles missing from the picker remain visible until explicitly removed.
+ * Async failures appear in the form's status message and preserve loaded inputs for retry.
+ *
+ * @param request - Reads with no argument or saves a complete replacement of emote settings.
+ * @throws `Error` if required form markup is missing.
+ */
 export function mountEmoteSettings(request: SettingsRequest): void {
   const panel = requireValue(
     document.querySelector<HTMLDetailsElement>('#emote-settings'),

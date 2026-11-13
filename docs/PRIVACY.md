@@ -48,7 +48,8 @@ through the operator's HTTPS tunnel.
 Optional 7TV discovery sends searches, filters, and page requests through Discord’s Activity proxy.
 Enabled providers receive requests for emote catalogs, set updates, and images. When opening the
 server catalog or changing settings, Botge verifies Discord's signed proxy metadata. OAuth access
-tokens are used for identification in memory and are not saved.
+tokens stay in Activity memory until renewal or closure and are sent to the bot for identification
+on each API operation. Botge does not persist them; the browser does not put them in local storage.
 
 Botge joins the configured voice channel muted and does not record or transcribe voice. Clearing the
 setting removes the saved channel ID. Botge stores the optional channel status and its toggle.

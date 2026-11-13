@@ -2,6 +2,10 @@
 // See LICENSE.txt in the project root for license information.
 
 //! Botge's process entry point and service lifecycle.
+//!
+//! Maintenance flags return before credentials or storage are loaded. Normal startup creates
+//! shared services, then races the gateway, HTTP listeners, and shutdown signal; an exit from
+//! any branch stops the workers and Discord shards.
 
 // Songbird's async voice calls need a deeper Send trait check.
 #![recursion_limit = "256"]
@@ -128,7 +132,7 @@ fn initialize_tls() {
   let _ = rustls::crypto::aws_lc_rs::default_provider().install_default();
 }
 
-/// Handles the version query before reading environment variables or opening the database.
+/// Handles maintenance flags before loading credentials; otherwise starts the bot services.
 #[tokio::main]
 async fn main() -> Result<()> {
   initialize_tls();

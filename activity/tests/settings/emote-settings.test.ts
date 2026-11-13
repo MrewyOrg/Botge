@@ -2,9 +2,9 @@
 
 import { beforeEach, expect, test, vi } from 'vitest';
 
-import html from '../index.html?raw';
-import { mountEmoteSettings } from '../src/emote-settings.ts';
-import { requireValue } from '../src/validation.ts';
+import html from '../../index.html?raw';
+import { mountEmoteSettings } from '../../src/settings/emote-settings.ts';
+import { requireValue } from '../../src/validation.ts';
 
 beforeEach(() => {
   document.body.innerHTML = new DOMParser().parseFromString(html, 'text/html').body.innerHTML;
@@ -74,7 +74,9 @@ test.each([
   [null, 'Invalid emote settings response.'],
   [{ message: 'Access denied.' }, 'Access denied.'],
   [{ ...defaults, ffzChannel: 42 }, 'Invalid emote settings response.'],
-  [{ ...defaults, allowedRoles: null }, 'Invalid emote settings response.']
+  [{ ...defaults, allowedRoles: null }, 'Invalid emote settings response.'],
+  [{ ...defaults, allowedRoles: ['42', null] }, 'Invalid emote settings response.'],
+  [{ ...defaults, roles: [defaults.roles[0], { id: '77' }] }, 'Invalid emote settings response.']
 ])(
   'reports settings errors and keeps fields disabled %#',
   async (response: unknown, message: string) => {
@@ -87,3 +89,36 @@ test.each([
     expect(panel.querySelector('fieldset')?.disabled).toBe(true);
   }
 );
+
+test('keeps selected roles editable after a malformed save response', async () => {
+  const request = vi
+    .fn()
+    .mockResolvedValueOnce({ ...defaults, allowedRoles: ['42'] })
+    .mockResolvedValueOnce({ ...defaults, allowedRoles: [null] })
+    .mockResolvedValueOnce({ ...defaults, allowedRoles: ['42'] });
+  mountEmoteSettings(request);
+  const panel = settingsPanel();
+  panel.open = true;
+  await vi.waitFor(() => {
+    expect(panel.querySelector('fieldset')?.disabled).toBe(false);
+  });
+  const save = requireValue(
+    panel.querySelector<HTMLButtonElement>('button[type="submit"]'),
+    'Missing save button.'
+  );
+  save.click();
+  await vi.waitFor(() => {
+    expect(panel.querySelector('[role="status"]')?.textContent).toBe(
+      'Invalid emote settings response.'
+    );
+  });
+  expect(panel.querySelector('.selected-roles')?.textContent).toContain('Moderators');
+  expect(panel.querySelector('fieldset')?.disabled).toBe(false);
+  save.click();
+  await vi.waitFor(() => {
+    expect(request).toHaveBeenCalledTimes(3);
+  });
+  expect(request).toHaveBeenLastCalledWith(
+    expect.objectContaining({ allowedRoles: ['42'] }) as unknown
+  );
+});

@@ -7,8 +7,98 @@ use base64::{Engine as _, engine::general_purpose::STANDARD};
 
 use super::*;
 
-const PIXEL: &str =
-  "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/XioAAAAASUVORK5CYII=";
+#[test]
+fn fits_extreme_aspect_ratios_without_integer_overflow() {
+  let tall = Dimensions {
+    width: 1,
+    height: 2_097_152,
+    frames: 1,
+  };
+  assert_eq!(tall.fit(2_097_152, 2048), (1, 2_097_152));
+  let wide = Dimensions {
+    width: 2_097_152,
+    height: 1,
+    frames: 1,
+  };
+  assert_eq!(wide.fit(2048, 2048), (2048, 1));
+}
+
+#[tokio::test]
+async fn bounds_mixed_native_sizes_and_border_padding() -> Result<()> {
+  let directory = tempfile::tempdir()?;
+  let path = directory.path().join("input.png");
+  fs::write(&path, crate::tests::png_pixel()?).await?;
+  // The actual pixel supplies cheap input; declared dimensions exercise layout planning.
+  for dimensions in [vec![(2000, 100), (100, 1000)], vec![(8192, 1)]] {
+    let assets: Vec<_> = dimensions
+      .into_iter()
+      .map(|(width, height)| Asset {
+        info: Dimensions {
+          width,
+          height,
+          frames: 1,
+        },
+        duration_ms: None,
+        path: path.clone(),
+        overlay: false,
+        webp_animation: None,
+      })
+      .collect();
+    for border in [None, Some(0xff7700)] {
+      let output = render(
+        directory.path(),
+        &assets,
+        RenderOptions {
+          size_pixels: None,
+          stretch: false,
+          border,
+        },
+      )
+      .await?;
+      let (width, height) = crate::tests::png_dimensions(&output.bytes)?;
+      assert!(width <= MAX_CANVAS_WIDTH, "canvas was {width}×{height}");
+      assert!(
+        width > 2000,
+        "layout discarded too much resolution: {width}"
+      );
+    }
+  }
+  Ok(())
+}
+
+#[tokio::test]
+async fn rejects_decoder_memory_and_animation_work_before_starting_ffmpeg() -> Result<()> {
+  let directory = tempfile::tempdir()?;
+  // Missing inputs would produce an FFmpeg error if encoding were started.
+  for (count, frames) in [(5, 1), (1, 100)] {
+    let assets: Vec<_> = (0..count)
+      .map(|index| Asset {
+        info: Dimensions {
+          width: 2048,
+          height: 2048,
+          frames,
+        },
+        duration_ms: Some(5000),
+        path: directory.path().join(format!("missing-{index}.png")),
+        overlay: false,
+        webp_animation: None,
+      })
+      .collect();
+    let result = render(
+      directory.path(),
+      &assets,
+      RenderOptions {
+        size_pixels: Some(24),
+        stretch: false,
+        border: None,
+      },
+    )
+    .await;
+    assert!(matches!(result, Err(error) if error.to_string().contains("decoded pixel budget")));
+    assert_eq!(std::fs::read_dir(directory.path())?.count(), 0);
+  }
+  Ok(())
+}
 
 #[test]
 fn accepts_only_discord_media_and_maps_the_provider_cache() -> Result<()> {
@@ -80,7 +170,7 @@ fn delays(image: &Image) -> Vec<u32> {
 
 #[tokio::test]
 async fn downloads_originals_and_stacks_static_columns_with_a_gap() -> Result<()> {
-  let pixel = STANDARD.decode(PIXEL)?;
+  let pixel = crate::tests::png_pixel()?;
   let server = crate::tests::TestServer::start(Router::new().route(
     "/7tv/emote/1/2x.png",
     get({
@@ -102,7 +192,7 @@ async fn downloads_originals_and_stacks_static_columns_with_a_gap() -> Result<()
     &[layer.clone(), overlay, layer],
     Some(&server.origin),
     RenderOptions {
-      size: Some(32),
+      size_pixels: Some(32),
       stretch: true,
       border: None,
     },
@@ -110,17 +200,15 @@ async fn downloads_originals_and_stacks_static_columns_with_a_gap() -> Result<()
   .await?;
   assert_eq!(png.filename, "emotes.png");
   assert_eq!(image_type(&png.bytes), Some("png"));
-  assert_eq!(
-    png.bytes.get(16..24),
-    Some([0, 0, 0, 66, 0, 0, 0, 32].as_slice())
-  );
+  // Two 32 px columns plus a 2 px gap; the overlay shares the first column.
+  assert_eq!(crate::tests::png_dimensions(&png.bytes)?, (66, 32));
   assert!(
     compose(
       &client,
       &[],
       Some(&server.origin),
       RenderOptions {
-        size: Some(24),
+        size_pixels: Some(24),
         stretch: false,
         border: None
       }
@@ -133,7 +221,7 @@ async fn downloads_originals_and_stacks_static_columns_with_a_gap() -> Result<()
 
 #[tokio::test]
 async fn preserves_webp_timing_and_syncs_static_and_animated_overlays() -> Result<()> {
-  let pixel = STANDARD.decode(PIXEL)?;
+  let pixel = crate::tests::png_pixel()?;
   let base = STANDARD.decode(ANIMATED_BASE)?;
   let overlay = STANDARD.decode(ANIMATED_OVERLAY)?;
   let server = crate::tests::TestServer::start(
@@ -158,7 +246,7 @@ async fn preserves_webp_timing_and_syncs_static_and_animated_overlays() -> Resul
     std::slice::from_ref(&overlay),
     Some(&server.origin),
     RenderOptions {
-      size: Some(24),
+      size_pixels: Some(24),
       stretch: false,
       border: None,
     },
@@ -178,7 +266,7 @@ async fn preserves_webp_timing_and_syncs_static_and_animated_overlays() -> Resul
     &[still, overlay.clone()],
     Some(&server.origin),
     RenderOptions {
-      size: Some(24),
+      size_pixels: Some(24),
       stretch: false,
       border: None,
     },
@@ -190,7 +278,7 @@ async fn preserves_webp_timing_and_syncs_static_and_animated_overlays() -> Resul
     &[base, overlay.clone()],
     Some(&server.origin),
     RenderOptions {
-      size: Some(24),
+      size_pixels: Some(24),
       stretch: false,
       border: None,
     },
@@ -211,7 +299,7 @@ async fn preserves_webp_timing_and_syncs_static_and_animated_overlays() -> Resul
     &[layer("1", "png", false)?, column],
     Some(&server.origin),
     RenderOptions {
-      size: Some(32),
+      size_pixels: Some(32),
       stretch: false,
       border: None,
     },
@@ -310,7 +398,7 @@ async fn keeps_browser_playback_duration_when_frames_are_too_short() -> Result<(
         webp_animation: Some(animation),
       }],
       RenderOptions {
-        size: Some(24),
+        size_pixels: Some(24),
         stretch: false,
         border: None,
       },

@@ -2,9 +2,9 @@
 
 import { beforeEach, expect, test, vi } from 'vitest';
 
-import html from '../index.html?raw';
-import { mountEmoteBorderSettings } from '../src/emote-border-settings.ts';
-import { requireValue } from '../src/validation.ts';
+import html from '../../index.html?raw';
+import { mountEmoteBorderSettings } from '../../src/settings/emote-border-settings.ts';
+import { requireValue } from '../../src/validation.ts';
 
 beforeEach(() => {
   document.body.innerHTML = new DOMParser().parseFromString(html, 'text/html').body.innerHTML;

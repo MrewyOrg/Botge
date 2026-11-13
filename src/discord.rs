@@ -18,7 +18,7 @@ use serenity::{
 use tokio::sync::{Notify, watch};
 
 use crate::{
-  activity::{ApiError, GuildAccess, GuildRole, Membership, VoiceChannel},
+  activity::{AccessToken, ApiError, Credential, GuildAccess, GuildRole, Membership, VoiceChannel},
   commands::{self, Commands},
   settings::discord_id,
 };
@@ -48,26 +48,19 @@ impl DiscordAccess {
     })
   }
 
-  /// Exchanges one code and asks Discord which account it belongs to.
+  /// Exchanges one code for an access token and its lifetime.
   ///
   /// # Errors
   ///
   /// An expired or rejected code prompts the Activity to authorize again. A rejected OAuth
   /// client is reported separately so the operator can check the application ID and secret.
   /// Other Discord request or decoding failures surface as upstream errors.
-  async fn identify(&self, code: &str) -> Result<UserId, ApiError> {
-    /// Access token needed for the identity request.
+  async fn exchange_code(&self, code: &str) -> Result<AccessToken, ApiError> {
     #[derive(Deserialize)]
     struct Token {
       access_token: String,
+      expires_in: u64,
     }
-
-    /// Minimal response from Discord's current-user endpoint.
-    #[derive(Deserialize)]
-    struct Identity {
-      id: String,
-    }
-
     let client = discord_client().map_err(oauth_error)?;
     let application_id = self.application_id.to_string();
     let request = client
@@ -109,9 +102,26 @@ impl DiscordAccess {
       .json()
       .await
       .map_err(oauth_error)?;
+    Ok(AccessToken {
+      access_token: token.access_token,
+      expires_in: token.expires_in,
+    })
+  }
+
+  /// Resolves identity for every request, including token reuse, so revoked tokens are rejected.
+  async fn identify(&self, credential: &Credential) -> Result<UserId, ApiError> {
+    #[derive(Deserialize)]
+    struct Identity {
+      id: String,
+    }
+    let token = match credential {
+      Credential::Code(code) => self.exchange_code(code).await?.access_token,
+      Credential::AccessToken(token) => token.clone(),
+    };
+    let client = discord_client().map_err(oauth_error)?;
     let request = client
       .get("https://discord.com/api/v10/users/@me")
-      .bearer_auth(token.access_token)
+      .bearer_auth(token)
       .build()
       .map_err(oauth_error)?;
     let response = self.send_oauth(request).await?;
@@ -161,14 +171,22 @@ fn oauth_error(_error: reqwest::Error) -> ApiError {
 }
 
 impl GuildAccess for DiscordAccess {
+  async fn exchange_code(&self, code: &str) -> Result<AccessToken, ApiError> {
+    self.exchange_code(code).await
+  }
+
   /// Resolves the OAuth caller without requesting guild details.
-  async fn user_id(&self, code: &str) -> Result<NonZeroU64, ApiError> {
-    NonZeroU64::new(self.identify(code).await?.get()).ok_or(ApiError::UNAUTHORIZED)
+  async fn user_id(&self, credential: &Credential) -> Result<NonZeroU64, ApiError> {
+    NonZeroU64::new(self.identify(credential).await?.get()).ok_or(ApiError::UNAUTHORIZED)
   }
 
   /// Fetches the caller's membership and returns role choices only to administrators.
-  async fn membership(&self, guild: NonZeroU64, code: &str) -> Result<Membership, ApiError> {
-    let user = self.identify(code).await?;
+  async fn membership(
+    &self,
+    guild: NonZeroU64,
+    credential: &Credential,
+  ) -> Result<Membership, ApiError> {
+    let user = self.identify(credential).await?;
     let guild_id = GuildId::new(guild.get());
     let (guild, member) = tokio::try_join!(
       guild_id.to_partial_guild(&self.http),
@@ -204,9 +222,9 @@ impl GuildAccess for DiscordAccess {
   async fn voice_channels(
     &self,
     guild: NonZeroU64,
-    code: &str,
+    credential: &Credential,
   ) -> Result<Vec<VoiceChannel>, ApiError> {
-    let user = self.identify(code).await?;
+    let user = self.identify(credential).await?;
     let guild_id = GuildId::new(guild.get());
     let (guild, member) = tokio::try_join!(
       guild_id.to_partial_guild(&self.http),

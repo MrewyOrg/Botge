@@ -1,8 +1,20 @@
 //! Shared loopback fixtures and tests that exercise the bot's service lifecycle.
 
-use axum::Router;
+use std::{collections::HashMap, time::Duration};
+
+use axum::{
+  Json, Router,
+  http::StatusCode,
+  routing::{get, patch, post, put},
+};
+use base64::{Engine as _, engine::general_purpose::STANDARD};
+use futures_util::{SinkExt as _, StreamExt as _};
 use reqwest::Url;
-use tokio::{net::TcpListener, task::JoinHandle};
+use serde_json::{Value, json};
+use tokio::{net::TcpListener, sync::mpsc, task::JoinHandle};
+use tokio_tungstenite::{accept_async, tungstenite::Message};
+
+use super::*;
 
 /// An HTTP fixture that owns its server task and aborts it on drop.
 pub(crate) struct TestServer {
@@ -28,20 +40,6 @@ impl Drop for TestServer {
   }
 }
 
-use std::{collections::HashMap, time::Duration};
-
-use axum::{
-  Json,
-  http::StatusCode,
-  routing::{get, patch, post, put},
-};
-use futures_util::{SinkExt as _, StreamExt as _};
-use serde_json::{Value, json};
-use tokio::sync::mpsc;
-use tokio_tungstenite::{accept_async, tungstenite::Message};
-
-use super::*;
-
 /// Builds a Discord user fixture. ID `42` represents Botge itself.
 pub(crate) fn user(id: &str) -> Value {
   json!({ "id": id, "username": "Fixture", "bot": id == "42" })
@@ -56,6 +54,31 @@ pub(crate) fn http_for(server: &TestServer) -> Http {
     .build()
 }
 
+/// Decodes the shared one-pixel PNG used by media routes and renderer assertions.
+pub(crate) fn png_pixel() -> Result<Vec<u8>> {
+  Ok(STANDARD.decode(
+    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/XioAAAAASUVORK5CYII=",
+  )?)
+}
+
+/// Reads PNG width and height without tying assertions to raw header byte offsets.
+pub(crate) fn png_dimensions(bytes: &[u8]) -> Result<(u32, u32)> {
+  anyhow::ensure!(
+    bytes.starts_with(b"\x89PNG\r\n\x1a\n"),
+    "expected PNG fixture"
+  );
+  let dimension = |offset| -> Result<u32> {
+    Ok(u32::from_be_bytes(
+      bytes
+        .get(offset..offset + 4)
+        .context("missing PNG dimension")?
+        .try_into()?,
+    ))
+  };
+  Ok((dimension(16)?, dimension(20)?))
+}
+
+/// Wraps a gateway event with the sequence number expected by Serenity.
 fn dispatch(event: &str, sequence: u64, data: Value) -> Message {
   Message::Text(
     json!({"op":0, "t":event, "s":sequence, "d":data})
@@ -118,7 +141,7 @@ async fn gateway(
         for (id, author, content) in [
           (10, "42", "+Wave"),
           (11, "3", "+ Wave"),
-          (12, "3", "+Wave Wave:96"),
+          (12, "3", "+Wave Wave:3"),
         ] {
           let mut message = serde_json::to_value(serenity::all::Message::default())?;
           let fields = message.as_object_mut().context("missing message fields")?;
@@ -265,10 +288,7 @@ async fn starts_gateway_and_http_reconciles_voice_and_handles_shutdown() -> Resu
   let (status_tx, mut status_rx) = mpsc::unbounded_channel();
   let (reply_tx, mut reply_rx) = mpsc::unbounded_channel();
   let (message_tx, mut message_rx) = mpsc::unbounded_channel();
-  use base64::{Engine as _, engine::general_purpose::STANDARD};
-  let pixel = STANDARD.decode(
-    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/XioAAAAASUVORK5CYII=",
-  )?;
+  let pixel = png_pixel()?;
   let http = TestServer::start(
     discord::tests::fixture_routes()
       .route(
@@ -350,14 +370,10 @@ async fn starts_gateway_and_http_reconciles_voice_and_handles_shutdown() -> Resu
       .windows(8)
       .position(|chunk| chunk == b"\x89PNG\r\n\x1a\n")
       .context("missing PNG attachment")?;
-    // Two 96 px emotes and a 6 px gap.
+    // Two native 1 px fixture emotes and a 1 px gap.
     assert_eq!(
-      reply.get(png + 16..png + 24),
-      Some(
-        [198_u32.to_be_bytes(), 96_u32.to_be_bytes()]
-          .concat()
-          .as_slice()
-      )
+      png_dimensions(reply.get(png..).context("missing PNG data")?)?,
+      (3, 1)
     );
     let reply = String::from_utf8_lossy(&reply);
     assert!(reply.contains("emotes.png"));

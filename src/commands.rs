@@ -75,6 +75,8 @@ impl Commands {
     let response = EditInteractionResponse::new().allowed_mentions(CreateAllowedMentions::new());
     let response = match answer {
       Answer::Text(text) => response.content(text),
+      Answer::Image(image) if image.bytes.len() > command.attachment_size_limit as usize => response
+        .content("The rendered image exceeds Discord's upload limit for this interaction. Try a smaller size."),
       Answer::Image(image) => {
         response.new_attachment(CreateAttachment::bytes(image.bytes, image.filename))
       }
@@ -86,7 +88,8 @@ impl Commands {
   /// Handles `+emote` in human-authored messages and replies without pinging the author.
   ///
   /// Bot messages, webhooks, and non-conversation messages are ignored. The remainder
-  /// after `+` uses the same renderer as the slash command and can end in a pixel size.
+  /// after `+` uses the same renderer as the slash command and can end in a provider scale
+  /// from 1 to 4.
   pub(crate) async fn respond_message(&self, http: &Http, message: &Message) -> Result<()> {
     if message.author.bot
       || message.webhook_id.is_some()
@@ -140,7 +143,7 @@ impl Commands {
     let mut response = CreateAutocompleteResponse::new();
     match (command.data.name.as_str(), focused.name) {
       ("emote-compose", "size") => {
-        for size in [24, 32, 48, 64, 96, 112, 128, 192, 256] {
+        for size in [1, 2, 3, 4] {
           let label = size.to_string();
           if label.starts_with(focused.value) {
             response = response.add_int_choice(label, size);
@@ -202,9 +205,12 @@ impl Commands {
         };
         let size = match option(options, "size") {
           Some(CommandDataOptionValue::Integer(size)) => {
-            Some(u16::try_from(*size).unwrap_or(128).clamp(24, 256))
+            let Ok(size @ 1..=4) = u16::try_from(*size) else {
+              return Ok(Answer::Text("Choose a provider size from 1 to 4.".into()));
+            };
+            Some(size)
           }
-          _ => flag(options, "fullsize").then_some(256),
+          _ => flag(options, "fullsize").then_some(4),
         };
         self
           .compose(input, guild, user, size, flag(options, "stretch"))
@@ -214,18 +220,60 @@ impl Commands {
     }
   }
 
+  /// Resolves one token without changing the catalog or persisted guild additions.
+  ///
+  /// Explicit IDs fetch current 7TV metadata. Named additions saved without variants are
+  /// refreshed for this render, retaining their saved overlay flag. Discord media is a fallback
+  /// only when no catalog entry matches.
+  async fn resolve_layer(
+    &self,
+    catalog: &[Emote],
+    token: &str,
+    scale: u16,
+  ) -> Result<Option<Layer>> {
+    if let Some(id) = token.strip_prefix("7tv:") {
+      return Ok(
+        self
+          .emotes
+          .fetch_added(id)
+          .await?
+          .as_ref()
+          .and_then(|emote| Layer::emote_at(emote, scale)),
+      );
+    }
+    let Some(emote) = find_emote(catalog, token) else {
+      return Ok(Layer::discord(token));
+    };
+    if emote.sizes.is_empty() && emote.added && valid_seven_id(&emote.id) {
+      return Ok(
+        self
+          .emotes
+          .fetch_added(&emote.id)
+          .await?
+          .as_ref()
+          .and_then(|fresh| {
+            let mut layer = Layer::emote_at(fresh, scale)?;
+            layer.overlay = emote.overlaying;
+            Some(layer)
+          }),
+      );
+    }
+    Ok(Layer::emote_at(emote, scale))
+  }
+
   /// Resolves the input in order and holds a render permit through the download and composition.
   ///
   /// A `7tv:` token resolves by ID when individual 7TV additions are enabled. Other tokens
   /// resolve against the catalog or Discord media syntax. If any token is unavailable,
-  /// the reply identifies that token and skips the render. A single input with no size or
-  /// border is sent as the original attachment.
+  /// the reply identifies that token and skips the render. A single input without a border
+  /// is sent as the selected provider variant's original attachment. Scale defaults to 2;
+  /// the renderer receives native-size layers rather than the command's provider scale.
   async fn compose(
     &self,
     input: &str,
     guild: Option<NonZeroU64>,
     user: Option<NonZeroU64>,
-    size: Option<u16>,
+    scale: Option<u16>,
     stretch: bool,
   ) -> Result<Answer> {
     let mut tokens: Vec<_> = input.split_whitespace().take(33).collect();
@@ -247,22 +295,12 @@ impl Commands {
       tokens = vec![input.trim()];
     }
 
+    let scale = scale.unwrap_or(2);
     let mut layers = Vec::with_capacity(tokens.len());
     for batch in tokens.chunks(4) {
       let catalog = &catalog;
       let found = futures_util::future::join_all(batch.iter().map(|&name| async move {
-        let layer = if let Some(id) = name.strip_prefix("7tv:") {
-          self
-            .emotes
-            .fetch_added(id)
-            .await?
-            .as_ref()
-            .and_then(Layer::emote)
-        } else {
-          find_emote(catalog, name)
-            .and_then(Layer::emote)
-            .or_else(|| Layer::discord(name))
-        };
+        let layer = self.resolve_layer(catalog, name, scale).await?;
         Ok::<_, anyhow::Error>((name, layer))
       }))
       .await;
@@ -281,7 +319,6 @@ impl Commands {
     let border = self.border(user).await?;
     // A single unmodified image can retain its original bytes and timing.
     if let [layer] = layers.as_slice()
-      && size.is_none()
       && border.is_none()
     {
       return Ok(Answer::Image(
@@ -293,7 +330,7 @@ impl Commands {
       &layers,
       self.cache.as_ref(),
       RenderOptions {
-        size,
+        size_pixels: None,
         stretch,
         border,
       },
@@ -312,8 +349,8 @@ fn prefix_input(content: &str) -> Option<&str> {
 
 /// Reads a trailing `:size`, leaving Discord media and 7TV identifiers intact.
 ///
-/// For example, `wave hat:96` returns `wave hat` with a size of 96 pixels. A numeric suffix
-/// outside 24–256 is an input error when it belongs to the size syntax.
+/// For example, `wave hat:3` returns `wave hat` with provider scale 3. A numeric suffix
+/// outside 1–4 is an input error when it belongs to the size syntax.
 fn prefix_size(input: &str) -> Result<(&str, Option<u16>), &'static str> {
   let input = input.trim_end();
   let Some((names, suffix)) = input.rsplit_once(':') else {
@@ -331,8 +368,8 @@ fn prefix_size(input: &str) -> Result<(&str, Option<u16>), &'static str> {
   let size = suffix
     .parse::<u16>()
     .ok()
-    .filter(|size| (24..=256).contains(size))
-    .ok_or("Choose a size from 24 to 256 pixels.")?;
+    .filter(|size| (1..=4).contains(size))
+    .ok_or("Choose a provider size from 1 to 4.")?;
   Ok((names.trim_end(), Some(size)))
 }
 
@@ -428,11 +465,17 @@ fn shortcuts(emotes: &[Emote], input: &str) -> String {
   } else {
     input.split_whitespace().take(12).collect()
   };
+  // Normalize once: exact names take priority, otherwise every match must name the target.
+  let catalog: HashSet<_> = emotes
+    .iter()
+    .map(|emote| emote.name.to_ascii_lowercase())
+    .collect();
   let mut length = 0;
   let lines = names
     .into_iter()
     .filter_map(|name| {
       let emote = find_emote(emotes, name)?;
+      let target = emote.name.to_ascii_lowercase();
       let offsets: Vec<_> = emote
         .name
         .char_indices()
@@ -443,7 +486,17 @@ fn shortcuts(emotes: &[Emote], input: &str) -> String {
         .find_map(|length| {
           offsets.windows(length + 1).find_map(|window| {
             let candidate = emote.name.get(*window.first()?..*window.last()?)?;
-            (find_emote(emotes, candidate) == Some(emote)).then_some(candidate)
+            let normalized = candidate.trim().to_ascii_lowercase();
+            let unique = if normalized.is_empty() {
+              false
+            } else if catalog.contains(&normalized) {
+              normalized == target
+            } else {
+              catalog
+                .iter()
+                .all(|name| name == &target || !name.contains(&normalized))
+            };
+            unique.then_some(candidate)
           })
         })
         .unwrap_or(&emote.name);
@@ -500,13 +553,16 @@ fn definitions() -> Vec<CreateCommand> {
       CreateCommandOption::new(
         CommandOptionType::Integer,
         "size",
-        "Resize the emotes in pixels",
+        "Provider image scale (1–4; nearest available size)",
       )
-      .min_int_value(24)
-      .max_int_value(256)
+      .min_int_value(1)
+      .max_int_value(4)
       .set_autocomplete(true),
     )
-    .add_option(toggle("fullsize", "Use larger emotes"))
+    .add_option(toggle(
+      "fullsize",
+      "Use the largest provider scale (up to 4)",
+    ))
     .add_option(toggle("stretch", "Stretch overlays to fill their column")),
     command(
       "emote-shortcuts",

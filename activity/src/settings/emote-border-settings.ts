@@ -1,6 +1,17 @@
-import { isRecord, requireValue } from './validation.ts';
+/* Edits the authenticated user’s border preference; an empty color disables the border. */
 
-/** Loads the preference with no argument and clears it by sending an empty color string. */
+import { isRecord, requireValue } from '../validation.ts';
+
+/**
+ * Mounts the authenticated user's border preference form.
+ *
+ * @remarks
+ * The first opening loads the saved preference. Failed saves leave previously loaded
+ * controls editable. Disabling the border preserves the picker color for later reuse.
+ *
+ * @param request - Reads with no argument, saves a chosen color, or clears with an empty string.
+ * @throws `Error` if required form markup is missing.
+ */
 export function mountEmoteBorderSettings(request: (color?: string) => Promise<unknown>): void {
   const panel = requireValue(
     document.querySelector<HTMLDetailsElement>('#emote-border-settings'),

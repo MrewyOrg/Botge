@@ -1,15 +1,31 @@
+// Copyright (c) 2026 MrewyOrg. Licensed under the MIT license.
+// See LICENSE.txt in the project root for license information.
+
+/**
+ * Botge's Discord Activity for browsing emotes, composing previews, and editing settings.
+ *
+ * @remarks
+ * This browser entry wires the page to the catalog, composer, and settings modules.
+ * Discord-only features follow the build flags and the current guild context.
+ * The package also includes the Cloudflare Worker that authenticates HTML requests.
+ *
+ * @see {@link https://github.com/MrewyOrg/Botge/wiki/Activity | Activity guide}
+ * @packageDocumentation
+ */
+
 import { DiscordSDK } from '@discord/embedded-app-sdk';
 
 import demoEmoteUrl from '../../assets/botge-emoji.png';
 import iconUrl from '../../assets/botge-icon.png';
-import { type BrowserEmote, emoteTags, filterEmotes, parseCatalog } from './catalog.ts';
-import { createComposer } from './composer.ts';
+import { type ActivityPath, createActivityApi, waitForDiscord } from './activity-api.ts';
+import { type BrowserEmote, emoteTags, filterEmotes, parseCatalog } from './catalog/catalog.ts';
+import { createComposer } from './composer/composer.ts';
 import { createContextMenu } from './context-menu.ts';
-import { mountEmoteBorderSettings } from './emote-border-settings.ts';
-import { mountEmoteSettings } from './emote-settings.ts';
-import { type DiscoveryMode, fetchDiscoveryPage } from './seventv.ts';
+import { mountEmoteBorderSettings } from './settings/emote-border-settings.ts';
+import { mountEmoteSettings } from './settings/emote-settings.ts';
+import { type DiscoveryMode, fetchDiscoveryPage } from './catalog/seventv.ts';
 import { isRecord, requireValue } from './validation.ts';
-import { mountVoiceSettings } from './voice-settings.ts';
+import { mountVoiceSettings } from './settings/voice-settings.ts';
 import './style.scss';
 
 const favicon = document.createElement('link');
@@ -176,7 +192,6 @@ let canComposeDiscovery = false;
 let knownSevenTV = new Map<string, BrowserEmote>();
 let selecting = false;
 const selection = new Map<string, BrowserEmote>();
-let requestQueue = Promise.resolve();
 let catalogMatches: readonly BrowserEmote[] = [];
 let visibleCount = 0;
 let mode: 'catalog' | DiscoveryMode = 'catalog';
@@ -188,6 +203,20 @@ const pendingActions = new Set<'add' | 'catalog'>();
 const appId = /^(?<appId>\d+)\.discordsays\.com$/u.exec(location.hostname)?.groups?.['appId'];
 const discord =
   appId === undefined ? undefined : new DiscordSDK(appId, { disableConsoleLogOverride: true });
+const activityApi =
+  discord === undefined || appId === undefined ?
+    undefined
+  : createActivityApi({
+      authorize: async () =>
+        await discord.commands.authorize({
+          client_id: appId,
+          response_type: 'code',
+          state: '',
+          prompt: 'none',
+          scope: ['identify']
+        }),
+      authenticate: async (token) => await discord.commands.authenticate({ access_token: token })
+    });
 const allowAdds = import.meta.env['VITE_ENABLE_ACTIVITY_ADDS'] === 'true';
 const serverGuildId =
   import.meta.env['VITE_ENABLE_ACTIVITY_CATALOG'] === 'true' ?
@@ -198,75 +227,13 @@ const refresh = requireValue(
   'Missing catalog refresh.'
 );
 
-/** Bounds SDK waits so a stalled Discord command cannot hold the API queue indefinitely. */
-async function waitForDiscord<T>(operation: () => Promise<T>): Promise<T> {
-  let timer: ReturnType<typeof setTimeout> | undefined;
-  const timeout = new Promise<never>((_resolve, reject) => {
-    timer = setTimeout(() => {
-      reject(new Error('Discord did not respond. Try again or reopen the Activity.'));
-    }, 15_000);
-  });
-  try {
-    return await Promise.race([operation(), timeout]);
-  } finally {
-    clearTimeout(timer);
-  }
-}
-
-/** Requests a fresh Discord authorization code for each queued Botge API call. */
 async function requestServer(
-  path:
-    | 'catalog'
-    | 'emotes'
-    | 'emotes/remove'
-    | 'emotes/batch'
-    | 'settings'
-    | 'settings/voice'
-    | 'settings/emotes'
-    | 'settings/emotes/read'
-    | 'settings/border'
-    | 'settings/border/read',
+  path: ActivityPath,
   guildId: string,
   fields?: Readonly<Record<string, unknown>>
 ): Promise<unknown> {
-  const client = discord;
-  const applicationId = appId;
-  if (client === undefined || applicationId === undefined)
-    throw new Error('Open Botge inside Discord.');
-  const request = requestQueue.then(async () => {
-    const send = async (): Promise<Readonly<{ payload: unknown; expired: boolean }>> => {
-      const { code } = await waitForDiscord(
-        async () =>
-          await client.commands.authorize({
-            client_id: applicationId,
-            response_type: 'code',
-            state: '',
-            prompt: 'none',
-            scope: ['identify']
-          })
-      );
-      const response = await fetch(`/botge-api/${path}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...fields, code, guildId }),
-        signal: AbortSignal.timeout(45_000)
-      });
-      const payload: unknown = await response.json();
-      return {
-        payload,
-        expired: response.status === 401 && isRecord(payload) && payload['code'] === 'oauth_expired'
-      };
-    };
-    const result = await send();
-    // Only an expired OAuth code triggers one retry. Other errors may follow a write.
-    return result.expired ? (await send()).payload : result.payload;
-  });
-  // Settle the queue on failure as well so later requests can still run.
-  requestQueue = request.then(
-    () => undefined,
-    () => undefined
-  );
-  return await request;
+  if (activityApi === undefined) throw new Error('Open Botge inside Discord.');
+  return await activityApi(path, guildId, fields);
 }
 
 function emoteKey(emote: BrowserEmote): string {
@@ -561,6 +528,7 @@ async function changeEmote(
     return;
 
   pendingActions.add('add');
+  syncSelection();
   add.disabled = true;
   remove.disabled = true;
   report(removing ? 'Removing emote…' : 'Adding emote…');
@@ -586,6 +554,7 @@ async function changeEmote(
     );
   } finally {
     pendingActions.delete('add');
+    syncSelection();
     add.disabled = false;
     remove.disabled = false;
   }

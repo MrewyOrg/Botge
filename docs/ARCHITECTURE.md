@@ -65,10 +65,19 @@ sequenceDiagram
     participant Discord
     participant DB as redb
     participant Voice as Voice worker
-    Browser->>Proxy: Send voice settings and OAuth code
+    opt No usable access token
+        Browser->>Proxy: Send OAuth code to /auth
+        Proxy->>API: Forward signed exchange request
+        API->>API: Verify proxy signature
+        API->>Discord: Exchange one-use code
+        Discord-->>API: Access token and lifetime
+        API-->>Proxy: Return token (no-store)
+        Proxy-->>Browser: Keep token in memory and authenticate SDK
+    end
+    Browser->>Proxy: Send voice settings and bearer token
     Proxy->>API: Forward signed request through the API tunnel
     API->>API: Verify Discord proxy signature
-    API->>Discord: Exchange code and check guild membership and permissions
+    API->>Discord: Identify token holder and check current guild permissions
     alt Authorized guild administrator
         API->>DB: Commit guild voice settings
         API-->>Voice: Notify after a successful save
