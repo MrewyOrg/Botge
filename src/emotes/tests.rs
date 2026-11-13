@@ -1,3 +1,5 @@
+//! Checks catalog precedence, browser mappings, and operator-controlled provider access.
+
 use serde_json::Value;
 
 use super::*;
@@ -18,6 +20,7 @@ pub(crate) fn example(name: &str, id: &str) -> Emote {
     name: name.into(),
     source: Source::SevenTv,
     image: format!("https://cdn.7tv.app/emote/{id}/2x.png"),
+    sizes: Default::default(),
     animated: false,
     overlaying: false,
     tags: Vec::new(),

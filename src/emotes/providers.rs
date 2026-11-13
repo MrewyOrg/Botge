@@ -2,7 +2,8 @@
 //!
 //! Callers share a refresh per feed URL. A shorter caller deadline can fall back to a cached
 //! snapshot without cancelling that refresh. Provider-specific JSON stays in this module,
-//! and callers receive validated [`Emote`] values.
+//! and callers receive validated [`Emote`] values. Each record keeps its usable image scales;
+//! the default catalog image is nearest to scale 2, with a smaller-scale tie break.
 
 mod events;
 
@@ -470,22 +471,35 @@ impl SevenEmote {
     if !valid_name(&name) {
       return None;
     }
-    let candidates: &[&str] = if self.animated {
-      &[
-        "2x.webp", "2x.gif", "1x.webp", "1x.gif", "3x.webp", "3x.gif",
-      ]
-    } else {
-      &["2x.png", "2x.webp", "1x.png", "1x.webp"]
-    };
-    let file = candidates
+    let mut sizes = std::collections::BTreeMap::new();
+    for scale in 1u16..=4 {
+      let extensions: &[&str] = if self.animated {
+        &["webp", "gif"]
+      } else {
+        &["png", "webp"]
+      };
+      if let Some(file) = extensions
+        .iter()
+        .map(|ext| format!("{scale}x.{ext}"))
+        .find(|name| self.host.files.iter().any(|file| file.name == *name))
+      {
+        sizes.insert(
+          scale,
+          format!("https://cdn.7tv.app/emote/{}/{file}", self.id),
+        );
+      }
+    }
+    let image = sizes
       .iter()
-      .find(|&&name| self.host.files.iter().any(|file| file.name == name))?;
-    let image = format!("https://cdn.7tv.app/emote/{}/{file}", self.id);
+      .min_by_key(|(scale, _)| (scale.abs_diff(2), **scale))?
+      .1
+      .clone();
     Some(Emote {
       id: self.id,
       name,
       source: Source::SevenTv,
       image,
+      sizes,
       animated: self.animated,
       overlaying,
       tags: self.tags.into_iter().take(32).collect(),
@@ -510,18 +524,27 @@ struct BetterTtvEmote {
 }
 
 impl BetterTtvEmote {
-  /// Builds a validated 2× GIF or PNG CDN entry.
+  /// Builds the three published BTTV scales with a 2× catalog default.
   fn into_emote(self) -> Option<Emote> {
     if !safe_id(&self.id) || !valid_name(&self.code) {
       return None;
     }
     let ext = if self.animated { "gif" } else { "png" };
     let image = format!("https://cdn.betterttv.net/emote/{}/2x.{ext}", self.id);
+    let sizes = (1..=3)
+      .map(|scale| {
+        (
+          scale,
+          format!("https://cdn.betterttv.net/emote/{}/{scale}x.{ext}", self.id),
+        )
+      })
+      .collect();
     Some(Emote {
       id: self.id,
       name: self.code,
       source: Source::BetterTtv,
       image,
+      sizes,
       animated: self.animated,
       overlaying: false,
       tags: Vec::new(),
@@ -561,21 +584,32 @@ impl FfzEmote {
     if !valid_name(&self.name) {
       return None;
     }
-    let url = self
+    let sizes: std::collections::BTreeMap<u16, String> = self
       .urls
-      .get("2")
-      .or_else(|| self.urls.get("1"))
-      .or_else(|| self.urls.get("4"))?;
-    let url = Url::parse("https://cdn.frankerfacez.com")
-      .ok()?
-      .join(url)
-      .ok()?;
-    let image = cdn_url(url.as_str(), Source::Ffz)?.to_string();
+      .into_iter()
+      .filter_map(|(scale, url)| {
+        let scale = scale
+          .parse::<u16>()
+          .ok()
+          .filter(|scale| [1, 2, 4].contains(scale))?;
+        let url = Url::parse("https://cdn.frankerfacez.com")
+          .ok()?
+          .join(&url)
+          .ok()?;
+        Some((scale, cdn_url(url.as_str(), Source::Ffz)?.to_string()))
+      })
+      .collect();
+    let image = sizes
+      .iter()
+      .min_by_key(|(scale, _)| (scale.abs_diff(2), **scale))?
+      .1
+      .clone();
     Some(Emote {
       id: self.id.to_string(),
       name: self.name,
       source: Source::Ffz,
       image,
+      sizes,
       animated: false,
       overlaying: false,
       tags: Vec::new(),
@@ -600,25 +634,53 @@ struct TwitchEmote {
   id: String,
   name: String,
   format: Vec<String>,
+  #[serde(default = "twitch_scales")]
+  scale: Vec<String>,
+}
+
+/// Supplies the standard scales when a Twitch response omits its advertised scale list.
+fn twitch_scales() -> Vec<String> {
+  vec!["1.0".into(), "2.0".into(), "3.0".into()]
 }
 
 impl TwitchEmote {
-  /// Prefers the animated image when available and uses the dark 2× CDN variant.
+  /// Keeps advertised dark-theme scales, preferring animated media and a scale-2 default.
   fn into_emote(self) -> Option<Emote> {
     if !safe_id(&self.id) || !valid_name(&self.name) {
       return None;
     }
     let animated = self.format.iter().any(|format| format == "animated");
     let format = if animated { "animated" } else { "static" };
-    let image = format!(
-      "https://static-cdn.jtvnw.net/emoticons/v2/{}/{format}/dark/2.0",
-      self.id
-    );
+    let sizes: std::collections::BTreeMap<u16, String> = self
+      .scale
+      .iter()
+      .filter_map(|scale| {
+        let number = match scale.as_str() {
+          "1.0" => 1,
+          "2.0" => 2,
+          "3.0" => 3,
+          _ => return None,
+        };
+        Some((
+          number,
+          format!(
+            "https://static-cdn.jtvnw.net/emoticons/v2/{}/{format}/dark/{scale}",
+            self.id
+          ),
+        ))
+      })
+      .collect();
+    let image = sizes
+      .iter()
+      .min_by_key(|(scale, _)| (scale.abs_diff(2), **scale))?
+      .1
+      .clone();
     Some(Emote {
       id: self.id,
       name: self.name,
       source: Source::Twitch,
       image,
+      sizes,
       animated,
       overlaying: false,
       tags: Vec::new(),

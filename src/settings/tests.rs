@@ -1,3 +1,5 @@
+//! Checks canonical Discord IDs and independent validation of channel/status preferences.
+
 use super::*;
 
 #[test]

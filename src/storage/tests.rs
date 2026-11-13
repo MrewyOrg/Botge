@@ -1,3 +1,5 @@
+//! Exercises persistence, malformed data, and atomic updates in temporary redb databases.
+
 use std::{sync::Barrier, thread};
 
 use super::*;

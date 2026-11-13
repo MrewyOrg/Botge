@@ -1,3 +1,5 @@
+//! Signs deterministic payloads to isolate signature, timestamp, and expiration checks.
+
 use super::*;
 use axum::http::HeaderValue;
 use ed25519_dalek::{Signer as _, SigningKey};

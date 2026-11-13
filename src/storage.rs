@@ -1,3 +1,8 @@
+//! Owns redb tables, validation before writes, and transaction boundaries.
+//!
+//! Methods are synchronous: async callers must use the blocking pool. Guild IDs key voice
+//! settings, provider selections, and additions; user IDs key personal border preferences.
+
 use std::{num::NonZeroU64, path::Path};
 
 use anyhow::{Context as _, Result};

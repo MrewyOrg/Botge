@@ -24,7 +24,11 @@ use super::{Emote, Source, cdn_url, providers::bounded_bytes};
 
 const MAX_INPUTS: usize = 32;
 const MAX_ASSET: usize = 2 * 1024 * 1024;
-const MAX_ATTACHMENT: usize = 8 * 1024 * 1024;
+const MAX_ATTACHMENT: usize = 20 * 1024 * 1024;
+const MAX_CANVAS_WIDTH: u32 = 2048;
+// Bound simultaneous decoder canvases and the source animation's decoded pixel work.
+const MAX_SOURCE_PIXELS: u64 = 16 * 1024 * 1024;
+const MAX_FRAME_PIXELS: u64 = 256 * 1024 * 1024;
 const MIN_WEBP_FRAME_MS: u64 = 11;
 const IMAGE_FORMATS: &str = "png_pipe,jpeg_pipe,gif,webp_pipe,webp_anim,apng";
 
@@ -47,9 +51,18 @@ pub(crate) struct Layer {
 
 impl Layer {
   /// Accepts a catalog entry whose image URL passes the rules for its declared provider.
+  #[cfg(test)]
   pub(crate) fn emote(emote: &Emote) -> Option<Self> {
     Some(Self {
       url: cdn_url(&emote.image, emote.source)?,
+      overlay: emote.overlaying,
+    })
+  }
+
+  /// Selects a published provider scale before applying the CDN allowlist.
+  pub(crate) fn emote_at(emote: &Emote, scale: u16) -> Option<Self> {
+    Some(Self {
+      url: cdn_url(emote.image_at(scale), emote.source)?,
       overlay: emote.overlaying,
     })
   }
@@ -165,10 +178,10 @@ pub(crate) async fn original(http: &Client, layer: &Layer, cache: Option<&Url>) 
 
 /// Output choices shared by slash commands and message shortcuts.
 pub(crate) struct RenderOptions {
-  /// Requested size in pixels, clamped to 24–256. A single input is fit within that square.
-  /// A composition uses the value as its target column height before applying the width budget.
-  /// With no value, a single input keeps its dimensions and a composition starts at 64 pixels.
-  pub(crate) size: Option<u16>,
+  /// Optional pixel target, independent of provider scale selection in [`Layer::emote_at`].
+  /// Values clamp to 24–256: a single image fits that square, while a composition uses the
+  /// target as its column height. `None` preserves native dimensions within the width budget.
+  pub(crate) size_pixels: Option<u16>,
   /// Scale overlays to the full column rather than preserving their aspect ratio.
   pub(crate) stretch: bool,
   /// Optional border in packed RGB form (`0xRRGGBB`), drawn four pixels wide around the canvas.
@@ -184,8 +197,9 @@ pub(crate) struct RenderOptions {
 /// # Errors
 ///
 /// Fails on an empty or oversized layer list, failed or oversized downloads, invalid image
-/// dimensions, missing animation timing, a subprocess failure or deadline, or output above
-/// the attachment budget. Any failed input stops the composition.
+/// dimensions, excessive aggregate pixels or animation frames, missing animation timing,
+/// a subprocess failure or deadline, or output above the attachment budget.
+/// Any failed input stops the composition.
 pub(crate) async fn compose(
   http: &Client,
   layers: &[Layer],
@@ -234,24 +248,28 @@ pub(crate) async fn compose(
   render(temp.path(), &assets, options).await
 }
 
-/// The width and height returned by FFprobe for the first video stream.
+/// First video stream dimensions and its number of image packets.
 #[derive(Deserialize)]
 struct Dimensions {
   width: u32,
   height: u32,
+  #[serde(skip)]
+  frames: usize,
 }
 
 impl Dimensions {
   /// Fits within the height and width bounds while preserving aspect ratio.
   fn fit(&self, height: u32, max_width: u32) -> (u32, u32) {
-    let width = (self.width * height + self.height / 2) / self.height;
-    if width > max_width {
+    let source_width = u64::from(self.width);
+    let source_height = u64::from(self.height);
+    let width = (source_width * u64::from(height) + source_height / 2) / source_height;
+    if width > u64::from(max_width) {
       (
         max_width,
-        ((self.height * max_width + self.width / 2) / self.width).max(1),
+        ((source_height * u64::from(max_width) + source_width / 2) / source_width).max(1) as u32,
       )
     } else {
-      (width.max(1), height)
+      (width.max(1) as u32, height)
     }
   }
 }
@@ -329,7 +347,7 @@ async fn inspect(path: &Path) -> Result<(Dimensions, Option<u64>)> {
     String::from_utf8_lossy(&result.stderr)
   );
   let probe: Probe = serde_json::from_slice(&result.stdout)?;
-  let dimensions = probe
+  let mut dimensions = probe
     .streams
     .into_iter()
     .next()
@@ -340,6 +358,7 @@ async fn inspect(path: &Path) -> Result<(Dimensions, Option<u64>)> {
       && dimensions.width.saturating_mul(dimensions.height) <= 4_194_304,
     "emote dimensions exceed the pixel limit"
   );
+  dimensions.frames = probe.packets.len().max(1);
   let duration_ms = if probe.packets.len() > 1 {
     let duration = probe
       .packets
@@ -474,38 +493,76 @@ fn stack(filters: &mut Vec<String>, labels: &[String], output: &str) {
 /// group overlays into columns, then stack those columns into the final canvas. Each group is
 /// synchronized before overlaying so changes in an animated overlay advance a static base.
 fn layout(assets: &[Asset], options: &RenderOptions) -> String {
+  // Reserve border padding inside the final attachment's width budget.
+  let max_width = MAX_CANVAS_WIDTH - options.border.map_or(0, |_| 8);
   if let [asset] = assets {
-    let (width, height) = options
-      .size
-      .map_or((asset.info.width, asset.info.height), |size| {
+    let (width, height) = options.size_pixels.map_or_else(
+      || asset.info.fit(asset.info.height, max_width),
+      |size| {
         let size = u32::from(size.clamp(24, 256));
         asset.info.fit(size, size)
-      });
+      },
+    );
     return format!("[0:v]format=rgba,scale={width}:{height},setsar=1[canvas]");
   }
 
+  // Each base starts a column. Leading overlays form a column of their own.
   let groups: Vec<_> = assets.chunk_by(|_, next| next.overlay).collect();
-  let mut height = u32::from(options.size.unwrap_or(64).clamp(24, 256));
-  let column_width = |group: &[Asset], height| {
+  let mut height = options.size_pixels.map_or_else(
+    || {
+      assets
+        .iter()
+        .map(|asset| asset.info.height)
+        .max()
+        .unwrap_or(1)
+    },
+    |size| u32::from(size.clamp(24, 256)),
+  );
+  // Both width planning and layer rendering must use the same fit calculation.
+  let layer_size = |asset: &Asset, height: u32| {
+    let target_height = if options.size_pixels.is_none() {
+      height.min(asset.info.height)
+    } else {
+      height
+    };
+    asset.info.fit(target_height, 3 * height)
+  };
+  let column_width = |group: &[Asset], height: u32| {
     group
       .iter()
-      .map(|asset| asset.info.fit(height, 3 * height).0)
+      .map(|asset| layer_size(asset, height).0)
       .max()
       .unwrap_or(1)
   };
   let gap = |height: u32| (height / 16).max(1);
-  let width: u32 = groups
-    .iter()
-    .map(|group| column_width(group, height) + gap(height))
-    .sum();
-  let staging_width: u32 = groups
-    .iter()
-    .map(|group| column_width(group, height) * group.len() as u32)
-    .sum();
-  // Account for the intermediate stacks as well as the final canvas.
-  let budget_width = width.max(staging_width.div_ceil(2));
-  if budget_width > 2048 {
-    height = (height * 2048 / budget_width).max(1);
+  let budget_width = |height| {
+    let widths: Vec<_> = groups
+      .iter()
+      .map(|group| u64::from(column_width(group, height)))
+      .collect();
+    let width =
+      widths.iter().sum::<u64>() + groups.len().saturating_sub(1) as u64 * u64::from(gap(height));
+    let staging_width: u64 = widths
+      .iter()
+      .zip(&groups)
+      .map(|(width, group)| width * group.len() as u64)
+      .sum();
+    width.max(staging_width.div_ceil(2))
+  };
+  if budget_width(height) > u64::from(max_width) {
+    // Native-size caps and integer rounding make width non-proportional to height.
+    // Search the monotone sizing function instead of applying a one-shot ratio.
+    let mut low = 1;
+    let mut high = height;
+    while low < high {
+      let middle = low + (high - low).div_ceil(2);
+      if budget_width(middle) <= u64::from(max_width) {
+        low = middle;
+      } else {
+        high = middle - 1;
+      }
+    }
+    height = low;
   }
 
   let mut filters = Vec::new();
@@ -518,7 +575,7 @@ fn layout(assets: &[Asset], options: &RenderOptions) -> String {
       let (w, h) = if options.stretch && position != 0 {
         (width, height)
       } else {
-        asset.info.fit(height, 3 * height)
+        layer_size(asset, height)
       };
       let label = format!("layer{index}");
       filters.push(format!(
@@ -579,6 +636,17 @@ fn layout(assets: &[Asset], options: &RenderOptions) -> String {
 /// target playback duration, a second encode samples fewer boundaries. Both attempts share
 /// the same deadline, and the result is returned only after timing normalization succeeds.
 async fn render(directory: &Path, assets: &[Asset], options: RenderOptions) -> Result<Image> {
+  let mut source_pixels = 0u64;
+  let mut frame_pixels = 0u64;
+  for asset in assets {
+    let pixels = u64::from(asset.info.width) * u64::from(asset.info.height);
+    source_pixels = source_pixels.saturating_add(pixels);
+    frame_pixels = frame_pixels.saturating_add(pixels.saturating_mul(asset.info.frames as u64));
+  }
+  anyhow::ensure!(
+    source_pixels <= MAX_SOURCE_PIXELS && frame_pixels <= MAX_FRAME_PIXELS,
+    "composition exceeds the decoded pixel budget; use fewer or smaller images"
+  );
   let duration_ms = assets.iter().filter_map(|asset| asset.duration_ms).max();
   let single_webp = match assets {
     [asset] => asset.path.extension().is_some_and(|ext| ext == "webp"),
@@ -610,6 +678,9 @@ async fn render(directory: &Path, assets: &[Asset], options: RenderOptions) -> R
 }
 
 /// Runs FFmpeg with local-only protocols and enforces the attachment size limit.
+///
+/// Filter labels form a pipeline: layout produces `canvas`, optional padding produces
+/// `decorated`, and frame sampling produces the mapped output `out`.
 ///
 /// `sample` supplies a playback duration for the retry filter, which drops frame boundaries
 /// that are too close together. Animated output uses a millisecond time base and preserves a
@@ -680,7 +751,8 @@ async fn encode(
   command
     .arg("-filter_complex")
     .arg(filters)
-    .args(["-map", "[out]", "-an", "-threads", "1", "-fs", "8388608"]);
+    .args(["-map", "[out]", "-an", "-threads", "1", "-fs"])
+    .arg(MAX_ATTACHMENT.to_string());
   if duration_ms.is_some() {
     let loops = match assets {
       [asset] => asset
@@ -722,7 +794,7 @@ async fn encode(
     String::from_utf8_lossy(&status.stderr)
   );
   anyhow::ensure!(
-    fs::metadata(output).await?.len() < MAX_ATTACHMENT as u64,
+    fs::metadata(output).await?.len() <= MAX_ATTACHMENT as u64,
     "composition is too large"
   );
   Ok(fs::read(output).await?)

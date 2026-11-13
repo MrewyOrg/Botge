@@ -1,3 +1,8 @@
+//! Confirms administrator message cleanup and deletes eligible messages before its cutoff.
+//!
+//! The modal binds the caller and channel to the original interaction. Submission rechecks
+//! permissions; deletion is incremental, so failures can leave a partially cleared history.
+
 use anyhow::Result;
 use serenity::{
   all::{

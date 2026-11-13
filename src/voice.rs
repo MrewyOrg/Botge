@@ -1,3 +1,8 @@
+//! Reconciles saved guild preferences with Discord voice membership and channel status.
+//!
+//! Settings writes only wake the worker; this module applies them asynchronously. Gateway
+//! joins and media transport are separate steps, so a media failure need not undo membership.
+
 use std::{collections::HashMap, num::NonZeroU64, sync::Arc, time::Duration};
 
 use anyhow::Context as _;

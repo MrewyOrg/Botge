@@ -44,7 +44,12 @@ pub(crate) struct Emote {
   pub(crate) id: String,
   pub(crate) name: String,
   pub(crate) source: Source,
+  /// Default catalog image; command rendering can select another published scale.
   pub(crate) image: String,
+  /// Provider scale labels mapped to CDN URLs, also persisted with individual additions.
+  /// Older saved records have no variants and retain their default image until refreshed.
+  #[serde(default)]
+  pub(crate) sizes: std::collections::BTreeMap<u16, String>,
   pub(crate) animated: bool,
   /// Draw this layer over the preceding base emote in a composition.
   #[serde(alias = "zeroWidth")]
@@ -56,6 +61,16 @@ pub(crate) struct Emote {
 }
 
 impl Emote {
+  /// Chooses the nearest published scale, preferring the smaller scale on a tie.
+  /// Older persisted entries without variants retain their original image.
+  pub(crate) fn image_at(&self, scale: u16) -> &str {
+    self
+      .sizes
+      .iter()
+      .min_by_key(|(size, _)| (size.abs_diff(scale), **size))
+      .map_or(self.image.as_str(), |(_, image)| image.as_str())
+  }
+
   /// Converts the CDN URL to an Activity-relative path while retaining its query.
   fn mapped_image(&self) -> Option<String> {
     let url = cdn_url(&self.image, self.source)?;

@@ -1,3 +1,8 @@
+//! Verifies Discord's signed Activity proxy payload and its time window.
+//!
+//! A valid signature authenticates the proxy, not the OAuth caller or guild permissions.
+//! Those checks belong to the Activity handlers and Discord adapter.
+
 use axum::http::HeaderMap;
 use base64::{
   Engine as _,

@@ -237,3 +237,38 @@ async fn slow_autocomplete_feeds_finish_one_shared_refresh_after_the_deadline() 
   assert_eq!(requests.load(Ordering::Relaxed), 1);
   Ok(())
 }
+
+#[test]
+fn retains_published_scales_and_falls_back_to_nearest_available() -> Result<()> {
+  let mut seven = seven_example("Sizes", false, 0);
+  *seven
+    .get_mut("host")
+    .and_then(|host| host.get_mut("files"))
+    .context("missing files")? = json!([{"name":"1x.webp"}, {"name":"4x.webp"}]);
+  let emote = serde_json::from_value::<SevenEmote>(seven)?
+    .into_emote(None)
+    .context("missing emote")?;
+  assert!(emote.image_at(1).ends_with("1x.webp"));
+  assert!(emote.image_at(2).ends_with("1x.webp"));
+  assert!(emote.image_at(3).ends_with("4x.webp"));
+  assert!(emote.image_at(4).ends_with("4x.webp"));
+  let bttv = parse_feed(
+    Feed::BetterTtv,
+    br#"[{"id":"valid","code":"Hi","animated":true}]"#,
+  )?;
+  let emote = bttv.first().context("missing BTTV")?;
+  assert!(emote.image_at(1).ends_with("1x.gif"));
+  assert!(emote.image_at(4).ends_with("3x.gif"));
+  let ffz = parse_feed(Feed::Ffz, br#"{"sets":{"3":{"emoticons":[{"id":12,"name":"Hi","urls":{"1":"/emote/12/1","4":"/emote/12/4","2":"https://evil.example/2"}}]}}}"#)?;
+  let emote = ffz.first().context("missing FFZ")?;
+  assert!(emote.image_at(2).ends_with("/1"));
+  assert!(emote.image_at(3).ends_with("/4"));
+  let twitch = parse_feed(
+    Feed::Twitch,
+    br#"{"data":[{"id":"valid","name":"Hi","format":["animated"],"scale":["1.0","3.0"]}]}"#,
+  )?;
+  let emote = twitch.first().context("missing Twitch")?;
+  assert!(emote.image_at(2).ends_with("animated/dark/1.0"));
+  assert!(emote.image_at(4).ends_with("animated/dark/3.0"));
+  Ok(())
+}
