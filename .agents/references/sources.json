@@ -1,0 +1,173 @@
+{
+  "retrieved": "2026-11-14",
+  "files": [
+    {
+      "file": "microsoft.txt",
+      "url": "https://microsoft.github.io/rust-guidelines/agents/all.txt",
+      "sha256": "e69533b0541a5d185ad9d8304f5eb5cf4b033135b7046f89c499b6126dced3b6"
+    },
+    {
+      "file": "MICROSOFT-LICENSE.txt",
+      "url": "https://raw.githubusercontent.com/microsoft/rust-guidelines/9585e288d21d2da994a0550c926a09b62d79f8bd/LICENSE.md",
+      "sha256": "c2cfccb812fe482101a8f04597dfc5a9991a6b2748266c47ac91b6a5aae15383"
+    },
+    {
+      "file": "api-guidelines.html",
+      "url": "https://rust-lang.github.io/api-guidelines/print.html",
+      "sha256": "c48522c9adc051c7df28dcd74963f0daccbe98a0bae2144cef1925ed6dec90f6",
+      "text": "api-guidelines.txt"
+    },
+    {
+      "file": "style-guide.html",
+      "url": "https://doc.rust-lang.org/nightly/style-guide/print.html",
+      "sha256": "f17afd2ca1523b78c85d2d50fd8fedbe9461ec71e26180c2045096d2fa8a10fe",
+      "text": "style-guide.txt"
+    },
+    {
+      "file": "design-patterns.html",
+      "url": "https://rust-unofficial.github.io/patterns/print.html",
+      "sha256": "c74034f6fe100cd66bdd64fe079a2432fdcbe09bbfc0531974376ed8ff13c44b",
+      "text": "design-patterns.txt"
+    },
+    {
+      "file": "undefined-behavior.html",
+      "url": "https://doc.rust-lang.org/reference/behavior-considered-undefined.html",
+      "sha256": "a38849bfd4a3927b2bda47742e87b9698c62d8d27c41e01101645bfe29040380",
+      "text": "undefined-behavior.txt"
+    },
+    {
+      "file": "API-MIT.txt",
+      "url": "https://raw.githubusercontent.com/rust-lang/api-guidelines/master/LICENSE-MIT",
+      "sha256": "29662666b44dff84977b46e05642cdef910bc3a93a17b5fd86e632bafa59cf21"
+    },
+    {
+      "file": "API-APACHE.txt",
+      "url": "https://raw.githubusercontent.com/rust-lang/api-guidelines/master/LICENSE-APACHE",
+      "sha256": "a60eea817514531668d7e00765731449fe14d059d3249e0bc93b36de45f759f2"
+    },
+    {
+      "file": "PATTERNS.txt",
+      "url": "https://raw.githubusercontent.com/rust-unofficial/patterns/main/LICENSE",
+      "sha256": "b946744aeda89b467929585fe8eeb5461847695220c1b168fb375d8abd4ea3d0"
+    },
+    {
+      "file": "RUST-MIT.txt",
+      "url": "https://raw.githubusercontent.com/rust-lang/rust/master/LICENSE-MIT",
+      "sha256": "b71bd43a069ca0641a9ecfe585ca7b3c53b5cc1608f8b68321168698e28b5ea1"
+    },
+    {
+      "file": "RUST-APACHE.txt",
+      "url": "https://raw.githubusercontent.com/rust-lang/rust/master/LICENSE-APACHE",
+      "sha256": "62c7a1e35f56406896d7aa7ca52d0cc0d272ac022b5d2796e7d6905db8a3636a"
+    },
+    {
+      "file": "RUST-COPYRIGHT.txt",
+      "url": "https://raw.githubusercontent.com/rust-lang/rust/master/COPYRIGHT",
+      "sha256": "172020dbfd5b53a226dfde77616190a48dcff519b0bc0e6deb91a8450782c4af"
+    },
+    {
+      "file": "python-pep8.rst",
+      "url": "https://raw.githubusercontent.com/python/peps/5595f77d7d9cdddae99d4510b145df2496a9c891/peps/pep-0008.rst",
+      "sha256": "6028935c6cb2c674d5f4d512c7ba6ce2923713b1c47ce1a78adc690db817fc5d",
+      "revision": "5595f77d7d9cdddae99d4510b145df2496a9c891",
+      "repository": "python/peps",
+      "license": "public-domain (embedded Copyright section)"
+    },
+    {
+      "file": "python-pep257.rst",
+      "url": "https://raw.githubusercontent.com/python/peps/5595f77d7d9cdddae99d4510b145df2496a9c891/peps/pep-0257.rst",
+      "sha256": "7db41c5aaea3bfde0463307c72b38d735dc604491cadd059d7f9fe94b8142c0e",
+      "revision": "5595f77d7d9cdddae99d4510b145df2496a9c891",
+      "repository": "python/peps",
+      "license": "public-domain (embedded Copyright section)"
+    },
+    {
+      "file": "python-google.md",
+      "url": "https://raw.githubusercontent.com/google/styleguide/a9c5f82b19811f1552d73df384a9f9d7c75ca16e/pyguide.md",
+      "sha256": "45ad9731b1142f97ce010942c1ae21f0d921b77b1d17a867e12a4b4fabfb4419",
+      "revision": "a9c5f82b19811f1552d73df384a9f9d7c75ca16e",
+      "repository": "google/styleguide",
+      "license": "CC-BY-3.0"
+    },
+    {
+      "file": "PYTHON-GOOGLE-LICENSE.txt",
+      "url": "https://raw.githubusercontent.com/google/styleguide/a9c5f82b19811f1552d73df384a9f9d7c75ca16e/LICENSE",
+      "sha256": "e6bc9e9c474700b708f568bac9e5a8a9bcb2b1dad53442f5ba449fcb848b8e76",
+      "revision": "a9c5f82b19811f1552d73df384a9f9d7c75ca16e",
+      "repository": "google/styleguide",
+      "license": "CC-BY-3.0"
+    },
+    {
+      "file": "python-typing.rst",
+      "url": "https://raw.githubusercontent.com/python/typing/6d2f52c48db048e8cd99c40c6df534658a7d27ec/docs/reference/best_practices.rst",
+      "sha256": "254277f9af3c76d9ab72992019bd0004a11d0c46ba0d1ebef45f46415c5f09f0",
+      "revision": "6d2f52c48db048e8cd99c40c6df534658a7d27ec",
+      "repository": "python/typing",
+      "license": "PSF-2.0"
+    },
+    {
+      "file": "python-modern-typing.rst",
+      "url": "https://raw.githubusercontent.com/python/typing/6d2f52c48db048e8cd99c40c6df534658a7d27ec/docs/guides/modernizing.rst",
+      "sha256": "0848bbe9a1ab4d1c9ef77f701dd1bfadbc23e000135464ec90092e78278316ab",
+      "revision": "6d2f52c48db048e8cd99c40c6df534658a7d27ec",
+      "repository": "python/typing",
+      "license": "PSF-2.0"
+    },
+    {
+      "file": "PYTHON-TYPING-LICENSE.txt",
+      "url": "https://raw.githubusercontent.com/python/typing/6d2f52c48db048e8cd99c40c6df534658a7d27ec/LICENSE",
+      "sha256": "c7afb65e755707b9fb90487389a176d3ed3d0031d5131afde45c23715ff5e891",
+      "revision": "6d2f52c48db048e8cd99c40c6df534658a7d27ec",
+      "repository": "python/typing",
+      "license": "PSF-2.0"
+    },
+    {
+      "file": "python-microsoft.md",
+      "url": "https://raw.githubusercontent.com/microsoft/code-with-engineering-playbook/016770e43d8a75be87b98c000c049f07c4a6e6f8/docs/code-reviews/recipes/python.md",
+      "sha256": "59a19f55e0c621f9a7a789fe2beb6b518a614a63b3509e9b5eceeb07093f2455",
+      "revision": "016770e43d8a75be87b98c000c049f07c4a6e6f8",
+      "repository": "microsoft/code-with-engineering-playbook",
+      "license": "CC-BY-4.0; code examples MIT"
+    },
+    {
+      "file": "PYTHON-MICROSOFT-LICENSE.txt",
+      "url": "https://raw.githubusercontent.com/microsoft/code-with-engineering-playbook/016770e43d8a75be87b98c000c049f07c4a6e6f8/LICENSE",
+      "sha256": "9bbc1ea9fe5c96df01b311a2ac864d5b18fc87b9948bfd14770e4b44db755ee9",
+      "revision": "016770e43d8a75be87b98c000c049f07c4a6e6f8",
+      "repository": "microsoft/code-with-engineering-playbook",
+      "license": "CC-BY-4.0; code examples MIT"
+    },
+    {
+      "file": "PYTHON-MICROSOFT-CODE-LICENSE.txt",
+      "url": "https://raw.githubusercontent.com/microsoft/code-with-engineering-playbook/016770e43d8a75be87b98c000c049f07c4a6e6f8/LICENSE-CODE",
+      "sha256": "91f7258203fd43ba6d6f7f72b644eaedee9e3430f035c053beb6f34052f045e2",
+      "revision": "016770e43d8a75be87b98c000c049f07c4a6e6f8",
+      "repository": "microsoft/code-with-engineering-playbook",
+      "license": "CC-BY-4.0; code examples MIT"
+    },
+    {
+      "file": "python-azure-design.md",
+      "url": "https://raw.githubusercontent.com/Azure/azure-sdk/237194b479a4442d559f469eebe5d351f66e1fab/docs/python/design.md",
+      "sha256": "bb3405dcce69ad49601528bef2bd22676634c5824dc230d073c07035532e3deb",
+      "revision": "237194b479a4442d559f469eebe5d351f66e1fab",
+      "repository": "Azure/azure-sdk",
+      "license": "MIT"
+    },
+    {
+      "file": "python-azure-implementation.md",
+      "url": "https://raw.githubusercontent.com/Azure/azure-sdk/237194b479a4442d559f469eebe5d351f66e1fab/docs/python/implementation.md",
+      "sha256": "f9114c77acb87ae061f0d15033c67e4a2f6ed1e7ff8ca08306997ec9e6ddca61",
+      "revision": "237194b479a4442d559f469eebe5d351f66e1fab",
+      "repository": "Azure/azure-sdk",
+      "license": "MIT"
+    },
+    {
+      "file": "PYTHON-AZURE-LICENSE.txt",
+      "url": "https://raw.githubusercontent.com/Azure/azure-sdk/237194b479a4442d559f469eebe5d351f66e1fab/LICENSE",
+      "sha256": "27ebda9d51f0a56b7e281ccd8230a27236dcb51c05f64b07869ecf6e965d68b0",
+      "revision": "237194b479a4442d559f469eebe5d351f66e1fab",
+      "repository": "Azure/azure-sdk",
+      "license": "MIT"
+    }
+  ]
+}

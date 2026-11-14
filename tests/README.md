@@ -2,11 +2,42 @@
 
 Run commands from the repository root:
 
+`.venv/bin/python scripts/doctor.py` checks development prerequisites without installing tools or
+starting services. `sh scripts/check-rust.sh static`, `coverage`, `miri`, or `bench` selects an
+explicit Rust scope; CI uses the same dispatcher. Coverage/Miri keep their specialized scripts and
+flags.
+
+Python tooling uses the root pinned environment and committed lockfile. Follow the
+[helper setup](../scripts/README.md), then run `.venv/bin/python scripts/check_python.py` for Ruff,
+strict Pyright and offline boundary tests. The pydoc build is optional. This setup also applies
+inside the Dev Container.
+
+Python validation enforces at least 90% line and branch coverage in every helper file. It includes
+Python subprocesses and normalizes copied fixtures; reports are generated in `coverage/python/`.
+Tests and generated files are outside the measured helper source set.
+
+For repeatable native measurements, use
+`python3 .agents/scripts/compare_benchmarks.py record /tmp/before.json` (three runs by default),
+make the change, record `/tmp/after.json`, then run
+`python3 .agents/scripts/compare_benchmarks.py compare /tmp/before.json /tmp/after.json`. The helper
+reports median timings, rejects incompatible metadata and changing sources, and never changes
+revisions. Nightly libtest supplies the benchmarks without a production dependency. Measurements are
+local microbenchmarks, not production latency or allocation profiles. Tests track the catalog
+future's size against a documented per-request budget. Production startup installs a fatal panic
+hook: a panic in any thread reports its diagnostic and exits the process with status 101.
+Recoverable operation errors still use `Result`. Unit tests retain ordinary unwinding; a subprocess
+test verifies the production hook without terminating the test runner. Container restart policy owns
+recovery after a programming panic.
+
 ```sh
 cargo fmt --all --check
 cargo clippy --locked --all-targets -- -D warnings
 cargo doc --locked --no-deps --document-private-items
 sh scripts/check-rust-coverage.sh
+cargo hack check --locked --feature-powerset --all-targets
+cargo udeps --locked --all-targets
+cargo miri setup
+sh scripts/check-rust-miri.sh
 npm run check:static
 npm run test:coverage
 npm run check:markup -w activity
@@ -18,6 +49,24 @@ mock the generated HTML module.
 
 The Rust coverage check uses `jq` and `cargo-llvm-cov`. BotgeQL installs the latter with
 `cargo install --locked --version 0.9.1 cargo-llvm-cov`.
+
+Additional Rust verification uses pinned tools:
+
+```sh
+cargo install --locked --version 0.6.46 cargo-hack
+cargo install --locked --version 0.1.61 cargo-udeps
+```
+
+Cargo-hack checks every combination of Botge's Cargo features across all targets. Botge currently
+defines no features, so this is one check; it expands automatically when features are added. Keep
+development dependencies enabled so `--locked` can preserve the committed dependency graph.
+Cargo-udeps checks direct dependencies across all targets using the pinned nightly.
+
+Miri is included in the development toolchain. Its script interprets existing tests for Discord ID
+and voice-setting validation, Unicode shortcuts, layout arithmetic, and WebP metadata/timing. It
+keeps default isolation and undefined-behavior checks enabled. Network, database, native audio, and
+FFmpeg paths and larger stress fixtures remain in the normal coverage suite; this is not full-bot
+Miri coverage. Extend the script's filters when adding pure Rust tests that can run under Miri.
 
 Rust unit tests live next to their modules in `src/`. The CLI integration tests live in
 `tests/rust_cli.rs` and exercise the compiled binary. Unit tests can access private code and use
@@ -48,6 +97,7 @@ After a merge changes dependency manifests, the post-merge hook prints a reminde
 installing packages. Run `npm ci` at the repository root for the shared workspace, or
 `npm --prefix tests/integration ci` for the separate Compose test project when its dependencies
 change. Docker image cleanup is a manual operator task; `npm start` only builds and starts Compose.
+Changes to Python tooling manifests prompt `uv sync --locked`; the hook never installs tools.
 
 ## Compose integration
 

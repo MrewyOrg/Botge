@@ -1,0 +1,47 @@
+# cspell:words pytest
+
+[project]
+name = 'botge-tooling'
+# Internal tooling metadata; independent of Botge releases.
+version = '0.0.0'
+requires-python = '==3.15.*'
+
+[dependency-groups]
+dev = ['ruff==0.17.5', 'pyright==1.1.414', 'coverage==7.17.3']
+
+[tool.ruff]
+target-version = 'py315'
+line-length = 100
+required-version = '==0.17.5'
+extend-exclude = ['.agents/references/cache', 'target']
+
+[tool.ruff.lint]
+select = ['ALL']
+# Conflicting docstring styles, formatter-owned syntax, CLI output, standalone scripts.
+# Per-file copyright headers are not the repository's convention.
+ignore = ['D203', 'D213', 'COM812', 'ISC001', 'T201', 'INP001', 'CPY001']
+
+[tool.ruff.lint.flake8-quotes]
+inline-quotes = 'single'
+
+[tool.ruff.lint.per-file-ignores]
+# These tests intentionally use stdlib unittest assertions. Runtime assert bans stay active.
+'**/test_*.py' = ['PT009', 'PT027']
+
+[tool.ruff.format]
+quote-style = 'single'
+
+[tool.pyright]
+include = ['scripts', 'tests/python', '.agents/scripts', '.agents/tests']
+exclude = ['.venv', '.agents/references/cache']
+pythonVersion = '3.15'
+typeCheckingMode = 'strict'
+reportImplicitOverride = 'error'
+reportUnnecessaryTypeIgnoreComment = 'error'
+extraPaths = ['scripts', '.agents/scripts', 'tests/python']
+venvPath = '.'
+venv = '.venv'
+
+[tool.uv]
+package = false
+required-version = '==0.13.8'

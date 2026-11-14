@@ -1,3 +1,5 @@
+<!-- cspell:words norc -->
+
 # GitHub workflows
 
 Release through `dev` → same-repository PR to `main` → passing checks → approved production
@@ -6,9 +8,10 @@ deployment → merge. Merging does not deploy again.
 ## Validation
 
 [BotgeQL](botgeql.yml) runs on PRs to `dev` and is called by Build and Deploy for PRs to `main`. It
-checks formatting, documentation, commit conventions, Rust lints, Rustdoc, and coverage, TypeScript
-types, ESLint, unused code, Activity HTML/SCSS, tests, ShellCheck, and actionlint. Pushes alone do
-not run it; changes to an open PR and PR title edits do.
+checks formatting, documentation, commit conventions, Rust lints, Rustdoc, coverage, feature
+combinations, unused dependencies, scoped Miri tests, TypeScript types, ESLint, unused code,
+Activity HTML/SCSS, tests, strict Python typing/lint/format checks and helper tests, ShellCheck, and
+actionlint. Pushes alone do not run it; changes to an open PR and PR title edits do.
 
 Change detection compares the complete PR against its base. Formatting, documentation, and commit
 checks always run; other stages run when their inputs change. Editing BotgeQL exercises every stage.
@@ -19,17 +22,27 @@ combined TypeScript suite requires 90% statements, branches, functions, and line
 file, including repository tooling, the Activity, and its Worker. Declaration-only files are
 excluded.
 
-Development, CI, and Docker share the dated Rust channel in `rust-toolchain.toml`. Development uses
-the default profile, LLVM tools, and standard-library sources. CI selects the minimal profile plus
-Clippy, rustfmt, and LLVM tools; Docker installs only the minimal profile. Both build with bundled
-Opus.
+Python tooling changes use `.python-version`, root `pyproject.toml` and `uv.lock`. Cached uv
+installs the locked tools into the root `.venv` for strict Ruff/Pyright checks and offline tests.
+They run in the existing Shell and workflow lint job; its required-check name is unchanged. See the
+[helper guide](../../scripts/README.md).
 
-Cargo downloads and artifacts are cached by toolchain and manifests. Coverage/FFmpeg tools have a
-separate cache; workflow lint caches actionlint. npm prefers cached downloads. Cache visibility
-follows GitHub's branch rules; cold runs still install and compile dependencies.
-[Closed PR cleanup](cleanup-caches.yml) removes merge-ref caches when a PR closes while preserving
-branch caches. It checks out no code and has only cache-management permission. BuildKit stores
-individual layers, so one image-building PR can create many cache entries.
+Python validation enforces at least 90% line and branch coverage in every helper file. It includes
+Python subprocesses and normalizes copied fixtures; reports are generated in `coverage/python/`.
+Tests and generated files are outside the measured helper source set.
+
+Development, CI, and Docker share the dated Rust channel in `rust-toolchain.toml`. Development uses
+the default profile, LLVM tools, Miri, and standard-library sources. CI selects the minimal profile
+plus Clippy, rustfmt, LLVM tools, Miri, and standard-library sources; Docker installs only the
+minimal profile. Both build with bundled Opus.
+
+Cargo downloads, Miri's standard library, and build artifacts are cached by toolchain and manifests.
+Pinned coverage, cargo-hack, cargo-udeps, and FFmpeg tools have a separate cache; workflow lint
+caches actionlint. npm prefers cached downloads. Cache visibility follows GitHub's branch rules;
+cold runs still install and compile dependencies. [Closed PR cleanup](cleanup-caches.yml) removes
+merge-ref caches when a PR closes while preserving branch caches. It checks out no code and has only
+cache-management permission. BuildKit stores individual layers, so one image-building PR can create
+many cache entries.
 
 ## Security checks
 
@@ -120,6 +133,12 @@ npm run lint:workflows
 
 CI uses actionlint `v1.7.12`. The lint script checks temporary copies with `./` references because
 that version predates GitHub's `$/` syntax; committed workflows retain `$/`.
+
+The root `.shellcheckrc` enables every optional ShellCheck rule for scripts, including sourced
+files. Script shebangs select Bash or POSIX shell. actionlint deliberately invokes ShellCheck with
+`--norc` and its own workflow-specific exclusions, so embedded workflow commands use actionlint's
+checks. The lint script copies `.github/actionlint.yaml` into its temporary workspace; this config
+allows no custom runner labels or repository variables. Add declared variables there when needed.
 
 When action versions or workflow membership change, regenerate the lockfile with
 [gh-actions-lock](https://github.com/github/gh-actions-lock); do not edit it manually:

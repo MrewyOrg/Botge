@@ -17,7 +17,7 @@ test('staged Rust uses rustfmt without following unstaged child modules', () => 
   expect(staged).toMatchObject({
     '*.rs': ['rustfmt --config skip_children=true', 'cspell'],
     '*.ts': expect.arrayContaining(['prettier --write']) as unknown,
-    '!(*.ts|*.md|*.rs|*.webp|*.png)': expect.arrayContaining([
+    '!(*.ts|*.md|*.rs|*.py|*.webp|*.png)': expect.arrayContaining([
       'prettier --write --ignore-unknown'
     ]) as unknown
   });

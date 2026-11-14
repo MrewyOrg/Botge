@@ -32,12 +32,13 @@
     "vscode": {
       "extensions": [
         // Development environment
-        "actboy168.tasks",
         "docker.docker",
 
         // Languages and configuration
         "ahmadalli.vscode-nginx-conf",
         "dotenv.dotenv-vscode",
+        "ms-python.python",
+        "ms-python.vscode-pylance",
         "redhat.vscode-yaml",
         "rust-lang.rust-analyzer",
         "tamasfe.even-better-toml",
@@ -51,6 +52,7 @@
         // Formatting and validation
         "DavidAnson.vscode-markdownlint",
         "dbaeumer.vscode-eslint",
+        "charliermarsh.ruff",
         "EditorConfig.EditorConfig",
         "esbenp.prettier-vscode",
         "joshbolduc.commitlint",

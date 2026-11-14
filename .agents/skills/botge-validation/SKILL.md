@@ -48,6 +48,9 @@ unrelated suites for documentation-only edits.
   shared static checks. Vitest execution alone does not validate `expectTypeOf` assertions.
 - **Activity HTML, styles, or build configuration:** `npm run check:markup -w activity`; inspect
   `activity/README.md` for additional style checks
+- **Python tooling:** `.venv/bin/python scripts/check_python.py` checks Ruff, formatting, strict
+  Pyright and offline tests with per-file 90% Python line/branch coverage in the pinned isolated
+  environment. See the helper guide.
 - **Control scripts or shared tooling tests:** `npm test -- --run --project Tooling`;
   `npm run lint:shell` for shell changes
 - **GitHub Actions:** `npm run lint:workflows`; read `.github/workflows/README.md` for workflow
@@ -84,8 +87,8 @@ observable behavior, not reversible prose/format changes or implementation mirro
 ## Operational boundaries
 
 Routine validation does not execute setup, teardown, data import, deployment, pruning, or live bot
-startup. In particular, `npm start` prunes Docker images and starts the stack; it is not a
-validation command. Preserve local configuration, databases, volumes, and caches.
+startup. In particular, `npm start` builds and starts the stack; it is not a validation command.
+Docker cleanup remains manual. Preserve local configuration, databases, volumes, and caches.
 
 Run the opt-in Compose/Discord integration suite only within explicit live-test authorization.
 Follow `tests/README.md`, check for an existing stack, and use a separate Discord test application.

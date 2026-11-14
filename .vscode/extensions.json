@@ -3,7 +3,6 @@
 {
   "recommendations": [
     // Development environment
-    "actboy168.tasks",
     "docker.docker",
     "ms-vscode-remote.remote-containers",
 
@@ -12,6 +11,8 @@
     "dotenv.dotenv-vscode",
     "redhat.vscode-yaml",
     "rust-lang.rust-analyzer",
+    "ms-python.python",
+    "ms-python.vscode-pylance",
     "tamasfe.even-better-toml",
     "tsandall.opa",
     "TypeScriptTeam.native-preview",
@@ -23,6 +24,7 @@
     // Formatting and validation
     "DavidAnson.vscode-markdownlint",
     "dbaeumer.vscode-eslint",
+    "charliermarsh.ruff",
     "EditorConfig.EditorConfig",
     "esbenp.prettier-vscode",
     "joshbolduc.commitlint",

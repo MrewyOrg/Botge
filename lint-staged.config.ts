@@ -9,7 +9,8 @@ const configuration: Configuration = {
   '*.md': ['prettier --write', 'markdownlint-cli2', 'cspell'],
   // Format only the staged Rust files. rustfmt normally follows module declarations.
   '*.rs': ['rustfmt --config skip_children=true', 'cspell'],
-  '!(*.ts|*.md|*.rs|*.webp|*.png)': ['prettier --write --ignore-unknown', 'cspell']
+  '*.py': ['.venv/bin/python -m ruff format', '.venv/bin/python -m ruff check', 'cspell'],
+  '!(*.ts|*.md|*.rs|*.py|*.webp|*.png)': ['prettier --write --ignore-unknown', 'cspell']
 };
 
 export default configuration;
