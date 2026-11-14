@@ -1,0 +1,4 @@
+# Workflows use standard GitHub-hosted runners and no repository variables.
+self-hosted-runner:
+  labels: []
+config-variables: []

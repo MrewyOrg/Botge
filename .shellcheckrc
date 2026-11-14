@@ -1,0 +1,4 @@
+# Enable every optional check; keep the dialect from each script's shebang.
+enable=all
+external-sources=true
+source-path=.

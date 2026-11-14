@@ -16,8 +16,8 @@ if git diff --cached --quiet -- \
   exit 0
 else
   status=$?
-  if [ "$status" -ne 1 ]; then
-    exit "$status"
+  if [ "${status}" -ne 1 ]; then
+    exit "${status}"
   fi
 fi
 

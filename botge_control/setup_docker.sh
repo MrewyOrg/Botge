@@ -10,7 +10,7 @@ fi
 # shellcheck source=/dev/null
 . /etc/os-release
 
-if [[ "$ID" != debian || "$VERSION_ID" != 13 ]]; then
+if [[ "${ID:-}" != debian || "${VERSION_ID:-}" != 13 ]]; then
   echo 'This installer targets Debian 13.' >&2
   exit 1
 fi
@@ -19,7 +19,7 @@ readonly DEBIAN_FRONTEND=noninteractive
 export DEBIAN_FRONTEND
 
 # Remove conflicting Docker packages.
-mapfile -t conflicting_packages < <(
+package_list=$(
   dpkg --get-selections \
     docker.io \
     docker-compose \
@@ -30,6 +30,10 @@ mapfile -t conflicting_packages < <(
     runc 2> /dev/null \
     | awk '$2 == "install" { print $1 }'
 )
+conflicting_packages=()
+if [[ -n "${package_list}" ]]; then
+  mapfile -t conflicting_packages <<< "${package_list}"
+fi
 readonly -a conflicting_packages
 
 if ((${#conflicting_packages[@]} > 0)); then
@@ -47,12 +51,13 @@ if [[ ! -s /etc/apt/keyrings/docker.asc ]]; then
 fi
 chmod a+r /etc/apt/keyrings/docker.asc
 
+architecture=$(dpkg --print-architecture)
 tee /etc/apt/sources.list.d/docker.sources << EOF
 Types: deb
 URIs: https://download.docker.com/linux/debian
-Suites: ${VERSION_CODENAME}
+Suites: ${VERSION_CODENAME:?Missing Debian release codename}
 Components: stable
-Architectures: $(dpkg --print-architecture)
+Architectures: ${architecture}
 Signed-By: /etc/apt/keyrings/docker.asc
 EOF
 

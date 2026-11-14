@@ -10,18 +10,19 @@ fi
 # shellcheck source=/dev/null
 . /etc/os-release
 
-if [[ "$ID" != debian || "$VERSION_ID" != 13 ]]; then
+if [[ "${ID:-}" != debian || "${VERSION_ID:-}" != 13 ]]; then
   echo 'This installer targets Debian 13.' >&2
   exit 1
 fi
 
-BOTGE_DOWNLOAD_DIR="$(dirname "$(realpath "$0")")/.."
+source_script=$(realpath "$0")
+BOTGE_DOWNLOAD_DIR="$(dirname "${source_script}")/.."
 readonly BOTGE_DOWNLOAD_DIR
-cd "$BOTGE_DOWNLOAD_DIR"
-BOTGE_CONTROL_NAME="$(basename "$PWD")"
+cd "${BOTGE_DOWNLOAD_DIR}"
+BOTGE_CONTROL_NAME="$(basename "${PWD}")"
 readonly BOTGE_CONTROL_NAME
 
-if [[ ! "$BOTGE_CONTROL_NAME" =~ ^[a-z_][a-z0-9_-]{0,23}$ ]]; then
+if [[ ! "${BOTGE_CONTROL_NAME}" =~ ^[a-z_][a-z0-9_-]{0,23}$ ]]; then
   echo 'Run teardown from the saved /opt/<control-name>/botge_control directory.' >&2
   exit 1
 fi
@@ -30,20 +31,23 @@ fi
 source botge_control/config
 
 # Verify the account before deleting its home and application data.
-if id "$BOTGE_CONTROL_USER" > /dev/null 2>&1; then
-  if [[ "$(id -u "$BOTGE_CONTROL_USER")" != "$BOTGE_CONTROL_UID" ||
-  "$(id -gn "$BOTGE_CONTROL_USER")" != "$BOTGE_CONTROL_USER" ||
-  "$(getent passwd "$BOTGE_CONTROL_USER" | cut -d: -f6)" != "$BOTGE_CONTROL_USER_HOME" ]]; then
-    echo "Existing $BOTGE_CONTROL_USER has an unexpected UID, group, or home." >&2
+if id "${BOTGE_CONTROL_USER}" > /dev/null 2>&1; then
+  account_uid=$(id -u "${BOTGE_CONTROL_USER}")
+  account_group=$(id -gn "${BOTGE_CONTROL_USER}")
+  account_home=$(getent passwd "${BOTGE_CONTROL_USER}" | cut -d: -f6)
+  if [[ "${account_uid}" != "${BOTGE_CONTROL_UID}" ||
+    "${account_group}" != "${BOTGE_CONTROL_USER}" ||
+    "${account_home}" != "${BOTGE_CONTROL_USER_HOME}" ]]; then
+    echo "Existing ${BOTGE_CONTROL_USER} has an unexpected UID, group, or home." >&2
     exit 1
   fi
 fi
 
 echo "This will remove:"
-echo "  - $BOTGE_CONTROL_NAME systemd socket and service"
-echo "  - $BOTGE_CONTROL_USER and its home directory"
+echo "  - ${BOTGE_CONTROL_NAME} systemd socket and service"
+echo "  - ${BOTGE_CONTROL_USER} and its home directory"
 echo "  - Rootless Docker containers, images, and volumes owned by this user"
-echo "  - $BOTGE_CONTROL_GROUP"
+echo "  - ${BOTGE_CONTROL_GROUP}"
 echo
 echo "WARNING: Botge configuration, secrets, and database files will be deleted."
 echo
@@ -51,7 +55,7 @@ echo
 read -r -p "Type DELETE to continue: " confirmation
 readonly confirmation
 
-if [[ "$confirmation" != DELETE ]]; then
+if [[ "${confirmation}" != DELETE ]]; then
   echo 'Uninstallation cancelled.'
   exit 1
 fi
@@ -62,16 +66,14 @@ if [[ -f "/etc/systemd/system/${BOTGE_CONTROL_NAME}.socket" ]]; then
 fi
 
 # Stop any active control service instances.
+units=$(systemctl list-units --all --plain --no-legend "${BOTGE_CONTROL_NAME}@*.service")
 while read -r unit _; do
-  [[ -n "$unit" ]] || continue
-  systemctl stop "$unit"
-done < <(
-  systemctl list-units --all --plain --no-legend \
-    "${BOTGE_CONTROL_NAME}@*.service"
-)
+  [[ -n "${unit}" ]] || continue
+  systemctl stop "${unit}"
+done <<< "${units}"
 
 # Stop rootless Docker.
-if id "$BOTGE_CONTROL_USER" > /dev/null 2>&1; then
+if id "${BOTGE_CONTROL_USER}" > /dev/null 2>&1; then
 
   if systemctl is-active --quiet "user@${BOTGE_CONTROL_UID}.service"; then
     systemctl --user \
@@ -80,32 +82,32 @@ if id "$BOTGE_CONTROL_USER" > /dev/null 2>&1; then
   fi
 
   # Disable persistent user services.
-  loginctl disable-linger "$BOTGE_CONTROL_USER"
+  loginctl disable-linger "${BOTGE_CONTROL_USER}"
 
   # Terminate the user's remaining session and services.
-  if loginctl show-user "$BOTGE_CONTROL_USER" > /dev/null 2>&1; then
-    loginctl terminate-user "$BOTGE_CONTROL_USER"
+  if loginctl show-user "${BOTGE_CONTROL_USER}" > /dev/null 2>&1; then
+    loginctl terminate-user "${BOTGE_CONTROL_USER}"
   fi
 
   # Ensure no processes remain before deleting the account.
-  if pgrep -u "$BOTGE_CONTROL_USER" > /dev/null; then
-    echo "Processes belonging to $BOTGE_CONTROL_USER are still running." >&2
+  if pgrep -u "${BOTGE_CONTROL_USER}" > /dev/null; then
+    echo "Processes belonging to ${BOTGE_CONTROL_USER} are still running." >&2
     echo 'Stop them before continuing.' >&2
     exit 1
   fi
 
   # Remove the account, home directory, and rootless Docker data.
-  userdel -r "$BOTGE_CONTROL_USER"
+  userdel -r "${BOTGE_CONTROL_USER}"
 fi
 
 # Remove the socket access group.
-if getent group "$BOTGE_CONTROL_GROUP" > /dev/null; then
-  groupdel "$BOTGE_CONTROL_GROUP"
+if getent group "${BOTGE_CONTROL_GROUP}" > /dev/null; then
+  groupdel "${BOTGE_CONTROL_GROUP}"
 fi
 
 # Remove the primary group if it still exists.
-if getent group "$BOTGE_CONTROL_USER" > /dev/null; then
-  groupdel "$BOTGE_CONTROL_USER"
+if getent group "${BOTGE_CONTROL_USER}" > /dev/null; then
+  groupdel "${BOTGE_CONTROL_USER}"
 fi
 
 # Remove installed systemd configuration.
