@@ -33,6 +33,8 @@ use layout::layout;
 use probe::inspect;
 use webp::{WebpAnimation, normalize_webp_timing, webp_animation};
 
+// These policy budgets bound staging files and decoded work within the Compose memory limit.
+// Raising them requires measuring peak memory with voice connected (see RESOURCE_USAGE.md).
 const MAX_INPUTS: usize = 32;
 const MAX_ASSET: usize = 2 * 1024 * 1024;
 const MAX_ATTACHMENT: usize = 20 * 1024 * 1024;
@@ -40,6 +42,7 @@ const MAX_ATTACHMENT: usize = 20 * 1024 * 1024;
 // Bound simultaneous decoder canvases and the source animation's decoded pixel work.
 const MAX_SOURCE_PIXELS: u64 = 16 * 1024 * 1024;
 const MAX_FRAME_PIXELS: u64 = 256 * 1024 * 1024;
+// Chromium treats delays at or below 10 ms as 100 ms; use the first unaffected millisecond.
 const MIN_WEBP_FRAME_MS: u64 = 11;
 const IMAGE_FORMATS: &str = "png_pipe,jpeg_pipe,gif,webp_pipe,webp_anim,apng";
 
@@ -55,12 +58,30 @@ pub(crate) struct Image {
 /// input begins a column, while subsequent overlay inputs are drawn in that column in order.
 #[derive(Clone)]
 pub(crate) struct Layer {
-  pub(crate) url: Url,
+  url: Url,
   /// Place this input over the current column when a preceding layer exists.
   pub(crate) overlay: bool,
 }
 
 impl Layer {
+  /// Borrows the validated URL without allowing callers to replace it.
+  ///
+  /// # Examples
+  ///
+  /// Internal callers resolve Discord media before passing it to the downloader:
+  ///
+  /// ```rust,ignore
+  /// # use crate::emotes::rendering::Layer;
+  /// # fn example() -> Option<()> {
+  /// let layer = Layer::discord("<:wave:123456789012345678>")?;
+  /// assert_eq!(layer.url().host_str(), Some("cdn.discordapp.com"));
+  /// # Some(())
+  /// # }
+  /// ```
+  pub(crate) const fn url(&self) -> &Url {
+    &self.url
+  }
+
   /// Accepts a catalog entry whose image URL passes the rules for its declared provider.
   #[cfg(test)]
   pub(crate) fn emote(emote: &Emote) -> Option<Self> {
@@ -167,7 +188,7 @@ async fn fetch(
   cache: Option<&Url>,
 ) -> Result<(Vec<u8>, &'static str)> {
   let bytes = bounded_bytes(
-    http.get(cache_url(&layer.url, cache)).send().await?,
+    http.get(cache_url(layer.url(), cache)).send().await?,
     MAX_ASSET,
   )
   .await?;

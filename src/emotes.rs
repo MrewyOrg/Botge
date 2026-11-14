@@ -1,6 +1,9 @@
 //! Combines provider snapshots and guild additions into catalogs for Discord and the Activity.
 
+pub(crate) mod catalog;
 mod providers;
+
+use catalog::Catalog;
 pub(crate) mod rendering;
 
 use std::{collections::HashSet, num::NonZeroU64, sync::Arc};
@@ -128,10 +131,12 @@ struct CatalogDetails<'a> {
 }
 
 /// Maps validated CDN URLs to browser-relative paths and keeps catalog precedence.
-pub(crate) fn browser_catalog(emotes: &[Emote]) -> Vec<CatalogEmote<'_>> {
-  let mut names = HashSet::new();
+pub(crate) fn browser_catalog<'a>(
+  emotes: impl IntoIterator<Item = &'a Emote, IntoIter: ExactSizeIterator>,
+) -> Vec<CatalogEmote<'a>> {
+  let emotes = emotes.into_iter();
+  let mut names = HashSet::with_capacity(emotes.len());
   emotes
-    .iter()
     .filter_map(|emote| {
       let image = emote.mapped_image()?;
       let unique = names.insert(emote.name.to_ascii_lowercase());
@@ -224,19 +229,21 @@ fn cdn_url(input: &str, source: Source) -> Option<Url> {
 ///
 /// Matching ignores ASCII case and surrounding whitespace. Catalog order decides ties
 /// between entries with the same name. Blank and ambiguous queries return `None`.
-pub(crate) fn find_emote<'a>(emotes: &'a [Emote], query: &str) -> Option<&'a Emote> {
+pub(crate) fn find_emote<'a>(
+  emotes: impl IntoIterator<Item = &'a Emote, IntoIter: Clone + ExactSizeIterator>,
+  query: &str,
+) -> Option<&'a Emote> {
+  let emotes = emotes.into_iter();
   let query = query.trim();
   if query.is_empty() {
     return None;
   }
   emotes
-    .iter()
+    .clone()
     .find(|emote| emote.name.eq_ignore_ascii_case(query))
     .or_else(|| {
       let query = query.to_ascii_lowercase();
-      let mut matches = emotes
-        .iter()
-        .filter(|emote| emote.name.to_ascii_lowercase().contains(&query));
+      let mut matches = emotes.filter(|emote| emote.name.to_ascii_lowercase().contains(&query));
       let first = matches.next()?;
       matches
         .all(|candidate| candidate.name.eq_ignore_ascii_case(&first.name))
@@ -278,7 +285,7 @@ impl Emotes {
   ///
   /// Returns an error if guild settings or additions cannot be read, including failure of the
   /// blocking database task. Provider outages use stale or empty snapshots instead.
-  pub(crate) async fn catalog(&self, guild: Option<NonZeroU64>) -> Result<Vec<Emote>> {
+  pub(crate) async fn catalog(&self, guild: Option<NonZeroU64>) -> Result<Catalog> {
     self.catalog_with_timeout(guild, None).await
   }
 
@@ -291,7 +298,7 @@ impl Emotes {
   pub(crate) async fn catalog_for_autocomplete(
     &self,
     guild: Option<NonZeroU64>,
-  ) -> Result<Vec<Emote>> {
+  ) -> Result<Catalog> {
     self
       .catalog_with_timeout(guild, Some(std::time::Duration::from_millis(1400)))
       .await
@@ -306,10 +313,10 @@ impl Emotes {
     &self,
     guild: Option<NonZeroU64>,
     timeout: Option<std::time::Duration>,
-  ) -> Result<Vec<Emote>> {
+  ) -> Result<Catalog> {
     let store = Arc::clone(&self.store);
     let added_enabled = self.policy.seven_added;
-    let (mut added, settings) = tokio::task::spawn_blocking(move || {
+    let (added, settings) = tokio::task::spawn_blocking(move || {
       let Some(guild) = guild else {
         return Ok::<_, anyhow::Error>((vec![], GuildEmotes::default()));
       };
@@ -321,8 +328,8 @@ impl Emotes {
       Ok((added, store.guild_emotes(guild)?))
     })
     .await??;
-    added.extend(self.client.catalog(self.policy, &settings, timeout).await);
-    Ok(added)
+    let feeds = self.client.catalog(self.policy, &settings, timeout).await;
+    Ok(Catalog::new(added, feeds))
   }
 
   /// Reports the operator's switch for individually added 7TV emotes.

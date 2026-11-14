@@ -260,9 +260,9 @@ impl<A: GuildAccess> Activity<A> {
     &self,
     guild: NonZeroU64,
     emote: Emote,
-    catalog: &[Emote],
+    catalog: &crate::emotes::catalog::Catalog,
   ) -> Result<String, ApiError> {
-    if catalog.iter().any(|entry| {
+    if catalog.into_iter().any(|entry| {
       entry.name.eq_ignore_ascii_case(&emote.name)
         || (entry.source == emote.source && entry.id == emote.id)
     }) {

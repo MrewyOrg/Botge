@@ -11,6 +11,10 @@ use serde::Deserialize;
 use super::Feed;
 use crate::emotes::{Emote, Source, cdn_url, safe_id, valid_seven_id};
 
+// Preserve the established FFZ catalog when its response omits default_sets. Changing this
+// compatibility fallback changes which global emotes are visible, rather than a resource limit.
+const FALLBACK_FFZ_SET: u64 = 3;
+
 /// Normalizes the provider response and discards entries that cannot become usable emotes.
 ///
 /// # Errors
@@ -59,7 +63,7 @@ pub(super) fn parse_feed(feed: Feed, bytes: &[u8]) -> Result<Vec<Emote>> {
         mut sets,
       } = serde_json::from_slice(bytes)?;
       let set_ids = room.map_or_else(
-        || default_sets.unwrap_or_else(|| vec![3]),
+        || default_sets.unwrap_or_else(|| vec![FALLBACK_FFZ_SET]),
         |room| vec![room.set],
       );
       Ok(

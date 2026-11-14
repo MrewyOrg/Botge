@@ -12,7 +12,6 @@ use serenity::{
 };
 
 use super::Commands;
-use crate::emotes::Emote;
 
 impl Commands {
   /// Returns size or emote choices. If the lookup exceeds its deadline, sends an empty list.
@@ -60,7 +59,8 @@ impl Commands {
 }
 
 /// Completes the final token and ranks exact, prefix, and substring matches in that order.
-fn suggestions(emotes: &[Emote], value: &str) -> Vec<String> {
+pub(super) fn suggestions(emotes: &crate::emotes::catalog::Catalog, value: &str) -> Vec<String> {
+  let emotes = emotes.iter();
   let query = value.rsplit(char::is_whitespace).next().unwrap_or_default();
   let prefix = value.strip_suffix(query).unwrap_or_default();
   let prefix_length = prefix.chars().count();
@@ -68,8 +68,8 @@ fn suggestions(emotes: &[Emote], value: &str) -> Vec<String> {
     return Vec::new();
   }
   let query = query.to_ascii_lowercase();
-  let mut seen = HashSet::new();
-  let mut matches = Vec::new();
+  let mut seen = HashSet::with_capacity(emotes.len());
+  let mut matches = Vec::with_capacity(emotes.len());
   for emote in emotes {
     if emote.name.is_empty() || (!prefix.is_empty() && emote.name.contains(char::is_whitespace)) {
       continue;

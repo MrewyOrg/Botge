@@ -61,32 +61,52 @@ pub(crate) async fn reconcile(
         () = changed.notified() => (),
         _ = periodic.tick() => (),
     }
-    let store = Arc::clone(&store);
-    let settings = match tokio::task::spawn_blocking(move || store.all_voice_settings()).await {
-      Ok(Ok(settings)) => settings,
-      Ok(Err(error)) => {
-        tracing::error!(%error, "could not read saved voice settings");
-        continue;
-      }
-      Err(error) => {
-        tracing::error!(%error, "voice settings task failed");
-        continue;
-      }
-    };
-    for (guild, settings) in settings {
-      let result = tokio::time::timeout(
-        Duration::from_secs(30),
-        apply(&songbird, &http, guild, &settings, &mut known_statuses),
-      )
-      .await;
-      match result {
-        Ok(Ok(())) => (),
-        Ok(Err(error)) => {
-          tracing::warn!(%guild, "could not apply voice settings: {error:#}");
-        }
-        Err(_) => tracing::warn!(%guild, "timed out applying voice settings"),
-      }
+    apply_saved(Arc::clone(&store), &songbird, &http, &mut known_statuses).await;
+  }
+}
+
+/// Reads saved settings off the executor and applies each guild within its own deadline.
+async fn apply_saved(
+  store: Arc<Store>,
+  songbird: &Songbird,
+  http: &Http,
+  known_statuses: &mut HashMap<NonZeroU64, (NonZeroU64, String)>,
+) {
+  let settings = match tokio::task::spawn_blocking(move || store.all_voice_settings()).await {
+    Ok(Ok(settings)) => settings,
+    Ok(Err(error)) => {
+      tracing::error!(%error, "could not read saved voice settings");
+      return;
     }
+    Err(error) => {
+      tracing::error!(%error, "voice settings task failed");
+      return;
+    }
+  };
+  for (guild, settings) in settings {
+    apply_bounded(songbird, http, guild, &settings, known_statuses).await;
+  }
+}
+
+/// Applies one guild within thirty seconds, logging failures without stopping the worker.
+async fn apply_bounded(
+  songbird: &Songbird,
+  http: &Http,
+  guild: NonZeroU64,
+  settings: &VoiceSettings,
+  known_statuses: &mut HashMap<NonZeroU64, (NonZeroU64, String)>,
+) {
+  let result = tokio::time::timeout(
+    Duration::from_secs(30),
+    apply(songbird, http, guild, settings, known_statuses),
+  )
+  .await;
+  match result {
+    Ok(Ok(())) => (),
+    Ok(Err(error)) => {
+      tracing::warn!(name: "voice.settings.failed", %guild, error = %format_args!("{error:#}"), "could not apply voice settings");
+    }
+    Err(_) => tracing::warn!(%guild, "timed out applying voice settings"),
   }
 }
 
@@ -154,9 +174,7 @@ async fn apply(
 /// # Errors
 ///
 /// Returns the transport failure, or an error if connection takes longer than eight seconds.
-async fn wait_for_media<E>(
-  driver: impl std::future::Future<Output = Result<(), E>>,
-) -> anyhow::Result<()>
+async fn wait_for_media<E>(driver: impl Future<Output = Result<(), E>>) -> anyhow::Result<()>
 where
   E: std::error::Error + Send + Sync + 'static,
 {

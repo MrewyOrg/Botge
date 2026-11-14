@@ -1,14 +1,14 @@
 //! Exercises registration command behavior.
 
-#![allow(
+#![expect(
   clippy::missing_errors_doc,
   clippy::missing_panics_doc,
-  reason = "Test failures are expressed through returned fixture errors and assertion panics"
+  reason = "Fixture failures and assertion panics describe test failures"
 )]
-#![allow(
-  clippy::let_underscore_must_use,
-  reason = "Fixture receivers may close during teardown"
-)]
+
+use std::assert_matches;
+
+use tokio::sync::mpsc::error::TryRecvError;
 
 use super::*;
 use serde_json::{Value, json};
@@ -75,7 +75,7 @@ async fn registers_emote_commands_and_removes_retired_commands_while_preserving_
       .route(
         "/api/v10/applications/42/commands/{id}",
         delete(move |Path(id): Path<String>| async move {
-          let _ = deleted.send(id);
+          drop(deleted.send(id));
           StatusCode::NO_CONTENT
         }),
       ),
@@ -85,6 +85,6 @@ async fn registers_emote_commands_and_removes_retired_commands_while_preserving_
   assert_eq!(removals.try_recv()?.as_str(), "11");
   assert_eq!(removals.try_recv()?.as_str(), "13");
   assert_eq!(removals.try_recv()?.as_str(), "14");
-  assert!(removals.try_recv().is_err());
+  assert_matches!(removals.try_recv(), Err(TryRecvError::Empty));
   Ok(())
 }

@@ -1,16 +1,17 @@
 //! Uses local provider responses to exercise normalization, cache expiry, and shared refreshes.
 
-#![allow(
+#![expect(
   clippy::missing_errors_doc,
   clippy::missing_panics_doc,
-  reason = "Test failures are expressed through returned fixture errors and assertion panics"
+  reason = "Fixture failures and assertion panics describe test failures"
 )]
+
+use std::assert_matches;
 
 use std::sync::atomic::{AtomicUsize, Ordering};
 
 use axum::{
   Json, Router,
-  http::StatusCode,
   routing::{get, post},
 };
 use serde_json::{Value, json};
@@ -78,8 +79,8 @@ async fn bounds_refresh_admission_and_evicts_the_oldest_snapshot() -> Result<()>
         },
       );
     }
-    drop(cache);
-  }
+    drop(cache)
+  };
   assert_eq!(
     client
       .refresh(Feed::BetterTtv, "https://provider.example/new")
@@ -122,22 +123,22 @@ async fn rejects_oversized_chunked_responses_and_invalid_provider_metadata() -> 
     .send()
     .await?;
   assert_eq!(response.content_length(), None);
-  assert!(bounded_bytes(response, 4).await.is_err());
+  assert_matches!(bounded_bytes(response, 4).await, Err(_));
   let (_, id) = client
     .fetch(Feed::SevenTv, "https://provider.example/invalid")
     .await?;
   assert_eq!(id, None);
-  assert!(
+  assert_matches!(
     client
       .fetch(Feed::SevenTv, "https://provider.example/broken")
-      .await
-      .is_err()
+      .await,
+    Err(_)
   );
-  assert!(
+  assert_matches!(
     client
       .fetch(Feed::Twitch, "https://provider.example/invalid")
-      .await
-      .is_err()
+      .await,
+    Err(_)
   );
   Ok(())
 }
@@ -209,10 +210,9 @@ async fn fetches_all_enabled_feeds_and_reuses_cached_results() -> Result<()> {
     .context("missing added emote")?;
   assert!(added.added && added.overlaying);
   assert!(client.added("not-found").await?.is_none());
-  assert!(
-    bounded_bytes(client.http.get(http.origin.join("large")?).send().await?, 4)
-      .await
-      .is_err()
+  assert_matches!(
+    bounded_bytes(client.http.get(http.origin.join("large")?).send().await?, 4).await,
+    Err(_)
   );
   drop(http);
   assert_eq!(client.catalog(policy, &guild, None).await.len(), 7);
@@ -305,7 +305,11 @@ async fn slow_autocomplete_feeds_finish_one_shared_refresh_after_the_deadline() 
   let cached =
     tokio::time::timeout(Duration::from_secs(2), client.catalog(policy, &guild, None)).await?;
   assert_eq!(
-    cached.first().map(|entry| entry.name.as_str()),
+    cached
+      .iter()
+      .flat_map(|feed| feed.iter())
+      .next()
+      .map(|entry| entry.name.as_str()),
     Some("SlowWave")
   );
   assert_eq!(client.catalog(policy, &guild, deadline).await, cached);

@@ -1,12 +1,12 @@
 //! Exercises persistence, malformed data, and atomic updates in temporary redb databases.
 
-#![allow(
+#![expect(
   clippy::missing_errors_doc,
   clippy::missing_panics_doc,
-  reason = "Test failures are expressed through returned fixture errors and assertion panics"
+  reason = "Fixture failures and assertion panics describe test failures"
 )]
 
-use std::{sync::Barrier, thread};
+use std::{assert_matches, sync::Barrier, thread};
 
 use super::*;
 
@@ -45,9 +45,9 @@ fn rejects_malformed_backups_and_full_catalogs_without_changing_saved_data() -> 
       transaction
         .open_table(definition)?
         .insert(NonZeroU64::MIN, "not JSON")?;
-      transaction.commit()?;
-    }
-    assert!(Store::verify_backup(&path).is_err());
+      transaction.commit()?
+    };
+    assert!(verify_backup(&path).is_err());
   }
   let store = Store::open(&directory.path().join("full.redb"))?;
   let entries: Vec<_> = (0..1000)
@@ -71,23 +71,23 @@ fn offline_backup_is_readable_and_restores_saved_data() -> Result<()> {
   let directory = tempfile::tempdir()?;
   let source = directory.path().join("source.redb");
   let backup = directory.path().join("backup.redb");
-  assert!(Store::verify_backup(&source).is_err());
+  assert!(verify_backup(&source).is_err());
   assert!(!source.exists());
   {
     let store = Store::open(&source)?;
     store.save_emote_border(NonZeroU64::MIN, Some(0x0012_3456))?;
     store.save_voice_settings(NonZeroU64::MIN, &VoiceSettings::default())?;
-    store.save_guild_emotes(NonZeroU64::MIN, &GuildEmotes::default())?;
-  }
+    store.save_guild_emotes(NonZeroU64::MIN, &GuildEmotes::default())?
+  };
   std::fs::copy(&source, &backup)?;
   let bytes = std::fs::read(&backup)?;
-  Store::verify_backup(&backup)?;
+  verify_backup(&backup)?;
   assert_eq!(std::fs::read(&backup)?, bytes);
   let restored = Store::open(&backup)?;
   assert_eq!(restored.emote_border(NonZeroU64::MIN)?, Some(0x0012_3456));
   drop(restored);
   std::fs::write(&backup, "not a database")?;
-  assert!(Store::verify_backup(&backup).is_err());
+  assert!(verify_backup(&backup).is_err());
   Ok(())
 }
 
@@ -109,14 +109,14 @@ fn refuses_invalid_paths_and_incompatible_database_schemas() -> Result<()> {
       let database = Database::create(&path)?;
       let transaction = database.begin_write()?;
       transaction.open_table(TableDefinition::<u32, u64>::new(name))?;
-      transaction.commit()?;
-    }
+      transaction.commit()?
+    };
     assert!(Store::open(&path).is_err());
     let store = Store(Database::open(&path)?);
     match name {
       "voice_settings" => {
-        assert!(store.voice_settings(guild).is_err());
-        assert!(store.all_voice_settings().is_err());
+        assert_matches!(store.voice_settings(guild), Err(_));
+        assert_matches!(store.all_voice_settings(), Err(_));
         assert!(
           store
             .save_voice_settings(guild, &VoiceSettings::default())
@@ -124,7 +124,7 @@ fn refuses_invalid_paths_and_incompatible_database_schemas() -> Result<()> {
         );
       }
       "guild_emotes" => {
-        assert!(store.guild_emotes(guild).is_err());
+        assert_matches!(store.guild_emotes(guild), Err(_));
         assert!(
           store
             .save_guild_emotes(guild, &GuildEmotes::default())
@@ -132,11 +132,11 @@ fn refuses_invalid_paths_and_incompatible_database_schemas() -> Result<()> {
         );
       }
       "added_emotes" => {
-        assert!(store.added_emotes(guild).is_err());
-        assert!(store.remove_emote(guild, "1").is_err());
+        assert_matches!(store.added_emotes(guild), Err(_));
+        assert_matches!(store.remove_emote(guild, "1"), Err(_));
       }
       "emote_borders" => {
-        assert!(store.emote_border(guild).is_err());
+        assert_matches!(store.emote_border(guild), Err(_));
         assert!(store.save_emote_border(guild, Some(1)).is_err());
       }
       _ => anyhow::bail!("unexpected test table {name}"),
@@ -158,12 +158,12 @@ fn reports_malformed_rows_without_replacing_them() -> Result<()> {
   }
   transaction.commit()?;
 
-  assert!(store.voice_settings(guild).is_err());
-  assert!(store.all_voice_settings().is_err());
-  assert!(store.guild_emotes(guild).is_err());
-  assert!(store.added_emotes(guild).is_err());
-  assert!(store.remove_emote(guild, "1").is_err());
-  assert!(store.added_emotes(guild).is_err());
+  assert_matches!(store.voice_settings(guild), Err(_));
+  assert_matches!(store.all_voice_settings(), Err(_));
+  assert_matches!(store.guild_emotes(guild), Err(_));
+  assert_matches!(store.added_emotes(guild), Err(_));
+  assert_matches!(store.remove_emote(guild, "1"), Err(_));
+  assert_matches!(store.added_emotes(guild), Err(_));
   Ok(())
 }
 
@@ -189,8 +189,8 @@ fn saves_replaces_and_reopens_guild_settings() -> Result<()> {
         (first, selected.clone()),
         (second, VoiceSettings::default())
       ]
-    );
-  }
+    )
+  };
 
   let store = Store::open(&path)?;
   assert_eq!(store.voice_settings(first)?, selected);

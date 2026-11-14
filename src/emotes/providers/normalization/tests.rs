@@ -1,10 +1,12 @@
 //! Checks provider validation and advertised image-scale selection.
 
-#![allow(
+#![expect(
   clippy::missing_errors_doc,
   clippy::missing_panics_doc,
-  reason = "Test failures are expressed through returned fixture errors and assertion panics"
+  reason = "Fixture failures and assertion panics describe test failures"
 )]
+
+use std::assert_matches;
 
 use anyhow::Context as _;
 use serde_json::json;
@@ -78,7 +80,7 @@ fn filters_unavailable_or_unsafe_provider_assets() -> Result<()> {
       .map(|emote| emote.animated),
     Some(true)
   );
-  assert!(parse_feed(Feed::BetterTtvChannel, b"bad").is_err());
+  assert_matches!(parse_feed(Feed::BetterTtvChannel, b"bad"), Err(_));
   Ok(())
 }
 

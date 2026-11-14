@@ -2,10 +2,10 @@
 
 //! Renders small media fixtures with `FFmpeg` and checks the resulting bytes and playback timing.
 
-#![allow(
+#![expect(
   clippy::missing_errors_doc,
   clippy::missing_panics_doc,
-  reason = "Test failures are expressed through returned fixture errors and assertion panics"
+  reason = "Fixture failures and assertion panics describe test failures"
 )]
 
 use axum::{Router, routing::get};

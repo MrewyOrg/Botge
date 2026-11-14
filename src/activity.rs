@@ -16,7 +16,6 @@ mod catalog;
 mod voice;
 
 use std::{
-  future::Future,
   num::NonZeroU64,
   sync::Arc,
   time::{Duration, SystemTime, UNIX_EPOCH},
@@ -127,9 +126,11 @@ struct Activity<A> {
   emotes: Arc<Emotes>,
   voice_changed: Arc<Notify>,
   slots: Semaphore,
+  now: fn() -> Result<u64, std::time::SystemTimeError>,
 }
 
 /// An HTTP status and a client-safe message. Upstream details stay in the logs.
+#[derive(Debug)]
 pub(crate) struct ApiError(StatusCode, &'static str);
 
 impl ApiError {
@@ -236,7 +237,20 @@ pub(crate) fn router<A: GuildAccess>(
       emotes,
       voice_changed,
       slots: Semaphore::new(8),
+      now: unix_seconds,
     }))
+}
+
+/// Reads the wall clock used to reject expired Discord proxy signatures.
+///
+/// # Errors
+///
+/// Returns an error if the host clock precedes the Unix epoch. The Activity state stores
+/// this function as a capability so tests can supply a fixed or failing clock.
+fn unix_seconds() -> Result<u64, std::time::SystemTimeError> {
+  SystemTime::now()
+    .duration_since(UNIX_EPOCH)
+    .map(|value| value.as_secs())
 }
 
 impl<A: GuildAccess> Activity<A> {
@@ -255,10 +269,7 @@ impl<A: GuildAccess> Activity<A> {
     guild: &str,
     code: &str,
   ) -> Result<(NonZeroU64, Credential, tokio::sync::SemaphorePermit<'_>), ApiError> {
-    let now = SystemTime::now()
-      .duration_since(UNIX_EPOCH)
-      .map_err(ApiError::internal)?
-      .as_secs();
+    let now = (self.now)().map_err(ApiError::internal)?;
     if !self.proxy.verify(headers, now) {
       return Err(ApiError(
         StatusCode::UNAUTHORIZED,

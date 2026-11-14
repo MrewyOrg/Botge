@@ -1,12 +1,15 @@
 //! Sends signed requests directly through the Axum router with temporary storage and fake OAuth.
 
-#![allow(
+#![expect(
   clippy::missing_errors_doc,
   clippy::missing_panics_doc,
-  reason = "Test failures are expressed through returned fixture errors and assertion panics"
+  reason = "Fixture failures and assertion panics describe test failures"
 )]
 
-use std::sync::atomic::{AtomicUsize, Ordering};
+use std::{
+  assert_matches,
+  sync::atomic::{AtomicUsize, Ordering},
+};
 
 use anyhow::Context as _;
 use axum::{
@@ -21,10 +24,62 @@ use tower::ServiceExt as _;
 use super::*;
 use crate::settings::VoiceSettings;
 
+#[test]
+fn bounds_production_authentication_and_command_future_sizes() -> anyhow::Result<()> {
+  crate::initialize_tls();
+  let fixture = Fixture::new()?;
+  let base = fixture.state()?;
+  let http = Arc::new(serenity::http::Http::new("fixture"));
+  let state = Arc::new(Activity {
+    access: crate::discord::DiscordAccess::new(
+      crate::discord::OAuthClient {
+        application_id: NonZeroU64::MIN,
+        secret: "fixture".into(),
+      },
+      serenity::all::UserId::new(42),
+      Arc::clone(&http),
+    )?,
+    proxy: base.proxy,
+    store: base.store,
+    emotes: base.emotes,
+    voice_changed: base.voice_changed,
+    slots: base.slots,
+    now: base.now,
+  });
+  // Creating these production-typed futures performs no Discord request; they are never polled.
+  let authentication = authenticate(
+    State(Arc::clone(&state)),
+    HeaderMap::new(),
+    Json(ReadSettings {
+      guild_id: "1".into(),
+      code: "fixture".into(),
+    }),
+  );
+  let commands = crate::commands::Commands::new(Arc::clone(&state.emotes), None);
+  let interaction = serde_json::from_value(json!({
+    "id":"9", "application_id":"42", "type":2,
+    "data":{"id":"7", "name":"emote-compose", "type":1},
+    "channel_id":"42", "token":"fixture", "version":1,
+    "locale":"en-US", "entitlements":[], "attachment_size_limit":10_485_760,
+    "user":crate::tests::user("3")
+  }))?;
+  let command = commands.respond(&http, interaction);
+  // At most eight Activity requests are admitted. Keep each future below four memory pages;
+  // growth beyond this budget requires a deliberate review of captured SDK/request state.
+  for (name, bytes) in [
+    ("authentication", size_of_val(&authentication)),
+    ("command", size_of_val(&command)),
+  ] {
+    assert!(bytes <= 16 * 1024, "{name} future grew to {bytes} bytes");
+    println!("{name} future: {bytes} bytes");
+  }
+  Ok(())
+}
+
 #[tokio::test]
 async fn maps_database_failures_and_bounds_concurrent_requests() -> anyhow::Result<()> {
   let fixture = Fixture::new()?;
-  let state = Activity {
+  let mut state = Activity {
     access: TestAccess(Arc::new(AtomicUsize::new(0))),
     proxy: ProxyAuthenticator::new(&hex::encode(fixture.key.verifying_key().as_bytes()))?,
     store: Arc::clone(&fixture.store),
@@ -35,8 +90,9 @@ async fn maps_database_failures_and_bounds_concurrent_requests() -> anyhow::Resu
     )?),
     voice_changed: Arc::clone(&fixture.changed),
     slots: Semaphore::new(1),
+    now: || Ok(100),
   };
-  let now = SystemTime::now().duration_since(UNIX_EPOCH)?.as_secs();
+  let now = 100_u64;
   let payload = json!({"created_at":now,"expires_at":now + 60}).to_string();
   let signature = fixture.key.sign(payload.as_bytes());
   let headers = Request::builder()
@@ -56,7 +112,23 @@ async fn maps_database_failures_and_bounds_concurrent_requests() -> anyhow::Resu
     .context("request limit was not enforced")?;
   assert_eq!(error.0, StatusCode::SERVICE_UNAVAILABLE);
   drop(permit);
-  assert!(state.validate(&headers, "1", "admin").is_ok());
+  assert_matches!(state.validate(&headers, "1", "admin").map(|_| ()), Ok(()));
+  state.now = || Ok(200);
+  let error = state
+    .validate(&headers, "1", "admin")
+    .err()
+    .context("expired signature accepted")?;
+  assert_eq!(error.0, StatusCode::UNAUTHORIZED);
+  state.now = || {
+    UNIX_EPOCH
+      .duration_since(UNIX_EPOCH + Duration::from_secs(1))
+      .map(|value| value.as_secs())
+  };
+  let error = state
+    .validate(&headers, "1", "admin")
+    .err()
+    .context("clock failure accepted")?;
+  assert_eq!(error.0, StatusCode::INTERNAL_SERVER_ERROR);
   let error = database::<()>(|| anyhow::bail!("fixture database unavailable"))
     .await
     .err()
@@ -165,6 +237,7 @@ impl Fixture {
       )?),
       voice_changed: Arc::clone(&self.changed),
       slots: Semaphore::new(8),
+      now: unix_seconds,
     })
   }
 

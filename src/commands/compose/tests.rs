@@ -1,9 +1,9 @@
 //! Exercises compose command behavior.
 
-#![allow(
+#![expect(
   clippy::missing_errors_doc,
   clippy::missing_panics_doc,
-  reason = "Test failures are expressed through returned fixture errors and assertion panics"
+  reason = "Fixture failures and assertion panics describe test failures"
 )]
 
 use super::*;
@@ -76,7 +76,7 @@ async fn refreshes_legacy_variants_without_changing_saved_names_or_overlay_flags
     .context("legacy emote was not refreshed")?;
   assert!(layer.overlay);
   assert_eq!(
-    layer.url.as_str(),
+    layer.url().as_str(),
     format!("https://cdn.7tv.app/emote/{SEVEN_ID}/2x.gif")
   );
   assert!(matches!(

@@ -64,6 +64,30 @@ The larger services separate their internal responsibilities into child modules:
 Feature tests live in each child module's `tests.rs`. Parent test modules retain shared fixtures and
 scenarios that exercise dispatch, authentication, networking, or the complete render pipeline.
 
+### Crate separation assessment
+
+The current boundary review retains one executable crate. The emote service imports `Store`, while
+storage imports `Emote` and `GuildEmotes`; extracting either module directly would create a crate
+dependency cycle. A shared domain crate would need to own those records, provider identity and
+validation first. Existing private test fixtures also cross these module boundaries.
+
+- **Emote domain and catalog:** shared types could break the storage/service cycle and isolate pure
+  tests. Separate records, validation and catalog mapping from provider/storage orchestration first.
+- **Storage:** independent persistence tests could avoid Discord/audio dependencies. Extraction
+  needs the domain types and must retain redb transaction and blocking execution contracts.
+- **Rendering:** isolate FFmpeg orchestration from adapters after separating domain records, CDN
+  policy and bounded downloads. Preserve admission limits.
+- **WebP parsing and timing:** a small, mostly independent pure-Rust surface. Move shared timing
+  policy with it; establish independent use or build savings before adding a crate.
+
+Microsoft's smaller-crates guidance applies to these candidates; one binary alone does not make it
+inapplicable. Extraction is deferred until an independent consumer or measured build bottleneck
+justifies the boundary changes. Compare cold dependency builds, warm application builds, and
+rebuilds after adapter-only and domain-only edits using Cargo timings. A smaller crate can reduce
+recompilation of unchanged code; it does not remove Serenity, Songbird, or native dependencies from
+a full bot build. Any split must also update Docker's dependency layer, workspace lint inheritance,
+coverage, Miri, feature checks and unused-dependency checks together.
+
 The internal health listener is independent of the Activity API. It exposes process liveness at
 `/healthz` and gateway readiness at `/readyz`. Ready/Resumed enables readiness; reconnect stages
 remove it without failing liveness. `--healthcheck` checks local readiness, and `--verify-database`
@@ -121,9 +145,11 @@ Each guild catalog combines individually added emotes, configured provider sets,
 that order. Only enabled providers contribute entries. A single 7TV WebSocket invalidates affected
 snapshots after changes. Timed refreshes and a reconnect refresh cover missed events. Autocomplete
 can use cached results when a provider is slow. The shared refresh continues in the background so
-later requests can use the updated snapshot. Added emotes and guild settings use separate redb
-tables. The add transaction checks duplicate IDs and names, and the API checks guild membership and
-roles before writing.
+later requests can use the updated snapshot. Requests retain immutable provider snapshots rather
+than cloning their records; an in-flight request keeps its previous view across a refresh. Bounded
+provider JSON normalization and shortcut searches run on blocking workers. Added emotes and guild
+settings use separate redb tables. The add transaction checks duplicate IDs and names, and the API
+checks guild membership and roles before writing.
 
 Discord defers emote interactions while it resolves names and reads media. Downloads use provider
 CDN allowlists and the nginx cache where available. The renderer admits one request at a time, caps
@@ -135,9 +161,10 @@ animation's duration.
 ## Validation
 
 `rust-toolchain.toml` pins the nightly shared by development, CI, and Docker. Development installs
-the default profile, LLVM coverage tools, and standard library sources for editor navigation. CI
-installs only the compiler, Clippy, rustfmt, and LLVM coverage tools; the Docker builder installs
-only the minimal compiler profile. See the [workflow guide](../.github/workflows/README.md).
+the default profile, LLVM coverage tools, Miri, and standard library sources. CI installs the
+compiler, Clippy, rustfmt, LLVM coverage tools, Miri, and standard library sources; the Docker
+builder installs only the minimal compiler profile. See the
+[workflow guide](../.github/workflows/README.md).
 
 Install Rust through rustup and provide Opus development headers and libraries through your package
 manager. Use `opus` and `pkg-config` on macOS with Homebrew or `libopus-dev` and `pkg-config` on

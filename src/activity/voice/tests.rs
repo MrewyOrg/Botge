@@ -1,9 +1,9 @@
 //! Exercises signed voice requests through the complete Activity router.
 
-#![allow(
+#![expect(
   clippy::missing_errors_doc,
   clippy::missing_panics_doc,
-  reason = "Test failures are expressed through returned fixture errors and assertion panics"
+  reason = "Fixture failures and assertion panics describe test failures"
 )]
 
 use axum::http::StatusCode;

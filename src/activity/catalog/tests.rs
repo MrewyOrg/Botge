@@ -1,9 +1,9 @@
 //! Exercises signed catalog requests through the complete Activity router.
 
-#![allow(
+#![expect(
   clippy::missing_errors_doc,
   clippy::missing_panics_doc,
-  reason = "Test failures are expressed through returned fixture errors and assertion panics"
+  reason = "Fixture failures and assertion panics describe test failures"
 )]
 
 use axum::{Json, Router, http::StatusCode, routing::get};
@@ -26,7 +26,11 @@ async fn rejects_id_conflicts_and_concurrent_additions_after_a_stale_catalog_rea
   assert!(fixture.store.add_emote(NonZeroU64::MIN, emote.clone())?);
   let state = fixture.state()?;
   let error = state
-    .add_to_catalog(NonZeroU64::MIN, emote.clone(), &[])
+    .add_to_catalog(
+      NonZeroU64::MIN,
+      emote.clone(),
+      &crate::emotes::catalog::Catalog::new(vec![], vec![]),
+    )
     .await
     .err()
     .ok_or_else(|| anyhow::anyhow!("stale insertion was accepted"))?;
@@ -34,7 +38,11 @@ async fn rejects_id_conflicts_and_concurrent_additions_after_a_stale_catalog_rea
   let mut renamed = emote.clone();
   renamed.name = "Renamed".into();
   let error = state
-    .add_to_catalog(NonZeroU64::MIN, renamed, &[emote])
+    .add_to_catalog(
+      NonZeroU64::MIN,
+      renamed,
+      &crate::emotes::catalog::Catalog::new(vec![emote], vec![]),
+    )
     .await
     .err()
     .ok_or_else(|| anyhow::anyhow!("duplicate ID was accepted"))?;

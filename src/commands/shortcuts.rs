@@ -5,10 +5,14 @@ use std::collections::HashSet;
 use crate::emotes::{Emote, find_emote};
 
 /// Finds the shortest substring that resolves back to each requested emote.
-pub(super) fn shortcuts(emotes: &[Emote], input: &str) -> String {
+pub(super) fn shortcuts<'a>(
+  emotes: impl IntoIterator<Item = &'a Emote, IntoIter: Clone + ExactSizeIterator>,
+  input: &str,
+) -> String {
+  let emotes = emotes.into_iter();
   let input = input.trim();
   let names = if emotes
-    .iter()
+    .clone()
     .any(|emote| emote.name.eq_ignore_ascii_case(input))
   {
     vec![input]
@@ -17,14 +21,14 @@ pub(super) fn shortcuts(emotes: &[Emote], input: &str) -> String {
   };
   // Normalize once: exact names take priority, otherwise every match must name the target.
   let catalog: HashSet<_> = emotes
-    .iter()
+    .clone()
     .map(|emote| emote.name.to_ascii_lowercase())
     .collect();
   let mut length = 0;
   let lines = names
     .into_iter()
     .filter_map(|name| {
-      let emote = find_emote(emotes, name)?;
+      let emote = find_emote(emotes.clone(), name)?;
       let target = emote.name.to_ascii_lowercase();
       let offsets: Vec<_> = emote
         .name

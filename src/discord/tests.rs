@@ -1,18 +1,15 @@
 //! Exercises Discord identity, guild permissions, and channel filtering with local REST routes.
 
-#![allow(
+#![expect(
   clippy::missing_errors_doc,
   clippy::missing_panics_doc,
-  reason = "Test failures are expressed through returned fixture errors and assertion panics"
+  reason = "Fixture failures and assertion panics describe test failures"
 )]
-#![allow(
-  clippy::let_underscore_must_use,
-  reason = "Fixture receivers may close during teardown, and tracing initialization is shared"
-)]
+
+use std::assert_matches;
 
 use axum::{
   Json, Router,
-  http::StatusCode,
   response::IntoResponse as _,
   routing::{get, post},
 };
@@ -76,8 +73,10 @@ async fn distinguishes_client_rejection_and_sanitizes_transport_and_decode_failu
   )
   .await?;
   let access = DiscordAccess::new(
-    NonZeroU64::MIN,
-    "fixture".into(),
+    OAuthClient {
+      application_id: NonZeroU64::MIN,
+      secret: "fixture".into(),
+    },
     UserId::new(42),
     Arc::new(http_for(&server)),
   )?;
@@ -94,11 +93,11 @@ async fn distinguishes_client_rejection_and_sanitizes_transport_and_decode_failu
     assert_eq!(error.into_response().status(), StatusCode::BAD_GATEWAY);
   }
   for token in ["bad-id", "bad-json", "unavailable", "invalid\nheader"] {
-    assert!(
+    assert_matches!(
       access
         .identify(&Credential::AccessToken(token.into()))
-        .await
-        .is_err()
+        .await,
+      Err(_)
     );
   }
   let credential = Credential::AccessToken("good".into());
@@ -186,7 +185,10 @@ fn oauth_fixtures_preserve_paths_and_reject_non_loopback_destinations() -> anyho
     "https://127.0.0.1:1234",
     "http://example.com:1234",
   ] {
-    assert!(redirect_oauth(client.post(endpoint).build()?, Some(origin)).is_err());
+    assert_matches!(
+      redirect_oauth(client.post(endpoint).build()?, Some(origin)),
+      Err(_)
+    );
   }
   let original = redirect_oauth(client.post(endpoint).build()?, None)
     .map_err(|_error| anyhow::anyhow!("original request rejected"))?;
@@ -297,8 +299,10 @@ async fn reuses_one_code_exchange_and_rechecks_identity_and_permissions() -> any
     );
   let server = TestServer::start(routes).await?;
   let access = DiscordAccess::new(
-    NonZeroU64::MIN,
-    "fixture".into(),
+    OAuthClient {
+      application_id: NonZeroU64::MIN,
+      secret: "fixture".into(),
+    },
     UserId::new(42),
     Arc::new(http_for(&server)),
   )?;
@@ -418,13 +422,22 @@ pub(crate) fn fixture_routes() -> Router {
 #[tokio::test]
 async fn authenticates_members_and_filters_the_channels_that_the_bot_can_join() -> anyhow::Result<()>
 {
-  let _ = tracing_subscriber::fmt()
-    .with_max_level(tracing::Level::WARN)
-    .with_test_writer()
-    .try_init();
+  drop(
+    tracing_subscriber::fmt()
+      .with_max_level(tracing::Level::WARN)
+      .with_test_writer()
+      .try_init(),
+  );
   let server = TestServer::start(fixture_routes()).await?;
   let http = Arc::new(http_for(&server));
-  let access = DiscordAccess::new(NonZeroU64::MIN, "fixture".into(), UserId::new(42), http)?;
+  let access = DiscordAccess::new(
+    OAuthClient {
+      application_id: NonZeroU64::MIN,
+      secret: "fixture".into(),
+    },
+    UserId::new(42),
+    http,
+  )?;
   let owner = access
     .membership(NonZeroU64::MIN, &Credential::Code("owner".into()))
     .await
@@ -478,11 +491,11 @@ async fn authenticates_members_and_filters_the_channels_that_the_bot_can_join() 
       .ok_or_else(|| anyhow::anyhow!("OAuth unexpectedly succeeded"))?;
     assert_eq!(error.into_response().status(), expected);
   }
-  assert!(
+  assert_matches!(
     access
       .identify(&Credential::Code("unavailable".into()))
-      .await
-      .is_err()
+      .await,
+    Err(_)
   );
   Ok(())
 }

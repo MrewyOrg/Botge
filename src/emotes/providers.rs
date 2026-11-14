@@ -27,9 +27,14 @@ use tokio::sync::{Mutex, watch};
 use super::{Emote, GuildEmotes, valid_seven_id};
 use crate::config::Providers;
 
+// Policy bound on JSON parsing and each cached feed; increasing it raises retained memory.
 const MAX_PAYLOAD: usize = 4 * 1024 * 1024;
+// Limit polling of unchanged feeds; 7TV events can invalidate snapshots before this fallback.
 const REFRESH: Duration = Duration::from_mins(15);
+// Bound background requests independently of the number of waiting Discord/API requests.
 const MAX_REFRESHES: usize = 16;
+// Keep the feed cache finite; every entry can retain one MAX_PAYLOAD-sized provider response.
+const MAX_FEEDS: usize = 64;
 
 // Share each snapshot as a slice. Refreshes replace the whole snapshot.
 type Snapshot = Arc<[Emote]>;
@@ -148,7 +153,7 @@ impl ProviderClient {
     policy: Providers,
     settings: &GuildEmotes,
     timeout: Option<Duration>,
-  ) -> Vec<Emote> {
+  ) -> Vec<Snapshot> {
     let mut sources = Vec::new();
     if policy.seven_personal
       && let Some(id) = &settings.seven_tv_set
@@ -210,7 +215,7 @@ impl ProviderClient {
     }))
     .await
     .into_iter()
-    .flat_map(|emotes| emotes.to_vec())
+    .filter(|feed| !feed.is_empty())
     .collect()
   }
 
@@ -274,7 +279,7 @@ impl ProviderClient {
         (stale, id, Duration::from_secs(60))
       }
     };
-    if cache.len() >= 64
+    if cache.len() >= MAX_FEEDS
       && !cache.contains_key(url)
       && let Some(oldest) = cache
         .iter()
@@ -302,7 +307,7 @@ impl ProviderClient {
   /// # Errors
   ///
   /// Returns an error for missing Twitch credentials, failed token or feed requests,
-  /// oversized bodies, or malformed feed metadata.
+  /// oversized bodies, malformed feed metadata, or failure of the blocking normalization task.
   async fn fetch(&self, feed: Feed, url: &str) -> Result<(Vec<Emote>, Option<String>)> {
     /// Minimal response used to associate a feed with its WebSocket subscription.
     #[derive(Deserialize)]
@@ -338,14 +343,19 @@ impl ProviderClient {
       request.send().await?
     };
     let bytes = bounded_bytes(response, MAX_PAYLOAD).await?;
-    let id = if matches!(feed, Feed::SevenTv) {
-      serde_json::from_slice::<SetId>(&bytes)?
-        .id
-        .filter(|id| valid_seven_id(id))
-    } else {
-      None
-    };
-    Ok((parse_feed(feed, &bytes)?, id))
+    // A feed can fill the bounded 4 MiB payload; keep JSON decoding/normalization off
+    // gateway and API executor threads. MAX_REFRESHES also bounds these blocking tasks.
+    tokio::task::spawn_blocking(move || {
+      let id = if matches!(feed, Feed::SevenTv) {
+        serde_json::from_slice::<SetId>(&bytes)?
+          .id
+          .filter(|id| valid_seven_id(id))
+      } else {
+        None
+      };
+      Ok((parse_feed(feed, &bytes)?, id))
+    })
+    .await?
   }
 }
 

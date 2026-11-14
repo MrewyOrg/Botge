@@ -1,9 +1,9 @@
 //! Checks liveness independently of gateway readiness through a loopback HTTP server.
 
-#![allow(
+#![expect(
   clippy::missing_errors_doc,
   clippy::missing_panics_doc,
-  reason = "Test failures are expressed through returned fixture errors and assertion panics"
+  reason = "Fixture failures and assertion panics describe test failures"
 )]
 
 use super::*;

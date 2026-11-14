@@ -29,28 +29,28 @@ const EMOTE_BORDERS: TableDefinition<'static, NonZeroU64, u32> =
 /// operations off the async executor once the services are running.
 pub(crate) struct Store(Database);
 
-impl Store {
-  /// Opens an offline backup read-only and reads all expected tables without creating a file.
-  ///
-  /// # Errors
-  ///
-  /// Returns an error if the backup cannot be opened read-only, an expected table is missing
-  /// or incompatible, a row cannot be read, or a stored JSON value cannot be decoded.
-  pub(crate) fn verify_backup(path: &Path) -> Result<()> {
-    let database = redb::ReadOnlyDatabase::open(path)?;
-    let transaction = database.begin_read()?;
-    for definition in [VOICE_SETTINGS, GUILD_EMOTES, ADDED_EMOTES] {
-      for row in transaction.open_table(definition)?.iter()? {
-        let (_, value) = row?;
-        let _: serde_json::Value = serde_json::from_str(value.value())?;
-      }
+/// Opens an offline backup read-only and reads all expected tables without creating a file.
+///
+/// # Errors
+///
+/// Returns an error if the backup cannot be opened read-only, an expected table is missing
+/// or incompatible, a row cannot be read, or a stored JSON value cannot be decoded.
+pub(crate) fn verify_backup(path: &Path) -> Result<()> {
+  let database = redb::ReadOnlyDatabase::open(path)?;
+  let transaction = database.begin_read()?;
+  for definition in [VOICE_SETTINGS, GUILD_EMOTES, ADDED_EMOTES] {
+    for row in transaction.open_table(definition)?.iter()? {
+      let (_, value) = row?;
+      drop(serde_json::from_str::<serde_json::Value>(value.value())?);
     }
-    for row in transaction.open_table(EMOTE_BORDERS)?.iter()? {
-      let _ = row?;
-    }
-    Ok(())
   }
+  for row in transaction.open_table(EMOTE_BORDERS)?.iter()? {
+    drop(row?);
+  }
+  Ok(())
+}
 
+impl Store {
   /// Creates or opens the database and verifies that the expected tables can be opened.
   ///
   /// # Errors
@@ -268,7 +268,7 @@ impl Store {
         return Ok(false);
       }
       let value = serde_json::to_string(&entries)?;
-      table.insert(guild, value.as_str())?;
+      let _previous = table.insert(guild, value.as_str())?;
     }
     transaction.commit()?;
     Ok(true)

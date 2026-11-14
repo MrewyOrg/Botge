@@ -2,17 +2,13 @@
 
 //! Shared loopback fixtures and tests that exercise the bot's service lifecycle.
 
-#![allow(
+#![expect(
   clippy::missing_errors_doc,
   clippy::missing_panics_doc,
-  reason = "Test failures are expressed through returned fixture errors and assertion panics"
-)]
-#![allow(
-  clippy::let_underscore_must_use,
-  reason = "Fixture receivers may close during teardown, and tracing initialization is shared"
+  reason = "Fixture failures and assertion panics describe test failures"
 )]
 
-use std::{collections::HashMap, time::Duration};
+use std::{assert_matches, collections::HashMap};
 
 use axum::{
   Json, Router,
@@ -22,12 +18,47 @@ use axum::{
 use base64::{Engine as _, engine::general_purpose::STANDARD};
 use ed25519_dalek::Signer as _;
 use futures_util::{SinkExt as _, StreamExt as _};
-use reqwest::Url;
 use serde_json::{Value, json};
-use tokio::{net::TcpListener, sync::mpsc, task::JoinHandle};
+use tokio::{
+  sync::mpsc::{self, error::TryRecvError},
+  task::JoinHandle,
+};
 use tokio_tungstenite::{accept_async, tungstenite::Message};
 
 use super::*;
+
+mod benchmarks;
+
+#[test]
+fn programming_panics_stop_the_process() -> Result<()> {
+  if env::var_os("BOTGE_PANIC_FIXTURE").is_some() {
+    install_fatal_panic_hook();
+    // A background-thread panic must terminate the process before it can be joined.
+    #[expect(
+      clippy::panic,
+      reason = "Exercises process termination after a worker panic"
+    )]
+    let thread = std::thread::spawn(|| std::panic::panic_any("fixture programming bug"));
+    drop(thread.join());
+    return Ok(());
+  }
+  let output = std::process::Command::new(env::current_exe()?)
+    .args([
+      "--exact",
+      "tests::programming_panics_stop_the_process",
+      "--nocapture",
+    ])
+    .env("BOTGE_PANIC_FIXTURE", "1")
+    .output()?;
+  assert_eq!(output.status.code(), Some(101));
+  assert!(String::from_utf8_lossy(&output.stderr).contains("fixture programming bug"));
+  #[cfg(unix)]
+  {
+    use std::os::unix::process::ExitStatusExt as _;
+    assert_eq!(output.status.signal(), None)
+  };
+  Ok(())
+}
 
 /// Captures logs from one fixture subscriber without changing the process-wide subscriber.
 #[derive(Clone, Default)]
@@ -56,13 +87,13 @@ impl TestLogs {
 }
 
 impl std::io::Write for TestLogs {
-  fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
+  fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
     self
       .0
       .lock()
       .map_err(|_error| std::io::Error::other("fixture log lock poisoned"))?
-      .extend_from_slice(bytes);
-    Ok(bytes.len())
+      .extend_from_slice(buf);
+    Ok(buf.len())
   }
   fn flush(&mut self) -> std::io::Result<()> {
     Ok(())
@@ -125,7 +156,7 @@ async fn rejects_activity_startup_when_identity_or_listener_is_unavailable() -> 
 #[cfg(unix)]
 #[tokio::test]
 async fn handles_termination_in_an_isolated_process() -> Result<()> {
-  if let Some(mode) = std::env::var_os("BOTGE_SIGNAL_FIXTURE") {
+  if let Some(mode) = env::var_os("BOTGE_SIGNAL_FIXTURE") {
     let signal = shutdown_signal();
     tokio::pin!(signal);
     assert!(futures_util::poll!(signal.as_mut()).is_pending());
@@ -139,7 +170,7 @@ async fn handles_termination_in_an_isolated_process() -> Result<()> {
     return Ok(());
   }
   for mode in ["interrupt", "terminate"] {
-    let output = tokio::process::Command::new(std::env::current_exe()?)
+    let output = tokio::process::Command::new(env::current_exe()?)
       .args([
         "--exact",
         "tests::handles_termination_in_an_isolated_process",
@@ -205,11 +236,11 @@ pub(crate) struct TestServer {
 
 impl TestServer {
   /// Binds the router to an ephemeral loopback port and returns its base URL.
-  pub(crate) async fn start(router: Router) -> anyhow::Result<Self> {
+  pub(crate) async fn start(router: Router) -> Result<Self> {
     let listener = TcpListener::bind("127.0.0.1:0").await?;
     let origin = Url::parse(&format!("http://{}", listener.local_addr()?))?;
     let task = tokio::spawn(async move {
-      let _ = axum::serve(listener, router).await;
+      drop(axum::serve(listener, router).await);
     });
     Ok(Self { origin, task })
   }
@@ -358,7 +389,7 @@ async fn gateway(
         if channel.is_null() && !joined {
           continue;
         }
-        let _ = states.send(channel.clone());
+        drop(states.send(channel.clone()));
         sequence += 1;
         socket.send(dispatch("VOICE_STATE_UPDATE", sequence, &json!({
                     "guild_id":"1","channel_id":channel,"user_id":"42","session_id":"fixture",
@@ -426,7 +457,10 @@ fn loads_runtime_configuration_and_rejects_partial_activity_credentials() -> Res
   env.insert("ACTIVITY_BIND_HOST", "invalid");
   assert!(Options::read(&|key| env.get(key).map(ToString::to_string)).is_err());
   env.insert("ACTIVITY_BIND_HOST", "::1");
-  assert!(Options::read(&|key| env.get(key).map(ToString::to_string)).is_ok());
+  assert_matches!(
+    Options::read(&|key| env.get(key).map(ToString::to_string)).map(|_| ()),
+    Ok(())
+  );
   env.insert("LOCAL_CACHE_BASE", "invalid");
   assert!(Options::read(&|key| env.get(key).map(ToString::to_string)).is_err());
   Ok(())
@@ -451,10 +485,12 @@ fn only_requests_message_content_when_prefix_compose_is_enabled() {
   reason = "Keep the sequential fixture setup, actions, and assertions in one scenario"
 )]
 async fn starts_gateway_and_http_reconciles_voice_and_handles_shutdown() -> Result<()> {
-  let _ = tracing_subscriber::fmt()
-    .with_max_level(tracing::Level::WARN)
-    .with_test_writer()
-    .try_init();
+  drop(
+    tracing_subscriber::fmt()
+      .with_max_level(tracing::Level::WARN)
+      .with_test_writer()
+      .try_init(),
+  );
   let dir = tempfile::tempdir()?;
   let db = dir.path().join("botge.redb");
   let guild = NonZeroU64::MIN;
@@ -466,8 +502,8 @@ async fn starts_gateway_and_http_reconciles_voice_and_handles_shutdown() -> Resu
   {
     let store = Store::open(&db)?;
     store.save_voice_settings(guild, &voice)?;
-    store.add_emote(guild, emotes::tests::example("Wave", "1"))?;
-  }
+    store.add_emote(guild, emotes::tests::example("Wave", "1"))?
+  };
 
   let listener = TcpListener::bind("127.0.0.1:0").await?;
   let url = format!("ws://{}", listener.local_addr()?);
@@ -494,7 +530,7 @@ async fn starts_gateway_and_http_reconciles_voice_and_handles_shutdown() -> Resu
       .route(
         "/api/v10/channels/42/voice-status",
         put(move |Json(body): Json<Value>| async move {
-          let _ = status_tx.send(body);
+          drop(status_tx.send(body));
           StatusCode::NO_CONTENT
         }),
       )
@@ -512,14 +548,14 @@ async fn starts_gateway_and_http_reconciles_voice_and_handles_shutdown() -> Resu
               Json(serenity::all::Message::default()),
             );
           }
-          let _ = message_tx.send(body);
+          drop(message_tx.send(body));
           (StatusCode::OK, Json(serenity::all::Message::default()))
         }),
       )
       .route(
         "/api/v10/webhooks/42/interaction/messages/@original",
         patch(move |Json(body): Json<Value>| async move {
-          let _ = reply_tx.send(body);
+          drop(reply_tx.send(body));
           StatusCode::BAD_REQUEST
         }),
       ),
@@ -546,6 +582,10 @@ async fn starts_gateway_and_http_reconciles_voice_and_handles_shutdown() -> Resu
   std::fs::write(&config_path, r#"{"general":{"use7TVAddedEmotes":true}}"#)?;
   let runtime = tokio::spawn(async move {
     run(options, http_for(&http), &config_path, async {
+      #[expect(
+        clippy::let_underscore_must_use,
+        reason = "Both a shutdown message and sender closure terminate the fixture"
+      )]
       let _ = shutdown.await;
       Ok(())
     })
@@ -581,7 +621,7 @@ async fn starts_gateway_and_http_reconciles_voice_and_handles_shutdown() -> Resu
     assert!(reply.contains("emotes.png"));
     assert!(reply.contains(r#""message_id":"12""#));
     assert!(reply.contains(r#""replied_user":false"#));
-    assert!(message_rx.try_recv().is_err());
+    assert_matches!(message_rx.try_recv(), Err(TryRecvError::Empty));
     let http = reqwest::Client::new();
     assert_eq!(
       http
@@ -608,6 +648,10 @@ async fn starts_gateway_and_http_reconciles_voice_and_handles_shutdown() -> Resu
     Ok::<_, anyhow::Error>(())
   };
   let result = tokio::time::timeout(Duration::from_secs(15), result).await;
+  #[expect(
+    clippy::let_underscore_must_use,
+    reason = "The runtime may already have exited while the fixture tears down"
+  )]
   let _ = cancel.send(());
   let runtime = tokio::time::timeout(Duration::from_secs(5), runtime).await?;
   ws.abort();
@@ -647,20 +691,17 @@ async fn keeps_disabled_activity_idle_and_rejects_invalid_api_configuration() ->
     application_id: NonZeroU64::MIN,
     address: "127.0.0.1:0".parse()?,
   };
-  assert!(
-    activity_server(Some(activity), &http, store, emotes, changed)
-      .await
-      .is_err()
+  assert_matches!(
+    activity_server(Some(activity), &http, store, emotes, changed).await,
+    Err(_)
   );
-  assert!(
-    tokio::time::timeout(Duration::from_millis(1), serve_activity(None))
-      .await
-      .is_err()
+  assert_matches!(
+    tokio::time::timeout(Duration::from_millis(1), serve_activity(None)).await,
+    Err(_)
   );
-  assert!(
-    tokio::time::timeout(Duration::from_millis(1), shutdown_signal())
-      .await
-      .is_err()
+  assert_matches!(
+    tokio::time::timeout(Duration::from_millis(1), shutdown_signal()).await,
+    Err(_)
   );
   Ok(())
 }
@@ -706,7 +747,9 @@ fn initializes_tls_for_clients_with_multiple_provider_features() {
   initialize_tls();
   assert!(rustls::crypto::CryptoProvider::get_default().is_some());
   // Voice/websocket clients use this builder rather than Reqwest's explicit provider.
-  let _ = rustls::ClientConfig::builder()
-    .with_root_certificates(rustls::RootCertStore::empty())
-    .with_no_client_auth();
+  drop(
+    rustls::ClientConfig::builder()
+      .with_root_certificates(rustls::RootCertStore::empty())
+      .with_no_client_auth(),
+  );
 }

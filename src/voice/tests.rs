@@ -2,15 +2,15 @@
 
 //! Checks voice reconciliation decisions and status deduplication through local HTTP fixtures.
 
-#![allow(
+#![expect(
   clippy::missing_errors_doc,
   clippy::missing_panics_doc,
-  reason = "Test failures are expressed through returned fixture errors and assertion panics"
+  reason = "Fixture failures and assertion panics describe test failures"
 )]
-#![allow(
-  clippy::let_underscore_must_use,
-  reason = "Fixture receivers may close during teardown, and tracing initialization is shared"
-)]
+
+use std::assert_matches;
+
+use tokio::sync::mpsc::error::TryRecvError;
 
 use super::*;
 
@@ -176,7 +176,7 @@ async fn refreshes_changed_voice_statuses_and_skips_duplicates() -> anyhow::Resu
     "/api/v10/channels/{id}/voice-status",
     put(
       move |Path(id): Path<u64>, Json(body): Json<Value>| async move {
-        let _ = sender.send((id, body));
+        drop(sender.send((id, body)));
         StatusCode::NO_CONTENT
       },
     ),
@@ -200,7 +200,7 @@ async fn refreshes_changed_voice_statuses_and_skips_duplicates() -> anyhow::Resu
   for (channel, status) in [(1, "wave"), (1, "changed"), (2, "changed"), (2, "changed")] {
     assert_eq!(updates.try_recv()?, (channel, json!({ "status": status })));
   }
-  assert!(updates.try_recv().is_err());
+  assert_matches!(updates.try_recv(), Err(TryRecvError::Empty));
   Ok(())
 }
 

@@ -1,13 +1,13 @@
 //! Drives the 7TV watcher against loopback WebSocket connections and inspects its cache changes.
 
-#![allow(
-  clippy::missing_errors_doc,
-  clippy::missing_panics_doc,
-  reason = "Test failures are expressed through returned fixture errors and assertion panics"
-)]
-#![allow(
+#![expect(
   clippy::let_underscore_must_use,
   reason = "Fixture receivers may close during teardown, and tracing initialization is shared"
+)]
+#![expect(
+  clippy::missing_errors_doc,
+  clippy::missing_panics_doc,
+  reason = "Fixture failures and assertion panics describe test failures"
 )]
 
 use tokio::{net::TcpListener, sync::oneshot};
@@ -148,8 +148,8 @@ async fn subscribes_invalidates_changed_snapshots_and_unsubscribes_evicted_sets(
       let set = cache.get_mut("set").context("cached set missing")?;
       assert!(set.expires <= Instant::now());
       set.expires = Instant::now() + Duration::from_secs(60);
-      drop(cache);
-    }
+      drop(cache)
+    };
     let _ = update.send(());
     loop {
       if client

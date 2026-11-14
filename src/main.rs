@@ -29,6 +29,8 @@
 
 // The pinned nightly provides fallible OnceLock initialization without building duplicate clients.
 #![feature(once_cell_try)]
+// Nightly libtest supplies repeatable benchmarks without a production dependency.
+#![cfg_attr(test, feature(test))]
 // Songbird's async voice calls need a deeper Send trait check.
 #![recursion_limit = "256"]
 
@@ -43,9 +45,17 @@ mod settings;
 mod storage;
 mod voice;
 
+#[cfg(test)]
+extern crate test;
+
+// Miri cannot interpret the allocator's C implementation; its suite uses the system allocator.
+// Native tests and production use the same measured allocator.
+#[cfg(not(miri))]
+#[global_allocator]
+static ALLOCATOR: mimalloc::MiMalloc = mimalloc::MiMalloc;
+
 use std::{
   env,
-  future::Future,
   net::{IpAddr, Ipv4Addr, SocketAddr},
   num::NonZeroU64,
   path::{Path, PathBuf},
@@ -157,11 +167,7 @@ impl Options {
 fn initialize_tls() {
   // Reqwest and voice dependencies enable different providers; feature inference is ambiguous.
   // An existing selection is preserved if initialization is called more than once.
-  #[expect(
-    clippy::let_underscore_must_use,
-    reason = "An already installed process-wide TLS provider is valid"
-  )]
-  let _ = rustls::crypto::aws_lc_rs::default_provider().install_default();
+  drop(rustls::crypto::aws_lc_rs::default_provider().install_default());
 }
 
 /// Handles maintenance flags before loading credentials; otherwise starts the bot services.
@@ -177,6 +183,7 @@ fn initialize_tls() {
 /// installed, or version output cannot be written to standard output.
 #[tokio::main]
 async fn main() -> Result<()> {
+  install_fatal_panic_hook();
   initialize_tls();
   let mut arguments = env::args().skip(1);
   match arguments.next().as_deref() {
@@ -184,7 +191,7 @@ async fn main() -> Result<()> {
       let path = arguments
         .next()
         .context("--verify-database requires an offline backup path")?;
-      return Store::verify_backup(Path::new(&path));
+      return storage::verify_backup(Path::new(&path));
     }
     Some("--healthcheck") => return health::check("http://127.0.0.1:3081/readyz").await,
     Some("--version") => {
@@ -209,11 +216,33 @@ async fn main() -> Result<()> {
   .await
 }
 
+/// Installs fail-stop behavior for panics, including detached and blocking tasks.
+///
+/// Normal operation errors still propagate through `Result`. A programming panic prints
+/// the standard diagnostic and exits, allowing the container restart policy to recover.
+///
+/// # Panics
+///
+/// Panics if called from a thread that is already panicking. Call only during startup.
+fn install_fatal_panic_hook() {
+  let previous = std::panic::take_hook();
+  std::panic::set_hook(Box::new(move |info| {
+    previous(info);
+    #[expect(
+      clippy::exit,
+      reason = "A programming panic must stop the entire process, including worker tasks"
+    )]
+    std::process::exit(101);
+  }));
+}
+
 /// Starts the gateway, Activity API, and workers. Shuts them down on a service exit or signal.
 ///
 /// Storage, configuration, and the optional listener are initialized before spawning workers.
 /// Once running, the gateway, Activity listener, and shutdown future race. The first to finish
 /// determines the result, and the worker tasks are stopped before the Discord shards shut down.
+/// Programming panics instead terminate the process immediately through the startup hook;
+/// no graceful shutdown or rollback is attempted in that case.
 ///
 /// # Errors
 ///
@@ -331,8 +360,10 @@ async fn activity_server(
   let proxy = ProxyAuthenticator::new(&options.public_key)?;
   let bot_user = http.get_current_user().await?.id;
   let access = DiscordAccess::new(
-    options.application_id,
-    options.secret,
+    discord::OAuthClient {
+      application_id: options.application_id,
+      secret: options.secret,
+    },
     bot_user,
     Arc::clone(http),
   )?;

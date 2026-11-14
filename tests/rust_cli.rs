@@ -1,6 +1,6 @@
 //! Runs the built executable to verify CLI output and errors that occur before a Discord connection.
 
-#![allow(
+#![expect(
   clippy::missing_errors_doc,
   clippy::missing_panics_doc,
   reason = "Test failures are expressed through returned fixture errors and assertion panics"

@@ -11,6 +11,8 @@ use base64::{
 use ed25519_dalek::{Signature, VerifyingKey};
 use serde::Deserialize;
 
+// Allow small Discord/host clock differences while bounding the signed request replay window.
+// Increasing this tolerates more skew but also accepts older proxy claims.
 const CLOCK_SKEW_SECONDS: u64 = 30;
 
 /// The signed time window expressed in Unix seconds.

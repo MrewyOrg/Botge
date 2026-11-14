@@ -1,6 +1,6 @@
 //! Resolves emote inputs, bounds rendering work, and converts failures into reply text.
 
-use std::{future::Future, num::NonZeroU64, time::Duration};
+use std::{num::NonZeroU64, time::Duration};
 
 use anyhow::Result;
 
@@ -35,9 +35,9 @@ impl Commands {
   ///
   /// Returns an error if resolving an individual 7TV emote fails. An unavailable or invalid
   /// media reference produces `Ok(None)`; no guild addition is persisted.
-  async fn resolve_layer(
+  async fn resolve_layer<'a>(
     &self,
-    catalog: &[Emote],
+    catalog: impl IntoIterator<Item = &'a Emote, IntoIter: Clone + ExactSizeIterator>,
     token: &str,
     scale: u16,
   ) -> Result<Option<Layer>> {

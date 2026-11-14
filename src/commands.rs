@@ -115,10 +115,11 @@ impl Commands {
     match command {
       "emote-shortcuts" => {
         let emotes = self.emotes.catalog(guild).await?;
-        Ok(Answer::Text(shortcuts(
-          &emotes,
-          string(options, "emotes").unwrap_or_default(),
-        )))
+        let input = string(options, "emotes").unwrap_or_default().to_owned();
+        // Ambiguous catalogs can require many substring comparisons. Keep that CPU work
+        // off gateway/API executor threads while retaining shared snapshot ownership.
+        let reply = tokio::task::spawn_blocking(move || shortcuts(&emotes, &input)).await?;
+        Ok(Answer::Text(reply))
       }
       "emote-compose" => {
         let Some(input) = string(options, "emotes") else {

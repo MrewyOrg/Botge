@@ -1,13 +1,30 @@
 //! Exercises autocomplete command behavior.
 
-#![allow(
+#![expect(
   clippy::missing_errors_doc,
   clippy::missing_panics_doc,
-  reason = "Test failures are expressed through returned fixture errors and assertion panics"
+  reason = "Fixture failures and assertion panics describe test failures"
 )]
 
 use super::super::shortcuts::shortcuts;
 use super::*;
+
+/// Adapts fixture slices to the same immutable catalog view used by requests.
+fn suggestions(emotes: &[crate::emotes::Emote], value: &str) -> Vec<String> {
+  super::suggestions(
+    &crate::emotes::catalog::Catalog::new(emotes.to_vec(), vec![]),
+    value,
+  )
+}
+
+#[bench]
+fn autocomplete_catalog(b: &mut test::Bencher) {
+  let entries: Vec<_> = (0..1000)
+    .map(|id| crate::emotes::tests::example(&format!("Wave{id}"), &id.to_string()))
+    .collect();
+  let catalog = crate::emotes::catalog::Catalog::new(entries, vec![]);
+  b.iter(|| std::hint::black_box(super::suggestions(std::hint::black_box(&catalog), "wav")));
+}
 use std::sync::Arc;
 
 use crate::emotes::Emotes;
@@ -67,11 +84,7 @@ async fn sends_name_and_size_choices_to_discord() -> Result<()> {
       .route(
         "/api/v10/interactions/9/fixture/callback",
         post(move |Json(body): Json<Value>| async move {
-          #[expect(
-            clippy::let_underscore_must_use,
-            reason = "The fixture receiver may close after its expected response"
-          )]
-          let _ = sender.send(body);
+          drop(sender.send(body));
           StatusCode::NO_CONTENT
         }),
       )

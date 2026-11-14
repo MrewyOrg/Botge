@@ -1,10 +1,14 @@
 //! Exercises prefix command behavior.
 
-#![allow(
+#![expect(
   clippy::missing_errors_doc,
   clippy::missing_panics_doc,
-  reason = "Test failures are expressed through returned fixture errors and assertion panics"
+  reason = "Fixture failures and assertion panics describe test failures"
 )]
+
+use std::assert_matches;
+
+use tokio::sync::mpsc::error::TryRecvError;
 
 use super::*;
 
@@ -66,7 +70,7 @@ async fn replies_with_input_errors_without_rendering_or_pinging_the_author() -> 
   commands
     .respond_message(&crate::tests::http_for(&server), &message)
     .await?;
-  assert!(replies.try_recv().is_err());
+  assert_matches!(replies.try_recv(), Err(TryRecvError::Empty));
   Ok(())
 }
 

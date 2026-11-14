@@ -1,16 +1,12 @@
 //! Simulates Discord confirmation callbacks, paginated message reads, and deletions.
 
-#![allow(
+#![expect(
   clippy::missing_errors_doc,
   clippy::missing_panics_doc,
-  reason = "Test failures are expressed through returned fixture errors and assertion panics"
-)]
-#![allow(
-  clippy::let_underscore_must_use,
-  reason = "Fixture receivers may close during teardown, and tracing initialization is shared"
+  reason = "Fixture failures and assertion panics describe test failures"
 )]
 
-use std::collections::HashMap;
+use std::{assert_matches, collections::HashMap};
 
 use axum::{
   Json, Router,
@@ -19,7 +15,7 @@ use axum::{
   routing::{delete, get, patch, post},
 };
 use serde_json::{Value, json};
-use tokio::sync::mpsc;
+use tokio::sync::mpsc::{self, error::TryRecvError};
 
 use super::*;
 use crate::tests::{TestServer, http_for, user};
@@ -69,14 +65,14 @@ async fn confirms_clear_and_skips_pins_new_messages_and_already_deleted_messages
       .route(
         "/api/v10/interactions/{id}/clear/callback",
         post(move |Json(body): Json<Value>| async move {
-          let _ = callback.send(body);
+          drop(callback.send(body));
           StatusCode::NO_CONTENT
         }),
       )
       .route(
         "/api/v10/webhooks/42/clear/messages/@original",
         patch(move |Json(body): Json<Value>| async move {
-          let _ = edit.send(body);
+          drop(edit.send(body));
           Json(fixture_message(50, false))
         }),
       )
@@ -98,7 +94,7 @@ async fn confirms_clear_and_skips_pins_new_messages_and_already_deleted_messages
       .route(
         "/api/v10/channels/3/messages/{id}",
         delete(move |Path(id): Path<String>| async move {
-          let _ = sent.send(json!({"delete":id}));
+          drop(sent.send(json!({"delete":id})));
           if id == "6" {
             (
               StatusCode::NOT_FOUND,
@@ -191,7 +187,7 @@ async fn confirms_clear_and_skips_pins_new_messages_and_already_deleted_messages
     requests.try_recv()?.get("content"),
     Some(&json!("Deleted 1 earlier messages."))
   );
-  assert!(requests.try_recv().is_err());
+  assert_matches!(requests.try_recv(), Err(TryRecvError::Empty));
   assert!(denied(command.member.as_deref(), Some(Permissions::VIEW_CHANNEL)).is_some());
   Ok(())
 }
@@ -221,7 +217,7 @@ async fn reports_partial_cleanup_when_discord_refuses_a_deletion() -> Result<()>
       .route(
         "/api/v10/webhooks/42/clear/messages/@original",
         patch(move |Json(body): Json<Value>| async move {
-          let _ = feedback.send(body);
+          drop(feedback.send(body));
           Json(fixture_message(50, false))
         }),
       ),

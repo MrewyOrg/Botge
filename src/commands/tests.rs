@@ -1,13 +1,9 @@
 //! Exercises command replies, autocomplete, and registration through local Discord and media fixtures.
 
-#![allow(
+#![expect(
   clippy::missing_errors_doc,
   clippy::missing_panics_doc,
-  reason = "Test failures are expressed through returned fixture errors and assertion panics"
-)]
-#![allow(
-  clippy::let_underscore_must_use,
-  reason = "Fixture receivers may close during teardown, and tracing initialization is shared"
+  reason = "Fixture failures and assertion panics describe test failures"
 )]
 
 use anyhow::Context as _;
@@ -66,9 +62,7 @@ async fn returns_friendly_errors_for_missing_and_ambiguous_input() -> Result<()>
     "locale":"en-US", "entitlements":[], "attachment_size_limit":10_485_760,
     "user":crate::tests::user("3")
   }))?;
-  commands
-    .respond(&serenity::http::Http::new("unused"), unknown)
-    .await?;
+  commands.respond(&Http::new("unused"), unknown).await?;
   Ok(())
 }
 
@@ -93,8 +87,8 @@ async fn sends_provider_variants_and_compositions_and_rejects_concurrent_renderi
       .route(
         "/api/v10/channels/2/messages",
         post(move |body: Bytes| async move {
-          let _ = prefix_replies.send(body);
-          Json(serenity::all::Message::default())
+          drop(prefix_replies.send(body));
+          Json(Message::default())
         }),
       )
       .route(
@@ -104,8 +98,8 @@ async fn sends_provider_variants_and_compositions_and_rejects_concurrent_renderi
       .route(
         "/api/v10/webhooks/42/fixture/messages/@original",
         patch(move |body: Bytes| async move {
-          let _ = replies.send(body);
-          Json(serenity::all::Message::default())
+          drop(replies.send(body));
+          Json(Message::default())
         }),
       )
       .route("/7tv/emote/{id}/2x.png", get(move || async move { pixel }))

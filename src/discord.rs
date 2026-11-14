@@ -1,4 +1,10 @@
 //! Adapts Discord gateway events and OAuth responses to Botge's commands and Activity API.
+//!
+//! [`OAuthClient`] groups one application's identity and secret. [`DiscordAccess`] shares a
+//! bounded transport but checks the caller's current guild permissions on each request;
+//! permission results are not cached across requests. OAuth transport/decode failures are
+//! sanitized before they reach logs or HTTP responses. Gateway callbacks route interactions
+//! to commands and notify the voice worker when readiness changes.
 
 use std::{
   num::NonZeroU64,
@@ -23,6 +29,12 @@ use crate::{
   settings::discord_id,
 };
 
+/// OAuth application identity configured together to avoid mismatched constructor arguments.
+pub(crate) struct OAuthClient {
+  pub(crate) application_id: NonZeroU64,
+  pub(crate) secret: String,
+}
+
 /// Exchanges Activity authorization codes and uses the bot client to check guild permissions.
 pub(crate) struct DiscordAccess {
   application_id: NonZeroU64,
@@ -37,16 +49,11 @@ impl DiscordAccess {
   /// # Errors
   ///
   /// Returns an error if the shared Discord HTTP client cannot be initialized.
-  pub(crate) fn new(
-    application_id: NonZeroU64,
-    secret: String,
-    bot_user: UserId,
-    http: Arc<Http>,
-  ) -> anyhow::Result<Self> {
+  pub(crate) fn new(oauth: OAuthClient, bot_user: UserId, http: Arc<Http>) -> anyhow::Result<Self> {
     discord_client()?;
     Ok(Self {
-      application_id,
-      secret,
+      application_id: oauth.application_id,
+      secret: oauth.secret,
       bot_user,
       http,
     })
@@ -325,14 +332,14 @@ impl Events {
 #[async_trait]
 impl EventHandler for Events {
   /// Signals readiness and attempts global registration if the operator enabled it.
-  async fn ready(&self, context: Context, ready: Ready) {
-    tracing::info!(user = %ready.user.id, "Discord gateway ready");
+  async fn ready(&self, ctx: Context, data_about_bot: Ready) {
+    tracing::info!(user = %data_about_bot.user.id, "Discord gateway ready");
     self.ready.send_replace(true);
     self.voice_changed.notify_one();
     if self.register_commands
       && let Err(error) = self
         .registration
-        .get_or_try_init(|| commands::register(&context.http))
+        .get_or_try_init(|| commands::register(&ctx.http))
         .await
     {
       tracing::error!(%error, "could not register Discord commands");
@@ -340,13 +347,11 @@ impl EventHandler for Events {
   }
 
   /// Dispatches supported interactions and logs reply failures at the gateway boundary.
-  async fn interaction_create(&self, context: Context, interaction: Interaction) {
+  async fn interaction_create(&self, ctx: Context, interaction: Interaction) {
     let result = match interaction {
-      Interaction::Command(command) => self.commands.respond(&context.http, command).await,
-      Interaction::Autocomplete(command) => {
-        self.commands.autocomplete(&context.http, command).await
-      }
-      Interaction::Modal(modal) => self.commands.modal(&context.http, modal).await,
+      Interaction::Command(command) => self.commands.respond(&ctx.http, command).await,
+      Interaction::Autocomplete(command) => self.commands.autocomplete(&ctx.http, command).await,
+      Interaction::Modal(modal) => self.commands.modal(&ctx.http, modal).await,
       _ => return,
     };
     if let Err(error) = result {
@@ -355,8 +360,8 @@ impl EventHandler for Events {
   }
 
   /// Passes gateway messages through the prefix reply handler.
-  async fn message(&self, context: Context, message: Message) {
-    if let Err(error) = self.commands.respond_message(&context.http, &message).await {
+  async fn message(&self, ctx: Context, new_message: Message) {
+    if let Err(error) = self.commands.respond_message(&ctx.http, &new_message).await {
       tracing::warn!(%error, "could not reply to emote message");
     }
   }

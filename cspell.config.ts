@@ -26,7 +26,9 @@ const cSpellSettings: Readonly<CSpellSettings> = defineConfig({
     '.git/index',
     '.git/ORIG_HEAD',
     '.git/packed-refs',
-    'Cargo.lock'
+    'Cargo.lock',
+    'uv.lock',
+    '.agents/references/cache'
   ],
 
   // Shared by multiple files; keep file-specific vocabulary in each file's header.
@@ -49,6 +51,13 @@ const cSpellSettings: Readonly<CSpellSettings> = defineConfig({
     'buildx',
     'chromadb',
     'clippy',
+    'Miri',
+    'mimalloc',
+    'pyproject',
+    'pydoc',
+    'rustc',
+    'udeps',
+    'venv',
     'dbaeumer',
     'DeepL',
     'dorny',

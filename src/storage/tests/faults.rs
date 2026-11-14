@@ -1,5 +1,11 @@
 //! Injects backend I/O failures and checks that storage APIs report them.
 
+#![expect(
+  clippy::missing_errors_doc,
+  clippy::missing_panics_doc,
+  reason = "Fixture failures and assertion panics describe test failures"
+)]
+
 use std::{
   io,
   sync::{
@@ -8,7 +14,6 @@ use std::{
   },
 };
 
-use anyhow::Result;
 use redb::{StorageBackend, backends::InMemoryBackend};
 
 use super::super::*;
@@ -47,21 +52,21 @@ impl StorageBackend for FaultBackend {
     self.check()?;
     self.memory.len()
   }
-  fn read(&self, offset: u64, output: &mut [u8]) -> io::Result<()> {
+  fn read(&self, offset: u64, out: &mut [u8]) -> io::Result<()> {
     self.check()?;
-    self.memory.read(offset, output)
+    self.memory.read(offset, out)
   }
-  fn set_len(&self, length: u64) -> io::Result<()> {
+  fn set_len(&self, len: u64) -> io::Result<()> {
     self.check()?;
-    self.memory.set_len(length)
+    self.memory.set_len(len)
   }
   fn sync_data(&self) -> io::Result<()> {
     self.check()?;
     self.memory.sync_data()
   }
-  fn write(&self, offset: u64, bytes: &[u8]) -> io::Result<()> {
+  fn write(&self, offset: u64, data: &[u8]) -> io::Result<()> {
     self.check()?;
-    self.memory.write(offset, bytes)
+    self.memory.write(offset, data)
   }
 }
 
