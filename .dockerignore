@@ -7,4 +7,5 @@
 !src/**
 # Rust unit tests live alongside production code and run separately in BotgeQL.
 src/**/tests.rs
+src/**/tests/
 !LICENSE.txt

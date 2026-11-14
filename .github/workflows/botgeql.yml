@@ -89,13 +89,17 @@ jobs:
               - '**/.npmrc'
               - '.nvmrc'
               - '.github/workflows/botgeql.yml'
+            # Build inputs match .husky/pre-commit; HTML rules and this workflow also trigger CI.
             markup:
-              - 'activity/src/**/*.{ts,html,scss,css}'
+              - 'activity/src/**'
               - 'activity/index.html'
               - 'activity/public/**'
               - 'activity/vite.config.*'
+              - 'vite.config.*'
               - 'activity/package{,-lock}.json'
               - 'activity/tsconfig*.json'
+              - 'activity/.env*'
+              - '.env*'
               - 'activity/.htmlvalidate*'
               - '.htmlvalidate*'
               - 'tsconfig*.json'

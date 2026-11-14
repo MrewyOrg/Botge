@@ -39,6 +39,16 @@ execution alone does not. The combined [root Vitest config](../vitest.config.ts)
 tooling and Activity suites. Control tests use temporary command stubs in place of the Docker daemon
 and control socket.
 
+The pre-commit hook runs lint-staged using installed dependencies. Run `npm ci` before committing
+when dependencies need installation. It builds the Activity only when staged browser source, assets,
+or build/dependency configuration changes; documentation-only and Rust-only commits skip that build.
+CI still runs the checks selected by the complete PR diff.
+
+After a merge changes dependency manifests, the post-merge hook prints a reminder instead of
+installing packages. Run `npm ci` at the repository root for the shared workspace, or
+`npm --prefix tests/integration ci` for the separate Compose test project when its dependencies
+change. Docker image cleanup is a manual operator task; `npm start` only builds and starts Compose.
+
 ## Compose integration
 
 The Compose suite has its own package and lockfile. Install its dependencies and run it from the

@@ -15,7 +15,7 @@ allow if {
 }
 
 allow if {
-	input.image.fullRepo == "dhi.io/alpine-base"
+	input.image.fullRepo in {"dhi.io/alpine-base", "dhi.io/debian-base"}
 	input.image.isCanonical
 }
 

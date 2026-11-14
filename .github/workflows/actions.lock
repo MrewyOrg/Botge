@@ -19,6 +19,7 @@ workflows:
     '.github/workflows/check-pr-target.yml': []
     '.github/workflows/cleanup-caches.yml': []
     '.github/workflows/codeql.yml':
+        - 'actions/cache@v6.1.0'
         - 'actions/checkout@v7.0.1'
         - 'github/codeql-action@v4.39.3'
     '.github/workflows/dependency-security.yml':

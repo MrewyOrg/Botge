@@ -36,7 +36,8 @@ individual layers, so one image-building PR can create many cache entries.
 [Dependency Security](dependency-security.yml) runs directly on PRs to `dev`, weekly, and on demand.
 Build and Deploy calls it for PRs to `main`, avoiding duplicate audits. It reviews dependency
 changes and audits the shared npm workspace, integration-test, and Cargo lockfiles. The Cargo audit
-executable is cached by version and runner platform; warm runs skip compiler/tool installation.
+executable is cached by version and runner platform; warm runs skip compiler/tool installation. The
+npm audits read the committed lockfiles directly without installing dependencies.
 
 Dependency review, npm/Cargo audits, and Docker Scout block **critical** vulnerabilities. Cargo
 maintenance warnings and advisories without severity scores are informational; scanner errors still
@@ -48,6 +49,11 @@ and scheduled/manual runs. All three analyses upload results even for unchanged 
 code-scanning protection. Rust uses `build-mode: none`; the queries still analyze the extracted
 code. Regal checks changed Rego inputs. Actions lockfile verification checks changed workflow
 references. The assignment workflow handles metadata without checking out PR code.
+
+Rust's buildless extractor still compiles build scripts and procedural macros. Its Cargo output
+directory and dependency downloads are cached by runner, toolchain, and manifests. Each run still
+extracts the current source and runs the complete security-and-quality suite; analysis databases and
+query results are not reused from earlier commits.
 
 ## Candidate and deployment
 
@@ -61,6 +67,18 @@ approval, `Deploy` rechecks the same-repository `dev` head, `main` target, open 
 commit. It promotes the candidate digest to `latest` and requests the VM update through the control
 socket over Google Cloud IAP. Promotion and deployment share a concurrency group and cannot cancel
 each other. Cancel obsolete approval requests after updating a PR.
+
+The Dockerfile compiles locked Rust dependencies before copying application sources. Dependency
+artifacts live in image layers so `cache-mode: max` can export them; BuildKit cache mounts alone
+would not survive fresh CI runners. Source-only rebuilds reuse that layer when the toolchain and
+Cargo manifests are unchanged. Cold builds and inaccessible or evicted caches still compile all
+dependencies. Both compilation steps run offline, and only the final binary enters the runtime
+image.
+
+The compiler runs on DHI Debian and targets musl for AMD64 or ARM64. DHI Alpine remains the runtime
+because it supplies FFmpeg 9 with animated WebP decoding; Debian 13's packaged FFmpeg is older.
+Cargo removes only the placeholder package's artifacts before compiling the real bot. The runtime
+smoke check requires a real version response and verifies animated WebP as the runtime user.
 
 The host handler verifies the running digest and gateway readiness, then saves the pin for
 subsequent starts. Update host-side Compose and control files before the first digest deployment.
