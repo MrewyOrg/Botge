@@ -1,4 +1,4 @@
-# cspell:words botgeql demuxer GOBIN rhysd tsdoc VITE webp
+# cspell:words GOBIN rhysd tsdoc
 
 name: BotgeQL
 
@@ -70,6 +70,7 @@ jobs:
             rust:
               - '**/*.rs'
               - 'Cargo.{toml,lock}'
+              - 'crates/**/Cargo.toml'
               - 'clippy.toml'
               - 'rust*.toml'
               - '.cargo/**'
@@ -206,7 +207,7 @@ jobs:
             ~/.cache/miri
           key: >-
             rust-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('rust-toolchain.toml') }}-${{
-            hashFiles('Cargo.toml', 'Cargo.lock') }}
+            hashFiles('Cargo.toml', 'crates/**/Cargo.toml', 'Cargo.lock') }}
           restore-keys: |
             rust-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('rust-toolchain.toml') }}-
 

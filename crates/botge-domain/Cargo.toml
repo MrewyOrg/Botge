@@ -1,0 +1,20 @@
+[package]
+name = 'botge-domain'
+version.workspace = true
+edition.workspace = true
+description = 'Shared emote records, settings validation and pure matching rules'
+license.workspace = true
+repository.workspace = true
+publish.workspace = true
+
+[dependencies]
+serde.workspace = true
+url.workspace = true
+
+[dev-dependencies]
+anyhow.workspace = true
+mimalloc.workspace = true
+serde_json.workspace = true
+
+[lints]
+workspace = true

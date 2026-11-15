@@ -31,11 +31,12 @@ recovery after a programming panic.
 
 ```sh
 cargo fmt --all --check
-cargo clippy --locked --all-targets -- -D warnings
-cargo doc --locked --no-deps --document-private-items
+cargo clippy --workspace --locked --all-targets -- -D warnings
+cargo doc --workspace --locked --no-deps --document-private-items
+cargo test --workspace --locked --doc
 sh scripts/check-rust-coverage.sh
-cargo hack check --locked --feature-powerset --all-targets
-cargo udeps --locked --all-targets
+cargo hack check --workspace --locked --feature-powerset --all-targets
+cargo udeps --workspace --locked --all-targets
 cargo miri setup
 sh scripts/check-rust-miri.sh
 npm run check:static
@@ -57,10 +58,11 @@ cargo install --locked --version 0.6.46 cargo-hack
 cargo install --locked --version 0.1.61 cargo-udeps
 ```
 
-Cargo-hack checks every combination of Botge's Cargo features across all targets. Botge currently
-defines no features, so this is one check; it expands automatically when features are added. Keep
-development dependencies enabled so `--locked` can preserve the committed dependency graph.
-Cargo-udeps checks direct dependencies across all targets using the pinned nightly.
+Cargo-hack checks every combination of each workspace package's features across all targets.
+Optional test-util features share fixtures with other packages' development dependencies; normal
+production dependencies must keep them disabled. Keep development dependencies enabled so `--locked`
+can preserve the committed dependency graph. Cargo-udeps checks direct dependencies across all
+targets using the pinned nightly.
 
 Miri is included in the development toolchain. Its script interprets existing tests for Discord ID
 and voice-setting validation, Unicode shortcuts, layout arithmetic, and WebP metadata/timing. It
@@ -68,12 +70,12 @@ keeps default isolation and undefined-behavior checks enabled. Network, database
 FFmpeg paths and larger stress fixtures remain in the normal coverage suite; this is not full-bot
 Miri coverage. Extend the script's filters when adding pure Rust tests that can run under Miri.
 
-Rust unit tests live next to their modules in `src/`. The CLI integration tests live in
-`tests/rust_cli.rs` and exercise the compiled binary. Unit tests can access private code and use
-local provider and Discord fixtures and temporary redb databases. Render tests need FFmpeg 9 or
-later with libwebp and FFprobe. BotgeQL requires at least 90% branch, line, function, and region
-coverage in every Rust source file. To export the Rust coverage report as HTML, run
-`sh scripts/check-rust-coverage.sh --html --output-dir coverage/rust`.
+Rust unit tests live next to their modules in the owning workspace crate. The CLI integration tests
+live in `crates/botge/tests/rust_cli.rs` and exercise the compiled binary. Unit tests can access
+private code and use local provider and Discord fixtures and temporary redb databases. Render tests
+need FFmpeg 9 or later with libwebp and FFprobe. BotgeQL requires at least 95% branch, line,
+function, and region coverage in every Rust source file. To export the Rust coverage report as HTML,
+run `sh scripts/check-rust-coverage.sh --html --output-dir coverage/rust`.
 
 The [Activity tests](../activity/README.md) exercise the browser and Worker. Run
 `npm run test:coverage` to enforce at least 90% statements, branches, functions, and lines per
@@ -113,3 +115,7 @@ BOTGE_TEST_COMPOSE=true npm --prefix tests/integration test
 The test requires Docker, `.env`, and `botge.config.json`. It logs a real bot into Discord, so check
 for an existing stack before running it. It builds the Rust Compose stack with command registration
 disabled, an isolated project name, named volumes, and a temporary nginx cache.
+
+Workspace dependency direction and test ownership are documented in the
+[workspace guide](../crates/README.md). The architecture integration test checks real Cargo
+metadata.

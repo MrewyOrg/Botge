@@ -1,0 +1,33 @@
+[package]
+name = 'botge-emotes'
+version.workspace = true
+edition.workspace = true
+description = 'Bounded emote providers, immutable catalogs and media rendering'
+license.workspace = true
+repository.workspace = true
+publish.workspace = true
+
+[features]
+test-util = []
+
+[dependencies]
+anyhow.workspace = true
+botge-domain.workspace = true
+futures-util.workspace = true
+reqwest.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+tempfile.workspace = true
+tokio-tungstenite.workspace = true
+tokio.workspace = true
+tracing.workspace = true
+
+[dev-dependencies]
+axum.workspace = true
+base64.workspace = true
+botge-test-support.workspace = true
+mimalloc.workspace = true
+tokio = { workspace = true, features = ['test-util'] }
+
+[lints]
+workspace = true

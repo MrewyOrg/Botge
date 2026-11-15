@@ -1,4 +1,4 @@
-# cspell:words dalek gnullvm msvc rustls syscall uninlined webpki
+# cspell:words gnullvm msvc syscall
 
 # Internal APIs are documented too; Botge is a binary crate with crate-visible services.
 check-private-items = true

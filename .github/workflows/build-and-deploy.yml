@@ -1,4 +1,4 @@
-# cspell:words botgeql cves
+# cspell:words cves
 
 name: Build and Deploy
 
@@ -38,7 +38,7 @@ jobs:
             build:
               - '.github/workflows/build-and-deploy.yml'
               - '.dockerignore'
-              - 'src/**'
+              - 'crates/**'
               - 'Cargo.lock'
               - 'Cargo.toml'
               - 'Dockerfile'

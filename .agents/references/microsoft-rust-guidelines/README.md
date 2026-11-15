@@ -28,13 +28,14 @@ run the repository's documentation checks. Builds and CI must not refresh this s
 
 See the [compact index](../README.md) for shared rules and exceptions.
 
-This binary has no public Rust library, authored macros, FFI ABI, custom collection or Cargo feature
-surface. Library compatibility, macro-authoring and workspace rules apply only if those surfaces are
-introduced. cfg(test) excludes fixtures without a shipped test-util feature. Portable CPU targets,
-two-space rustfmt and explicit internal Arc sharing are deliberate. Measured mimalloc and retained
-provider snapshots address the current allocation/copying findings; profiling and future-size
-budgets are described in [resource usage](../../../docs/RESOURCE_USAGE.md). These synthetic ARM64
-measurements do not establish live AMD64 performance.
+The executable uses private workspace libraries with explicit contracts and inherited lint policy.
+Published-library compatibility, macro-authoring and FFI ABI rules have no corresponding surface.
+Unit tests use cfg(test); opt-in test-util features share fixtures only with development
+dependencies. Portable CPU targets, two-space rustfmt and explicit internal Arc sharing are
+deliberate. Measured mimalloc and retained provider snapshots address the current allocation/copying
+findings; profiling and future-size budgets are described in
+[resource usage](../../../docs/RESOURCE_USAGE.md). These synthetic ARM64 measurements do not
+establish live AMD64 performance.
 
 The snapshot and license are optional ignored cache files. If absent, run
 `python3 .agents/scripts/cache_references.py` from the repository root. The tracked

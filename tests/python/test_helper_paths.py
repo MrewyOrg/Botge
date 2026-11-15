@@ -92,18 +92,43 @@ class HelperPaths(unittest.TestCase):
                 cache.main()
             self.assertEqual((references / 'cache/x.html').read_bytes(), data)
 
+    def test_benchmark_fingerprint_tracks_workspace_sources(self) -> None:
+        """Treat crate source and manifest edits as changes to benchmark identity."""
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            crate = root / 'crates' / 'domain'
+            (crate / 'src').mkdir(parents=True)
+            (crate / 'src' / 'lib.rs').write_text('fixture domain')
+            (crate / 'Cargo.toml').write_text('fixture manifest')
+            for name in ('Cargo.toml', 'Cargo.lock', 'rust-toolchain.toml'):
+                (root / name).write_text('fixture')
+            previous = Path.cwd()
+            try:
+                os.chdir(root)
+                for relative in ('src/lib.rs', 'Cargo.toml'):
+                    original = bench.fingerprint()
+                    (crate / relative).write_text('changed')
+                    self.assertNotEqual(original, bench.fingerprint())
+            finally:
+                os.chdir(previous)
+
     def test_benchmark_recording_and_corruption(self) -> None:
         """Record medians, refuse overwrites and detect changing sources or benchmark sets."""
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
-            (root / 'src').mkdir()
-            for name in ('src/main.rs', 'Cargo.toml', 'Cargo.lock', 'rust-toolchain.toml'):
+            (root / 'crates/botge/src').mkdir(parents=True)
+            for name in (
+                'crates/botge/src/main.rs',
+                'Cargo.toml',
+                'Cargo.lock',
+                'rust-toolchain.toml',
+            ):
                 (root / name).write_text('fixture')
             previous = Path.cwd()
             try:
                 os.chdir(root)
                 first = bench.fingerprint()
-                (root / 'src/main.rs').write_text('changed')
+                (root / 'crates/botge/src/main.rs').write_text('changed')
                 self.assertNotEqual(first, bench.fingerprint())
                 output = root / 'record.json'
 

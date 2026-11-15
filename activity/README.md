@@ -43,8 +43,8 @@ The Activity suite covers the browser and Worker without running the bot. Covera
 `coverage/activity/`, with a 90% minimum for statements, branches, functions, and lines per runtime
 source file. Declaration-only `.d.ts` files have no runtime code and are excluded. The root
 `npm run test:coverage` command applies the same gate to repository tooling and the Activity. Rust
-API tests live beside [the API implementation](../src/activity/tests.rs). See the
-[test guide](../tests/README.md).
+API tests live beside [the API implementation](../crates/botge-activity/src/activity/tests.rs). See
+the [test guide](../tests/README.md).
 
 API calls are queued. `/auth` exchanges one OAuth code for an access token, then the browser
 authenticates the Discord SDK and keeps the token in memory until shortly before expiry. API

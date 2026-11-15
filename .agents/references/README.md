@@ -24,11 +24,13 @@ design history. Avoid tests that merely repeat definitions.
 
 Botge exceptions/applicability:
 
-- One unpublished executable: exported-library API compatibility, public trait completeness,
-  stable-library compiler support, and workspace inheritance rules do not currently apply.
-- No authored macros, FFI ABI, native-handle wrappers, custom collections, or Cargo features: their
-  corresponding authoring rules have no surface here. Reassess when introducing one.
-- Tests use `cfg(test)` rather than a shipped `test-util` feature; production excludes fixtures.
+- One unpublished executable and private workspace libraries: workspace dependency/lint inheritance
+  and explicit public library contracts apply. Published-library compatibility and stable-library
+  compiler support are not promised.
+- No authored macros, FFI ABI, native-handle wrappers, custom collections or production Cargo
+  features: their corresponding authoring rules have no surface here. Reassess when introducing one.
+- Unit tests use `cfg(test)`. Explicit `test-util` features expose isolated fixtures to other
+  workspace tests; normal production dependencies must not enable them.
 - Portable AMD64/ARM64 images retain generic CPU targets; stronger targets require host guarantees.
 - Two-space indentation is intentional. Explicit internal `Arc` sharing and Tokio are intentional;
   no public runtime-independent library is promised. Default hashers protect untrusted keys.
@@ -46,3 +48,23 @@ Start with the [compact Python baseline](python/README.md) and its [audit](pytho
 8/257, Google Python, Python typing/modernization, Microsoft review guidance and selectively
 applicable Azure SDK guidance. Source snapshots and licenses use the same ignored cache and pinned
 manifest. Project exceptions and remaining verification gaps are explicit in that baseline.
+
+## Workspace review (2026-11-15)
+
+All crates, including the executable, are siblings under `crates/`; the root is a virtual workspace.
+
+Light review after the crate split: shared metadata/dependency versions/lints, sibling layout,
+authorization and storage ownership, safe async/blocking boundaries, bounded work, public Rustdoc,
+redacted debugging, error interoperability, and fixture isolation were checked. Re-exports of owned
+items inline their documentation. Application access failures implement standard error/display
+traits while preserving sanitized messages.
+
+Retained choices: these private libraries build one application and use `anyhow`, Tokio, URL and
+narrow sibling types directly. The application's `Catalog`/`Layer` exports form its small service
+facade rather than a compatibility tree; consumers otherwise import owning crates. Access failure
+categories are an internal adapter protocol, not a published extensible error API; expected denials
+retain static messages without a separate backtrace. `Arc` sharing is explicit rather than adding
+clone-handle wrappers. HTTP-client statics cache connections, not business state. Trait methods use
+return-position `impl Future + Send` to state the executor requirement. Lifecycle tests need private
+binary wiring; public CLI/dependency integration tests remain under `tests/`. Performance claims
+remain limited to measured targets. This review is not a claim of blanket guideline compliance.

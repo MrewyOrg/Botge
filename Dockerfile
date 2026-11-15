@@ -1,5 +1,5 @@
 # check=error=true
-# cspell:words lavfi nostdin pkgconf tmpfs trixie webp xerror
+# cspell:words lavfi pkgconf xerror
 
 FROM dhi.io/alpine-base:3.24-dev@sha256:266554e75cb00f88effe4048ba78b6f628d6a5ca67ac9e9727ae37a4a1299ce5 AS runtime-tools
 WORKDIR /app
@@ -33,20 +33,29 @@ RUN toolchain=$(sed -n "s/^channel = '\(.*\)'$/\1/p" rust-toolchain.toml) \
   && printf '[build]\ntarget = "%s"\n[target.%s]\nlinker = "musl-gcc"\n' "$target" "$target" > .cargo/config.toml \
   && printf '%s' "$target" > /rust-target
 
-COPY Cargo.toml Cargo.lock ./
+COPY --parents Cargo.toml Cargo.lock crates/*/Cargo.toml ./
 
 # Cache dependencies in image layers: external caches do not preserve cache-mount contents.
 # The placeholder keeps this layer independent of application source changes.
-RUN mkdir src \
-  && printf '%s\n' '#![doc = "Dependency build placeholder."]' 'fn main() {}' > src/main.rs \
+RUN for manifest in crates/*/Cargo.toml; do \
+    directory=${manifest%/Cargo.toml}; \
+    mkdir -p "$directory/src"; \
+    case "$directory" in \
+      crates/botge) printf '%s\n' '#![doc = "Dependency build placeholder."]' 'fn main() {}' > "$directory/src/main.rs" ;; \
+      *) printf '%s\n' '//! Dependency build placeholder.' > "$directory/src/lib.rs" ;; \
+    esac; \
+  done \
   && cargo fetch --locked
 
 RUN --network=none cargo build --release --frozen
 
 FROM build-deps AS build
-COPY src ./src
+COPY crates ./crates
 # Let Cargo remove the placeholder's artifacts without relying on its internal directory layout.
-RUN --network=none cargo clean --release --package botge \
+RUN --network=none for manifest in crates/*/Cargo.toml; do \
+    package=${manifest#crates/}; package=${package%/Cargo.toml}; \
+    cargo clean --release --package "$package" || exit; \
+  done \
   && cargo build --release --frozen && cp "target/$(cat /rust-target)/release/botge" /botge
 
 FROM dhi.io/alpine-base:3.24@sha256:7b06d747fcb428a0699679955e903b13322c92c79d94ce94c108634f13a714f1 AS botge

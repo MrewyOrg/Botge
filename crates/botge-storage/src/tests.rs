@@ -1,0 +1,343 @@
+//! Exercises persistence, malformed data, and atomic updates in temporary redb databases.
+
+#![expect(
+  clippy::missing_errors_doc,
+  reason = "Fixture failures and assertion panics describe test failures"
+)]
+#![cfg_attr(
+  test,
+  expect(
+    clippy::missing_panics_doc,
+    reason = "Assertion panics describe fixture failures"
+  )
+)]
+
+#[cfg(test)]
+use std::{assert_matches, sync::Barrier, thread};
+
+#[cfg(test)]
+use super::*;
+#[cfg(not(test))]
+use super::{NonZeroU64, Result, Store, TableDefinition, VOICE_SETTINGS};
+
+mod faults;
+
+impl Store {
+  /// Restores the voice table after a fixture deliberately replaced its schema.
+  pub fn restore_voice_table(&self) -> Result<()> {
+    let transaction = self.0.begin_write()?;
+    transaction.delete_table(TableDefinition::<u32, u64>::new("voice_settings"))?;
+    transaction.open_table(VOICE_SETTINGS)?;
+    transaction.commit()?;
+    Ok(())
+  }
+  /// Replaces a temporary database table with an incompatible schema for failure-path tests.
+  pub fn invalidate_table(&self, name: &str) -> Result<()> {
+    let transaction = self.0.begin_write()?;
+    transaction.delete_table(TableDefinition::<NonZeroU64, &str>::new(name))?;
+    transaction.open_table(TableDefinition::<u32, u64>::new(name))?;
+    transaction.commit()?;
+    Ok(())
+  }
+}
+
+#[test]
+fn rejects_malformed_backups_and_full_catalogs_without_changing_saved_data() -> Result<()> {
+  let directory = tempfile::tempdir()?;
+  for (index, definition) in [VOICE_SETTINGS, GUILD_EMOTES, ADDED_EMOTES]
+    .into_iter()
+    .enumerate()
+  {
+    let path = directory.path().join(format!("invalid-{index}.redb"));
+    {
+      let store = Store::open(&path)?;
+      let transaction = store.0.begin_write()?;
+      transaction
+        .open_table(definition)?
+        .insert(NonZeroU64::MIN, "not JSON")?;
+      transaction.commit()?
+    };
+    std::assert_matches!(verify_backup(&path), Err(_));
+  }
+  let store = Store::open(&directory.path().join("full.redb"))?;
+  let entries: Vec<_> = (0..1000)
+    .map(|index| botge_test_support::example(&format!("Emote{index}"), &index.to_string()))
+    .collect();
+  let transaction = store.0.begin_write()?;
+  transaction
+    .open_table(ADDED_EMOTES)?
+    .insert(NonZeroU64::MIN, serde_json::to_string(&entries)?.as_str())?;
+  transaction.commit()?;
+  assert!(!store.add_emote(
+    NonZeroU64::MIN,
+    botge_test_support::example("Overflow", "1001")
+  )?);
+  assert_eq!(store.added_emotes(NonZeroU64::MIN)?, entries);
+  Ok(())
+}
+
+#[test]
+fn offline_backup_is_readable_and_restores_saved_data() -> Result<()> {
+  let directory = tempfile::tempdir()?;
+  let source = directory.path().join("source.redb");
+  let backup = directory.path().join("backup.redb");
+  std::assert_matches!(verify_backup(&source), Err(_));
+  assert!(!source.exists());
+  {
+    let store = Store::open(&source)?;
+    store.save_emote_border(NonZeroU64::MIN, Some(0x0012_3456))?;
+    store.save_voice_settings(NonZeroU64::MIN, &VoiceSettings::default())?;
+    store.save_guild_emotes(NonZeroU64::MIN, &GuildEmotes::default())?
+  };
+  std::fs::copy(&source, &backup)?;
+  let bytes = std::fs::read(&backup)?;
+  verify_backup(&backup)?;
+  assert_eq!(std::fs::read(&backup)?, bytes);
+  let restored = Store::open(&backup)?;
+  assert_eq!(restored.emote_border(NonZeroU64::MIN)?, Some(0x0012_3456));
+  drop(restored);
+  std::fs::write(&backup, "not a database")?;
+  std::assert_matches!(verify_backup(&backup), Err(_));
+  Ok(())
+}
+
+#[test]
+fn refuses_invalid_paths_and_incompatible_database_schemas() -> Result<()> {
+  use redb::TableHandle as _;
+
+  let dir = tempfile::tempdir()?;
+  assert_matches!(Store::open(dir.path()), Err(_));
+  let guild = NonZeroU64::MIN;
+  for name in [
+    VOICE_SETTINGS.name(),
+    GUILD_EMOTES.name(),
+    ADDED_EMOTES.name(),
+    EMOTE_BORDERS.name(),
+  ] {
+    let path = dir.path().join(format!("{name}.redb"));
+    {
+      let database = Database::create(&path)?;
+      let transaction = database.begin_write()?;
+      transaction.open_table(TableDefinition::<u32, u64>::new(name))?;
+      transaction.commit()?
+    };
+    assert_matches!(Store::open(&path), Err(_));
+    let store = Store(Database::open(&path)?);
+    match name {
+      "voice_settings" => {
+        assert_matches!(store.voice_settings(guild), Err(_));
+        assert_matches!(store.all_voice_settings(), Err(_));
+        std::assert_matches!(
+          store.save_voice_settings(guild, &VoiceSettings::default()),
+          Err(_)
+        );
+      }
+      "guild_emotes" => {
+        assert_matches!(store.guild_emotes(guild), Err(_));
+        std::assert_matches!(
+          store.save_guild_emotes(guild, &GuildEmotes::default()),
+          Err(_)
+        );
+      }
+      "added_emotes" => {
+        assert_matches!(store.added_emotes(guild), Err(_));
+        assert_matches!(store.remove_emote(guild, "1"), Err(_));
+      }
+      "emote_borders" => {
+        assert_matches!(store.emote_border(guild), Err(_));
+        std::assert_matches!(store.save_emote_border(guild, Some(1)), Err(_));
+      }
+      _ => anyhow::bail!("unexpected test table {name}"),
+    }
+  }
+  Ok(())
+}
+
+#[test]
+fn reports_malformed_rows_without_replacing_them() -> Result<()> {
+  let dir = tempfile::tempdir()?;
+  let store = Store::open(&dir.path().join("botge.redb"))?;
+  let guild = NonZeroU64::MIN;
+  let transaction = store.0.begin_write()?;
+  for table in [VOICE_SETTINGS, GUILD_EMOTES, ADDED_EMOTES] {
+    transaction
+      .open_table(table)?
+      .insert(guild, "invalid JSON")?;
+  }
+  transaction.commit()?;
+
+  assert_matches!(store.voice_settings(guild), Err(_));
+  assert_matches!(store.all_voice_settings(), Err(_));
+  assert_matches!(store.guild_emotes(guild), Err(_));
+  assert_matches!(store.added_emotes(guild), Err(_));
+  assert_matches!(store.remove_emote(guild, "1"), Err(_));
+  assert_matches!(store.added_emotes(guild), Err(_));
+  Ok(())
+}
+
+#[test]
+fn saves_replaces_and_reopens_guild_settings() -> Result<()> {
+  let dir = tempfile::tempdir()?;
+  let path = dir.path().join("botge.redb");
+  let first = NonZeroU64::MIN;
+  let second = NonZeroU64::MAX;
+  let selected = VoiceSettings {
+    channel_id: Some("123".into()),
+    status_emoji: Some("<:botge:456>".into()),
+    status_enabled: true,
+  };
+  {
+    let store = Store::open(&path)?;
+    assert_eq!(store.voice_settings(first)?, VoiceSettings::default());
+    store.save_voice_settings(first, &selected)?;
+    store.save_voice_settings(second, &VoiceSettings::default())?;
+    assert_eq!(
+      store.all_voice_settings()?,
+      vec![
+        (first, selected.clone()),
+        (second, VoiceSettings::default())
+      ]
+    )
+  };
+
+  let store = Store::open(&path)?;
+  assert_eq!(store.voice_settings(first)?, selected);
+  store.save_voice_settings(
+    first,
+    &VoiceSettings {
+      channel_id: None,
+      ..selected
+    },
+  )?;
+  assert_eq!(store.voice_settings(first)?.channel(), None);
+  assert!(store.voice_settings(first)?.status_enabled);
+  Ok(())
+}
+
+#[test]
+fn rejects_invalid_settings_without_replacing_the_saved_row() -> Result<()> {
+  let dir = tempfile::tempdir()?;
+  let store = Store::open(&dir.path().join("botge.redb"))?;
+  let guild = NonZeroU64::MIN;
+  let original = VoiceSettings::default();
+  store.save_voice_settings(guild, &original)?;
+  std::assert_matches!(
+    store.save_voice_settings(
+      guild,
+      &VoiceSettings {
+        channel_id: Some("0".into()),
+        ..VoiceSettings::default()
+      }
+    ),
+    Err(_)
+  );
+  assert_eq!(store.voice_settings(guild)?, original);
+  Ok(())
+}
+
+#[test]
+fn persists_emote_settings_and_added_emotes_with_atomic_duplicate_checks() -> Result<()> {
+  let dir = tempfile::tempdir()?;
+  let store = Store::open(&dir.path().join("botge.redb"))?;
+  let guild = NonZeroU64::MIN;
+  let other = NonZeroU64::MAX;
+  assert_eq!(store.guild_emotes(guild)?, GuildEmotes::default());
+  let mut settings = GuildEmotes {
+    allow_everyone: true,
+    ..GuildEmotes::default()
+  };
+  store.save_guild_emotes(guild, &settings)?;
+  assert_eq!(store.guild_emotes(guild)?, settings);
+  settings.seven_tv_set = Some("invalid".into());
+  std::assert_matches!(store.save_guild_emotes(guild, &settings), Err(_));
+  let first = botge_test_support::example("Wave", "1");
+  assert!(store.add_emote(guild, first.clone())?);
+  assert!(!store.add_emote(guild, botge_test_support::example("wave", "2"))?);
+  assert!(!store.add_emote(guild, botge_test_support::example("Other", "1"))?);
+  let added = store.added_emotes(other)?;
+  assert!(added.is_empty(), "unexpected added emotes: {added:?}");
+  assert_eq!(store.added_emotes(guild)?, vec![first]);
+  assert!(store.remove_emote(guild, "1")?);
+  assert!(!store.remove_emote(guild, "1")?);
+  let added = store.added_emotes(guild)?;
+  assert!(added.is_empty(), "unexpected added emotes: {added:?}");
+  Ok(())
+}
+
+#[test]
+fn concurrent_adds_keep_distinct_emotes_and_reject_duplicate_names() -> Result<()> {
+  let dir = tempfile::tempdir()?;
+  let store = Store::open(&dir.path().join("botge.redb"))?;
+  let guild = NonZeroU64::MIN;
+  // Release all three writers together to exercise duplicate detection under contention.
+  let start = Barrier::new(3);
+
+  thread::scope(|scope| -> Result<()> {
+    let add = |name, id| {
+      let start = &start;
+      let store = &store;
+      scope.spawn(move || {
+        start.wait();
+        store.add_emote(guild, botge_test_support::example(name, id))
+      })
+    };
+    let first = add("Wave", "1");
+    let duplicate = add("wave", "2");
+    let distinct = add("Other", "3");
+    let first = first
+      .join()
+      .map_err(|_error| anyhow::anyhow!("writer panicked"))??;
+    let duplicate = duplicate
+      .join()
+      .map_err(|_error| anyhow::anyhow!("writer panicked"))??;
+    assert_ne!(first, duplicate);
+    assert!(
+      distinct
+        .join()
+        .map_err(|_error| anyhow::anyhow!("writer panicked"))??
+    );
+
+    let mut ids: Vec<_> = store
+      .added_emotes(guild)?
+      .into_iter()
+      .map(|emote| emote.id)
+      .collect();
+    ids.sort_unstable();
+    assert_eq!(ids, [if first { "1" } else { "2" }, "3"]);
+    Ok(())
+  })
+}
+
+#[test]
+fn rejects_json_encoding_failures_before_replacing_a_saved_row() -> Result<()> {
+  let directory = tempfile::tempdir()?;
+  let store = Store::open(&directory.path().join("serialize.redb"))?;
+  let saved = VoiceSettings {
+    status_emoji: Some("saved".into()),
+    ..VoiceSettings::default()
+  };
+  store.save_voice_settings(NonZeroU64::MIN, &saved)?;
+  let invalid_keys = std::collections::BTreeMap::from([(vec![1u8, 2], "unsupported key")]);
+  std::assert_matches!(
+    store.save_json(VOICE_SETTINGS, NonZeroU64::MIN, &invalid_keys),
+    Err(_)
+  );
+  assert_eq!(store.voice_settings(NonZeroU64::MIN)?, saved);
+  Ok(())
+}
+
+#[test]
+fn rejects_a_backup_with_a_missing_border_table_without_recreating_it() -> Result<()> {
+  let directory = tempfile::tempdir()?;
+  let path = directory.path().join("missing-border.redb");
+  {
+    let store = Store::open(&path)?;
+    let transaction = store.0.begin_write()?;
+    assert!(transaction.delete_table(EMOTE_BORDERS)?);
+    transaction.commit()?
+  };
+  let before = std::fs::read(&path)?;
+  std::assert_matches!(verify_backup(&path), Err(_));
+  assert_eq!(std::fs::read(&path)?, before);
+  Ok(())
+}

@@ -47,8 +47,10 @@ deviations in the reference README; do not claim blanket compliance.
 - Validate external input at boundaries; preserve provider opt-ins and verify membership/permissions
   before writes. Bound requests/rendering. Keep Discord/Axum in adapters and redb transactions in
   storage; run blocking database work off the async executor. Benchmark performance changes.
-- Test observable behavior, especially denial, concurrent updates and reconnects. Private unit tests
-  live beside modules in `tests.rs`; executable integration suites live under `tests/`.
+- Test observable behavior, especially denial, concurrent updates and reconnects. Within each test
+  file, put imports and local fixtures/helpers before related scenario groups; keep setup, action
+  and observable assertions readable. Private unit tests live beside modules in `tests.rs`;
+  executable integration suites live under `tests/`.
 - Align runtime defaults, schemas, examples and documentation. New environment options go in
   `.env.example`. Keep dependencies, CI, Docker, tests and docs aligned when modernizing.
 
@@ -94,11 +96,11 @@ Use the [test guide](tests/README.md) and
 unavailable checks. Coverage already executes tests; avoid duplicating successful suites without a
 new change or unresolved concern.
 
-- Rust: `sh scripts/check-rust.sh static` checks formatting, Clippy, private Rustdoc, feature
-  combinations and unused dependencies. Select `coverage`, `miri`, or `bench` explicitly for those
-  scopes. Use filtered `cargo test --locked` for focused iteration. Miri covers pure Rust; normal
-  coverage retains native integrations/stress fixtures. Pinned tools/setup: test guide.
-- Rust coverage: at least 90% branches, lines, functions and regions in every source file. Fixtures
+- Rust: `sh scripts/check-rust.sh static` checks formatting, Clippy, private Rustdoc/doctests,
+  feature combinations and unused dependencies. Select `coverage`, `miri`, or `bench` explicitly for
+  those scopes. Use filtered `cargo test --locked` for focused iteration. Miri covers pure Rust;
+  normal coverage retains native integrations/stress fixtures. Pinned tools/setup: test guide.
+- Rust coverage: at least 95% branches, lines, functions and regions in every source file. Fixtures
   use loopback providers/Discord, temporary redb and FFmpeg 9+ with libwebp/FFprobe.
 - TypeScript: `npm run check` or `npm run check:static` plus `npm run test:coverage` when coverage
   applies. Enforce 90% statements/branches/functions/lines per runtime source file. Activity-only:
@@ -111,17 +113,19 @@ new change or unresolved concern.
 
 ## Source map
 
-- `src/main.rs`: lifecycle/configuration; `config.rs`: operator/provider opt-ins.
-- `commands.rs`/`commands/`: dispatch, compose, prefix, autocomplete, shortcuts, registration,
-  clear.
-- `discord.rs`: gateway events, OAuth identity, guild permissions; `proxy.rs`: proxy signatures.
-- `activity.rs`/`activity/`: Axum state/auth/limits; voice, catalog and personal-border routes.
-- `emotes/`: providers/snapshots/7TV events and bounded rendering. Normalization lives in
-  `providers/normalization.rs`; layout, probing and WebP timing in `rendering/`.
-- `storage.rs`: redb transactions; `voice.rs`: saved settings/gateway reconciliation.
-- `activity/`: browser/Worker [workspace guide](activity/README.md). `src/index.ts` wires the
-  browser; catalog/composer/settings features have matching tests; `activity-api.ts` queues OAuth.
-  Root Vitest runs Activity and tooling projects.
-- `Dockerfile`: Rust image; `compose.yaml`: bot/nginx; `compose.build.yaml`: local build;
-  `compose.activity.yaml`: loopback API. Read [control guide](botge_control/README.md) before
+- `crates/botge/src/main.rs`: configuration, lifecycle, health and concrete dependency wiring.
+- `crates/botge-domain`: shared records, canonical IDs, validation, matching and catalog rules.
+- `crates/botge-storage`: redb schema and synchronous transactions; no adapter dependencies.
+- `crates/botge-emotes`: providers, snapshots, 7TV events and bounded rendering; no persistence.
+- `crates/botge-app`: authorization, state coordination, batch mutations and composition admission.
+- `crates/botge-discord`: commands, gateway and Discord access capability implementation.
+- `crates/botge-activity`: Axum routes, signed proxy input and HTTP response mapping.
+- `crates/botge-voice`: Songbird reconciliation through the application settings-source capability.
+- `crates/botge-test-support`: development-only loopback, media and log fixtures. Keep fixture
+  features disabled on production dependencies. The [workspace guide](crates/README.md) owns the
+  dependency policy; `crates/botge/tests/architecture.rs` enforces it.
+- `activity/`: browser/Worker [workspace guide](activity/README.md). Root Vitest runs Activity and
+  tooling projects. Python helpers use the root setup and shared checks in `scripts/`.
+- `Dockerfile`: DHI Rust workspace image; `compose.yaml`: bot/nginx; `compose.build.yaml`: local
+  build; `compose.activity.yaml`: loopback API. Read [control guide](botge_control/README.md) before
   deployment tooling changes.

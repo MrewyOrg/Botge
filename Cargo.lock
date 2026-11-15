@@ -230,17 +230,24 @@ dependencies = [
 
 [[package]]
 name = "botge"
-version = "5.3.0"
+version = "5.4.0"
 dependencies = [
  "anyhow",
  "axum",
  "base64 0.23.1",
+ "botge-activity",
+ "botge-app",
+ "botge-discord",
+ "botge-domain",
+ "botge-emotes",
+ "botge-storage",
+ "botge-test-support",
+ "botge-voice",
  "ed25519-dalek 3.0.0",
  "futures-util",
  "hex",
  "jsonc-parser",
  "mimalloc",
- "redb",
  "reqwest 0.13.5",
  "rustls 0.23.46",
  "serde",
@@ -250,9 +257,159 @@ dependencies = [
  "tempfile",
  "tokio",
  "tokio-tungstenite 0.30.0",
- "tower",
  "tracing",
  "tracing-subscriber",
+]
+
+[[package]]
+name = "botge-activity"
+version = "5.4.0"
+dependencies = [
+ "anyhow",
+ "axum",
+ "base64 0.23.1",
+ "botge-app",
+ "botge-discord",
+ "botge-domain",
+ "botge-storage",
+ "botge-test-support",
+ "ed25519-dalek 3.0.0",
+ "hex",
+ "mimalloc",
+ "reqwest 0.13.5",
+ "rustls 0.23.46",
+ "serde",
+ "serde_json",
+ "serenity",
+ "tempfile",
+ "tokio",
+ "tower",
+]
+
+[[package]]
+name = "botge-app"
+version = "5.4.0"
+dependencies = [
+ "anyhow",
+ "axum",
+ "botge-domain",
+ "botge-emotes",
+ "botge-storage",
+ "botge-test-support",
+ "futures-util",
+ "mimalloc",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "tokio",
+ "tokio-tungstenite 0.30.0",
+ "tracing",
+ "url",
+]
+
+[[package]]
+name = "botge-discord"
+version = "5.4.0"
+dependencies = [
+ "anyhow",
+ "axum",
+ "botge-app",
+ "botge-domain",
+ "botge-storage",
+ "botge-test-support",
+ "futures-util",
+ "mimalloc",
+ "reqwest 0.13.5",
+ "serde",
+ "serde_json",
+ "serenity",
+ "tempfile",
+ "tokio",
+ "tracing",
+ "tracing-subscriber",
+]
+
+[[package]]
+name = "botge-domain"
+version = "5.4.0"
+dependencies = [
+ "anyhow",
+ "mimalloc",
+ "serde",
+ "serde_json",
+ "url",
+]
+
+[[package]]
+name = "botge-emotes"
+version = "5.4.0"
+dependencies = [
+ "anyhow",
+ "axum",
+ "base64 0.23.1",
+ "botge-domain",
+ "botge-test-support",
+ "futures-util",
+ "mimalloc",
+ "reqwest 0.13.5",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "tokio",
+ "tokio-tungstenite 0.30.0",
+ "tracing",
+]
+
+[[package]]
+name = "botge-storage"
+version = "5.4.0"
+dependencies = [
+ "anyhow",
+ "botge-domain",
+ "botge-test-support",
+ "mimalloc",
+ "redb",
+ "serde",
+ "serde_json",
+ "tempfile",
+]
+
+[[package]]
+name = "botge-test-support"
+version = "5.4.0"
+dependencies = [
+ "anyhow",
+ "axum",
+ "base64 0.23.1",
+ "botge-domain",
+ "log",
+ "mimalloc",
+ "reqwest 0.13.5",
+ "serde_json",
+ "serenity",
+ "tokio",
+ "tracing",
+ "tracing-subscriber",
+]
+
+[[package]]
+name = "botge-voice"
+version = "5.4.0"
+dependencies = [
+ "anyhow",
+ "axum",
+ "botge-app",
+ "botge-domain",
+ "botge-storage",
+ "botge-test-support",
+ "mimalloc",
+ "serde",
+ "serde_json",
+ "serenity",
+ "songbird",
+ "tempfile",
+ "tokio",
+ "tracing",
 ]
 
 [[package]]

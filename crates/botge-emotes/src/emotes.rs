@@ -1,0 +1,100 @@
+// cspell:words replacen
+
+//! Provider fetching, shared snapshots and bounded rendering, independent of persistence.
+
+pub mod catalog;
+mod providers;
+pub mod rendering;
+
+use anyhow::Result;
+use botge_domain::{
+  emotes::{Emote, GuildEmotes, Source, cdn_url, safe_id, valid_seven_id},
+  providers::Providers,
+};
+use catalog::Catalog;
+use providers::ProviderClient;
+use std::sync::Arc;
+
+/// Provider clients and immutable feed snapshots shared by application operations.
+pub struct Emotes {
+  policy: Providers,
+  client: Arc<ProviderClient>,
+  events: std::borrow::Cow<'static, str>,
+}
+
+impl Emotes {
+  /// Creates bounded provider clients without contacting the network.
+  ///
+  /// # Errors
+  ///
+  /// Returns an error if the shared HTTP client cannot be initialized.
+  pub fn new(policy: Providers, twitch: Option<(String, String)>) -> Result<Self> {
+    Ok(Self {
+      policy,
+      client: Arc::new(ProviderClient::new(twitch)?),
+      events: std::borrow::Cow::Borrowed("wss://events.7tv.io/v3"),
+    })
+  }
+
+  /// Resolves enabled feeds after the application supplies persisted guild state.
+  pub async fn catalog(
+    &self,
+    settings: &GuildEmotes,
+    added: Vec<Emote>,
+    timeout: Option<std::time::Duration>,
+  ) -> Catalog {
+    Catalog::new(
+      added,
+      self.client.catalog(self.policy, settings, timeout).await,
+    )
+  }
+
+  /// Reports whether operator policy permits individual additions.
+  #[must_use]
+  pub const fn added_emotes_enabled(&self) -> bool {
+    self.policy.seven_added
+  }
+
+  /// Fetches an enabled, validated individual addition.
+  ///
+  /// # Errors
+  ///
+  /// Returns provider transport or decoding errors; invalid IDs and disabled additions yield none.
+  pub async fn fetch_added(&self, id: &str) -> Result<Option<Emote>> {
+    if !self.policy.seven_added || !valid_seven_id(id) {
+      return Ok(None);
+    }
+    self.client.added(id).await
+  }
+
+  /// Watches enabled 7TV sets until the worker is cancelled.
+  pub async fn watch_sets(&self) {
+    self.client.watch_sets(&self.events).await;
+  }
+
+  /// Shares the bounded HTTP client with renderer operations.
+  #[must_use]
+  pub fn http(&self) -> &reqwest::Client {
+    self.client.http()
+  }
+
+  /// Redirects provider requests to an isolated loopback fixture before sharing the service.
+  #[cfg(any(test, feature = "test-util"))]
+  pub fn use_provider_fixture(&mut self, origin: reqwest::Url) {
+    if let Some(client) = Arc::get_mut(&mut self.client) {
+      self.events = std::borrow::Cow::Owned(origin.as_str().replacen("http", "ws", 1));
+      client.test_origin = Some(origin);
+    }
+  }
+}
+
+impl std::fmt::Debug for Emotes {
+  fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    f.debug_struct("Emotes")
+      .field("policy", &self.policy)
+      .finish_non_exhaustive()
+  }
+}
+
+#[cfg(test)]
+mod tests;
