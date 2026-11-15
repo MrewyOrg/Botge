@@ -45,7 +45,8 @@ pub struct DiscordAccess {
   secret: String,
   bot_user: UserId,
   http: Arc<Http>,
-  oauth_http: &'static reqwest::Client,
+  // Shared connection settings only; credentials belong to individual requests.
+  transport: &'static reqwest::Client,
 }
 
 impl DiscordAccess {
@@ -55,13 +56,13 @@ impl DiscordAccess {
   ///
   /// Returns an error if the shared Discord HTTP client cannot be initialized.
   pub fn new(oauth: OAuthClient, bot_user: UserId, http: Arc<Http>) -> anyhow::Result<Self> {
-    let oauth_http = discord_client()?;
+    let transport = discord_client()?;
     Ok(Self {
       application_id: oauth.application_id,
       secret: oauth.secret,
       bot_user,
       http,
-      oauth_http,
+      transport,
     })
   }
 
@@ -80,7 +81,7 @@ impl DiscordAccess {
     }
     let application_id = self.application_id.to_string();
     let request = self
-      .oauth_http
+      .transport
       .post("https://discord.com/api/v10/oauth2/token")
       .form(&[
         ("client_id", application_id.as_str()),
@@ -141,7 +142,7 @@ impl DiscordAccess {
       Credential::AccessToken(token) => token.clone(),
     };
     let request = self
-      .oauth_http
+      .transport
       .get("https://discord.com/api/v10/users/@me")
       .bearer_auth(token)
       .build()
@@ -170,7 +171,7 @@ impl DiscordAccess {
   async fn send_oauth(&self, request: reqwest::Request) -> Result<reqwest::Response, ApiError> {
     #[cfg(any(test, feature = "test-util"))]
     let request = crate::test_support::redirect_oauth(request, self.http.proxy.as_deref())?;
-    self.oauth_http.execute(request).await.map_err(oauth_error)
+    self.transport.execute(request).await.map_err(oauth_error)
   }
 }
 

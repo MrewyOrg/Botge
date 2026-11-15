@@ -442,6 +442,44 @@ async fn forwards_oauth_diagnostics_to_legacy_logging_without_secrets() -> anyho
       Err(_)
     );
   }
+  let server = TestServer::start(
+    Router::new()
+      .route(
+        "/api/v10/oauth2/token",
+        post(|body: String| async move {
+          assert!(body.contains("client_secret=never-print-this-secret"));
+          assert!(body.contains("code=never-print-this-code"));
+          Json(json!({"access_token":"never-print-this-token","expires_in":3600}))
+        }),
+      )
+      .route(
+        "/api/v10/users/@me",
+        get(|headers: axum::http::HeaderMap| async move {
+          assert_eq!(
+            headers
+              .get("authorization")
+              .and_then(|value| value.to_str().ok()),
+            Some("Bearer never-print-this-token")
+          );
+          Json(user("2"))
+        }),
+      ),
+  )
+  .await?;
+  let access = DiscordAccess::new(
+    OAuthClient {
+      application_id: NonZeroU64::MIN,
+      secret: "never-print-this-secret".into(),
+    },
+    UserId::new(42),
+    Arc::new(http_for(&server)),
+  )?;
+  assert_eq!(
+    access
+      .identify(&Credential::Code("never-print-this-code".into()))
+      .await?,
+    UserId::new(2)
+  );
   let text = logs.text()?;
   assert!(text.contains("Discord rejected the Activity OAuth client"));
   assert!(text.contains("Discord rejected the Activity OAuth code"));
