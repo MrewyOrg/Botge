@@ -22,9 +22,9 @@ ENV PATH="${CARGO_HOME}/bin:${PATH}"
 
 FROM build-tools AS build-deps
 ARG TARGETARCH
-COPY rust-toolchain.toml ./
-# Keep the shared channel but omit development and coverage components in the builder.
-RUN toolchain=$(sed -n "s/^channel = '\(.*\)'$/\1/p" rust-toolchain.toml) \
+COPY Cargo.toml ./
+# Build with the stable workspace rust-version; development checks keep the pinned nightly.
+RUN toolchain=$(sed -n "s/^rust-version = '\(.*\)'$/\1/p" Cargo.toml) \
   && test -n "$toolchain" \
   && printf "[toolchain]\nchannel = '%s'\nprofile = 'minimal'\n" "$toolchain" > rust-toolchain.toml \
   && case "$TARGETARCH" in amd64) target=x86_64-unknown-linux-musl ;; arm64) target=aarch64-unknown-linux-musl ;; *) exit 1 ;; esac \
@@ -71,6 +71,9 @@ LABEL org.opencontainers.image.authors="Mrewy" \
   org.opencontainers.image.url="https://github.com/MrewyOrg/Botge" \
   org.opencontainers.image.vendor="MrewyOrg"
 
+# Alpine edge keeps only its newest build, so this pin fails the build when edge moves on.
+# Update it deliberately, then rerun the animated WebP smoke check below.
+ARG FFMPEG_VERSION=9.0.2-r3
 # Install packages without adding APK itself to the runtime image.
 RUN --mount=from=runtime-tools,source=/sbin/apk.static,target=/sbin/apk.static \
   apk.static upgrade --no-cache \
@@ -78,15 +81,15 @@ RUN --mount=from=runtime-tools,source=/sbin/apk.static,target=/sbin/apk.static \
     '@edge https://dl-cdn.alpinelinux.org/alpine/edge/main' \
     '@edge https://dl-cdn.alpinelinux.org/alpine/edge/community' \
     >> /etc/apk/repositories \
-  && apk.static add --no-cache ca-certificates opus ffmpeg@edge \
-  && addgroup -S -g 1000 node \
-  && adduser -S -D -H -u 1000 -G node node \
-  && install -d -m 0700 -o node -g node /app/data
+  && apk.static add --no-cache ca-certificates opus "ffmpeg@edge=${FFMPEG_VERSION}" \
+  && addgroup -S -g 1000 botge \
+  && adduser -S -D -H -u 1000 -G botge botge \
+  && install -d -m 0700 -o botge -g botge /app/data
 
 COPY --from=build --chmod=0555 /botge /app/botge
 COPY LICENSE.txt /app/
 
-USER node:node
+USER botge:botge
 # Exercise animated WebP under the runtime user and discard the fixture with the temporary mount.
 RUN --network=none \
   --mount=type=tmpfs,target=/tmp \

@@ -5,8 +5,9 @@ on:
     - cron: '49 12 * * 1'
   push:
     branches: [main]
+  # PRs into dev are Dependabot updates; every change still reaches main through a PR.
   pull_request:
-    branches: [dev, main]
+    branches: [main]
   workflow_dispatch:
 
 permissions:

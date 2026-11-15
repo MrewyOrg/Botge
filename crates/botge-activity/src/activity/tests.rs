@@ -109,6 +109,7 @@ pub(super) struct Fixture {
   pub(super) store: Arc<Store>,
   pub(super) changed: Arc<Notify>,
   pub(super) membership_calls: Arc<AtomicUsize>,
+  pub(super) application: Arc<Application>,
   router: Router,
   key: SigningKey,
 }
@@ -126,6 +127,7 @@ impl Fixture {
       )?),
       voice_changed: Arc::clone(&self.changed),
       slots: Semaphore::new(8),
+      sessions: Sessions::default(),
       now: unix_seconds,
     })
   }
@@ -155,7 +157,7 @@ impl Fixture {
     let application = Arc::new(application);
     let membership_calls = Arc::new(AtomicUsize::new(0));
     let router = router(
-      application,
+      Arc::clone(&application),
       Arc::clone(&changed),
       proxy,
       TestAccess(Arc::clone(&membership_calls)),
@@ -165,6 +167,7 @@ impl Fixture {
       store,
       changed,
       membership_calls,
+      application,
       router,
       key,
     })
@@ -218,6 +221,43 @@ impl Fixture {
   }
 }
 
+impl Fixture {
+  /// Posts signed JSON with or without `Accept-Encoding: gzip`, returning the response encoding.
+  pub(super) async fn content_encoding(
+    &self,
+    path: &str,
+    body: &Value,
+    accept_gzip: bool,
+  ) -> anyhow::Result<Option<String>> {
+    let now = SystemTime::now().duration_since(UNIX_EPOCH)?.as_secs();
+    let payload = json!({ "created_at": now, "expires_at": now + 60 }).to_string();
+    let signature = self.key.sign(payload.as_bytes());
+    let mut request = Request::builder()
+      .method(Method::POST)
+      .uri(path)
+      .header(header::CONTENT_TYPE, "application/json")
+      .header("x-discord-proxy-payload", STANDARD.encode(payload))
+      .header("x-signature-ed25519", STANDARD.encode(signature.to_bytes()))
+      .header("x-signature-timestamp", now);
+    if accept_gzip {
+      request = request.header(header::ACCEPT_ENCODING, "gzip");
+    }
+    let response = self
+      .router
+      .clone()
+      .oneshot(request.body(Body::from(body.to_string()))?)
+      .await?;
+    assert_eq!(response.status(), StatusCode::OK);
+    Ok(
+      response
+        .headers()
+        .get(header::CONTENT_ENCODING)
+        .and_then(|value| value.to_str().ok())
+        .map(str::to_owned),
+    )
+  }
+}
+
 fn validation_headers(key: &SigningKey) -> anyhow::Result<HeaderMap> {
   let payload = json!({"created_at":100,"expires_at":160}).to_string();
   let signature = key.sign(payload.as_bytes());
@@ -252,6 +292,7 @@ fn bounds_production_authentication_and_command_future_sizes() -> anyhow::Result
     application: base.application,
     voice_changed: base.voice_changed,
     slots: base.slots,
+    sessions: base.sessions,
     now: base.now,
   });
   // Creating these production-typed futures performs no Discord request; they are never polled.
@@ -297,6 +338,7 @@ async fn maps_database_failures_and_bounds_concurrent_requests() -> anyhow::Resu
     )?),
     voice_changed: Arc::clone(&fixture.changed),
     slots: Semaphore::new(1),
+    sessions: Sessions::default(),
     now: || Ok(100),
   };
   let now = 100_u64;
@@ -405,15 +447,61 @@ async fn rejects_unsigned_unauthorized_and_invalid_changes() -> anyhow::Result<(
     (true, "admin", "0", StatusCode::BAD_REQUEST),
     (true, "admin", "43", StatusCode::BAD_REQUEST),
   ] {
-    let (status, _) = fixture.post("/settings/voice", &json!({
+    let (status, body) = fixture.post("/settings/voice", &json!({
             "guildId": "1", "code": code, "voice": { "channelId": channel, "statusEnabled": false, "statusEmoji": null }
         }), signed).await?;
     assert_eq!(status, expected);
+    // Only a rejected OAuth credential asks the Activity to renew; a bad proxy signature does not.
+    let renew = signed && code == "expired";
+    assert_eq!(body.get("code") == Some(&json!("oauth_expired")), renew);
   }
   assert_eq!(
     fixture.store.voice_settings(NonZeroU64::MIN)?,
     VoiceSettings::default()
   );
+  let metrics = fixture.application.render_metrics();
+  for (status, count) in [(401, 2), (403, 1), (400, 5)] {
+    let series = format!(
+      "botge_activity_requests_total{{route=\"/settings/voice\",status=\"{status}\"}} {count}\n"
+    );
+    assert!(metrics.contains(&series), "{series}");
+  }
+  Ok(())
+}
+
+#[test]
+fn limits_each_credential_without_blocking_other_sessions() -> anyhow::Result<()> {
+  let fixture = Fixture::new()?;
+  let mut state = fixture.state()?;
+  state.now = || Ok(100);
+  let headers = validation_headers(&fixture.key)?;
+  let admit = |code: &str| {
+    state
+      .validate(&headers, "1", code)
+      .map(|(_, _, admission)| admission)
+  };
+  let mut held = Vec::new();
+  for _ in 0..SESSION_SLOTS {
+    held.push(admit("first").map_err(|error| anyhow::anyhow!(error.1))?);
+  }
+  let error = admit("first")
+    .err()
+    .context("session limit was not enforced")?;
+  assert_eq!(error.0, StatusCode::TOO_MANY_REQUESTS);
+  // A rejected session request must not consume a shared slot.
+  assert_eq!(state.slots.available_permits(), 8 - SESSION_SLOTS);
+  let other = admit("second").map_err(|error| anyhow::anyhow!(error.1))?;
+  held.pop();
+  assert_matches!(admit("first").map(drop), Ok(()));
+  drop(held);
+  drop(other);
+  let finished = state
+    .sessions
+    .active
+    .lock()
+    .unwrap_or_else(PoisonError::into_inner)
+    .is_empty();
+  assert!(finished, "finished sessions must not stay in memory");
   Ok(())
 }
 

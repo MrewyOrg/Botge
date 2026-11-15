@@ -2,6 +2,7 @@
 name = 'botge-activity'
 version.workspace = true
 edition.workspace = true
+rust-version.workspace = true
 description = 'Signed HTTP Activity adapter for Botge application operations'
 license.workspace = true
 repository.workspace = true
@@ -18,6 +19,7 @@ hex.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 tokio.workspace = true
+tower-http.workspace = true
 
 [dev-dependencies]
 botge-app = { workspace = true, features = ['test-util'] }

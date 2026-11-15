@@ -37,6 +37,7 @@ impl Commands {
     let Some(input) = prefix_input(&message.content) else {
       return Ok(());
     };
+    self.application.metrics().command("prefix-compose");
     let guild = message
       .guild_id
       .and_then(|guild| NonZeroU64::new(guild.get()));

@@ -1,9 +1,9 @@
 //! Application composition workflow: resolution, saved preferences and render admission.
-use super::{Application, Catalog};
+use super::{Application, Catalog, metrics::Outcome};
 use anyhow::Result;
 use botge_domain::emotes::{find_emote, valid_seven_id};
 use botge_emotes::rendering::{self, Layer, RenderOptions};
-use std::num::NonZeroU64;
+use std::{num::NonZeroU64, time::Instant};
 use url::Url;
 
 /// Validated command intent, independent of Discord interaction types.
@@ -100,7 +100,42 @@ impl Application {
   ///
   /// Returns catalog, preference, provider lookup, download, or rendering failures.
   /// Missing input, unavailable names, and admission rejection are returned as text answers.
+  /// Every outcome is counted in [`Self::metrics`]; images also record their duration.
   pub async fn compose(&self, request: ComposeRequest<'_>) -> Result<Composition> {
+    let started = Instant::now();
+    let tokens: Vec<_> = request.input.split_whitespace().take(33).collect();
+    if tokens.is_empty() || tokens.len() > 32 {
+      self
+        .metrics
+        .composition(Outcome::Rejected, started.elapsed());
+      return Ok(Composition::Text("Enter between 1 and 32 emotes.".into()));
+    }
+    let Ok(_permit) = self.render_slot.try_acquire() else {
+      self.metrics.composition(Outcome::Busy, started.elapsed());
+      return Ok(Composition::Text(
+        "Botge is rendering too many emotes right now. Try again shortly.".into(),
+      ));
+    };
+    let result = self.compose_admitted(request, tokens).await;
+    let outcome = match &result {
+      Ok(Composition::Image(_)) => Outcome::Image,
+      Ok(Composition::Text(_)) => Outcome::Rejected,
+      Err(_) => Outcome::Error,
+    };
+    self.metrics.composition(outcome, started.elapsed());
+    result
+  }
+
+  /// Resolves and renders admitted input while the caller holds the render permit.
+  ///
+  /// # Errors
+  ///
+  /// Returns catalog, preference, provider lookup, download, or rendering failures.
+  async fn compose_admitted<'a>(
+    &self,
+    request: ComposeRequest<'a>,
+    mut tokens: Vec<&'a str>,
+  ) -> Result<Composition> {
     let ComposeRequest {
       input,
       guild,
@@ -109,15 +144,6 @@ impl Application {
       stretch,
       cache,
     } = request;
-    let mut tokens: Vec<_> = input.split_whitespace().take(33).collect();
-    if tokens.is_empty() || tokens.len() > 32 {
-      return Ok(Composition::Text("Enter between 1 and 32 emotes.".into()));
-    }
-    let Ok(_permit) = self.render_slot.try_acquire() else {
-      return Ok(Composition::Text(
-        "Botge is rendering another emote. Try again shortly.".into(),
-      ));
-    };
     let catalog = self.catalog(guild).await?;
     // An exact catalog match can itself contain spaces.
     if tokens.len() > 1

@@ -2,6 +2,7 @@
 name = 'botge-app'
 version.workspace = true
 edition.workspace = true
+rust-version.workspace = true
 description = 'Authorized application operations coordinating Botge services'
 license.workspace = true
 repository.workspace = true

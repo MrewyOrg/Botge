@@ -49,6 +49,7 @@ if ! flock -n 9; then
 fi
 
 # Keep the last verified digest across UP requests and host restarts.
+previous_image=''
 if [[ -f .botge-image ]]; then
   BOTGE_IMAGE=$(cat .botge-image)
   if [[ ! "${BOTGE_IMAGE}" =~ ^mrewy/botge@sha256:[a-f0-9]{64}$ ]]; then
@@ -56,7 +57,22 @@ if [[ -f .botge-image ]]; then
     exit 1
   fi
   export BOTGE_IMAGE
+  previous_image="${BOTGE_IMAGE}"
 fi
+
+# Restores the last verified image after a failed digest deployment. Its result is logged only:
+# the request still reports ERROR because the approved candidate was not deployed.
+rollback() {
+  if [[ -z "${previous_image}" ]]; then
+    echo 'No verified previous image to restore.' >&2
+    return
+  fi
+  if BOTGE_IMAGE="${previous_image}" docker compose up -d --no-deps --wait --wait-timeout 120 botge >&2; then
+    echo "Restored the previous image ${previous_image}." >&2
+  else
+    echo "Could not restore the previous image ${previous_image}." >&2
+  fi
+}
 
 case "${BOTGE_CONTROL_ACTION}" in
   UP)
@@ -85,6 +101,9 @@ case "${BOTGE_CONTROL_ACTION}" in
       fi
     fi
     if ! docker compose up -d --no-deps --pull always --wait --wait-timeout 120 botge >&2; then
+      if [[ -n "${BOTGE_CONTROL_DIGEST}" ]]; then
+        rollback
+      fi
       printf 'ERROR\n'
       exit 1
     fi
@@ -96,6 +115,7 @@ case "${BOTGE_CONTROL_ACTION}" in
         || ! health=$(docker inspect --format '{{.State.Health.Status}}' "${container}") \
         || [[ "${running_image}" != "${BOTGE_IMAGE}" || "${health}" != healthy ]]; then
         echo 'Running image or readiness does not match the approved candidate.' >&2
+        rollback
         printf 'ERROR\n'
         exit 1
       fi

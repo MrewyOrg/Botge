@@ -2,6 +2,10 @@
 //!
 //! Methods are synchronous: async callers must use the blocking pool. Guild IDs key voice
 //! settings, provider selections, and additions; user IDs key personal border preferences.
+//!
+//! The `meta` table records the schema version. Databases created before the marker existed
+//! are treated as version 1 and stamped on their next open. A version this build does not
+//! support is rejected before any other row is read or written.
 
 use std::{num::NonZeroU64, path::Path};
 
@@ -22,6 +26,13 @@ const ADDED_EMOTES: TableDefinition<'static, NonZeroU64, &str> =
   TableDefinition::new("added_emotes");
 const EMOTE_BORDERS: TableDefinition<'static, NonZeroU64, u32> =
   TableDefinition::new("emote_borders");
+const META: TableDefinition<'static, &str, u64> = TableDefinition::new("meta");
+const SCHEMA_KEY: &str = "schema_version";
+/// The table layout and JSON record shapes this build reads and writes.
+///
+/// Increment it together with a migration in [`Store::initialize`] when a saved shape changes
+/// incompatibly. Older builds ignore the marker, so an image rollback still opens the file.
+const SCHEMA_VERSION: u64 = 1;
 
 /// Shares a redb handle across workers. Writes use database transactions through `&self`.
 ///
@@ -36,7 +47,9 @@ pub struct Store(Database);
 /// # Errors
 ///
 /// Returns an error if the backup cannot be opened read-only, an expected table is missing
-/// or incompatible, a row cannot be read, or a stored JSON value cannot be decoded.
+/// or incompatible, a row cannot be read, or a stored JSON value cannot be decoded. A recorded
+/// schema version this build does not support is also rejected; a backup without the marker
+/// predates it and is accepted.
 ///
 /// # Panics
 ///
@@ -45,6 +58,12 @@ pub struct Store(Database);
 pub fn verify_backup(path: &Path) -> Result<()> {
   let database = redb::ReadOnlyDatabase::open(path)?;
   let transaction = database.begin_read()?;
+  let saved = match transaction.open_table(META) {
+    Ok(table) => schema_version(&table)?,
+    Err(redb::TableError::TableDoesNotExist(_)) => None,
+    Err(error) => return Err(error.into()),
+  };
+  check_schema(saved)?;
   for definition in [VOICE_SETTINGS, GUILD_EMOTES, ADDED_EMOTES] {
     for row in transaction.open_table(definition)?.iter()? {
       let (_, value) = row?;
@@ -75,11 +94,23 @@ impl Store {
 
   /// Initializes the typed tables on an already opened redb handle.
   ///
+  /// An unmarked database is stamped with the current schema version in the same transaction.
+  ///
   /// # Errors
   ///
-  /// Returns an error if a table has an incompatible schema or initialization cannot commit.
+  /// Returns an error if a table has an incompatible schema, the recorded schema version is
+  /// not supported by this build, or initialization cannot commit. A rejected database is
+  /// left unchanged.
   fn initialize(db: Database) -> Result<Self> {
     let transaction = db.begin_write()?;
+    {
+      let mut meta = transaction.open_table(META)?;
+      let saved = schema_version(&meta)?;
+      check_schema(saved)?;
+      if saved.is_none() {
+        meta.insert(SCHEMA_KEY, SCHEMA_VERSION)?;
+      }
+    }
     transaction.open_table(VOICE_SETTINGS)?;
     transaction.open_table(GUILD_EMOTES)?;
     transaction.open_table(ADDED_EMOTES)?;
@@ -278,6 +309,29 @@ impl Store {
     transaction.commit()?;
     Ok(true)
   }
+}
+
+/// Reads the recorded schema version, or `None` for a database that predates the marker.
+///
+/// # Errors
+///
+/// Returns an error if the row lookup fails.
+fn schema_version(table: &impl redb::ReadableTable<&'static str, u64>) -> Result<Option<u64>> {
+  Ok(table.get(SCHEMA_KEY)?.map(|row| row.value()))
+}
+
+/// Accepts the current schema version and treats an absent marker as version 1.
+///
+/// # Errors
+///
+/// Returns an error naming the recorded version when this build cannot read it.
+fn check_schema(saved: Option<u64>) -> Result<()> {
+  let version = saved.unwrap_or(1);
+  anyhow::ensure!(
+    version == SCHEMA_VERSION,
+    "database schema version {version} is not supported; this build reads version {SCHEMA_VERSION}"
+  );
+  Ok(())
 }
 
 /// Decodes a JSON record from either a read or a write transaction's open table.

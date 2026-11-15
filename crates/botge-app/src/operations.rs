@@ -10,6 +10,22 @@ use botge_domain::{
 };
 use std::{num::NonZeroU64, sync::Arc};
 
+/// The emote itself is already in the server catalog.
+const ALREADY_ADDED: ApiError = ApiError(
+  FailureKind::Conflict,
+  "This emote is already in the server catalog.",
+);
+/// Another emote in the server catalog already uses the name, ignoring case.
+const NAME_TAKEN: ApiError = ApiError(
+  FailureKind::Conflict,
+  "Another emote in the server catalog already uses this name.",
+);
+/// The server reached its limit of individually added emotes.
+const CATALOG_FULL: ApiError = ApiError(
+  FailureKind::Conflict,
+  "This server already has the maximum of 1,000 added emotes.",
+);
+
 impl Application {
   /// Loads the guild's saved emote policy on the blocking pool.
   ///
@@ -43,36 +59,51 @@ impl Application {
   /// Checks the catalog snapshot for conflicts, then lets storage enforce atomic insertion.
   ///
   /// The catalog check catches collisions with provider entries. The redb transaction checks
-  /// the latest saved additions again, including additions made since the snapshot was loaded.
+  /// the latest saved additions again, including additions made since the snapshot was loaded,
+  /// such as an earlier item in the same batch.
   ///
   /// # Errors
   ///
-  /// Returns a conflict for a duplicate or full catalog, or an internal error for database
-  /// failures. The stored list is checked atomically even when the snapshot is stale.
+  /// Returns a conflict naming the cause: the same emote, a taken name, or a full catalog. The
+  /// stored list is checked atomically even when the snapshot is stale; database failures are
+  /// internal errors.
   async fn add_to_catalog(
     &self,
     guild: NonZeroU64,
     emote: Emote,
     catalog: &botge_emotes::catalog::Catalog,
   ) -> Result<String, ApiError> {
-    if catalog.into_iter().any(|entry| {
-      entry.name.eq_ignore_ascii_case(&emote.name)
-        || (entry.source == emote.source && entry.id == emote.id)
-    }) {
-      return Err(ApiError(
-        FailureKind::Conflict,
-        "This emote or its name is already in the catalog.",
-      ));
+    if catalog
+      .into_iter()
+      .any(|entry| entry.source == emote.source && entry.id == emote.id)
+    {
+      return Err(ALREADY_ADDED);
+    }
+    if catalog
+      .into_iter()
+      .any(|entry| entry.name.eq_ignore_ascii_case(&emote.name))
+    {
+      return Err(NAME_TAKEN);
     }
     let store = Arc::clone(&self.store);
     let message = format!("Added emote {}.", emote.name);
-    if !database(move || store.add_emote(guild, emote)).await? {
-      return Err(ApiError(
-        FailureKind::Conflict,
-        "The added emote already exists or the catalog is full.",
-      ));
+    let (id, name) = (emote.id.clone(), emote.name.clone());
+    if database(move || store.add_emote(guild, emote)).await? {
+      return Ok(message);
     }
-    Ok(message)
+    // Storage refused the addition; read the saved list once to explain why.
+    let store = Arc::clone(&self.store);
+    let saved = database(move || store.added_emotes(guild)).await?;
+    Err(if saved.iter().any(|entry| entry.id == id) {
+      ALREADY_ADDED
+    } else if saved
+      .iter()
+      .any(|entry| entry.name.eq_ignore_ascii_case(&name))
+    {
+      NAME_TAKEN
+    } else {
+      CATALOG_FULL
+    })
   }
 
   /// Removes a stored addition and reports 404 when the guild has no matching row entry.

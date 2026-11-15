@@ -252,11 +252,11 @@ fn records_failed_media_without_treating_success_as_a_reconciliation_failure() -
 {
   let output = test_support::TestLogs::default();
   tracing::subscriber::with_default(output.subscriber(), || {
-    report_media(NonZeroU64::MIN, Ok(()));
-    report_media(
+    assert!(report_media(NonZeroU64::MIN, Ok(())));
+    assert!(!report_media(
       NonZeroU64::MIN,
       Err(anyhow::anyhow!("fixture media failed")),
-    );
+    ));
   });
   let text = output.text()?;
   assert_eq!(text.matches("voice media connection failed").count(), 1);
@@ -273,27 +273,31 @@ async fn bounds_a_guild_with_a_busy_call_without_stopping_other_reconciliation()
   let call = manager.get_or_insert(GuildId(NonZeroU64::MIN));
   let held = call.lock().await;
   let logs = test_support::TestLogs::default();
-  let mut known = HashMap::new();
-  apply_bounded(
-    &manager,
-    &Http::new("fixture"),
-    NonZeroU64::MIN,
-    &VoiceSettings::default(),
-    &mut known,
-  )
-  .with_subscriber(logs.subscriber())
-  .await;
+  let mut known = Guilds::default();
+  assert!(
+    !apply_bounded(
+      &manager,
+      &Http::new("fixture"),
+      NonZeroU64::MIN,
+      &VoiceSettings::default(),
+      &mut known,
+    )
+    .with_subscriber(logs.subscriber())
+    .await
+  );
   assert!(logs.text()?.contains("timed out applying voice settings"));
   drop(held);
-  apply_bounded(
-    &manager,
-    &Http::new("fixture"),
-    NonZeroU64::MIN,
-    &VoiceSettings::default(),
-    &mut known,
-  )
-  .await;
-  assert_eq!(known, HashMap::new());
+  assert!(
+    apply_bounded(
+      &manager,
+      &Http::new("fixture"),
+      NonZeroU64::MIN,
+      &VoiceSettings::default(),
+      &mut known,
+    )
+    .await
+  );
+  assert!(known.statuses.is_empty());
   Ok(())
 }
 
@@ -330,13 +334,17 @@ async fn retains_status_after_its_deadline_and_clears_an_unconfirmed_gateway_joi
     channel_id: Some("42".into()),
     ..VoiceSettings::default()
   };
+  let mut guilds = Guilds {
+    statuses: known,
+    ..Guilds::default()
+  };
   std::assert_matches!(
     apply(
       &manager,
       &test_support::http_for(&server),
       NonZeroU64::MIN,
       &settings,
-      &mut known
+      &mut guilds
     )
     .await,
     Err(_)
@@ -346,7 +354,7 @@ async fn retains_status_after_its_deadline_and_clears_an_unconfirmed_gateway_joi
     &test_support::http_for(&server),
     NonZeroU64::MIN,
     &VoiceSettings::default(),
-    &mut known,
+    &mut guilds,
   )
   .await?;
   assert_eq!(
@@ -370,16 +378,17 @@ async fn preserves_diagnostics_before_a_tracing_subscriber_is_installed() -> any
     songbird::Config::default().gateway_timeout(Some(Duration::from_millis(10))),
   );
   manager.initialise_client_data(1, serenity::all::UserId::new(42));
-  let mut known = HashMap::new();
+  let mut known = Guilds::default();
   let directory = tempfile::tempdir()?;
   let invalid = Arc::new(Store::open(&directory.path().join("logs.redb"))?);
   invalid.invalidate_table("voice_settings")?;
-  apply_saved(invalid, &manager, &Http::new("fixture"), &mut known).await;
+  apply_saved(invalid, &manager, &Http::new("fixture"), &mut known, true).await;
   apply_saved(
     Arc::new(Store::panic_read_fixture()?),
     &manager,
     &Http::new("fixture"),
     &mut known,
+    true,
   )
   .await;
   apply_bounded(
@@ -404,10 +413,10 @@ async fn preserves_diagnostics_before_a_tracing_subscriber_is_installed() -> any
   )
   .await;
   drop(held);
-  report_media(
+  assert!(!report_media(
     NonZeroU64::MIN,
     Err(anyhow::anyhow!("fixture media unavailable")),
-  );
+  ));
   for expected in [
     "could not read saved voice settings",
     "voice settings task failed",
@@ -417,5 +426,131 @@ async fn preserves_diagnostics_before_a_tracing_subscriber_is_installed() -> any
   ] {
     assert!(logs.text()?.contains(expected), "{expected}");
   }
+  Ok(())
+}
+
+#[test]
+fn doubles_backoff_for_failing_guilds_up_to_an_hour_and_clears_it_on_success() {
+  let guild = NonZeroU64::MIN;
+  let start = Instant::now();
+  let mut guilds = Guilds::default();
+  assert!(!guilds.backing_off(guild, start));
+  for (failure, minutes) in [(1, 1), (2, 2), (3, 4), (7, 60), (12, 60)] {
+    while guilds.retry.get(&guild).map_or(0, |(count, _)| *count) < failure {
+      guilds.record(guild, false, start);
+    }
+    let wait = Duration::from_mins(minutes);
+    assert!(guilds.backing_off(guild, start + wait - Duration::from_secs(1)));
+    assert!(
+      !guilds.backing_off(guild, start + wait),
+      "failure {failure}"
+    );
+  }
+  guilds.record(guild, true, start);
+  assert!(!guilds.backing_off(guild, start));
+}
+
+#[tokio::test(start_paused = true)]
+async fn skips_backing_off_guilds_on_periodic_passes_but_not_forced_ones() -> anyhow::Result<()> {
+  use tracing::instrument::WithSubscriber as _;
+  let directory = tempfile::tempdir()?;
+  let store = Arc::new(Store::open(&directory.path().join("botge.redb"))?);
+  let settings = VoiceSettings {
+    channel_id: Some("42".into()),
+    ..VoiceSettings::default()
+  };
+  store.save_voice_settings(NonZeroU64::MIN, &settings)?;
+  let manager = Songbird::serenity_from_config(
+    songbird::Config::default().gateway_timeout(Some(Duration::from_millis(10))),
+  );
+  manager.initialise_client_data(1, serenity::all::UserId::new(42));
+  let http = Http::new("fixture");
+  let logs = test_support::TestLogs::default();
+  let mut guilds = Guilds::default();
+  let failures = |guilds: &Guilds| guilds.retry.get(&NonZeroU64::MIN).map(|(count, _)| *count);
+  apply_saved(Arc::clone(&store), &manager, &http, &mut guilds, false)
+    .with_subscriber(logs.subscriber())
+    .await;
+  assert_eq!(failures(&guilds), Some(1));
+  // Still backing off: a periodic pass leaves the guild alone.
+  apply_saved(Arc::clone(&store), &manager, &http, &mut guilds, false)
+    .with_subscriber(logs.subscriber())
+    .await;
+  assert_eq!(failures(&guilds), Some(1));
+  // A settings change or gateway event retries at once.
+  apply_saved(Arc::clone(&store), &manager, &http, &mut guilds, true)
+    .with_subscriber(logs.subscriber())
+    .await;
+  assert_eq!(failures(&guilds), Some(2));
+  assert_eq!(
+    logs
+      .text()?
+      .matches("could not apply voice settings")
+      .count(),
+    2
+  );
+  Ok(())
+}
+
+#[tokio::test(start_paused = true)]
+async fn refreshes_only_status_for_a_call_that_is_already_connected() -> anyhow::Result<()> {
+  use axum::{Json, Router, http::StatusCode, routing::put};
+  use serde_json::{Value, json};
+  use tokio::sync::mpsc;
+
+  let (sender, mut updates) = mpsc::unbounded_channel();
+  let server = test_support::TestServer::start(Router::new().route(
+    "/api/v10/channels/42/voice-status",
+    put(move |Json(body): Json<Value>| async move {
+      drop(sender.send(body));
+      StatusCode::NO_CONTENT
+    }),
+  ))
+  .await?;
+  let manager = Songbird::serenity_from_config(
+    songbird::Config::default().gateway_timeout(Some(Duration::from_millis(10))),
+  );
+  manager.initialise_client_data(1, serenity::all::UserId::new(7));
+  let channel = NonZeroU64::new(42).context("invalid test channel")?;
+  // Complete the gateway handshake by hand, as Discord's voice events would.
+  let handle = manager.get_or_insert(GuildId(NonZeroU64::MIN));
+  let mut call = handle.lock().await;
+  drop(call.join_gateway(VoiceChannelId(channel)).await);
+  call.update_state("session".into(), Some(VoiceChannelId(channel)));
+  call.update_server("voice.invalid".into(), "token".into());
+  assert!(call.current_connection().is_some());
+  drop(call);
+  let settings = VoiceSettings {
+    channel_id: Some("42".into()),
+    status_enabled: true,
+    status_emoji: Some("🎵".into()),
+  };
+  let mut guilds = Guilds::default();
+  guilds.connected.insert(NonZeroU64::MIN);
+  // A rejoin would wait for Discord and time out; a healthy call only refreshes its status.
+  apply(
+    &manager,
+    &test_support::http_for(&server),
+    NonZeroU64::MIN,
+    &settings,
+    &mut guilds,
+  )
+  .await?;
+  assert_eq!(updates.try_recv()?, json!({ "status": "🎵" }));
+  assert!(guilds.connected.contains(&NonZeroU64::MIN));
+
+  // Without a recorded healthy media connection, the worker reconnects media. The fixture
+  // endpoint cannot connect, so the guild stays unhealthy and the status is not sent again.
+  guilds.connected.clear();
+  apply(
+    &manager,
+    &test_support::http_for(&server),
+    NonZeroU64::MIN,
+    &settings,
+    &mut guilds,
+  )
+  .await?;
+  assert!(!guilds.connected.contains(&NonZeroU64::MIN));
+  assert_matches!(updates.try_recv(), Err(TryRecvError::Empty));
   Ok(())
 }

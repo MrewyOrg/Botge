@@ -1,0 +1,107 @@
+name: Set up Botge Rust checks
+description: >-
+  Installs the pinned nightly with the requested components, restores a per-job build cache, and
+  optionally restores or installs pinned test tools.
+
+inputs:
+  cache-name:
+    description: Distinct build cache name so parallel jobs never overwrite each other's cache.
+    required: true
+  cache-paths:
+    description: Newline-separated build directories cached with the Cargo registry and Git sources.
+    required: true
+  components:
+    description: Comma-separated rustup components added to the minimal profile.
+    required: false
+    default: ''
+  tools:
+    description: >-
+      Space-separated test tools to provide: cargo-llvm-cov, cargo-hack, cargo-udeps, ffmpeg.
+    required: false
+    default: ''
+
+runs:
+  using: composite
+  steps:
+    - name: Restore Rust build cache
+      uses: actions/cache@v6.1.0
+      with:
+        path: |
+          ~/.cargo/registry
+          ~/.cargo/git
+          ${{ inputs.cache-paths }}
+        key: >-
+          rust-${{ inputs.cache-name }}-${{ runner.os }}-${{ runner.arch }}-${{
+          hashFiles('rust-toolchain.toml') }}-${{ hashFiles('Cargo.toml', 'crates/**/Cargo.toml',
+          'Cargo.lock') }}
+        restore-keys: |
+          rust-${{ inputs.cache-name }}-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('rust-toolchain.toml') }}-
+
+    - name: Install CI Rust toolchain
+      shell: bash
+      env:
+        COMPONENTS: ${{ inputs.components }}
+      run: |
+        toolchain=$(sed -n "s/^channel = '\(.*\)'$/\1/p" rust-toolchain.toml)
+        test -n "$toolchain"
+        # Override the development component selection for this and subsequent steps.
+        export RUSTUP_TOOLCHAIN="$toolchain"
+        printf 'RUSTUP_TOOLCHAIN=%s\n' "$toolchain" >> "$GITHUB_ENV"
+        set -- rustup toolchain install "$toolchain" --no-self-update --profile minimal
+        if [ -n "$COMPONENTS" ]; then
+          set -- "$@" --component "$COMPONENTS"
+        fi
+        "$@"
+        cargo --version
+
+    # The single place these versions are pinned; they also key the tool cache.
+    - name: Select pinned Rust test tool versions
+      if: inputs.tools != ''
+      shell: bash
+      run: |
+        {
+          printf '%s\n' 'CARGO_LLVM_COV_VERSION=0.9.1'
+          printf '%s\n' 'CARGO_HACK_VERSION=0.6.46'
+          printf '%s\n' 'CARGO_UDEPS_VERSION=0.1.61'
+        } >> "$GITHUB_ENV"
+
+    # Only the requested tools are cached together, so jobs with different tool sets never mix.
+    - name: Restore pinned Rust test tools
+      if: inputs.tools != ''
+      uses: actions/cache@v6.1.0
+      id: tools
+      with:
+        path: ${{ runner.temp }}/botge-tools
+        key: >-
+          rust-tools-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('rust-toolchain.toml',
+          'scripts/install-test-ffmpeg.sh') }}-${{ inputs.tools }}-${{ env.CARGO_LLVM_COV_VERSION
+          }}-${{ env.CARGO_HACK_VERSION }}-${{ env.CARGO_UDEPS_VERSION }}
+
+    - name: Install pinned Rust test tools
+      if: inputs.tools != '' && steps.tools.outputs.cache-hit != 'true'
+      shell: bash
+      env:
+        TOOLS: ${{ inputs.tools }}
+      run: |
+        root="$RUNNER_TEMP/botge-tools"
+        for tool in $TOOLS; do
+          case "$tool" in
+            cargo-llvm-cov) version=$CARGO_LLVM_COV_VERSION ;;
+            cargo-hack) version=$CARGO_HACK_VERSION ;;
+            cargo-udeps) version=$CARGO_UDEPS_VERSION ;;
+            ffmpeg)
+              sh scripts/install-test-ffmpeg.sh "$root/bin"
+              continue
+              ;;
+            *)
+              printf 'Unknown Rust test tool: %s\n' "$tool" >&2
+              exit 1
+              ;;
+          esac
+          cargo install --locked --root "$root" --version "$version" "$tool"
+        done
+
+    - name: Add Rust test tools to PATH
+      if: inputs.tools != ''
+      shell: bash
+      run: printf '%s\n' "$RUNNER_TEMP/botge-tools/bin" >> "$GITHUB_PATH"

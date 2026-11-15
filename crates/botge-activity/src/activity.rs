@@ -14,20 +14,27 @@ mod catalog;
 mod voice;
 
 use std::{
+  collections::HashMap,
+  hash::{BuildHasher as _, RandomState},
   num::NonZeroU64,
-  sync::Arc,
+  sync::{Arc, Mutex, PoisonError},
   time::{Duration, SystemTime, UNIX_EPOCH},
 };
 
 use axum::{
   Json, Router,
-  extract::{DefaultBodyLimit, State},
+  extract::{DefaultBodyLimit, MatchedPath, Request, State},
   http::{HeaderMap, StatusCode, header},
+  middleware::Next,
   response::{IntoResponse, Response},
   routing::{get, post},
 };
 use serde::Deserialize;
-use tokio::sync::{Notify, Semaphore};
+use tokio::sync::{Notify, Semaphore, SemaphorePermit};
+use tower_http::compression::{
+  CompressionLayer,
+  predicate::{DefaultPredicate, Predicate as _, SizeAbove},
+};
 
 use crate::proxy::ProxyAuthenticator;
 use botge_app::Application;
@@ -45,12 +52,79 @@ struct Activity<A> {
   application: Arc<Application>,
   voice_changed: Arc<Notify>,
   slots: Semaphore,
+  sessions: Sessions,
   now: fn() -> Result<u64, std::time::SystemTimeError>,
 }
 
-/// Client-safe application failures serialized by the Activity adapter.
+/// Requests one credential may have in flight; the rest of the shared slots stay available.
+///
+/// The Activity sends one request at a time. The second slot covers a request the browser
+/// abandoned after its timeout while the server is still finishing it.
+const SESSION_SLOTS: usize = 2;
+
+/// In-flight request counts keyed by a keyed hash of each credential.
+///
+/// Only the hash is kept, and only while that credential has a request in flight.
+#[derive(Debug, Default)]
+struct Sessions {
+  hasher: RandomState,
+  active: Mutex<HashMap<u64, usize>>,
+}
+
+impl Sessions {
+  /// Reserves one of the credential's slots, or returns `None` when all are in use.
+  fn admit(&self, credential: &str) -> Option<SessionSlot<'_>> {
+    let key = self.hasher.hash_one(credential);
+    let mut active = self.active.lock().unwrap_or_else(PoisonError::into_inner);
+    let count = active.entry(key).or_default();
+    if *count >= SESSION_SLOTS {
+      return None;
+    }
+    *count += 1;
+    drop(active);
+    Some(SessionSlot {
+      sessions: self,
+      key,
+    })
+  }
+}
+
+/// Releases a credential's slot when the request finishes, including on cancellation.
 #[derive(Debug)]
-pub(crate) struct ApiError(StatusCode, &'static str);
+struct SessionSlot<'a> {
+  sessions: &'a Sessions,
+  key: u64,
+}
+
+impl Drop for SessionSlot<'_> {
+  fn drop(&mut self) {
+    let mut active = self
+      .sessions
+      .active
+      .lock()
+      .unwrap_or_else(PoisonError::into_inner);
+    if let Some(count) = active.get_mut(&self.key) {
+      *count -= 1;
+      if *count == 0 {
+        active.remove(&self.key);
+      }
+    }
+  }
+}
+
+/// Keeps both the credential's slot and a shared slot for the rest of a handler.
+#[derive(Debug)]
+pub(crate) struct Admission<'a> {
+  _session: SessionSlot<'a>,
+  _shared: SemaphorePermit<'a>,
+}
+
+/// Client-safe application failures serialized by the Activity adapter.
+///
+/// The flag marks an expired or rejected OAuth credential. The Activity renews authorization
+/// and retries once only for that case, never for a failed proxy signature.
+#[derive(Debug)]
+pub(crate) struct ApiError(StatusCode, &'static str, bool);
 impl From<botge_app::access::AccessError> for ApiError {
   fn from(error: botge_app::access::AccessError) -> Self {
     use botge_app::access::FailureKind;
@@ -63,17 +137,13 @@ impl From<botge_app::access::AccessError> for ApiError {
       FailureKind::Upstream => StatusCode::BAD_GATEWAY,
       FailureKind::Internal => StatusCode::INTERNAL_SERVER_ERROR,
     };
-    Self(status, error.1)
+    Self(status, error.1, error.0 == FailureKind::Unauthenticated)
   }
 }
 impl ApiError {
-  const UNAUTHORIZED: Self = Self(
-    StatusCode::UNAUTHORIZED,
-    "Discord authorization expired. Try again.",
-  );
-  const INVALID: Self = Self(StatusCode::BAD_REQUEST, "Invalid Activity request.");
+  const INVALID: Self = Self(StatusCode::BAD_REQUEST, "Invalid Activity request.", false);
   const fn new(status: StatusCode, message: &'static str) -> Self {
-    Self(status, message)
+    Self(status, message, false)
   }
   fn upstream(error: impl std::fmt::Display) -> Self {
     botge_app::access::AccessError::upstream(error).into()
@@ -85,7 +155,7 @@ impl ApiError {
 impl IntoResponse for ApiError {
   /// Sends the error status with the JSON message shape used by the Activity.
   fn into_response(self) -> Response {
-    let body = if self.1 == Self::UNAUTHORIZED.1 {
+    let body = if self.2 {
       serde_json::json!({ "message": self.1, "code": "oauth_expired" })
     } else {
       serde_json::json!({ "message": self.1 })
@@ -108,6 +178,8 @@ struct ReadSettings {
 /// The Activity posts JSON even for reads. These responses carry
 /// `Cache-Control: no-store` because permissions and preferences depend on the current caller.
 /// The body limit and the per-handler concurrency limit bound separate parts of request work.
+/// Responses from matched routes are counted by route and status in the application metrics.
+/// Bodies over 1 KiB, such as large catalogs, are gzip-compressed for clients that accept it.
 pub fn router<A: GuildAccess>(
   application: Arc<Application>,
   voice_changed: Arc<Notify>,
@@ -130,7 +202,25 @@ pub fn router<A: GuildAccess>(
     )
     .route("/settings/border", post(border::save_border::<A>))
     .route("/settings/border/read", post(border::read_border::<A>))
+    .route_layer(axum::middleware::from_fn({
+      let application = Arc::clone(&application);
+      move |request: Request, next: Next| {
+        let application = Arc::clone(&application);
+        async move {
+          let route = request
+            .extensions()
+            .get::<MatchedPath>()
+            .map_or("unmatched", MatchedPath::as_str)
+            .to_owned();
+          let response = next.run(request).await;
+          let status = response.status().as_u16();
+          application.metrics().activity_request(&route, status);
+          response
+        }
+      }
+    }))
     .layer(DefaultBodyLimit::max(4096))
+    .layer(CompressionLayer::new().compress_when(DefaultPredicate::new().and(SizeAbove::new(1024))))
     .layer(axum::middleware::map_response(
       |mut response: Response| async {
         response.headers_mut().insert(
@@ -146,6 +236,7 @@ pub fn router<A: GuildAccess>(
       application,
       voice_changed,
       slots: Semaphore::new(8),
+      sessions: Sessions::default(),
       now: unix_seconds,
     }))
 }
@@ -163,21 +254,23 @@ fn unix_seconds() -> Result<u64, std::time::SystemTimeError> {
 }
 
 impl<A: GuildAccess> Activity<A> {
-  /// Checks the proxy signature and request shape before reserving a concurrency slot.
+  /// Checks the proxy signature and request shape before reserving concurrency slots.
   ///
-  /// Keep the returned permit alive for the rest of the handler. It reserves one slot while
-  /// the handler contacts Discord, looks up emotes, or reads and writes preferences.
+  /// Keep the returned admission alive for the rest of the handler. It holds one of the
+  /// credential's two slots and one of the eight shared slots while the handler contacts
+  /// Discord, looks up emotes, or reads and writes preferences.
   ///
   /// # Errors
   ///
-  /// An invalid signature yields 401. A malformed guild ID or credential yields 400. A full
-  /// semaphore yields 503 immediately, so a burst of requests cannot queue inside the API.
+  /// An invalid signature yields 401. A malformed guild ID or credential yields 400. A
+  /// credential that already has two requests in flight yields 429, and a full shared limit
+  /// yields 503. Both answer immediately, so a burst of requests cannot queue inside the API.
   fn validate(
     &self,
     headers: &HeaderMap,
     guild: &str,
     code: &str,
-  ) -> Result<(NonZeroU64, Credential, tokio::sync::SemaphorePermit<'_>), ApiError> {
+  ) -> Result<(NonZeroU64, Credential, Admission<'_>), ApiError> {
     let now = (self.now)().map_err(ApiError::internal)?;
     if !self.proxy.verify(headers, now) {
       return Err(ApiError::new(
@@ -212,13 +305,28 @@ impl<A: GuildAccess> Activity<A> {
       }
       Credential::Code(code.to_owned())
     };
-    let permit = self.slots.try_acquire().map_err(|_error| {
+    let secret = match &credential {
+      Credential::AccessToken(token) => token,
+      Credential::Code(code) => code,
+    };
+    let session = self.sessions.admit(secret).ok_or(ApiError::new(
+      StatusCode::TOO_MANY_REQUESTS,
+      "Too many requests at once. Try again shortly.",
+    ))?;
+    let shared = self.slots.try_acquire().map_err(|_error| {
       ApiError::new(
         StatusCode::SERVICE_UNAVAILABLE,
         "Botge is busy. Try again shortly.",
       )
     })?;
-    Ok((guild, credential, permit))
+    Ok((
+      guild,
+      credential,
+      Admission {
+        _session: session,
+        _shared: shared,
+      },
+    ))
   }
 }
 

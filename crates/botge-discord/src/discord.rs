@@ -1,22 +1,25 @@
 //! Adapts Discord gateway events and OAuth responses to Botge's commands and Activity API.
 //!
 //! [`OAuthClient`] groups one application's identity and secret. [`DiscordAccess`] shares a
-//! bounded transport but checks the caller's current guild permissions on each request;
-//! permission results are not cached across requests. OAuth transport/decode failures are
+//! bounded transport and checks the caller's identity and guild membership on each request, so a
+//! revoked token or removed role applies at once. Only the guild object (role definitions and
+//! owner) is cached, for [`GUILD_CACHE_TTL`], so role permission edits apply within that window. OAuth transport/decode failures are
 //! sanitized before they reach logs or HTTP responses. Gateway callbacks route interactions
 //! to commands and notify the voice worker when readiness changes.
 
 use std::{
+  collections::HashMap,
   num::NonZeroU64,
-  sync::{Arc, OnceLock},
-  time::Duration,
+  sync::{Arc, Mutex, OnceLock, PoisonError},
+  time::{Duration, Instant},
 };
 
 use reqwest::StatusCode;
 use serde::Deserialize;
 use serenity::{
   all::{
-    ChannelType, Context, EventHandler, GuildId, Interaction, Message, Permissions, Ready, UserId,
+    ActivityData, ChannelType, Context, EventHandler, GuildId, Interaction, Message, PartialGuild,
+    Permissions, Ready, UserId,
   },
   async_trait,
   http::Http,
@@ -39,6 +42,20 @@ pub struct OAuthClient {
   pub secret: String,
 }
 
+/// Text Botge shows as "Watching …" on its Discord profile.
+pub const STATUS: &str = "github.com/MrewyOrg/Botge";
+
+/// Builds the watching status sent when the gateway identifies, so every connection shows it.
+#[must_use]
+pub fn presence() -> ActivityData {
+  ActivityData::watching(STATUS)
+}
+
+/// How long a fetched guild's roles and owner are reused across Activity requests.
+pub const GUILD_CACHE_TTL: Duration = Duration::from_secs(30);
+/// Guilds kept at once; expired entries are dropped first, then the whole cache if still full.
+const GUILD_CACHE_LIMIT: usize = 256;
+
 /// Exchanges Activity authorization codes and uses the bot client to check guild permissions.
 pub struct DiscordAccess {
   application_id: NonZeroU64,
@@ -47,6 +64,8 @@ pub struct DiscordAccess {
   http: Arc<Http>,
   // Shared connection settings only; credentials belong to individual requests.
   transport: &'static reqwest::Client,
+  guilds: Mutex<HashMap<GuildId, (Instant, Arc<PartialGuild>)>>,
+  guild_ttl: Duration,
 }
 
 impl DiscordAccess {
@@ -63,7 +82,43 @@ impl DiscordAccess {
       bot_user,
       http,
       transport,
+      guilds: Mutex::new(HashMap::new()),
+      guild_ttl: GUILD_CACHE_TTL,
     })
+  }
+
+  /// Returns the guild's roles and owner, fetching them when the cached copy is missing or old.
+  ///
+  /// Concurrent misses may fetch twice; the last response is kept. Failures are not cached.
+  ///
+  /// # Errors
+  ///
+  /// Returns a membership denial or upstream error when the guild cannot be fetched.
+  async fn guild(&self, id: GuildId) -> Result<Arc<PartialGuild>, ApiError> {
+    let now = Instant::now();
+    let cached = self
+      .guilds
+      .lock()
+      .unwrap_or_else(PoisonError::into_inner)
+      .get(&id)
+      .filter(|(fetched, _)| now.duration_since(*fetched) < self.guild_ttl)
+      .map(|(_, guild)| Arc::clone(guild));
+    if let Some(guild) = cached {
+      return Ok(guild);
+    }
+    let guild = Arc::new(
+      id.to_partial_guild(&self.http)
+        .await
+        .map_err(guild_access_error)?,
+    );
+    let mut guilds = self.guilds.lock().unwrap_or_else(PoisonError::into_inner);
+    guilds.retain(|_, (fetched, _)| now.duration_since(*fetched) < self.guild_ttl);
+    if guilds.len() >= GUILD_CACHE_LIMIT {
+      guilds.clear();
+    }
+    guilds.insert(id, (now, Arc::clone(&guild)));
+    drop(guilds);
+    Ok(guild)
   }
 
   /// Exchanges one code for an access token and its lifetime.
@@ -176,7 +231,9 @@ impl DiscordAccess {
 }
 
 /// Shares one bounded, non-redirecting Discord transport independently of request state.
-/// Concurrent initialization retains one client and propagates configuration errors.
+///
+/// Concurrent first calls may each build a client, but only the first one stored is kept and
+/// returned to every caller; configuration errors propagate.
 ///
 /// # Errors
 ///
@@ -184,12 +241,14 @@ impl DiscordAccess {
 /// partial client and a later call can retry.
 fn discord_client() -> Result<&'static reqwest::Client, reqwest::Error> {
   static CLIENT: OnceLock<reqwest::Client> = OnceLock::new();
-  CLIENT.get_or_try_init(|| {
-    reqwest::Client::builder()
-      .timeout(Duration::from_secs(10))
-      .redirect(reqwest::redirect::Policy::none())
-      .build()
-  })
+  if let Some(client) = CLIENT.get() {
+    return Ok(client);
+  }
+  let client = reqwest::Client::builder()
+    .timeout(Duration::from_secs(10))
+    .redirect(reqwest::redirect::Policy::none())
+    .build()?;
+  Ok(CLIENT.get_or_init(|| client))
 }
 
 /// Keeps OAuth transport and decoding errors out of logs because they may contain credentials.
@@ -224,11 +283,12 @@ impl GuildAccess for DiscordAccess {
   ) -> Result<Membership, ApiError> {
     let user = self.identify(credential).await?;
     let guild_id = GuildId::new(guild.get());
-    let (guild, member) = tokio::try_join!(
-      guild_id.to_partial_guild(&self.http),
-      guild_id.member(&self.http, user)
-    )
-    .map_err(guild_access_error)?;
+    let (guild, member) = tokio::try_join!(self.guild(guild_id), async {
+      guild_id
+        .member(&self.http, user)
+        .await
+        .map_err(guild_access_error)
+    })?;
     let administrator = guild.member_permissions(&member).administrator();
     let mut roles = Vec::new();
     if administrator {
@@ -267,11 +327,12 @@ impl GuildAccess for DiscordAccess {
   ) -> Result<Vec<VoiceChannel>, ApiError> {
     let user = self.identify(credential).await?;
     let guild_id = GuildId::new(guild.get());
-    let (guild, member) = tokio::try_join!(
-      guild_id.to_partial_guild(&self.http),
-      guild_id.member(&self.http, user)
-    )
-    .map_err(guild_access_error)?;
+    let (guild, member) = tokio::try_join!(self.guild(guild_id), async {
+      guild_id
+        .member(&self.http, user)
+        .await
+        .map_err(guild_access_error)
+    })?;
     if !guild.member_permissions(&member).administrator() {
       return Err(ApiError::FORBIDDEN);
     }
@@ -387,6 +448,14 @@ impl EventHandler for Events {
     event: serenity::gateway::ShardStageUpdateEvent,
   ) {
     self.set_gateway_stage(event.new);
+  }
+}
+
+#[cfg(test)]
+impl DiscordAccess {
+  /// Changes how long guilds are reused, so tests can force a fresh fetch.
+  const fn set_guild_ttl(&mut self, ttl: Duration) {
+    self.guild_ttl = ttl;
   }
 }
 

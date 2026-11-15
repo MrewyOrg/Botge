@@ -1,4 +1,4 @@
-// cspell:words apng bgra isnan settb
+// cspell:words apng bgra isnan settb reinit
 
 //! Downloads bounded image inputs and renders attachments with `FFmpeg`.
 //!
@@ -411,6 +411,10 @@ async fn encode(
     "1",
   ]);
   for asset in assets {
+    // Animated WebP decoders switch pixel formats between lossy and lossless frames. Rebuilding
+    // the graph on such a switch would drop already finished still inputs and stall `hstack`
+    // and `overlay`; the scale filter converts each frame's format without a rebuild instead.
+    command.args(["-reinit_filter", "0"]);
     command.args([
       "-protocol_whitelist",
       "file,pipe",

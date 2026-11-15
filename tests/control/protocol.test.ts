@@ -238,3 +238,70 @@ test('client reports transport errors', () => {
   assert.equal(result.status, 1);
   assert.ok(result.stderr.includes('Unable to communicate'));
 });
+
+const previous = `mrewy/botge@sha256:${'b'.repeat(64)}`;
+const rollbackCommand = 'compose up -d --no-deps --wait --wait-timeout 120 botge';
+
+/**
+ * Stubs Docker for a digest deployment, logging each command with the image it ran under.
+ *
+ * @param failure - The deployment stage that fails: the candidate start, its health, or both
+ *   the candidate start and the rollback.
+ */
+function deploymentDocker(failure: 'start' | 'health' | 'rollback'): void {
+  stub(
+    'docker',
+    `
+printf '%s %s\\n' "$*" "$BOTGE_IMAGE" >> "$TEST_COMMANDS"
+case "$*" in
+  'compose config --format json') printf '{"services":{"botge":{"image":"%s"}}}' "$BOTGE_IMAGE" ;;
+  'compose up -d --no-deps --pull always --wait --wait-timeout 120 botge')
+    [ "${failure}" = health ] || exit 1 ;;
+  '${rollbackCommand}') [ "${failure}" != rollback ] || exit 1 ;;
+  'compose ps -q botge') echo container ;;
+  'inspect --format {{.Config.Image}} container') echo "$BOTGE_IMAGE" ;;
+  'inspect --format {{.State.Health.Status}} container') echo unhealthy ;;
+esac
+`
+  );
+}
+
+function deploy(): ReturnType<typeof spawnSync> {
+  return spawnSync('bash', [resolve('botge_control/bin/botge_control.sh')], {
+    input: 'DEPLOY ' + digest + '\n',
+    encoding: 'utf8',
+    env: environment
+  });
+}
+
+test.each(['start', 'health'] as const)(
+  'a candidate that fails at %s is replaced by the previous verified image',
+  (failure) => {
+    writeFileSync(join(directory, '.botge-image'), previous + '\n');
+    deploymentDocker(failure);
+    const result = deploy();
+    assert.equal(result.status, 1);
+    assert.equal(result.stdout, 'ERROR\n');
+    assert.ok(String(result.stderr).includes(`Restored the previous image ${previous}.`));
+    assert.ok(readFileSync(commands, 'utf8').includes(`${rollbackCommand} ${previous}\n`));
+    assert.equal(readFileSync(join(directory, '.botge-image'), 'utf8'), previous + '\n');
+  }
+);
+
+test('a failed candidate without a verified previous image is left for the operator', () => {
+  deploymentDocker('start');
+  const result = deploy();
+  assert.equal(result.status, 1);
+  assert.equal(result.stdout, 'ERROR\n');
+  assert.ok(String(result.stderr).includes('No verified previous image to restore.'));
+  assert.ok(!readFileSync(commands, 'utf8').includes(`${rollbackCommand} `));
+});
+
+test('a failed rollback still reports the failed deployment', () => {
+  writeFileSync(join(directory, '.botge-image'), previous + '\n');
+  deploymentDocker('rollback');
+  const result = deploy();
+  assert.equal(result.status, 1);
+  assert.equal(result.stdout, 'ERROR\n');
+  assert.ok(String(result.stderr).includes(`Could not restore the previous image ${previous}.`));
+});

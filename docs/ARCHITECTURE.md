@@ -88,10 +88,10 @@ production declarations. Cargo rejects cycles. Shared metadata and lint policy l
 manifest; validation, coverage and build inputs include every workspace crate.
 
 The internal health listener is independent of the Activity API. It exposes process liveness at
-`/healthz` and gateway readiness at `/readyz`. Ready/Resumed enables readiness; reconnect stages
-remove it without failing liveness. `--healthcheck` checks local readiness, and `--verify-database`
-reads an offline redb backup without loading Discord credentials. See
-[production operations contracts](PRODUCTION.md).
+`/healthz`, gateway readiness at `/readyz`, and operation counters at `/metrics`. Ready/Resumed
+enables readiness; reconnect stages remove it without failing liveness. `--healthcheck` checks local
+readiness, and `--verify-database` reads an offline redb backup without loading Discord credentials.
+See [production operations contracts](PRODUCTION.md).
 
 ## Activity request flow
 
@@ -137,15 +137,20 @@ sequenceDiagram
 ```
 
 The diagram shows a voice settings save. Discord maps `/` to the Worker, which verifies the signed
-HTML request, and `/botge-api` to the bot's API tunnel. The API verifies signatures independently.
+HTML request and sends it with a strict same-origin Content-Security-Policy, and `/botge-api` to the
+bot's API tunnel. The API verifies signatures independently. Each request checks the token holder
+and their guild membership with Discord; only the guild's role definitions and owner are reused for
+30 seconds. Responses over 1 KiB are gzip-compressed when the client accepts it.
 
 Guild owners and administrators can manage voice and emote settings. Members can read the server
 catalog. Adding or removing emotes follows the server's emote management policy, and personal border
 settings use the authenticated user's ID.
 
 The API offers voice channels the bot can view and join. Startup, gateway resume, and a periodic
-check reconcile the saved channel. Clearing it requests a disconnect. The optional voice status
-emoji stays saved when the toggle is off.
+check reconcile the saved channel. A call that is already connected only has its status refreshed;
+guilds that keep failing are retried with backoff up to an hour, and saving settings retries at
+once. Clearing it requests a disconnect. The optional voice status emoji stays saved when the toggle
+is off.
 
 ## Emote catalog and rendering
 
@@ -160,77 +165,17 @@ settings use separate redb tables. The add transaction checks duplicate IDs and 
 checks guild membership and roles before writing.
 
 Discord defers emote interactions while it resolves names and reads media. Downloads use provider
-CDN allowlists and the nginx cache where available. The renderer admits one request at a time, caps
-file sizes, and runs FFmpeg on local image files. Columns follow the Activity preview's proportions.
-The renderer synchronizes each overlaying group before compositing so all layers retain their
-timing. Animated compositions export WebP with variable frame delays and use the longest source
-animation's duration.
+CDN allowlists and the nginx cache where available. The renderer admits up to five requests at once,
+caps file sizes, and runs FFmpeg on local image files. Columns follow the Activity preview's
+proportions. The renderer synchronizes each overlaying group before compositing so all layers retain
+their timing. Animated compositions export WebP with variable frame delays and use the longest
+source animation's duration.
 
-## Validation
+## Checks and deployment
 
-`rust-toolchain.toml` pins the nightly shared by development, CI, and Docker. Development installs
-the default profile, LLVM coverage tools, Miri, and standard library sources. CI installs the
-compiler, Clippy, rustfmt, LLVM coverage tools, Miri, and standard library sources; the Docker
-builder installs only the minimal compiler profile. See the
-[workflow guide](../.github/workflows/README.md).
-
-Install Rust through rustup and provide Opus development headers and libraries through your package
-manager. Use `opus` and `pkg-config` on macOS with Homebrew or `libopus-dev` and `pkg-config` on
-Debian.
-
-```sh
-cargo fmt --all --check
-cargo clippy --workspace --locked --all-targets -- -D warnings
-cargo doc --workspace --locked --no-deps --document-private-items
-sh scripts/check-rust-coverage.sh
-npm run check:static
-npm run test:coverage
-npm run check:markup -w activity
-```
-
-Rust enforces 95% coverage per measured source file; TypeScript retains its 90% runtime-file gate.
-Rustdoc and Clippy validate private contracts as well as public ones. Run Activity builds and tests
-sequentially because Worker tests mock the generated HTML module. See the
-[test guide](../tests/README.md).
-
-For a live test, export `DISCORD_TOKEN` and `APP_ID` for a separate Discord test application. Export
-`DISCORD_ACTIVITY_CLIENT_SECRET` and `DISCORD_ACTIVITY_PUBLIC_KEY` to enable the local API on
-`127.0.0.1:3080`. Start the bot from the repository root with a fresh test database and register the
-commands on that application:
-
-```sh
-BOTGE_DATA_DIR="$(mktemp -d)" BOTGE_REGISTER_COMMANDS=true cargo run --locked
-```
-
-Enable Discord proxy authentication and build the test Activity with
-`VITE_ENABLE_ACTIVITY_SETTINGS=true`. Point the test application's API URL mapping at the test
-backend through the proxy described in the Activity guide. Check startup, channel selection and
-deselection, reconnect, and status permissions on a test server.
-
-## Deployment
-
-```mermaid
-flowchart LR
-    Dev["dev → PR to main"] --> Quality["BotgeQL validation"]
-    Dev --> Audit["Dependency review and full audit"]
-    Audit --> Paths
-    Quality --> Paths{"Image changes?"}
-    Paths -->|Yes| Build["Build Linux AMD64 and ARM64 candidate"]
-    Paths -->|No| Approval["Approve production job"]
-    Build --> Scan["Scan immutable candidate: critical findings block"]
-    Scan --> Approval
-    Approval --> Deploy["Compose: verify digest and readiness"]
-    Deploy --> Merge["Merge to main"]
-    Dev --> Security["CodeQL and repository checks"]
-    Security --> Merge
-```
-
-The [deployment workflow](../.github/workflows/README.md) promotes the candidate digest and requests
-the VM update through the control socket over Google Cloud IAP. The handler deploys and persists the
-approved image reference. See the [zero-cost policy](PRODUCTION.md#cost-policy). The
-[Activity Worker](../activity/README.md) has its own build and publish steps. For a live release
-check, verify commands, guild catalog permissions, and voice in Discord. Check
-[resource usage](RESOURCE_USAGE.md) during an animated composition with voice connected.
-
-See the [roadmap](https://github.com/orgs/MrewyOrg/projects/2/views/6) for planned commands and
+The [test guide](../tests/README.md) owns toolchains, check commands, coverage gates and live
+testing. The [workflow guide](../.github/workflows/README.md) owns CI, the release PR, image
+promotion and approved deployment; the development-workflow diagram above summarizes it.
+[Production contracts](PRODUCTION.md) cover readiness, backups and the cost policy. See the
+[roadmap](https://github.com/orgs/MrewyOrg/projects/2/views/6) for planned commands and
 integrations.

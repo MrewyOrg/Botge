@@ -3,6 +3,25 @@
 import { createProxyAuthenticator } from './proxy-authentication.ts';
 
 /**
+ * Restricts the page to its own scripts, styles, API and images.
+ *
+ * @remarks
+ * Inside Discord every request, including provider images and the 7TV API, uses same-origin proxy
+ * mappings. Data and blob images cover the generated favicon and previews. Framing is left to
+ * Discord, whose clients embed the Activity from several origins.
+ */
+export const CONTENT_SECURITY_POLICY: string = [
+  "default-src 'self'",
+  "script-src 'self'",
+  "style-src 'self'",
+  "img-src 'self' data: blob:",
+  "connect-src 'self'",
+  "object-src 'none'",
+  "base-uri 'none'",
+  "form-action 'none'"
+].join('; ');
+
+/**
  * Minimal HTTP request shape consumed by the HTML gate.
  *
  * @remarks
@@ -18,8 +37,9 @@ export type ActivityPageRequest = {
  * Serves the Activity HTML after verifying Discord's proxy signature.
  *
  * @remarks
- * Only the root and index page accept GET or HEAD. Every response uses no-store, including
- * failures. Asset routes are handled separately by the Worker platform.
+ * Only the root and index page accept GET or HEAD. Every response uses no-store, nosniff and
+ * no-referrer, including failures; the page also carries {@link CONTENT_SECURITY_POLICY}. Asset
+ * routes are handled separately by the Worker platform.
  *
  * @param request - Request with an absolute URL and proxy headers.
  * @param publicKey - Configured Discord public key; missing or malformed keys fail closed.
@@ -35,7 +55,11 @@ export function serveActivityPage(
   html: string
 ): Response {
   // Every visit must reach the signature check, including visits after a successful response.
-  const headers = new Headers({ 'Cache-Control': 'no-store' });
+  const headers = new Headers({
+    'Cache-Control': 'no-store',
+    'X-Content-Type-Options': 'nosniff',
+    'Referrer-Policy': 'no-referrer'
+  });
   const path = new URL(request.url).pathname;
   if (path !== '/' && path !== '/index.html') return new Response(null, { status: 404, headers });
   if (request.method !== 'GET' && request.method !== 'HEAD') {
@@ -62,5 +86,6 @@ export function serveActivityPage(
     });
 
   headers.set('Content-Type', 'text/html; charset=utf-8');
+  headers.set('Content-Security-Policy', CONTENT_SECURITY_POLICY);
   return new Response(request.method === 'HEAD' ? null : html, { headers });
 }

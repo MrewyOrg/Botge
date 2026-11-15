@@ -27,7 +27,8 @@ The [Botge wiki](https://github.com/MrewyOrg/Botge/wiki) is the main documentati
 
 Implementation details stay versioned with the code.
 
-- [`src/`](src/) contains the Rust bot. See the [architecture](docs/ARCHITECTURE.md).
+- [`crates/`](crates/) contains the Rust workspace. See the [architecture](docs/ARCHITECTURE.md) and
+  [workspace guide](crates/README.md).
 - [`activity/`](activity/) contains the browser, Worker, and their
   [workspace tooling](activity/README.md).
 - [`tests/`](tests/) documents the [test suites and coverage](tests/README.md).

@@ -2,6 +2,7 @@
 name = 'botge-domain'
 version.workspace = true
 edition.workspace = true
+rust-version.workspace = true
 description = 'Shared emote records, settings validation and pure matching rules'
 license.workspace = true
 repository.workspace = true

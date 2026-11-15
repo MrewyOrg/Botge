@@ -178,6 +178,15 @@ fn oauth_fixtures_preserve_paths_and_reject_non_loopback_destinations() -> anyho
   Ok(())
 }
 
+/// Reports whether the credential's holder administers the fixture guild.
+async fn administrator(access: &DiscordAccess, credential: &Credential) -> anyhow::Result<bool> {
+  access
+    .membership(NonZeroU64::MIN, credential)
+    .await
+    .map(|member| member.administrator)
+    .map_err(|_error| anyhow::anyhow!("membership failed"))
+}
+
 #[tokio::test]
 #[expect(
   clippy::too_many_lines,
@@ -189,6 +198,7 @@ async fn reuses_one_code_exchange_and_rechecks_identity_and_permissions() -> any
   let identities = Arc::new(AtomicUsize::new(0));
   let revoked = Arc::new(AtomicBool::new(false));
   let owner = Arc::new(AtomicBool::new(true));
+  let guild_fetches = Arc::new(AtomicUsize::new(0));
   let routes = Router::new()
     .route(
       "/api/v10/guilds/1/members/{id}",
@@ -241,8 +251,10 @@ async fn reuses_one_code_exchange_and_rechecks_identity_and_permissions() -> any
       "/api/v10/guilds/{guild}",
       get({
         let owner = Arc::clone(&owner);
+        let guild_fetches = Arc::clone(&guild_fetches);
         move || {
           let owner = Arc::clone(&owner);
+          guild_fetches.fetch_add(1, Ordering::Relaxed);
           async move {
             let mut value = guild();
             if !owner.load(Ordering::Relaxed)
@@ -256,7 +268,7 @@ async fn reuses_one_code_exchange_and_rechecks_identity_and_permissions() -> any
       }),
     );
   let server = TestServer::start(routes).await?;
-  let access = DiscordAccess::new(
+  let mut access = DiscordAccess::new(
     OAuthClient {
       application_id: NonZeroU64::MIN,
       secret: "fixture".into(),
@@ -278,14 +290,17 @@ async fn reuses_one_code_exchange_and_rechecks_identity_and_permissions() -> any
         .administrator
     );
   }
+  // Identity and membership are checked every time; the guild's owner and roles are reused.
+  assert_eq!(guild_fetches.load(Ordering::Relaxed), 1);
   owner.store(false, Ordering::Relaxed);
   assert!(
-    !access
-      .membership(NonZeroU64::MIN, &credential)
-      .await
-      .map_err(|_error| anyhow::anyhow!("membership failed"))?
-      .administrator
+    administrator(&access, &credential).await?,
+    "cached owner within the window"
   );
+  // Once the cached guild expires, the ownership change applies.
+  access.set_guild_ttl(Duration::ZERO);
+  assert!(!administrator(&access, &credential).await?);
+  assert_eq!(guild_fetches.load(Ordering::Relaxed), 2);
   revoked.store(true, Ordering::Relaxed);
   let error = access
     .user_id(&credential)
@@ -294,7 +309,7 @@ async fn reuses_one_code_exchange_and_rechecks_identity_and_permissions() -> any
     .ok_or_else(|| anyhow::anyhow!("revoked token accepted"))?;
   assert_eq!(error.0, botge_app::access::FailureKind::Unauthenticated);
   assert_eq!(exchanges.load(Ordering::Relaxed), 1);
-  assert_eq!(identities.load(Ordering::Relaxed), 5);
+  assert_eq!(identities.load(Ordering::Relaxed), 6);
   Ok(())
 }
 
@@ -485,4 +500,11 @@ async fn forwards_oauth_diagnostics_to_legacy_logging_without_secrets() -> anyho
   assert!(text.contains("Discord rejected the Activity OAuth code"));
   assert!(!text.contains("never-print"));
   Ok(())
+}
+
+#[test]
+fn shows_the_project_link_as_a_watching_status() {
+  let presence = presence();
+  assert_eq!(presence.kind, serenity::all::ActivityType::Watching);
+  assert_eq!(presence.name, "github.com/MrewyOrg/Botge");
 }
