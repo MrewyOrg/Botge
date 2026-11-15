@@ -11,6 +11,8 @@ case "${scope}" in
     cargo clippy --workspace --locked --all-targets -- -D warnings
     cargo doc --workspace --locked --no-deps --document-private-items
     cargo test --workspace --locked --doc
+    ;;
+  dependencies)
     cargo hack check --workspace --locked --feature-powerset --all-targets
     cargo udeps --workspace --locked --all-targets
     ;;
@@ -18,7 +20,7 @@ case "${scope}" in
   miri) sh scripts/check-rust-miri.sh "$@" ;;
   bench) cargo bench --workspace --locked -- "$@" ;;
   *)
-    printf '%s\n' 'Usage: sh scripts/check-rust.sh [static|coverage|miri|bench]' >&2
+    printf '%s\n' 'Usage: sh scripts/check-rust.sh [static|dependencies|coverage|miri|bench]' >&2
     exit 2
     ;;
 esac

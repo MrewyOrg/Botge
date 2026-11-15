@@ -13,6 +13,10 @@ directory=$(mktemp -d "${TMPDIR:-/tmp}/botge-actionlint.XXXXXX")
 trap 'rm -rf -- "$directory"' EXIT
 mkdir -p "${directory}/.github/workflows" "${directory}/.git"
 cp .github/actionlint.yaml "${directory}/.github/actionlint.yaml"
+# Workflows reference local composite actions, which actionlint reads from the copy.
+if [ -d .github/actions ]; then
+  cp -R .github/actions "${directory}/.github/actions"
+fi
 
 # actionlint 1.7.x predates GitHub's $/ syntax. Normalize copies for linting.
 for workflow in .github/workflows/*.yml .github/workflows/*.yaml; do

@@ -142,17 +142,14 @@ jobs:
               - '.github/actionlint.*'
               - 'scripts/lint-workflows.sh'
 
-  botgeql:
-    name: BotgeQL
+  documentation-and-typescript:
+    name: Documentation and TypeScript
     needs: [check-pr-target, changes]
     if: >-
       always() && !cancelled() && (needs.check-pr-target.result == 'success' ||
       needs.check-pr-target.result == 'skipped')
     runs-on: ubuntu-latest
     timeout-minutes: 30
-    env:
-      CARGO_INCREMENTAL: '0'
-      OPUS_BUNDLED: '1'
     steps:
       - name: Require successful change detection
         env:
@@ -194,81 +191,6 @@ jobs:
         if: needs.changes.outputs.static == 'true'
         run: npm run check:static
 
-      - name: Restore Rust build cache
-        if: needs.changes.outputs.rust == 'true'
-        uses: actions/cache@v6.1.0
-        with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            target/debug
-            target/llvm-cov-branch
-            target/miri
-            ~/.cache/miri
-          key: >-
-            rust-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('rust-toolchain.toml') }}-${{
-            hashFiles('Cargo.toml', 'crates/**/Cargo.toml', 'Cargo.lock') }}
-          restore-keys: |
-            rust-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('rust-toolchain.toml') }}-
-
-      - name: Restore pinned Rust test tools
-        if: needs.changes.outputs.rust == 'true'
-        uses: actions/cache@v6.1.0
-        id: rust-tools
-        with:
-          path: |
-            ~/.cargo/bin/cargo-llvm-cov
-            ~/.cargo/bin/cargo-hack
-            ~/.cargo/bin/cargo-udeps
-            ${{ runner.temp }}/botge-test-bin
-          key: >-
-            rust-tools-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('rust-toolchain.toml',
-            'scripts/install-test-ffmpeg.sh', '.github/workflows/botgeql.yml') }}
-
-      - name: Install CI Rust toolchain
-        if: needs.changes.outputs.rust == 'true'
-        run: |
-          toolchain=$(sed -n "s/^channel = '\(.*\)'$/\1/p" rust-toolchain.toml)
-          test -n "$toolchain"
-          # Override the development component selection for this and subsequent steps.
-          export RUSTUP_TOOLCHAIN="$toolchain"
-          printf 'RUSTUP_TOOLCHAIN=%s\n' "$toolchain" >> "$GITHUB_ENV"
-          rustup toolchain install "$toolchain" --no-self-update --profile minimal \
-            --component clippy,rustfmt,llvm-tools-preview,miri,rust-src
-          rustup show active-toolchain
-          cargo --version
-
-      # These tools are pinned together by the installer and workflow cache key.
-      - name: Install Rust verification and render tools
-        if: needs.changes.outputs.rust == 'true' && steps.rust-tools.outputs.cache-hit != 'true'
-        run: |
-          cargo install --locked --version 0.9.1 cargo-llvm-cov
-          cargo install --locked --version 0.6.46 cargo-hack
-          cargo install --locked --version 0.1.61 cargo-udeps
-          sh scripts/install-test-ffmpeg.sh "$RUNNER_TEMP/botge-test-bin"
-
-      - name: Add render tools to PATH
-        if: needs.changes.outputs.rust == 'true'
-        run: printf '%s\n' "$RUNNER_TEMP/botge-test-bin" >> "$GITHUB_PATH"
-
-      - name: Check Rust formatting, lints, documentation, features, and dependencies
-        if: needs.changes.outputs.rust == 'true'
-        run: |
-          sh scripts/check-rust.sh static
-
-      - name: Check Rust tests and coverage
-        if: needs.changes.outputs.rust == 'true'
-        run: |
-          sh scripts/check-rust.sh coverage
-
-      - name: Prepare Miri standard library
-        if: needs.changes.outputs.rust == 'true'
-        run: cargo miri setup
-
-      - name: Interpret pure Rust tests with Miri
-        if: needs.changes.outputs.rust == 'true'
-        run: sh scripts/check-rust.sh miri
-
       - name: Validate Activity HTML and SCSS
         if: needs.changes.outputs.markup == 'true'
         env:
@@ -281,6 +203,166 @@ jobs:
       - name: Test TypeScript and enforce coverage
         if: needs.changes.outputs.tooling == 'true' || needs.changes.outputs.activity == 'true'
         run: npm run test:coverage
+
+  # The Rust scopes run in parallel. Each job keeps its own build cache through the shared setup.
+  rust-static:
+    name: Rust static checks
+    needs: changes
+    if: always() && !cancelled() && needs.changes.outputs.rust == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      CARGO_INCREMENTAL: '0'
+      OPUS_BUNDLED: '1'
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Rust
+        uses: $/.github/actions/rust-setup
+        with:
+          cache-name: static
+          cache-paths: |
+            target/debug
+            target/stable
+          components: clippy,rustfmt
+
+      - name: Check Rust formatting, lints, and documentation
+        run: sh scripts/check-rust.sh static
+
+      # The production image builds with this stable release; keep nightly-only code out of it.
+      - name: Check production build on stable Rust
+        run: |
+          toolchain=$(sed -n "s/^rust-version = '\(.*\)'$/\1/p" Cargo.toml)
+          test -n "$toolchain"
+          rustup toolchain install "$toolchain" --no-self-update --profile minimal
+          cargo "+$toolchain" check --workspace --locked --target-dir target/stable
+
+  rust-coverage:
+    name: Rust tests and coverage
+    needs: changes
+    if: always() && !cancelled() && needs.changes.outputs.rust == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      CARGO_INCREMENTAL: '0'
+      OPUS_BUNDLED: '1'
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Rust
+        uses: $/.github/actions/rust-setup
+        with:
+          cache-name: coverage
+          cache-paths: target/llvm-cov-branch
+          components: llvm-tools-preview
+          tools: cargo-llvm-cov ffmpeg
+
+      - name: Check Rust tests and coverage
+        run: sh scripts/check-rust.sh coverage
+
+  rust-miri:
+    name: Rust Miri
+    needs: changes
+    if: always() && !cancelled() && needs.changes.outputs.rust == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      CARGO_INCREMENTAL: '0'
+      OPUS_BUNDLED: '1'
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Rust
+        uses: $/.github/actions/rust-setup
+        with:
+          cache-name: miri
+          cache-paths: |
+            target/miri
+            ~/.cache/miri
+          components: miri,rust-src
+
+      - name: Prepare Miri standard library
+        run: cargo miri setup
+
+      - name: Interpret pure Rust tests with Miri
+        run: sh scripts/check-rust.sh miri
+
+  rust-dependencies:
+    name: Rust features and dependencies
+    needs: changes
+    if: always() && !cancelled() && needs.changes.outputs.rust == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      CARGO_INCREMENTAL: '0'
+      OPUS_BUNDLED: '1'
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Rust
+        uses: $/.github/actions/rust-setup
+        with:
+          cache-name: dependencies
+          cache-paths: target/debug
+          tools: cargo-hack cargo-udeps
+
+      - name: Check Rust feature combinations and unused dependencies
+        run: sh scripts/check-rust.sh dependencies
+
+  # Rulesets require this check name. It passes only when every stage succeeded or was skipped.
+  botgeql:
+    name: BotgeQL
+    needs:
+      [
+        check-pr-target,
+        changes,
+        documentation-and-typescript,
+        rust-static,
+        rust-coverage,
+        rust-miri,
+        rust-dependencies
+      ]
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Require every BotgeQL stage to pass
+        env:
+          RESULTS: >-
+            check-pr-target=${{ needs.check-pr-target.result }} changes=${{ needs.changes.result }}
+            documentation-and-typescript=${{ needs.documentation-and-typescript.result }}
+            rust-static=${{ needs.rust-static.result }} rust-coverage=${{ needs.rust-coverage.result
+            }} rust-miri=${{ needs.rust-miri.result }} rust-dependencies=${{
+            needs.rust-dependencies.result }}
+        run: |
+          status=0
+          for entry in $RESULTS; do
+            case "${entry#*=}" in
+              success | skipped) ;;
+              *)
+                printf '%s\n' "BotgeQL stage ${entry%%=*} ended as ${entry#*=}." >&2
+                status=1
+                ;;
+            esac
+          done
+          # Change detection gates the other stages, so it must have run.
+          case "$RESULTS" in
+            *changes=success*) ;;
+            *) status=1 ;;
+          esac
+          exit "$status"
 
   tooling-lint:
     name: Shell and workflow lint
