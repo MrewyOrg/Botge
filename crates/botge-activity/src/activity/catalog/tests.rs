@@ -375,3 +375,34 @@ async fn changes_a_batch_with_one_authorization_and_reports_partial_results() ->
   assert!(added.is_empty(), "unexpected added emotes: {added:?}");
   Ok(())
 }
+
+#[tokio::test]
+async fn compresses_large_catalogs_for_clients_that_accept_gzip() -> anyhow::Result<()> {
+  let fixture = Fixture::with_emotes(Some("http://127.0.0.1:9".parse()?))?;
+  for index in 0..30 {
+    fixture.store.add_emote(
+      NonZeroU64::MIN,
+      botge_test_support::example(&format!("Wave{index}"), &index.to_string()),
+    )?;
+  }
+  let request = json!({"guildId":"1","code":"admin"});
+  assert_eq!(
+    fixture.content_encoding("/catalog", &request, true).await?,
+    Some("gzip".into())
+  );
+  assert_eq!(
+    fixture
+      .content_encoding("/catalog", &request, false)
+      .await?,
+    None
+  );
+  // Small responses are sent as they are.
+  let read = json!({"guildId":"1","code":"member"});
+  assert_eq!(
+    fixture
+      .content_encoding("/settings/border/read", &read, true)
+      .await?,
+    None
+  );
+  Ok(())
+}

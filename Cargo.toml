@@ -60,6 +60,7 @@ tokio = { version = '1', features = [
   'time',
 ] }
 tokio-tungstenite = { version = '0.30', features = ['rustls-tls-webpki-roots'] }
+tower-http = { version = '0.6', default-features = false, features = ['compression-gzip'] }
 tracing = '0.1'
 tracing-subscriber = { version = '0.3', features = ['env-filter'] }
 

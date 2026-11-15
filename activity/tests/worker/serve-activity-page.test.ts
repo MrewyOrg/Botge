@@ -2,7 +2,7 @@ import { generateKeyPairSync, sign } from 'node:crypto';
 
 import { expect, test, vi } from 'vitest';
 
-import { serveActivityPage } from '../../worker/serve-activity-page.ts';
+import { CONTENT_SECURITY_POLICY, serveActivityPage } from '../../worker/serve-activity-page.ts';
 
 const { privateKey, publicKey } = generateKeyPairSync('ed25519');
 const key = publicKey.export({ format: 'der', type: 'spki' }).subarray(-32).toString('hex');
@@ -23,6 +23,9 @@ test.each(['/', '/index.html'])('rejects an unsigned visit to %s', async (path) 
   const response = serveActivityPage(new Request(origin + path), key, html);
   expect(response.status).toBe(401);
   expect(response.headers.get('Cache-Control')).toBe('no-store');
+  expect(response.headers.get('X-Content-Type-Options')).toBe('nosniff');
+  expect(response.headers.get('Referrer-Policy')).toBe('no-referrer');
+  expect(response.headers.get('Content-Security-Policy')).toBeNull();
   expect(await response.text()).toBe('Open Botge in Discord.');
 });
 
@@ -32,6 +35,10 @@ test.each(['GET', 'HEAD'])('serves a signed %s without caching it', async (metho
   expect(response.status).toBe(200);
   expect(response.headers.get('Cache-Control')).toBe('no-store');
   expect(response.headers.get('Content-Type')).toBe('text/html; charset=utf-8');
+  expect(response.headers.get('X-Content-Type-Options')).toBe('nosniff');
+  expect(response.headers.get('Content-Security-Policy')).toBe(CONTENT_SECURITY_POLICY);
+  expect(CONTENT_SECURITY_POLICY).toContain("script-src 'self'");
+  expect(CONTENT_SECURITY_POLICY).not.toContain('unsafe');
   expect(await response.text()).toBe(method === 'HEAD' ? '' : html);
 });
 

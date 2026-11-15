@@ -89,6 +89,45 @@ async fn rejects_id_conflicts_and_concurrent_additions_after_a_stale_catalog_rea
 }
 
 #[tokio::test]
+async fn explains_why_an_addition_conflicts() -> Result<()> {
+  let directory = tempfile::tempdir()?;
+  let store = Arc::new(Store::open(&directory.path().join("reasons.redb"))?);
+  let application = Application::new(Providers::default(), Arc::clone(&store), None)?;
+  let guild = NonZeroU64::MIN;
+  let saved = example("Wave", "01234567890123456789012345");
+  assert!(store.add_emote(guild, saved.clone())?);
+  let stale = Catalog::new(vec![], vec![]);
+  let fresh = Catalog::new(vec![saved.clone()], vec![]);
+  let mut same_name = example("wave", "11234567890123456789012345");
+  same_name.name = "WAVE".into();
+  // The snapshot catches provider and saved entries; storage catches same-batch additions.
+  for (emote, catalog, expected) in [
+    (saved.clone(), &fresh, ALREADY_ADDED.1),
+    (same_name.clone(), &fresh, NAME_TAKEN.1),
+    (saved, &stale, ALREADY_ADDED.1),
+    (same_name, &stale, NAME_TAKEN.1),
+  ] {
+    let error = application
+      .add_to_catalog(guild, emote, catalog)
+      .await
+      .err()
+      .ok_or_else(|| anyhow::anyhow!("conflict was accepted"))?;
+    assert_eq!(error.1, expected);
+  }
+  let full = NonZeroU64::MAX;
+  for index in 0..1000 {
+    assert!(store.add_emote(full, example(&format!("Fill{index}"), &index.to_string()))?);
+  }
+  let error = application
+    .add_to_catalog(full, example("Extra", "21234567890123456789012345"), &stale)
+    .await
+    .err()
+    .ok_or_else(|| anyhow::anyhow!("full catalog accepted an addition"))?;
+  assert_eq!(error.1, CATALOG_FULL.1);
+  Ok(())
+}
+
+#[tokio::test]
 async fn denies_writes_and_wakes_voice_only_after_a_valid_commit() -> Result<()> {
   use std::assert_matches;
   use std::time::Duration;

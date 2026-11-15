@@ -164,8 +164,11 @@ impl AccessError {
 
   /// Logs a local failure while keeping its details out of the HTTP response.
   pub fn internal(error: impl std::fmt::Display) -> Self {
-    tracing::error!(%error, message = "could not access voice settings");
-    Self(FailureKind::Internal, "Could not access voice settings.")
+    tracing::error!(%error, message = "Activity request failed locally");
+    Self(
+      FailureKind::Internal,
+      "Botge could not complete the request. Try again.",
+    )
   }
 }
 
