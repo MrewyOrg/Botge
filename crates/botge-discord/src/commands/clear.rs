@@ -2,12 +2,17 @@
 //!
 //! The modal binds the caller and channel to the original interaction. Submission rechecks
 //! permissions; deletion is incremental, so failures can leave a partially cleared history.
+//! Messages younger than two weeks are bulk-deleted 100 at a time; Discord requires older
+//! messages to be deleted one by one. A run stops after twelve minutes so its report arrives
+//! before the interaction token expires, and the administrator can run it again to continue.
+
+use std::time::Duration;
 
 use anyhow::Result;
 use serenity::{
   all::{
     ActionRowComponent, ChannelId, ChannelType, CommandInteraction, InputTextStyle, InteractionId,
-    Member, MessageId, ModalInteraction, Permissions, UserId,
+    Member, MessageId, ModalInteraction, Permissions, Timestamp, UserId,
   },
   builder::{
     CreateActionRow, CreateInputText, CreateInteractionResponse, CreateInteractionResponseMessage,
@@ -19,6 +24,10 @@ use serenity::{
 pub(super) const NAME: &str = "clear-messages";
 const PREFIX: &str = "clear-messages:";
 const CONFIRMATION: &str = "confirm";
+/// Discord bulk-deletes only messages younger than 14 days; an hour of margin covers clock skew.
+const BULK_MAX_AGE_SECONDS: i64 = 14 * 24 * 60 * 60 - 60 * 60;
+/// Stops early enough to edit the reply before the 15-minute interaction token expires.
+const RUN_BUDGET: Duration = Duration::from_mins(12);
 const REQUIRED: Permissions = Permissions::VIEW_CHANNEL
   .union(Permissions::MANAGE_MESSAGES)
   .union(Permissions::READ_MESSAGE_HISTORY);
@@ -139,8 +148,24 @@ pub(super) async fn confirm(http: &Http, modal: ModalInteraction) -> Result<()> 
     return Ok(());
   };
   modal.defer_ephemeral(http).await?;
-  let feedback = match purge(http, modal.channel_id, before).await {
-    Ok(count) => format!("Deleted {count} earlier messages."),
+  let deadline = tokio::time::Instant::now() + RUN_BUDGET;
+  let feedback = match purge(
+    http,
+    modal.channel_id,
+    before,
+    modal.id.created_at(),
+    deadline,
+  )
+  .await
+  {
+    Ok(Purge {
+      deleted,
+      complete: true,
+    }) => format!("Deleted {deleted} earlier messages."),
+    Ok(Purge {
+      deleted,
+      complete: false,
+    }) => format!("Deleted {deleted} earlier messages so far. Run /{NAME} again to continue."),
     Err(error) => {
       tracing::warn!(%error, message = "could not clear channel");
       "Could not clear all messages. Some may already have been deleted.".into()
@@ -152,42 +177,101 @@ pub(super) async fn confirm(http: &Http, modal: ModalInteraction) -> Result<()> 
   Ok(())
 }
 
-/// Walks backward from the command invocation and skips pinned or already deleted messages.
+/// How far one run got before it finished or reached its time budget.
+#[derive(Debug, Eq, PartialEq)]
+struct Purge {
+  /// Messages Discord accepted for deletion.
+  deleted: usize,
+  /// Whether every eligible message before the cutoff was handled.
+  complete: bool,
+}
+
+/// Walks backward from the cutoff and deletes unpinned messages until history or time runs out.
 ///
-/// Counts only successful deletions. A concurrent deletion is harmless, but another
-/// Discord error ends the scan and earlier deletions remain applied.
+/// Messages younger than [`BULK_MAX_AGE_SECONDS`] relative to `now` are bulk-deleted per page;
+/// older ones are deleted individually. Pinned messages are skipped but still advance the scan.
+/// The deadline is checked before each request, so a run never starts work it cannot report.
 ///
 /// # Errors
 ///
-/// Returns an error if history cannot be read or a deletion fails for a reason other than an
-/// already-deleted message. Successfully deleted messages are not restored.
-async fn purge(http: &Http, channel: ChannelId, mut before: MessageId) -> Result<usize> {
-  let mut count = 0;
+/// Returns an error if history cannot be read or Discord refuses a deletion for a reason other
+/// than an already deleted message. Earlier deletions remain applied.
+async fn purge(
+  http: &Http,
+  channel: ChannelId,
+  mut before: MessageId,
+  now: Timestamp,
+  deadline: tokio::time::Instant,
+) -> Result<Purge> {
+  let bulk_cutoff = now.unix_timestamp() - BULK_MAX_AGE_SECONDS;
+  let mut deleted = 0;
+  let incomplete = |deleted| {
+    Ok(Purge {
+      deleted,
+      complete: false,
+    })
+  };
   loop {
+    if tokio::time::Instant::now() >= deadline {
+      return incomplete(deleted);
+    }
     let messages = channel
       .messages(http, GetMessages::new().before(before).limit(100))
       .await?;
     let mut next = before;
+    let mut recent = Vec::new();
+    let mut old = Vec::new();
     for message in messages.iter().filter(|message| message.id < before) {
       // Advance past pinned messages too, so they cannot stall pagination.
       next = next.min(message.id);
       if message.pinned {
         continue;
       }
-      if let Err(error) = channel.delete_message(http, message.id).await {
-        if matches!(&error, serenity::Error::Http(http) if matches!(http,
-                    serenity::http::HttpError::UnsuccessfulRequest(response) if response.error.code == 10008))
-        {
-          continue;
-        }
-        return Err(error.into());
+      if message.id.created_at().unix_timestamp() > bulk_cutoff {
+        recent.push(message.id);
+      } else {
+        old.push(message.id);
       }
-      count += 1;
+    }
+    if let [_, _, ..] = recent.as_slice() {
+      // Discord counts IDs that no longer exist, so concurrent deletions cannot fail the batch.
+      channel.delete_messages(http, &recent).await?;
+      deleted += recent.len();
+    } else {
+      old.extend(recent);
+    }
+    for id in old {
+      if tokio::time::Instant::now() >= deadline {
+        return incomplete(deleted);
+      }
+      if delete_one(http, channel, id).await? {
+        deleted += 1;
+      }
     }
     if next == before {
-      return Ok(count);
+      return Ok(Purge {
+        deleted,
+        complete: true,
+      });
     }
     before = next;
+  }
+}
+
+/// Deletes one message, treating a message that is already gone as not deleted.
+///
+/// # Errors
+///
+/// Returns any Discord error other than Unknown Message (10008).
+async fn delete_one(http: &Http, channel: ChannelId, id: MessageId) -> Result<bool> {
+  match channel.delete_message(http, id).await {
+    Ok(()) => Ok(true),
+    Err(serenity::Error::Http(serenity::http::HttpError::UnsuccessfulRequest(response)))
+      if response.error.code == 10008 =>
+    {
+      Ok(false)
+    }
+    Err(error) => Err(error.into()),
   }
 }
 

@@ -276,3 +276,118 @@ async fn propagates_callback_failures_and_rejects_unrelated_confirmations() -> R
   assert_matches!(open(&http, &command).await, Err(_));
   Ok(())
 }
+
+/// A message ID created `days` after the Discord epoch; snowflakes keep milliseconds above bit 22.
+fn days(days: u64) -> MessageId {
+  MessageId::new((days * 24 * 60 * 60 * 1000) << 22)
+}
+
+/// Serves one history page with recent, pinned, and old messages, recording deletions.
+async fn history_server(
+  page_delay: Duration,
+) -> Result<(TestServer, mpsc::UnboundedReceiver<Value>)> {
+  let (sent, requests) = mpsc::unbounded_channel();
+  let bulk = sent.clone();
+  let server = TestServer::start(
+    Router::new()
+      .route(
+        "/api/v10/channels/3/messages",
+        get(
+          move |Query(query): Query<HashMap<String, String>>| async move {
+            tokio::time::sleep(page_delay).await;
+            let first = query.get("before") == Some(&days(20).to_string());
+            let mut pinned = fixture_message(days(18).get() + 1, true);
+            pinned.pinned = true;
+            Json(if first {
+              vec![
+                fixture_message(days(19).get(), false),
+                fixture_message(days(18).get(), false),
+                pinned,
+                fixture_message(days(3).get(), false),
+              ]
+            } else {
+              vec![]
+            })
+          },
+        ),
+      )
+      .route(
+        "/api/v10/channels/3/messages/bulk-delete",
+        post(move |Json(body): Json<Value>| async move {
+          drop(bulk.send(json!({"bulk": body.get("messages")})));
+          StatusCode::NO_CONTENT
+        }),
+      )
+      .route(
+        "/api/v10/channels/3/messages/{id}",
+        delete(move |Path(id): Path<String>| async move {
+          drop(sent.send(json!({"delete": id})));
+          StatusCode::NO_CONTENT
+        }),
+      ),
+  )
+  .await?;
+  Ok((server, requests))
+}
+
+#[tokio::test]
+async fn bulk_deletes_recent_messages_and_deletes_older_ones_individually() -> Result<()> {
+  let (server, mut requests) = history_server(Duration::ZERO).await?;
+  let http = http_for(&server);
+  let now = days(20).created_at();
+  let later = tokio::time::Instant::now() + Duration::from_secs(60);
+  let outcome = purge(&http, ChannelId::new(3), days(20), now, later).await?;
+  assert_eq!(
+    outcome,
+    Purge {
+      deleted: 3,
+      complete: true
+    }
+  );
+  // Messages under two weeks old share one bulk request; the pinned one is skipped.
+  assert_eq!(
+    requests.try_recv()?,
+    json!({"bulk": [days(19).to_string(), days(18).to_string()]})
+  );
+  // Discord refuses to bulk-delete a 17-day-old message, so it is deleted on its own.
+  assert_eq!(requests.try_recv()?, json!({"delete": days(3).to_string()}));
+  assert_matches!(requests.try_recv(), Err(TryRecvError::Empty));
+  Ok(())
+}
+
+#[tokio::test]
+async fn stops_at_the_time_budget_and_reports_partial_progress() -> Result<()> {
+  let now = days(20).created_at();
+  let (server, mut requests) = history_server(Duration::ZERO).await?;
+  let expired = purge(
+    &http_for(&server),
+    ChannelId::new(3),
+    days(20),
+    now,
+    tokio::time::Instant::now(),
+  )
+  .await?;
+  assert_eq!(
+    expired,
+    Purge {
+      deleted: 0,
+      complete: false
+    }
+  );
+  assert_matches!(requests.try_recv(), Err(TryRecvError::Empty));
+
+  // The budget runs out while the page loads: the bulk batch finishes, the old message waits.
+  let (slow, mut requests) = history_server(Duration::from_millis(300)).await?;
+  let soon = tokio::time::Instant::now() + Duration::from_millis(100);
+  let partial = purge(&http_for(&slow), ChannelId::new(3), days(20), now, soon).await?;
+  assert_eq!(
+    partial,
+    Purge {
+      deleted: 2,
+      complete: false
+    }
+  );
+  assert!(requests.try_recv()?.get("bulk").is_some());
+  assert_matches!(requests.try_recv(), Err(TryRecvError::Empty));
+  Ok(())
+}
