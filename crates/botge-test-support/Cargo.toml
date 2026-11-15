@@ -2,6 +2,7 @@
 name = 'botge-test-support'
 version.workspace = true
 edition.workspace = true
+rust-version.workspace = true
 description = 'Loopback servers, media and tracing fixtures for Botge tests'
 license.workspace = true
 repository.workspace = true

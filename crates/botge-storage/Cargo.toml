@@ -2,6 +2,7 @@
 name = 'botge-storage'
 version.workspace = true
 edition.workspace = true
+rust-version.workspace = true
 description = 'Transactional redb persistence for Botge guild and user preferences'
 license.workspace = true
 repository.workspace = true

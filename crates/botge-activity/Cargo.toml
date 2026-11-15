@@ -2,6 +2,7 @@
 name = 'botge-activity'
 version.workspace = true
 edition.workspace = true
+rust-version.workspace = true
 description = 'Signed HTTP Activity adapter for Botge application operations'
 license.workspace = true
 repository.workspace = true

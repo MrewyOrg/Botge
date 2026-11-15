@@ -6,6 +6,8 @@ resolver = '3'
 [workspace.package]
 version = '5.4.0'
 edition = '2024'
+# Stable release that builds the production image; checks keep the pinned nightly.
+rust-version = '1.99.1'
 license = 'MIT'
 repository = 'https://github.com/MrewyOrg/Botge'
 publish = false

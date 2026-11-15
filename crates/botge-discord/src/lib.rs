@@ -1,5 +1,4 @@
 //! Discord gateway, command and identity adapters for shared application operations.
-#![feature(once_cell_try)]
 #![cfg_attr(test, feature(test))]
 #[cfg(test)]
 extern crate test;

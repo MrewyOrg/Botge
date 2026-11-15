@@ -176,7 +176,9 @@ impl DiscordAccess {
 }
 
 /// Shares one bounded, non-redirecting Discord transport independently of request state.
-/// Concurrent initialization retains one client and propagates configuration errors.
+///
+/// Concurrent first calls may each build a client, but only the first one stored is kept and
+/// returned to every caller; configuration errors propagate.
 ///
 /// # Errors
 ///
@@ -184,12 +186,14 @@ impl DiscordAccess {
 /// partial client and a later call can retry.
 fn discord_client() -> Result<&'static reqwest::Client, reqwest::Error> {
   static CLIENT: OnceLock<reqwest::Client> = OnceLock::new();
-  CLIENT.get_or_try_init(|| {
-    reqwest::Client::builder()
-      .timeout(Duration::from_secs(10))
-      .redirect(reqwest::redirect::Policy::none())
-      .build()
-  })
+  if let Some(client) = CLIENT.get() {
+    return Ok(client);
+  }
+  let client = reqwest::Client::builder()
+    .timeout(Duration::from_secs(10))
+    .redirect(reqwest::redirect::Policy::none())
+    .build()?;
+  Ok(CLIENT.get_or_init(|| client))
 }
 
 /// Keeps OAuth transport and decoding errors out of logs because they may contain credentials.

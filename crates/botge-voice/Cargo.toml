@@ -2,6 +2,7 @@
 name = 'botge-voice'
 version.workspace = true
 edition.workspace = true
+rust-version.workspace = true
 description = 'Discord voice and status reconciliation through Songbird'
 license.workspace = true
 repository.workspace = true

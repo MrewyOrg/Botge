@@ -2,6 +2,7 @@
 name = 'botge'
 version.workspace = true
 edition.workspace = true
+rust-version.workspace = true
 description = 'Discord bot for emotes, overlays, and the Botge Activity'
 license.workspace = true
 repository.workspace = true
