@@ -48,7 +48,7 @@ if (($# == 1)) && [[ "$1" == --receive ]]; then
   docker compose stop botge < /dev/null
   # Evaluate destination paths and variables in the container, not on the host.
   # shellcheck disable=SC2016
-  docker compose run --rm --no-deps -T --user node --entrypoint sh botge -ec '
+  docker compose run --rm --no-deps -T --user 1000:1000 --entrypoint sh botge -ec '
     case "${BOTGE_DATA_DIR-data}" in
       /app/data | /app/data/) ;;
       data | data/ | ./data | ./data/)

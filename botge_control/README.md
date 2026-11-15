@@ -45,14 +45,15 @@ If your installed setup script predates the `.sh` source filenames, download and
 ## Configure and operate
 
 Edit `.env` and `botge.config.json` in `/home/<control-name>/botge`. Setup installs the default
-Botge and nginx Compose stack and preserves existing configuration on reruns. Botge runs as `node`
-and stores redb in the `botge-data` volume. Copying legacy SQLite files does not migrate them to
-redb.
+Botge and nginx Compose stack and preserves existing configuration on reruns. Botge runs as `botge`
+(UID 1000) and stores redb in the `botge-data` volume. Copying legacy SQLite files does not migrate
+them to redb.
 
 The [operations wiki](https://github.com/MrewyOrg/Botge/wiki/Operations) documents start, stop,
 deploy, configuration updates, and log commands. The control handler serializes operations and waits
 up to 120 seconds for Compose services. Digest deployments verify the running image and gateway
-readiness before replying `OK`; previous images are retained for rollback. See
+readiness before replying `OK`. A failed digest deployment restarts the last verified image and
+replies `ERROR`; previous images are retained for rollback. See
 [production contracts](../docs/PRODUCTION.md) for host upgrades, backups, and recovery.
 
 ## Import an existing data folder
@@ -63,7 +64,7 @@ Stop the old bot and keep its data folder as a backup. Replace the source path b
 sudo bash "$BOTGE_DOWNLOAD_DIR/botge_control/import_data" /path/to/existing/data
 ```
 
-The script stops destination Botge, locks control operations, and imports as `node`. It refuses
+The script stops destination Botge, locks control operations, and imports as UID 1000. It refuses
 nonempty volumes and rejects data-directory overrides outside `/app/data`. Keep the image's default
 working directory when using the relative `data` path. Avoid direct Docker commands during import.
 After success, start the stack with `up`; after failure, inspect any partial data before retrying.

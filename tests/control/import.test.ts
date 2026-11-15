@@ -93,5 +93,5 @@ test.each([
   assert.equal(result.status, 0, result.stderr);
   const calls = readFileSync(join(directory, 'commands'), 'utf8');
   assert.ok(calls.indexOf('compose config') < calls.indexOf('compose stop'));
-  assert.ok(calls.includes('compose run --rm --no-deps -T --user node'));
+  assert.ok(calls.includes('compose run --rm --no-deps -T --user 1000:1000'));
 });
