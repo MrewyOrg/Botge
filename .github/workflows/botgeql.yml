@@ -1,4 +1,4 @@
-# cspell:words botgeql demuxer GOBIN rhysd tsdoc VITE webp
+# cspell:words GOBIN rhysd tsdoc
 
 name: BotgeQL
 
@@ -44,6 +44,7 @@ jobs:
       tooling: ${{ steps.paths.outputs.tooling }}
       shell: ${{ steps.paths.outputs.shell }}
       workflows: ${{ steps.paths.outputs.workflows }}
+      python: ${{ steps.paths.outputs.python }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v7.0.1
@@ -57,9 +58,19 @@ jobs:
         id: paths
         with:
           filters: |
+            python:
+              - '.agents/**/*.py'
+              - 'scripts/**/*.py'
+              - 'tests/python/**/*.py'
+              - 'pyproject.toml'
+              - 'uv.lock'
+              - '.python-version'
+              - 'scripts/check_python.py'
+              - '.github/workflows/botgeql.yml'
             rust:
               - '**/*.rs'
               - 'Cargo.{toml,lock}'
+              - 'crates/**/Cargo.toml'
               - 'clippy.toml'
               - 'rust*.toml'
               - '.cargo/**'
@@ -67,7 +78,7 @@ jobs:
               - 'botge.config.schema.json'
               - '.env.example'
               - 'Dockerfile*'
-              - 'scripts/check-rust-coverage.sh'
+              - 'scripts/check-rust*.sh'
               - 'scripts/install-test-ffmpeg.sh'
               - '.github/workflows/botgeql.yml'
             static:
@@ -89,13 +100,17 @@ jobs:
               - '**/.npmrc'
               - '.nvmrc'
               - '.github/workflows/botgeql.yml'
+            # Build inputs match .husky/pre-commit; HTML rules and this workflow also trigger CI.
             markup:
-              - 'activity/src/**/*.{ts,html,scss,css}'
+              - 'activity/src/**'
               - 'activity/index.html'
               - 'activity/public/**'
               - 'activity/vite.config.*'
+              - 'vite.config.*'
               - 'activity/package{,-lock}.json'
               - 'activity/tsconfig*.json'
+              - 'activity/.env*'
+              - '.env*'
               - 'activity/.htmlvalidate*'
               - '.htmlvalidate*'
               - 'tsconfig*.json'
@@ -118,6 +133,7 @@ jobs:
               - '.github/workflows/botgeql.yml'
             shell:
               - '**/*.sh'
+              - '.agents/scripts/**/*.sh'
               - '.husky/{pre-commit,commit-msg,post-merge}'
               - '.shellcheckrc'
               - '.github/workflows/botgeql.yml'
@@ -133,7 +149,7 @@ jobs:
       always() && !cancelled() && (needs.check-pr-target.result == 'success' ||
       needs.check-pr-target.result == 'skipped')
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 30
     env:
       CARGO_INCREMENTAL: '0'
       OPUS_BUNDLED: '1'
@@ -187,9 +203,11 @@ jobs:
             ~/.cargo/git
             target/debug
             target/llvm-cov-branch
+            target/miri
+            ~/.cache/miri
           key: >-
             rust-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('rust-toolchain.toml') }}-${{
-            hashFiles('Cargo.toml', 'Cargo.lock') }}
+            hashFiles('Cargo.toml', 'crates/**/Cargo.toml', 'Cargo.lock') }}
           restore-keys: |
             rust-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('rust-toolchain.toml') }}-
 
@@ -200,6 +218,8 @@ jobs:
         with:
           path: |
             ~/.cargo/bin/cargo-llvm-cov
+            ~/.cargo/bin/cargo-hack
+            ~/.cargo/bin/cargo-udeps
             ${{ runner.temp }}/botge-test-bin
           key: >-
             rust-tools-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('rust-toolchain.toml',
@@ -214,28 +234,40 @@ jobs:
           export RUSTUP_TOOLCHAIN="$toolchain"
           printf 'RUSTUP_TOOLCHAIN=%s\n' "$toolchain" >> "$GITHUB_ENV"
           rustup toolchain install "$toolchain" --no-self-update --profile minimal \
-            --component clippy,rustfmt,llvm-tools-preview
+            --component clippy,rustfmt,llvm-tools-preview,miri,rust-src
           rustup show active-toolchain
           cargo --version
 
       # These tools are pinned together by the installer and workflow cache key.
-      - name: Install Rust coverage and render tools
+      - name: Install Rust verification and render tools
         if: needs.changes.outputs.rust == 'true' && steps.rust-tools.outputs.cache-hit != 'true'
         run: |
           cargo install --locked --version 0.9.1 cargo-llvm-cov
+          cargo install --locked --version 0.6.46 cargo-hack
+          cargo install --locked --version 0.1.61 cargo-udeps
           sh scripts/install-test-ffmpeg.sh "$RUNNER_TEMP/botge-test-bin"
 
       - name: Add render tools to PATH
         if: needs.changes.outputs.rust == 'true'
         run: printf '%s\n' "$RUNNER_TEMP/botge-test-bin" >> "$GITHUB_PATH"
 
-      - name: Check Rust formatting, lints, documentation, and coverage
+      - name: Check Rust formatting, lints, documentation, features, and dependencies
         if: needs.changes.outputs.rust == 'true'
         run: |
-          cargo fmt --all --check
-          cargo clippy --locked --all-targets -- -D warnings
-          cargo doc --locked --no-deps --document-private-items
-          sh scripts/check-rust-coverage.sh
+          sh scripts/check-rust.sh static
+
+      - name: Check Rust tests and coverage
+        if: needs.changes.outputs.rust == 'true'
+        run: |
+          sh scripts/check-rust.sh coverage
+
+      - name: Prepare Miri standard library
+        if: needs.changes.outputs.rust == 'true'
+        run: cargo miri setup
+
+      - name: Interpret pure Rust tests with Miri
+        if: needs.changes.outputs.rust == 'true'
+        run: sh scripts/check-rust.sh miri
 
       - name: Validate Activity HTML and SCSS
         if: needs.changes.outputs.markup == 'true'
@@ -265,10 +297,37 @@ jobs:
         run: test "$CHANGE_DETECTION_RESULT" = success
 
       - name: Checkout repository
-        if: needs.changes.outputs.shell == 'true' || needs.changes.outputs.workflows == 'true'
+        if: >-
+          needs.changes.outputs.shell == 'true' || needs.changes.outputs.workflows == 'true' ||
+          needs.changes.outputs.python == 'true'
         uses: actions/checkout@v7.0.1
         with:
           persist-credentials: false
+
+      - name: Set up Python tools
+        if: needs.changes.outputs.python == 'true'
+        uses: actions/setup-python@v7.1.0
+        with:
+          python-version-file: .python-version
+
+      - name: Set up locked Python package manager
+        if: needs.changes.outputs.python == 'true'
+        uses: astral-sh/setup-uv@v10.3.3
+        with:
+          version-file: pyproject.toml
+          enable-cache: true
+          cache-dependency-glob: |
+            pyproject.toml
+            uv.lock
+            .python-version
+
+      - name: Install pinned Python tools
+        if: needs.changes.outputs.python == 'true'
+        run: uv sync --locked --no-python-downloads
+
+      - name: Check Python helpers
+        if: needs.changes.outputs.python == 'true'
+        run: .venv/bin/python scripts/check_python.py
 
       - name: Install ShellCheck
         if: needs.changes.outputs.shell == 'true' || needs.changes.outputs.workflows == 'true'

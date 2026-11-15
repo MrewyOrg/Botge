@@ -1,8 +1,12 @@
-# cspell:words vsicons
-
 /.husky/_
 /Cargo.lock
 /coverage
 /target/
+/.agents/references/cache/
+**/.venv/
+**/.ruff_cache/
+# uv generates dependency metadata and hashes.
+/uv.lock
+# Preserve the vendored reference and license verbatim.
 # Preserve Discord's original icon assets.
 /assets/vsicons-custom-icons/*.svg

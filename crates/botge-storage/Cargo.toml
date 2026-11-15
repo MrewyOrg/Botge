@@ -1,0 +1,28 @@
+[package]
+name = 'botge-storage'
+version.workspace = true
+edition.workspace = true
+description = 'Transactional redb persistence for Botge guild and user preferences'
+license.workspace = true
+repository.workspace = true
+publish.workspace = true
+
+[features]
+test-util = ['dep:botge-test-support', 'dep:tempfile']
+
+[dependencies]
+anyhow.workspace = true
+botge-domain.workspace = true
+botge-test-support = { workspace = true, optional = true }
+redb.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+tempfile = { workspace = true, optional = true }
+
+[dev-dependencies]
+botge-test-support.workspace = true
+mimalloc.workspace = true
+tempfile.workspace = true
+
+[lints]
+workspace = true

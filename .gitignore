@@ -15,7 +15,14 @@ node_modules/
 /.env
 /botge.config.json
 /coverage
+/.vitest/
 
 /target/
 # Host deployment state and atomic temporary files.
 .botge-image*
+# Full reference snapshots are an optional local cache; compact indexes and manifest stay tracked.
+/.agents/references/cache/
+.venv/
+.ruff_cache/
+# cspell:words pycache
+**/__pycache__/

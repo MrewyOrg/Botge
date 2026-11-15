@@ -33,9 +33,10 @@ changes cross boundaries. Run the appropriate broader checks before reporting co
 unrelated suites for documentation-only edits.
 
 - **Rust source, Cargo dependencies, or toolchain:** `cargo fmt --all --check`;
-  `cargo clippy --locked --all-targets -- -D warnings`; `cargo test --locked`
+  `cargo clippy --workspace --locked --all-targets -- -D warnings`;
+  `cargo test --workspace --locked`
 - **Rust public/internal contracts or Rustdoc:**
-  `cargo doc --locked --no-deps --document-private-items`
+  `cargo doc --workspace --locked --no-deps --document-private-items`
 - **Rust behavior or tests:** `sh scripts/check-rust-coverage.sh` runs tests and enforces the
   per-file coverage gate; do not repeat plain `cargo test` when this already covers the change. Read
   `tests/README.md` for tools, thresholds, and FFmpeg prerequisites.
@@ -48,6 +49,9 @@ unrelated suites for documentation-only edits.
   shared static checks. Vitest execution alone does not validate `expectTypeOf` assertions.
 - **Activity HTML, styles, or build configuration:** `npm run check:markup -w activity`; inspect
   `activity/README.md` for additional style checks
+- **Python tooling:** `.venv/bin/python scripts/check_python.py` checks Ruff, formatting, strict
+  Pyright and offline tests with per-file 90% Python line/branch coverage in the pinned isolated
+  environment. See the helper guide.
 - **Control scripts or shared tooling tests:** `npm test -- --run --project Tooling`;
   `npm run lint:shell` for shell changes
 - **GitHub Actions:** `npm run lint:workflows`; read `.github/workflows/README.md` for workflow
@@ -65,11 +69,11 @@ without a new change, a distinct coverage configuration to verify, or an unresol
 Activity builds and tests sequentially: Worker entry tests mock the generated HTML module, which a
 concurrent build can replace.
 
-Coverage must meet the repository's configured per-file gates, currently 90% for Rust lines,
-functions, regions, and branches and TypeScript statements, branches, functions, and lines. Inspect
-individual files and missing paths, not only aggregate percentages. Add behavior tests or fix source
-contracts where appropriate; do not lower thresholds or exclude executable code to obtain a pass.
-TypeScript declaration-only `.d.ts` files have no runtime coverage.
+Coverage must meet the repository's configured per-file gates, currently 95% for Rust lines,
+functions, regions, and branches; TypeScript statements, branches, functions, and lines remain 90%.
+Inspect individual files and missing paths, not only aggregate percentages. Add behavior tests or
+fix source contracts where appropriate; do not lower thresholds or exclude executable code to obtain
+a pass. TypeScript declaration-only `.d.ts` files have no runtime coverage.
 
 For modernization, follow `AGENTS.md`: verify features against the pinned Rust nightly and the
 configured TypeScript compiler, Node, bundler, and browser targets. Build output alone does not
@@ -84,8 +88,8 @@ observable behavior, not reversible prose/format changes or implementation mirro
 ## Operational boundaries
 
 Routine validation does not execute setup, teardown, data import, deployment, pruning, or live bot
-startup. In particular, `npm start` prunes Docker images and starts the stack; it is not a
-validation command. Preserve local configuration, databases, volumes, and caches.
+startup. In particular, `npm start` builds and starts the stack; it is not a validation command.
+Docker cleanup remains manual. Preserve local configuration, databases, volumes, and caches.
 
 Run the opt-in Compose/Discord integration suite only within explicit live-test authorization.
 Follow `tests/README.md`, check for an existing stack, and use a separate Discord test application.

@@ -230,16 +230,24 @@ dependencies = [
 
 [[package]]
 name = "botge"
-version = "5.3.0"
+version = "5.4.0"
 dependencies = [
  "anyhow",
  "axum",
  "base64 0.23.1",
+ "botge-activity",
+ "botge-app",
+ "botge-discord",
+ "botge-domain",
+ "botge-emotes",
+ "botge-storage",
+ "botge-test-support",
+ "botge-voice",
  "ed25519-dalek 3.0.0",
  "futures-util",
  "hex",
  "jsonc-parser",
- "redb",
+ "mimalloc",
  "reqwest 0.13.5",
  "rustls 0.23.46",
  "serde",
@@ -249,9 +257,159 @@ dependencies = [
  "tempfile",
  "tokio",
  "tokio-tungstenite 0.30.0",
- "tower",
  "tracing",
  "tracing-subscriber",
+]
+
+[[package]]
+name = "botge-activity"
+version = "5.4.0"
+dependencies = [
+ "anyhow",
+ "axum",
+ "base64 0.23.1",
+ "botge-app",
+ "botge-discord",
+ "botge-domain",
+ "botge-storage",
+ "botge-test-support",
+ "ed25519-dalek 3.0.0",
+ "hex",
+ "mimalloc",
+ "reqwest 0.13.5",
+ "rustls 0.23.46",
+ "serde",
+ "serde_json",
+ "serenity",
+ "tempfile",
+ "tokio",
+ "tower",
+]
+
+[[package]]
+name = "botge-app"
+version = "5.4.0"
+dependencies = [
+ "anyhow",
+ "axum",
+ "botge-domain",
+ "botge-emotes",
+ "botge-storage",
+ "botge-test-support",
+ "futures-util",
+ "mimalloc",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "tokio",
+ "tokio-tungstenite 0.30.0",
+ "tracing",
+ "url",
+]
+
+[[package]]
+name = "botge-discord"
+version = "5.4.0"
+dependencies = [
+ "anyhow",
+ "axum",
+ "botge-app",
+ "botge-domain",
+ "botge-storage",
+ "botge-test-support",
+ "futures-util",
+ "mimalloc",
+ "reqwest 0.13.5",
+ "serde",
+ "serde_json",
+ "serenity",
+ "tempfile",
+ "tokio",
+ "tracing",
+ "tracing-subscriber",
+]
+
+[[package]]
+name = "botge-domain"
+version = "5.4.0"
+dependencies = [
+ "anyhow",
+ "mimalloc",
+ "serde",
+ "serde_json",
+ "url",
+]
+
+[[package]]
+name = "botge-emotes"
+version = "5.4.0"
+dependencies = [
+ "anyhow",
+ "axum",
+ "base64 0.23.1",
+ "botge-domain",
+ "botge-test-support",
+ "futures-util",
+ "mimalloc",
+ "reqwest 0.13.5",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "tokio",
+ "tokio-tungstenite 0.30.0",
+ "tracing",
+]
+
+[[package]]
+name = "botge-storage"
+version = "5.4.0"
+dependencies = [
+ "anyhow",
+ "botge-domain",
+ "botge-test-support",
+ "mimalloc",
+ "redb",
+ "serde",
+ "serde_json",
+ "tempfile",
+]
+
+[[package]]
+name = "botge-test-support"
+version = "5.4.0"
+dependencies = [
+ "anyhow",
+ "axum",
+ "base64 0.23.1",
+ "botge-domain",
+ "log",
+ "mimalloc",
+ "reqwest 0.13.5",
+ "serde_json",
+ "serenity",
+ "tokio",
+ "tracing",
+ "tracing-subscriber",
+]
+
+[[package]]
+name = "botge-voice"
+version = "5.4.0"
+dependencies = [
+ "anyhow",
+ "axum",
+ "botge-app",
+ "botge-domain",
+ "botge-storage",
+ "botge-test-support",
+ "mimalloc",
+ "serde",
+ "serde_json",
+ "serenity",
+ "songbird",
+ "tempfile",
+ "tokio",
+ "tracing",
 ]
 
 [[package]]
@@ -1965,6 +2123,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "libmimalloc-sys"
+version = "0.1.49"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6a45a52f43e1c16f667ccfe4dd8c85b7f7c204fd5e3bf46c5b0db9a5c3c0b8e9"
+dependencies = [
+ "cc",
+]
+
+[[package]]
 name = "libopus_sys"
 version = "0.3.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2043,6 +2210,15 @@ name = "memchr"
 version = "2.8.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cf8baf1c55e62ffcace7a9f06f4bd9cd3f0c4beb022d3b367256b91b87513d98"
+
+[[package]]
+name = "mimalloc"
+version = "0.1.52"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2d4139bb28d14ad1facf21d5eb8825051b326e172d216b39f6d31df53cc97862"
+dependencies = [
+ "libmimalloc-sys",
+]
 
 [[package]]
 name = "mime"

@@ -1,0 +1,17 @@
+%%{init: {"theme":"dark"}}%%
+flowchart TB
+    bot["botge · executable<br/>Configuration, startup wiring, health :3081<br/>Constructs storage and application services"]
+    discord["botge-discord<br/>Gateway, commands, OAuth, guild access"]
+    activity["botge-activity<br/>Axum routes, proxy signatures, HTTP responses"]
+    voice["botge-voice<br/>Songbird and voice/status reconciliation"]
+    app["botge-app<br/>Authorization, saved state, composition admission"]
+    storage["botge-storage<br/>Synchronous redb transactions"]
+    emotes["botge-emotes<br/>Providers, immutable catalogs, bounded FFmpeg rendering"]
+    domain["botge-domain<br/>Shared records, IDs, validation, matching rules<br/>Types also used by the application and adapters"]
+    bot -. startup wiring .-> discord & activity & voice
+    discord --> app
+    activity --> app
+    voice -->|settings source| app
+    app --> storage & emotes
+    storage --> domain
+    emotes --> domain

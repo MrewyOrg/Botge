@@ -1,18 +1,24 @@
 # Rust bot architecture
 
-The production image builds one [Rust binary](../Cargo.toml). Discord commands and the Activity API
-share the same emote catalog. The [Activity and Worker](../activity/README.md) are TypeScript.
+The production image builds one [Rust binary](../crates/botge/Cargo.toml). Discord commands and the
+Activity API share the same emote catalog. The [Activity and Worker](../activity/README.md) are
+TypeScript.
 
 ## Diagram exports
 
-The PNG diagrams describe the current Rust implementation:
+The PNG diagrams describe the current workspace and service flows. The revised architecture,
+request-flow and development-workflow diagrams have editable Mermaid counterparts in
+[`diagrams/`](diagrams/). The workspace guide defines the complete dependency policy:
 
-- [Bot modules](architecture.png): adapters, shared services, rendering, and persistence.
-- [Request and data flow](request-flow.png): Discord commands and authenticated Activity requests.
+- [Workspace architecture](architecture.png) ([Mermaid](diagrams/architecture.mmd)): adapters,
+  application operations, domain records, providers, and persistence.
+- [Request and data flow](request-flow.png) ([Mermaid](diagrams/request-flow.mmd)): Discord
+  compositions and authenticated Activity voice settings.
 - [Deployment topology](deployment.png): Compose services, persistent data, and the optional API
   tunnel.
-- [Development and release workflow](development-workflow.png): local hooks, PR validation, and
-  approved deployment.
+- [Development and release workflow](development-workflow.png)
+  ([Mermaid](diagrams/development-workflow.mmd)): local hooks, language checks, and approved
+  deployment.
 - [Startup and shutdown](startup.png): initialization, optional services, and gateway readiness.
 - [Discord interactions](discord-interactions.png): extensible command, autocomplete, modal, and
   message handling.
@@ -33,36 +39,53 @@ flowchart TD
     Discord --> Health
     Discord --> Ready["Gateway ready"]
     Ready --> Voice["Reconcile saved voice settings with Songbird"]
-    Store --> Voice
-    API --> Store
+    App["Application operations"] --> Store
+    Voice --> App
+    API --> App
     Discord --> Commands["Handle Discord commands"]
-    Commands --> Catalog["Resolve emotes"]
-    Commands --> Renderer["Render images with FFmpeg"]
-    API --> Catalog
-    Catalog --> Store
+    Commands --> App
+    App --> Catalog["Resolve emotes"]
+    App --> Renderer["Render images with FFmpeg"]
     Catalog --> Providers["Provider feeds and 7TV events"]
     Renderer --> Cache["Provider image cache"]
 ```
 
-The root Cargo manifest builds one executable from [`src/`](../src/). The startup module wires the
-dependencies together. The Activity routes validate input and translate failures into HTTP
-responses. The Discord adapter exchanges OAuth codes and checks permissions. Storage owns redb
-transactions, and the voice worker applies settings to Discord.
+The root Cargo manifest is a virtual workspace. The executable lives in
+[`crates/botge/`](../crates/botge/), alongside the private libraries in [`crates/`](../crates/). The
+startup module wires the dependencies together. The Activity routes validate input and translate
+failures into HTTP responses. The Discord adapter exchanges OAuth codes and checks permissions.
+Storage owns redb transactions, and the voice worker applies settings to Discord.
 
 The larger services separate their internal responsibilities into child modules:
 
-- [`commands.rs`](../src/commands.rs) dispatches to [`commands/`](../src/commands/): composition,
-  message prefixes, autocomplete, shortcuts, registration, and cleanup.
-- [`activity.rs`](../src/activity.rs) shares authentication and state across the voice, catalog, and
-  personal border routes in [`activity/`](../src/activity/).
-- [`providers.rs`](../src/emotes/providers.rs) keeps networking and snapshots separate from
-  [`normalization.rs`](../src/emotes/providers/normalization.rs) and
-  [`events.rs`](../src/emotes/providers/events.rs).
-- [`rendering.rs`](../src/emotes/rendering.rs) coordinates downloads and encoding; its
-  [`child modules`](../src/emotes/rendering/) own layout planning, media probing, and WebP timing.
+- [`commands.rs`](../crates/botge-discord/src/commands.rs) dispatches to
+  [`commands/`](../crates/botge-discord/src/commands/): composition, message prefixes, autocomplete,
+  shortcuts, registration, and cleanup.
+- [`activity.rs`](../crates/botge-activity/src/activity.rs) shares authentication and state across
+  the voice, catalog, and personal border routes in
+  [`activity/`](../crates/botge-activity/src/activity/).
+- [`providers.rs`](../crates/botge-emotes/src/emotes/providers.rs) keeps networking and snapshots
+  separate from [`normalization.rs`](../crates/botge-emotes/src/emotes/providers/normalization.rs)
+  and [`events.rs`](../crates/botge-emotes/src/emotes/providers/events.rs).
+- [`rendering.rs`](../crates/botge-emotes/src/emotes/rendering.rs) coordinates downloads and
+  encoding; its [`child modules`](../crates/botge-emotes/src/emotes/rendering/) own layout planning,
+  media probing, and WebP timing.
 
 Feature tests live in each child module's `tests.rs`. Parent test modules retain shared fixtures and
 scenarios that exercise dispatch, authentication, networking, or the complete render pipeline.
+
+### Workspace boundaries
+
+The [workspace guide](../crates/README.md) defines the private crate responsibilities and allowed
+production dependencies. Domain records and pure rules sit below storage and provider services.
+Application operations authorize and coordinate those services; Discord and Activity translate
+transport requests without owning database access. Authorization calls the application's injected
+`GuildAccess` capability, implemented by `botge-discord`. Voice consumes an application
+settings-source capability. The executable wires concrete services together.
+
+The dependency-policy integration test guards these edges and keeps fixture features out of
+production declarations. Cargo rejects cycles. Shared metadata and lint policy live in the root
+manifest; validation, coverage and build inputs include every workspace crate.
 
 The internal health listener is independent of the Activity API. It exposes process liveness at
 `/healthz` and gateway readiness at `/readyz`. Ready/Resumed enables readiness; reconnect stages
@@ -76,10 +99,11 @@ reads an offline redb backup without loading Discord credentials. See
 sequenceDiagram
     participant Browser as Activity
     participant Proxy as Discord proxy
-    participant API as Axum
-    participant Discord
-    participant DB as redb
-    participant Voice as Voice worker
+    participant API as botge-activity
+    participant App as botge-app
+    participant Discord as botge-discord / Discord
+    participant DB as botge-storage
+    participant Voice as botge-voice
     opt No usable access token
         Browser->>Proxy: Send OAuth code to /auth
         Proxy->>API: Forward signed exchange request
@@ -91,14 +115,22 @@ sequenceDiagram
     end
     Browser->>Proxy: Send voice settings and bearer token
     Proxy->>API: Forward signed request through the API tunnel
-    API->>API: Verify Discord proxy signature
-    API->>Discord: Identify token holder and check current guild permissions
+    API->>API: Verify proxy signature and decode request
+    API->>App: Save voice settings
+    App->>Discord: Identify token holder and check current guild/channel permissions
     alt Authorized guild administrator
-        API->>DB: Commit guild voice settings
-        API-->>Voice: Notify after a successful save
-        API-->>Proxy: Return saved settings
-        Voice->>Discord: Join, move, or disconnect
+        App->>DB: Commit guild voice settings on blocking worker
+        DB-->>App: Committed settings
+        App-->>Voice: Notify after successful commit
+        App-->>API: Return saved settings
+        API-->>Proxy: Return HTTP response
+        Voice->>App: Load saved settings through settings source
+        App->>DB: Read saved voice settings
+        DB-->>App: Settings snapshot
+        App-->>Voice: Saved settings
+        Voice->>Discord: Reconcile gateway membership and optional status
     else Authorization failed
+        App-->>API: Sanitized access error (no write)
         API-->>Proxy: Reject the request
     end
     Proxy-->>Browser: Return the response
@@ -121,9 +153,11 @@ Each guild catalog combines individually added emotes, configured provider sets,
 that order. Only enabled providers contribute entries. A single 7TV WebSocket invalidates affected
 snapshots after changes. Timed refreshes and a reconnect refresh cover missed events. Autocomplete
 can use cached results when a provider is slow. The shared refresh continues in the background so
-later requests can use the updated snapshot. Added emotes and guild settings use separate redb
-tables. The add transaction checks duplicate IDs and names, and the API checks guild membership and
-roles before writing.
+later requests can use the updated snapshot. Requests retain immutable provider snapshots rather
+than cloning their records; an in-flight request keeps its previous view across a refresh. Bounded
+provider JSON normalization and shortcut searches run on blocking workers. Added emotes and guild
+settings use separate redb tables. The add transaction checks duplicate IDs and names, and the API
+checks guild membership and roles before writing.
 
 Discord defers emote interactions while it resolves names and reads media. Downloads use provider
 CDN allowlists and the nginx cache where available. The renderer admits one request at a time, caps
@@ -135,9 +169,10 @@ animation's duration.
 ## Validation
 
 `rust-toolchain.toml` pins the nightly shared by development, CI, and Docker. Development installs
-the default profile, LLVM coverage tools, and standard library sources for editor navigation. CI
-installs only the compiler, Clippy, rustfmt, and LLVM coverage tools; the Docker builder installs
-only the minimal compiler profile. See the [workflow guide](../.github/workflows/README.md).
+the default profile, LLVM coverage tools, Miri, and standard library sources. CI installs the
+compiler, Clippy, rustfmt, LLVM coverage tools, Miri, and standard library sources; the Docker
+builder installs only the minimal compiler profile. See the
+[workflow guide](../.github/workflows/README.md).
 
 Install Rust through rustup and provide Opus development headers and libraries through your package
 manager. Use `opus` and `pkg-config` on macOS with Homebrew or `libopus-dev` and `pkg-config` on
@@ -145,17 +180,18 @@ Debian.
 
 ```sh
 cargo fmt --all --check
-cargo clippy --locked --all-targets -- -D warnings
-cargo doc --locked --no-deps --document-private-items
+cargo clippy --workspace --locked --all-targets -- -D warnings
+cargo doc --workspace --locked --no-deps --document-private-items
 sh scripts/check-rust-coverage.sh
 npm run check:static
 npm run test:coverage
 npm run check:markup -w activity
 ```
 
-Rust and TypeScript enforce 90% coverage per runtime source file. Rustdoc and Clippy validate
-private contracts as well as public ones. Run Activity builds and tests sequentially because Worker
-tests mock the generated HTML module. See the [test guide](../tests/README.md).
+Rust enforces 95% coverage per measured source file; TypeScript retains its 90% runtime-file gate.
+Rustdoc and Clippy validate private contracts as well as public ones. Run Activity builds and tests
+sequentially because Worker tests mock the generated HTML module. See the
+[test guide](../tests/README.md).
 
 For a live test, export `DISCORD_TOKEN` and `APP_ID` for a separate Discord test application. Export
 `DISCORD_ACTIVITY_CLIENT_SECRET` and `DISCORD_ACTIVITY_PUBLIC_KEY` to enable the local API on

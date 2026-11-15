@@ -1,4 +1,4 @@
-// cspell:words moby tamasfe trixie vadimcn
+// cspell:words moby
 
 // See https://aka.ms/devcontainer.json for the configuration format.
 
@@ -28,16 +28,17 @@
   "postCreateCommand": "bash scripts/setup-devcontainer.sh",
 
   "customizations": {
-    "codespaces": { "openFiles": ["README.md", "Cargo.toml", "src/main.rs"] },
+    "codespaces": { "openFiles": ["README.md", "Cargo.toml", "crates/botge/src/main.rs"] },
     "vscode": {
       "extensions": [
         // Development environment
-        "actboy168.tasks",
         "docker.docker",
 
         // Languages and configuration
         "ahmadalli.vscode-nginx-conf",
         "dotenv.dotenv-vscode",
+        "ms-python.python",
+        "ms-python.vscode-pylance",
         "redhat.vscode-yaml",
         "rust-lang.rust-analyzer",
         "tamasfe.even-better-toml",
@@ -51,6 +52,7 @@
         // Formatting and validation
         "DavidAnson.vscode-markdownlint",
         "dbaeumer.vscode-eslint",
+        "charliermarsh.ruff",
         "EditorConfig.EditorConfig",
         "esbenp.prettier-vscode",
         "joshbolduc.commitlint",

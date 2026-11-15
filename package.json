@@ -1,6 +1,6 @@
 {
   "name": "botge",
-  "version": "5.3.0",
+  "version": "5.4.0",
   "private": true,
   "description": "Discord bot and Activity for browsing and composing emotes.",
   "keywords": [
@@ -40,7 +40,7 @@
     "lint:workflows": "sh scripts/lint-workflows.sh",
     "markdownlint": "markdownlint-cli2 \"**/*.md\" \"#node_modules\"",
     "prepare": "sh .husky/install.sh",
-    "start": "docker image prune --force && docker compose -f compose.yaml -f compose.build.yaml up --build",
+    "start": "docker compose -f compose.yaml -f compose.build.yaml up --build",
     "stop": "docker compose stop",
     "test": "vitest",
     "test:coverage": "vitest run --coverage",

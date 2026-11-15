@@ -1,39 +1,62 @@
 # check=error=true
-# cspell:words lavfi nostdin pkgconf tmpfs webp xerror
+# cspell:words lavfi pkgconf xerror
 
-FROM dhi.io/alpine-base:3.24-dev@sha256:266554e75cb00f88effe4048ba78b6f628d6a5ca67ac9e9727ae37a4a1299ce5 AS build-tools
+FROM dhi.io/alpine-base:3.24-dev@sha256:266554e75cb00f88effe4048ba78b6f628d6a5ca67ac9e9727ae37a4a1299ce5 AS runtime-tools
 WORKDIR /app
 
 RUN apk add --no-cache --repository=https://dl-cdn.alpinelinux.org/alpine/v3.24/community \
-  apk-tools-static build-base cmake pkgconf rustup
+  apk-tools-static
+
+FROM dhi.io/debian-base:trixie-dev@sha256:9e9caa90d9ef807a54a5cef570d83263715cfcb6f3e7342bc0625c80e3b258b8 AS build-tools
+USER 0:0
+WORKDIR /app
+RUN apt-get update && apt-get install -y --no-install-recommends \
+  build-essential cmake pkgconf musl-tools rustup \
+  && rm -rf /var/lib/apt/lists/*
 ENV CARGO_HOME=/usr/local/cargo \
   RUSTUP_HOME=/usr/local/rustup \
-  OPUS_BUNDLED=1
+  OPUS_BUNDLED=1 \
+  CC_aarch64_unknown_linux_musl=musl-gcc \
+  CC_x86_64_unknown_linux_musl=musl-gcc
 ENV PATH="${CARGO_HOME}/bin:${PATH}"
-RUN rustup-init -y --no-modify-path --default-toolchain none
 
-FROM build-tools AS build
+FROM build-tools AS build-deps
 ARG TARGETARCH
 COPY rust-toolchain.toml ./
 # Keep the shared channel but omit development and coverage components in the builder.
 RUN toolchain=$(sed -n "s/^channel = '\(.*\)'$/\1/p" rust-toolchain.toml) \
   && test -n "$toolchain" \
   && printf "[toolchain]\nchannel = '%s'\nprofile = 'minimal'\n" "$toolchain" > rust-toolchain.toml \
-  && rustup toolchain install --no-self-update
+  && case "$TARGETARCH" in amd64) target=x86_64-unknown-linux-musl ;; arm64) target=aarch64-unknown-linux-musl ;; *) exit 1 ;; esac \
+  && rustup toolchain install "$toolchain" --profile minimal --no-self-update --target "$target" \
+  && mkdir .cargo \
+  && printf '[build]\ntarget = "%s"\n[target.%s]\nlinker = "musl-gcc"\n' "$target" "$target" > .cargo/config.toml \
+  && printf '%s' "$target" > /rust-target
 
-COPY Cargo.toml Cargo.lock ./
-COPY src ./src
+COPY --parents Cargo.toml Cargo.lock crates/*/Cargo.toml ./
 
-# Fetch locked dependencies before the offline compilation step.
-RUN --mount=type=cache,id=botge-registry-${TARGETARCH},target=/usr/local/cargo/registry,sharing=locked \
-  --mount=type=cache,id=botge-git-${TARGETARCH},target=/usr/local/cargo/git,sharing=locked \
-  cargo fetch --locked
+# Cache dependencies in image layers: external caches do not preserve cache-mount contents.
+# The placeholder keeps this layer independent of application source changes.
+RUN for manifest in crates/*/Cargo.toml; do \
+    directory=${manifest%/Cargo.toml}; \
+    mkdir -p "$directory/src"; \
+    case "$directory" in \
+      crates/botge) printf '%s\n' '#![doc = "Dependency build placeholder."]' 'fn main() {}' > "$directory/src/main.rs" ;; \
+      *) printf '%s\n' '//! Dependency build placeholder.' > "$directory/src/lib.rs" ;; \
+    esac; \
+  done \
+  && cargo fetch --locked
 
-RUN --network=none \
-  --mount=type=cache,id=botge-registry-${TARGETARCH},target=/usr/local/cargo/registry,sharing=locked \
-  --mount=type=cache,id=botge-git-${TARGETARCH},target=/usr/local/cargo/git,sharing=locked \
-  --mount=type=cache,id=botge-target-${TARGETARCH},target=/app/target,sharing=locked \
-  cargo build --release --frozen && cp /app/target/release/botge /botge
+RUN --network=none cargo build --release --frozen
+
+FROM build-deps AS build
+COPY crates ./crates
+# Let Cargo remove the placeholder's artifacts without relying on its internal directory layout.
+RUN --network=none for manifest in crates/*/Cargo.toml; do \
+    package=${manifest#crates/}; package=${package%/Cargo.toml}; \
+    cargo clean --release --package "$package" || exit; \
+  done \
+  && cargo build --release --frozen && cp "target/$(cat /rust-target)/release/botge" /botge
 
 FROM dhi.io/alpine-base:3.24@sha256:7b06d747fcb428a0699679955e903b13322c92c79d94ce94c108634f13a714f1 AS botge
 USER 0:0
@@ -49,7 +72,7 @@ LABEL org.opencontainers.image.authors="Mrewy" \
   org.opencontainers.image.vendor="MrewyOrg"
 
 # Install packages without adding APK itself to the runtime image.
-RUN --mount=from=build-tools,source=/sbin/apk.static,target=/sbin/apk.static \
+RUN --mount=from=runtime-tools,source=/sbin/apk.static,target=/sbin/apk.static \
   apk.static upgrade --no-cache \
   && printf '%s\n' \
     '@edge https://dl-cdn.alpinelinux.org/alpine/edge/main' \
@@ -68,7 +91,7 @@ USER node:node
 RUN --network=none \
   --mount=type=tmpfs,target=/tmp \
   webp=/tmp/botge-smoke.webp \
-  && /app/botge --version \
+  && /app/botge --version | grep -E '^Botge [0-9]+[.][0-9]+[.][0-9]+' \
   && test -w /app/data \
   && ffmpeg -nostdin -v error -f lavfi -i 'testsrc2=size=32x32:rate=10' \
     -frames:v 3 -c:v libwebp_anim "$webp" \

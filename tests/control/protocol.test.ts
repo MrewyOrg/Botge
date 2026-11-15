@@ -115,6 +115,37 @@ test('deployment retains previous images for rollback', () => {
 
 const digest = 'sha256:' + 'a'.repeat(64);
 
+test.each([
+  'compose config --format json',
+  'inspect --format {{.Config.Image}} container',
+  'inspect --format {{.State.Health.Status}} container'
+])(
+  'digest deployment rejects a failed verification command despite matching output: %s',
+  (command) => {
+    stub(
+      'docker',
+      `
+printf '%s\\n' "$*" >> "$TEST_COMMANDS"
+case "$*" in
+  'compose config --format json') printf '{"services":{"botge":{"image":"%s"}}}' "$BOTGE_IMAGE" ;;
+  'compose ps -q botge') echo container ;;
+  'inspect --format {{.Config.Image}} container') echo "$BOTGE_IMAGE" ;;
+  'inspect --format {{.State.Health.Status}} container') echo healthy ;;
+esac
+if [ "$*" = "$TEST_FAIL_COMMAND" ]; then exit 1; fi
+`
+    );
+    const result = spawnSync('bash', [resolve('botge_control/bin/botge_control.sh')], {
+      input: 'DEPLOY ' + digest + '\n',
+      encoding: 'utf8',
+      env: { ...environment, TEST_FAIL_COMMAND: command }
+    });
+    assert.equal(result.status, 1, result.stderr);
+    assert.equal(result.stdout, 'ERROR\n');
+    assert.throws(() => readFileSync(join(directory, '.botge-image')));
+  }
+);
+
 test('digest deployment verifies readiness and persists only the approved image', () => {
   stub(
     'docker',

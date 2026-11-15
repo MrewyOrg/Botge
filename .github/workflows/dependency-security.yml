@@ -46,24 +46,18 @@ jobs:
         if: matrix.ecosystem == 'npm'
         with:
           node-version-file: .nvmrc
-          cache: npm
-          cache-dependency-path: |
-            package-lock.json
-            tests/integration/package-lock.json
       - name: Audit npm dependencies
         if: matrix.ecosystem == 'npm'
         id: npm-root
         continue-on-error: true
-        run: |
-          npm ci --prefer-offline --ignore-scripts --no-audit
-          npm audit --audit-level=critical
+        run: npm audit --package-lock-only --ignore-scripts --audit-level=critical
       - name: Audit integration dependencies
         if: matrix.ecosystem == 'npm'
         id: npm-integration
         continue-on-error: true
-        run: |
-          npm --prefix tests/integration ci --prefer-offline --ignore-scripts --no-audit
-          npm --prefix tests/integration audit --audit-level=critical
+        run: >-
+          npm --prefix tests/integration audit --package-lock-only --ignore-scripts
+          --audit-level=critical
       - name: Require both npm audits
         if: matrix.ecosystem == 'npm'
         env:

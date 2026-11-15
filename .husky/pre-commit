@@ -1,7 +1,24 @@
 #!/bin/sh
+
 set -eu
 
-npm install --no-save
+npx --no-install lint-staged
 
-npx lint-staged
+# Include deletions and dependency/configuration changes, not just browser source edits.
+# Keep build inputs aligned with the markup filter in .github/workflows/botgeql.yml.
+if git diff --cached --quiet -- \
+  activity/src activity/public activity/index.html assets \
+  activity/package.json activity/package-lock.json \
+  package.json package-lock.json .nvmrc \
+  ':(glob)**/.npmrc' ':(glob).env*' ':(glob)activity/.env*' \
+  ':(glob)activity/vite.config.*' ':(glob)activity/tsconfig*.json' \
+  ':(glob)vite.config.*' ':(glob)tsconfig*.json'; then
+  exit 0
+else
+  status=$?
+  if [ "${status}" -ne 1 ]; then
+    exit "${status}"
+  fi
+fi
+
 npm run build -w activity

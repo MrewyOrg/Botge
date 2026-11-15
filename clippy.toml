@@ -1,4 +1,4 @@
-# cspell:words uninlined
+# cspell:words gnullvm msvc syscall
 
 # Internal APIs are documented too; Botge is a binary crate with crate-visible services.
 check-private-items = true
@@ -13,12 +13,63 @@ allow-unwrap-in-consts = false
 # Capture named format arguments even when another argument needs an expression.
 allow-mixed-uninlined-format-args = false
 
-# Keep service interfaces small and large buffers off thread stacks (size is in bytes).
+# Keep branching and service interfaces bounded; buffer size is in bytes.
+cognitive-complexity-threshold = 25
 too-many-arguments-threshold = 6
 array-size-threshold = 8192
 
 # Database transactions must finish in synchronous storage work before awaiting anything.
 await-holding-invalid-types = ['redb::ReadTransaction', 'redb::WriteTransaction']
+
+# Current SDK, crypto, and platform dependencies require incompatible release lines.
+# Review these exceptions with `cargo tree --locked --duplicates --target all` on lockfile updates.
+# Keep the Cargo group's duplicate-version check active for names outside this list.
+allowed-duplicate-crates = [
+  'base64',
+  'bitflags',
+  'block-buffer',
+  'chacha20',
+  'const-oid',
+  'cpufeatures',
+  'crypto-common',
+  'curve25519-dalek',
+  'digest',
+  'ed25519',
+  'ed25519-dalek',
+  'fiat-crypto',
+  'getrandom',
+  'parking_lot',
+  'parking_lot_core',
+  'r-efi',
+  'rand',
+  'rand_chacha',
+  'rand_core',
+  'redox_syscall',
+  'reqwest',
+  'rustls',
+  'rustls-webpki',
+  'sha1',
+  'sha2',
+  'signature',
+  'socket2',
+  'syn',
+  'thiserror',
+  'thiserror-impl',
+  'tokio-rustls',
+  'tokio-tungstenite',
+  'tokio-websockets',
+  'tungstenite',
+  'webpki-roots',
+  'windows-sys',
+  'windows-targets',
+  'windows_aarch64_gnullvm',
+  'windows_aarch64_msvc',
+  'windows_i686_gnu',
+  'windows_i686_msvc',
+  'windows_x86_64_gnu',
+  'windows_x86_64_gnullvm',
+  'windows_x86_64_msvc',
+]
 
 # These APIs can block Tokio worker threads; use asynchronous waits or the blocking pool.
 disallowed-methods = [

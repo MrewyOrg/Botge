@@ -1,5 +1,5 @@
 #!/bin/sh
-# cspell:words amd64 arm64 demuxer lgpl
+# cspell:words amd64 arm64 lgpl
 set -eu
 
 if [ "$#" -ne 1 ]; then
@@ -7,7 +7,9 @@ if [ "$#" -ne 1 ]; then
   exit 1
 fi
 
-case "$(uname -s):$(uname -m)" in
+system=$(uname -s)
+architecture=$(uname -m)
+case "${system}:${architecture}" in
   Linux:x86_64)
     platform=linux64
     checksum=416081d93cb6cdcac9fade4f76d94321964253860b85b80404b5b9fb38dc3499
@@ -27,10 +29,10 @@ build="ffmpeg-n9.0.2-57-gd838f9f9ae-${platform}-lgpl-9.0"
 release=https://github.com/FFmpeg-Builds/FFmpeg-Builds/releases/download/autobuild-2026-11-12-15-40
 directory=$(mktemp -d)
 trap 'rm -rf "$directory"' EXIT
-archive="$directory/ffmpeg.tar.xz"
+archive="${directory}/ffmpeg.tar.xz"
 
-curl --fail --location --retry 3 --output "$archive" "$release/$build.tar.xz"
-printf '%s  %s\n' "$checksum" "$archive" | sha256sum --check
-tar --extract --file "$archive" --directory "$directory" "$build/bin/ffmpeg" "$build/bin/ffprobe"
+curl --fail --location --retry 3 --output "${archive}" "${release}/${build}.tar.xz"
+printf '%s  %s\n' "${checksum}" "${archive}" | sha256sum --check
+tar --extract --file "${archive}" --directory "${directory}" "${build}/bin/ffmpeg" "${build}/bin/ffprobe"
 install -d -- "$1"
-install -m 0755 -- "$directory/$build/bin/ffmpeg" "$directory/$build/bin/ffprobe" "$1"
+install -m 0755 -- "${directory}/${build}/bin/ffmpeg" "${directory}/${build}/bin/ffprobe" "$1"

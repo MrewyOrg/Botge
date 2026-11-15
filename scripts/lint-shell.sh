@@ -1,7 +1,8 @@
 #!/bin/bash
 set -euo pipefail
 
-cd "$(dirname "$0")/.."
+script_directory=$(dirname "$0")
+cd "${script_directory}/.."
 
 if ! command -v shellcheck > /dev/null 2>&1; then
   printf '%s\n' 'Install ShellCheck before running shell lint.' >&2
@@ -9,16 +10,16 @@ if ! command -v shellcheck > /dev/null 2>&1; then
 fi
 
 shell_shebang='^#!(.*[^[:alnum:]_])?(ba)?sh([^[:alnum:]_]|$)'
-find botge_control scripts .husky -type d -name _ -prune -o -type f -print0 | {
+find botge_control scripts .agents/scripts .husky -type d -name _ -prune -o -type f -print0 | {
   files=()
   while IFS= read -r -d '' file; do
-    IFS= read -r first_line < "$file" || true
-    if [[ "$first_line" =~ $shell_shebang ]]; then
-      files+=("$file")
+    IFS= read -r first_line < "${file}" || true
+    if [[ "${first_line}" =~ ${shell_shebang} ]]; then
+      files+=("${file}")
     fi
   done
 
   if ((${#files[@]} > 0)); then
-    shellcheck --external-sources --source-path=. "${files[@]}"
+    shellcheck "${files[@]}"
   fi
 }

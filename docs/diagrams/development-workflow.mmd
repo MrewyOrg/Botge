@@ -1,0 +1,15 @@
+%%{init: {"theme":"dark"}}%%
+flowchart TB
+    edit["Edit Rust, TypeScript, Python and docs"] --> staged["pre-commit: lint-staged<br/>Activity build only for relevant staged changes"]
+    staged --> message["commit-msg: Commitlint and CSpell"] --> pr["Push branch and open PR"]
+    tools["Rust: rustfmt · Python: Ruff · TypeScript: ESLint<br/>Supported files: Prettier and CSpell"]
+    pr --> quality["BotgeQL<br/>Workspace Rust static checks and 95% per-file coverage<br/>TypeScript/Python checks and 90% coverage; markup/tooling"]
+    pr --> codeql["CodeQL<br/>Actions, Python, Rust, TypeScript"]
+    pr --> deps["Dependency review and npm/Cargo security audits"]
+    quality & deps --> changed{"Image inputs changed?<br/>dev PR to main"}
+    changed -->|yes| image["Build AMD64 and ARM64 candidate"] --> scan["Scan immutable candidate<br/>Critical findings block"]
+    scan --> approval["Production environment approval"] --> deploy["Promote approved digest<br/>IAP → control socket → Compose"]
+    deploy --> verify["Verify running digest and gateway readiness"] --> merge["Merge after all required checks pass"]
+    changed -->|no| record["Production approval records existing image<br/>No restart"] --> merge
+    codeql --> merge
+    note["Merge does not deploy again. Docker cleanup is manual.<br/>GitHub Releases holds version notes."]
