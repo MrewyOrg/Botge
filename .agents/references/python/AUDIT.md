@@ -1,6 +1,6 @@
 # Python baseline audit
 
-<!-- cspell:words Pylint pytest absl -->
+<!-- cspell:words Pylint absl -->
 
 Reviewed 2026-11-14 against the [pinned sources](README.md). Scope: all shared/agent Python helpers,
 unittest fixtures, root policy, editor configuration, hooks and CI. Evidence is source inspection

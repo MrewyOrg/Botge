@@ -1,4 +1,3 @@
-# cspell:words demuxer demuxers libwebp webp
 """Check development prerequisites without installing tools or starting services.
 
 Run with the root virtual environment from any directory. Pins come from

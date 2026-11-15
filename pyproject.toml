@@ -1,5 +1,3 @@
-# cspell:words pytest
-
 [project]
 name = 'botge-tooling'
 # Internal tooling metadata; independent of Botge releases.

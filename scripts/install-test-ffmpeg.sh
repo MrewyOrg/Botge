@@ -1,5 +1,5 @@
 #!/bin/sh
-# cspell:words amd64 arm64 demuxer lgpl
+# cspell:words amd64 arm64 lgpl
 set -eu
 
 if [ "$#" -ne 1 ]; then

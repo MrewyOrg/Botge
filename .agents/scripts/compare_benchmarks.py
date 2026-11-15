@@ -1,4 +1,3 @@
-# cspell:words rustc
 """Record native benchmark medians without switching revisions or starting the bot.
 
 Run record OUTPUT [RUNS] before and after a change, then compare BEFORE AFTER.
@@ -46,7 +45,8 @@ def fingerprint() -> str:
     """Hash tracked and untracked Rust inputs so changing sources invalidate a recording."""
     digest = hashlib.sha256()
     paths = [
-        *Path('src').rglob('*.rs'),
+        *Path('crates').rglob('*.rs'),
+        *Path('crates').rglob('Cargo.toml'),
         Path('Cargo.toml'),
         Path('Cargo.lock'),
         Path('rust-toolchain.toml'),

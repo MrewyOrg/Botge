@@ -1,5 +1,3 @@
-# cspell:words vsicons
-
 /.husky/_
 /Cargo.lock
 /coverage

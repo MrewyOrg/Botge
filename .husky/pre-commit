@@ -1,5 +1,5 @@
 #!/bin/sh
-# cspell:words botgeql vite
+
 set -eu
 
 npx --no-install lint-staged

@@ -1,4 +1,3 @@
-# cspell:words demuxer demuxers libwebp webp
 """Exercise prerequisite failures without starting services or using installed tools."""
 
 import contextlib
