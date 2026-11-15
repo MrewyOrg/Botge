@@ -15,8 +15,10 @@ request rather than deploying an unverified tag.
 
 The handler receives the approved digest, verifies Compose uses `BOTGE_IMAGE`, waits for readiness,
 and checks the running image reference and health. It atomically saves the reference in
-`.botge-image`; `UP` reuses it. Previous images remain available for rollback. Legacy digest-free
-deployment is supported but does not verify the approved artifact's identity.
+`.botge-image`; `UP` reuses it. If the candidate fails to start or become healthy, the handler
+restarts the previously saved digest, logs the result, and still replies `ERROR`. Previous images
+remain available for rollback. Legacy digest-free deployment is supported but does not verify the
+approved artifact's identity.
 
 The private listener defaults to `127.0.0.1:3081` and starts without Activity credentials:
 
@@ -24,6 +26,15 @@ The private listener defaults to `127.0.0.1:3081` and starts without Activity cr
 | ---------- | -------------------------------------------------------------------------------- |
 | `/healthz` | The process responds; stays successful during Discord reconnects.                |
 | `/readyz`  | HTTP 204 after Discord Ready/Resumed; 503 before readiness or during reconnects. |
+| `/metrics` | Prometheus text counters since the process started.                              |
+
+`/metrics` reports Discord commands by name, compositions by outcome (`image`, `rejected`, `busy`,
+`error`), a render-time histogram for successful compositions, Activity API responses by route and
+status, 7TV event stream reconnects, gateway readiness, and the running version. Labels come from
+fixed sets, so the series count stays bounded. Counters reset on restart. No metrics service is
+required; read it from the host with
+`docker compose exec botge wget -qO- http://127.0.0.1:3081/metrics`, or point a self-hosted
+Prometheus at it on a private network.
 
 Compose runs `--healthcheck` against `/readyz` every ten seconds, with a two-second request timeout,
 a 30-second startup grace period, and six consecutive failures before marking the container
@@ -48,6 +59,11 @@ script shares the deployment lock, stops Botge, copies redb, verifies all tables
 running image, and writes a checksum and image ID. Its exit trap restarts the original container
 even if copying or verification fails. Upload successful backups to encrypted off-host storage. The
 script does not schedule, upload, or delete backups.
+
+The database records its schema version in a `meta` table. A database or backup without the marker
+predates it and is read as version 1; the bot stamps it on the next start. Startup and
+`--verify-database` reject a version the image does not support and leave the file unchanged, so
+restore a backup only with an image that reads its version. Older images ignore the marker.
 
 To restore:
 

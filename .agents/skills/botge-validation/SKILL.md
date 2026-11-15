@@ -13,9 +13,8 @@ checkout path. If the current repository is unrelated, do not apply this workflo
 
 ## Establish the scope
 
-Read the current `AGENTS.md` and `tests/README.md`. Use `README.md` and `docs/ARCHITECTURE.md` when
-architecture affects check selection. These files and package scripts own the current requirements;
-prefer them over commands below if they drift.
+Read the current `AGENTS.md` and `tests/README.md`; the test guide and package scripts own the
+current commands and gates. Use `docs/ARCHITECTURE.md` when architecture affects check selection.
 
 Inspect staged, unstaged, and relevant untracked changes without discarding existing work. For a
 requested PR or branch review, use the merge-base diff against the requested base. Separate failures
@@ -32,58 +31,32 @@ Start with the affected behavior and its closest tests. Include callers and shar
 changes cross boundaries. Run the appropriate broader checks before reporting completion; avoid
 unrelated suites for documentation-only edits.
 
-- **Rust source, Cargo dependencies, or toolchain:** `cargo fmt --all --check`;
-  `cargo clippy --workspace --locked --all-targets -- -D warnings`;
-  `cargo test --workspace --locked`
-- **Rust public/internal contracts or Rustdoc:**
-  `cargo doc --workspace --locked --no-deps --document-private-items`
-- **Rust behavior or tests:** `sh scripts/check-rust-coverage.sh` runs tests and enforces the
-  per-file coverage gate; do not repeat plain `cargo test` when this already covers the change. Read
-  `tests/README.md` for tools, thresholds, and FFmpeg prerequisites.
-- **Activity/browser/Worker TypeScript or shared JS tooling:** `npm run check:static` and
-  `npm run test:coverage` cover shared static checks, both Vitest projects, and the per-file
-  coverage gate. Use `npm run check` when coverage is outside the change scope.
-- **Activity-only coverage:** `npm run test:coverage -w activity` writes `coverage/activity/`; the
-  root command also covers repository tooling and writes `coverage/typescript/`.
-- **TypeScript contracts or utility types:** Include `npm run typecheck`, normally through the
-  shared static checks. Vitest execution alone does not validate `expectTypeOf` assertions.
-- **Activity HTML, styles, or build configuration:** `npm run check:markup -w activity`; inspect
-  `activity/README.md` for additional style checks
-- **Python tooling:** `.venv/bin/python scripts/check_python.py` checks Ruff, formatting, strict
-  Pyright and offline tests with per-file 90% Python line/branch coverage in the pinned isolated
-  environment. See the helper guide.
-- **Control scripts or shared tooling tests:** `npm test -- --run --project Tooling`;
-  `npm run lint:shell` for shell changes
-- **GitHub Actions:** `npm run lint:workflows`; read `.github/workflows/README.md` for workflow
-  contracts
-- **Markdown or prose:** `npm run markdownlint`; `npm run cspell`, scoped to changed files when
-  supported and sufficient
-- **Supported non-Rust formatting or Rego policy:** Check changed files with repository Prettier
-  configuration or Regal, respectively
-- **Docker/Compose/deployment configuration:** Read `botge_control/README.md`, `docs/PRODUCTION.md`,
-  and relevant tooling tests; use static validation and fixtures
+- **Rust source or toolchain:** `sh scripts/check-rust.sh static`
+- **Rust manifests, features, or dependencies:** also `sh scripts/check-rust.sh dependencies`
+- **Rust behavior or tests:** `sh scripts/check-rust.sh coverage`; it runs the tests, so don't
+  repeat plain `cargo test`
+- **Pure Rust logic covered by Miri:** `cargo miri setup`, then `sh scripts/check-rust.sh miri`
+- **Activity, Worker, or shared TypeScript tooling:** `npm run check:static` and
+  `npm run test:coverage`; `npm run check` when coverage is outside the change
+- **Activity HTML, styles, or build configuration:** `npm run check:markup -w activity`
+- **Python tooling:** `.venv/bin/python scripts/check_python.py`
+- **Control scripts or tooling tests:** `npm test -- --run --project Tooling`; `npm run lint:shell`
+  for shell changes
+- **GitHub Actions or composite actions:** `npm run lint:workflows`
+- **Markdown or prose:** `npm run markdownlint` and `npm run cspell`, scoped to changed files when
+  supported
+- **Other formatting or Rego policy:** repository Prettier configuration or Regal
+- **Docker, Compose, or deployment configuration:** read `botge_control/README.md` and
+  `docs/PRODUCTION.md`; use static validation and fixtures
 
-Check the current scripts before choosing a filtered test invocation. Both `npm run check` and
-`npm run test:coverage` already run the Tooling and Activity tests; do not repeat those tests
-without a new change, a distinct coverage configuration to verify, or an unresolved failure. Run
-Activity builds and tests sequentially: Worker entry tests mock the generated HTML module, which a
-concurrent build can replace.
+The test guide lists the coverage gates and prerequisites. Inspect individual files and missing
+paths, not only totals. Add behavior tests or fix source contracts; never lower a gate or exclude
+executable code. Report missing prerequisites instead of weakening or skipping a test.
 
-Coverage must meet the repository's configured per-file gates, currently 95% for Rust lines,
-functions, regions, and branches; TypeScript statements, branches, functions, and lines remain 90%.
-Inspect individual files and missing paths, not only aggregate percentages. Add behavior tests or
-fix source contracts where appropriate; do not lower thresholds or exclude executable code to obtain
-a pass. TypeScript declaration-only `.d.ts` files have no runtime coverage.
-
-For modernization, follow `AGENTS.md`: verify features against the pinned Rust nightly and the
-configured TypeScript compiler, Node, bundler, and browser targets. Build output alone does not
-prove runtime API support. Check immutable snapshot and route-payload contracts with type checks
-alongside observable behavior tests; document new runtime requirements or experimental gates.
-
-Provider and Discord behavior should use loopback fixtures; storage changes should use temporary
-databases. Render tests need FFmpeg 9 or later with libwebp and FFprobe. Report missing
-prerequisites rather than weakening a test or silently skipping it. Add tests for meaningful
-observable behavior, not reversible prose/format changes or implementation mirrors.
+For modernization, verify features against the pinned nightly, the stable `rust-version` for
+production code, and the configured TypeScript, Node, bundler and browser targets. Build output
+alone does not prove runtime support. Provider and Discord behavior use loopback fixtures; storage
+uses temporary databases. Test meaningful observable behavior, not prose or implementation mirrors.
 
 ## Operational boundaries
 

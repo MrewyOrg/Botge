@@ -52,11 +52,8 @@ dependencies must not enable those features. Tests do not start a production Dis
 Executable lifecycle tests exercise the real crates together; `crates/botge/tests/rust_cli.rs`
 verifies the compiled CLI without credentials.
 
-Run the shared [validation scopes](../scripts/check-rust.sh) from the repository root. Static,
-coverage, features and unused-dependency checks cover the workspace. Rust coverage requires at least
-**95% lines, branches, functions and regions in every measured source file**. Miri selects pure
-tests from their owning packages. Native test and benchmark binaries use the executable's allocator;
-Miri uses the system allocator. See the [test guide](../tests/README.md).
+Native test and benchmark binaries use the executable's allocator; Miri uses the system allocator.
+The [test guide](../tests/README.md) owns check commands and coverage gates.
 
 ## Serenity API review
 

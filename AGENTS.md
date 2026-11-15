@@ -22,8 +22,9 @@ in the [wiki](https://github.com/MrewyOrg/Botge/wiki); implementation contracts 
 
 ## Rust references and implementation
 
-Use the dated nightly and committed Cargo lockfile. Follow applicable Microsoft Pragmatic Rust, Rust
-API, Rust Style, Design Patterns, and Undefined Behavior guidance. Start with the
+Use the dated nightly for development and checks, the stable workspace `rust-version` for production
+builds, and the committed Cargo lockfile. Follow applicable Microsoft Pragmatic Rust, Rust API, Rust
+Style, Design Patterns, and Undefined Behavior guidance. Start with the
 [compact reference index](.agents/references/README.md); read relevant full sections on demand.
 Snapshots retain source/version/license metadata and refresh manually. Summaries are navigation
 aids, not replacements for authoritative rules. Cache other regularly reused references similarly.
@@ -73,49 +74,22 @@ Comments markers; preserve Rust's native `//!` scope.
 
 ## Validation
 
-Python tooling uses `.python-version`, the root `.venv`, and committed `uv.lock`. Run
-`uv sync --locked` for setup and `.venv/bin/python scripts/check_python.py` for strict Ruff/Pyright
-and tests. Generate pydoc only when API documentation is needed. `pyproject.toml` owns policy;
-follow the [helper guide](scripts/README.md): four spaces, single quotes, typed/validated
-boundaries. Modern and experimental Python features need a concrete benefit and verification against
-the pinned interpreter, editor and CI. Runtime helpers stay standard-library-only.
+The [test guide](tests/README.md) owns check commands, coverage gates, toolchains and prerequisites;
+the [validation skill](.agents/skills/botge-validation/SKILL.md) picks checks for a change. Report
+failures and unavailable checks. Coverage already runs the tests, so don't repeat a passing suite
+without a new change or unresolved concern. Use `.venv/bin/python scripts/doctor.py` after
+environment changes or prerequisite failures.
 
-Follow applicable PEP 8/257, Google Python, Python typing and Microsoft review guidance through the
-[compact Python references](.agents/references/python/README.md), including documented exceptions.
-
-Use `.venv/bin/python scripts/doctor.py` after environment changes or prerequisite failures. For
-Rust performance work, `.agents/scripts/compare_benchmarks.py` records and compares timings; see the
-[agent helper guide](.agents/scripts/README.md). Use helpers for their relevant scope.
-
-Python validation enforces at least 90% line and branch coverage in every helper file. It includes
-Python subprocesses and normalizes copied fixtures; reports are generated in `coverage/python/`.
-Tests and generated files are outside the measured helper source set.
-
-Use the [test guide](tests/README.md) and
-[validation skill](.agents/skills/botge-validation/SKILL.md) for scoped checks. Report failures and
-unavailable checks. Coverage already executes tests; avoid duplicating successful suites without a
-new change or unresolved concern.
+Python helpers follow the [helper guide](scripts/README.md) and `pyproject.toml`: four spaces,
+single quotes, typed and validated boundaries, standard library only at runtime. Modern Python
+features need a concrete benefit and verification against the pinned interpreter and CI. Follow
+applicable PEP 8/257, Google Python, typing and Microsoft review guidance through the
+[compact Python references](.agents/references/python/README.md).
 
 Before opening or updating a PR, validate its title with
 `printf '%s\n' "$PR_TITLE" | npx --no-install commitlint` and its full commit range with
 `npx --no-install commitlint --from="$BASE_SHA" --to=HEAD --verbose`. Use the current target-branch
-SHA for `BASE_SHA`; commit hooks check individual commits but do not validate the PR title or
-earlier commits.
-
-- Rust: `sh scripts/check-rust.sh static` checks formatting, Clippy, private Rustdoc/doctests,
-  feature combinations and unused dependencies. Select `coverage`, `miri`, or `bench` explicitly for
-  those scopes. Use filtered `cargo test --locked` for focused iteration. Miri covers pure Rust;
-  normal coverage retains native integrations/stress fixtures. Pinned tools/setup: test guide.
-- Rust coverage: at least 95% branches, lines, functions and regions in every source file. Fixtures
-  use loopback providers/Discord, temporary redb and FFmpeg 9+ with libwebp/FFprobe.
-- TypeScript: `npm run check` or `npm run check:static` plus `npm run test:coverage` when coverage
-  applies. Enforce 90% statements/branches/functions/lines per runtime source file. Activity-only:
-  `npm run test:coverage -w activity`; markup: `npm run check:markup -w activity`. Run Activity
-  builds/tests sequentially: builds can replace the HTML module mocked by Worker tests.
-- Docs/tooling: Prettier, `npm run markdownlint`, `npm run cspell`, `npm run lint:shell`,
-  `npm run lint:workflows`; Regal for Rego.
-- Optional local CodeQL: use CI's config/suites; databases in `.github/codeql/database/`, reports in
-  `.github/codeql/output/`. Keep generated artifacts uncommitted; CodeQL is not a pre-push gate.
+SHA for `BASE_SHA`; commit hooks check individual commits but not the PR title or earlier commits.
 
 ## Source map
 
