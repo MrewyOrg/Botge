@@ -1,3 +1,5 @@
+// cspell:words argb yuva
+
 //! Renders small media fixtures with `FFmpeg` and checks the resulting bytes and playback timing.
 
 #![expect(
@@ -451,5 +453,48 @@ async fn rejects_aggregate_input_bytes_and_propagates_encoder_failures() -> Resu
   .err()
   .context("encoder failure was lost")?;
   assert!(error.to_string().contains("FFmpeg could not render"));
+  Ok(())
+}
+
+/// Two lossy frames followed by two lossless frames: the decoder switches from `yuva420p` to `argb`.
+const MIXED_FORMAT: &str = "UklGRhwBAABXRUJQVlA4WAoAAAACAAAABwAABwAAQU5JTQYAAAD/////AABBTk1GQgAAAAAAAAAAAAcAAAcAABQAAAJWUDggKgAAAPABAJ0BKggACAACwEwloAJ0ugH4AATIAACb/8btxhvwXf+YJX5BuuQAAEFOTUZCAAAAAAAAAAAABwAABwAAFAAAAFZQOCAqAAAA1AEAnQEqCAAIAAAATCWgAnS6AfgAA7AA/rZX/4hno9TJd/8WcjEdl4AAQU5NRioAAAAAAAAAAAAHAAAHAAAUAAAAVlA4TBEAAAAvB8ABAAfQz3r1vf+BiOh/AABBTk1GKgAAAAAAAAAAAAcAAAcAABQAAABWUDhMEQAAAC8HwAEAB9DP+vW9/4GI6H8AAA==";
+
+#[tokio::test]
+async fn composes_still_images_with_animations_that_switch_pixel_formats() -> Result<()> {
+  let pixel = crate::tests::png_pixel()?;
+  let mixed = STANDARD.decode(MIXED_FORMAT)?;
+  let server = crate::tests::TestServer::start(
+    Router::new()
+      .route("/7tv/emote/1/2x.png", get(move || async move { pixel }))
+      .route("/7tv/emote/2/2x.webp", get(move || async move { mixed })),
+  )
+  .await?;
+  let layer = |id: &str, extension: &str, overlay: bool| -> Result<Layer> {
+    let mut emote = botge_test_support::example("Mixed", id);
+    emote.image = format!("https://cdn.7tv.app/emote/{id}/2x.{extension}");
+    emote.overlaying = overlay;
+    Layer::emote(&emote).context("invalid fixture")
+  };
+  let client = Client::new();
+  let still = layer("1", "png", false)?;
+  // Side by side, and as an overlay on the still image: both previously stalled until the deadline.
+  for layers in [
+    [still.clone(), layer("2", "webp", false)?],
+    [still.clone(), layer("2", "webp", true)?],
+  ] {
+    let options = RenderOptions {
+      size_pixels: Some(16),
+      stretch: false,
+      border: None,
+    };
+    let image = tokio::time::timeout(
+      Duration::from_secs(15),
+      compose(&client, &layers, Some(&server.origin), options),
+    )
+    .await
+    .context("rendering stalled")??;
+    assert_eq!(image.filename, "emotes.webp");
+    assert_eq!(delays(&image), [20, 20, 20, 20]);
+  }
   Ok(())
 }
