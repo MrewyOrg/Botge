@@ -272,9 +272,22 @@ async fn shares_admission_between_requests_and_resolves_distinct_stored_names() 
   hat.sizes.insert(2, hat.image.clone());
   assert!(fixture.store.add_emote(NonZeroU64::MIN, wave)?);
   assert!(fixture.store.add_emote(NonZeroU64::MIN, hat)?);
-  let permit = fixture.application.render_slot.acquire().await?;
-  std::assert_matches!(fixture.application.compose(fixture.request("Wave Hat")).await?, Composition::Text(message) if message.contains("another emote"));
-  drop(permit);
+  // Renders below the limit run together; only a full set of slots turns a request away.
+  let others = fixture
+    .application
+    .render_slot
+    .acquire_many(u32::try_from(crate::RENDER_SLOTS - 1)?)
+    .await?;
+  std::assert_matches!(
+    fixture
+      .application
+      .compose(fixture.request("Wave Hat"))
+      .await?,
+    Composition::Image(_)
+  );
+  let last = fixture.application.render_slot.acquire().await?;
+  std::assert_matches!(fixture.application.compose(fixture.request("Wave Hat")).await?, Composition::Text(message) if message.contains("too many emotes"));
+  drop((others, last));
   std::assert_matches!(
     fixture
       .application

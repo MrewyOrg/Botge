@@ -8,6 +8,12 @@ pub use botge_emotes::catalog::Catalog;
 use botge_storage::Store;
 use std::{num::NonZeroU64, sync::Arc};
 
+/// Compositions that may resolve, download and render at the same time.
+///
+/// Each render stages at most 20 MiB of inputs and a 20 MiB attachment on the render tmpfs and runs
+/// one single-threaded `FFmpeg` process; see `docs/RESOURCE_USAGE.md` before raising this.
+pub const RENDER_SLOTS: usize = 5;
+
 /// Emote service with provider switches fixed at startup and a shared cache.
 #[derive(Debug)]
 pub struct Application {
@@ -15,6 +21,7 @@ pub struct Application {
   store: Arc<Store>,
   client: botge_emotes::Emotes,
   render_slot: tokio::sync::Semaphore,
+  metrics: Metrics,
 }
 
 impl Application {
@@ -32,8 +39,21 @@ impl Application {
       policy,
       store,
       client: botge_emotes::Emotes::new(policy, twitch)?,
-      render_slot: tokio::sync::Semaphore::new(1),
+      render_slot: tokio::sync::Semaphore::new(RENDER_SLOTS),
+      metrics: Metrics::default(),
     })
+  }
+
+  /// Shares the operation counters with the adapters that record them.
+  #[must_use]
+  pub const fn metrics(&self) -> &Metrics {
+    &self.metrics
+  }
+
+  /// Renders every counter, including the provider client's 7TV reconnects.
+  #[must_use]
+  pub fn render_metrics(&self) -> String {
+    self.metrics.render(self.client.reconnects())
   }
 
   /// Builds the catalog with enabled guild additions before provider-feed entries.
@@ -144,17 +164,24 @@ mod operations;
 pub use operations::{EmoteAction, EmoteChange, GuildCatalog};
 
 mod composition;
+
+pub mod metrics;
 pub use botge_emotes::rendering::Layer;
 #[doc(inline)]
 pub use composition::{ComposeRequest, Composition};
+pub use metrics::Metrics;
 impl Application {
-  /// Holds rendering admission while a fixture verifies busy responses.
+  /// Holds every render slot while a fixture verifies busy responses.
   ///
   /// # Errors
   /// Returns an error if the admission semaphore was closed.
   #[cfg(any(test, feature = "test-util"))]
   pub async fn reserve_render_fixture(&self) -> Result<tokio::sync::SemaphorePermit<'_>> {
-    Ok(self.render_slot.acquire().await?)
+    #[expect(
+      clippy::cast_possible_truncation,
+      reason = "The slot count is a small constant"
+    )]
+    Ok(self.render_slot.acquire_many(RENDER_SLOTS as u32).await?)
   }
 }
 

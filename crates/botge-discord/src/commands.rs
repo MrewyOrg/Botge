@@ -55,6 +55,7 @@ impl Commands {
     if !NAMES.contains(&command.data.name.as_str()) {
       return Ok(());
     }
+    self.application.metrics().command(&command.data.name);
     if command.data.name == clear::NAME {
       return clear::open(http, &command).await;
     }

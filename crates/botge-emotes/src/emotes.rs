@@ -72,6 +72,15 @@ impl Emotes {
     self.client.watch_sets(&self.events).await;
   }
 
+  /// Counts 7TV event stream sessions that ended since startup.
+  #[must_use]
+  pub fn reconnects(&self) -> u64 {
+    self
+      .client
+      .reconnects
+      .load(std::sync::atomic::Ordering::Relaxed)
+  }
+
   /// Shares the bounded HTTP client with renderer operations.
   #[must_use]
   pub fn http(&self) -> &reqwest::Client {

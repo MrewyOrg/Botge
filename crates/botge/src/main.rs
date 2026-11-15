@@ -265,7 +265,7 @@ async fn run(
   let watch_sets = config.general.watches_seven_tv_sets();
   let voice_changed = Arc::new(Notify::new());
   let (ready, voice_ready) = watch::channel(false);
-  let health_router = health::router(ready.subscribe());
+  let health_router = health::router(ready.subscribe(), Arc::clone(&application));
   let health_listener = TcpListener::bind(options.health_address)
     .await
     .context("could not bind health listener")?;

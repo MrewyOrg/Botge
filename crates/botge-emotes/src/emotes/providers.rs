@@ -12,7 +12,7 @@ use normalization::parse_feed;
 
 use std::{
   collections::HashMap,
-  sync::Arc,
+  sync::{Arc, atomic::AtomicU64},
   time::{Duration, Instant},
 };
 
@@ -68,6 +68,8 @@ pub(super) struct ProviderClient {
   cache: Mutex<HashMap<String, Cached>>,
   refreshing: Mutex<HashMap<String, Refresh>>,
   twitch: Option<(String, String)>,
+  /// Event stream sessions that ended, cleanly or with an error.
+  pub(super) reconnects: AtomicU64,
   #[cfg(any(test, feature = "test-util"))]
   pub(super) test_origin: Option<Url>,
 }
@@ -88,6 +90,7 @@ impl ProviderClient {
       cache: Mutex::new(HashMap::new()),
       refreshing: Mutex::new(HashMap::new()),
       twitch,
+      reconnects: AtomicU64::new(0),
       #[cfg(any(test, feature = "test-util"))]
       test_origin: None,
     })
