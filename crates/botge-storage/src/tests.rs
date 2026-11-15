@@ -77,6 +77,49 @@ fn rejects_malformed_backups_and_full_catalogs_without_changing_saved_data() -> 
 }
 
 #[test]
+fn stamps_unmarked_databases_and_rejects_unsupported_schema_versions() -> Result<()> {
+  let directory = tempfile::tempdir()?;
+  let path = directory.path().join("versioned.redb");
+  let recorded = |store: &Store| -> Result<Option<u64>> {
+    schema_version(&store.0.begin_read()?.open_table(META)?)
+  };
+  {
+    let store = Store::open(&path)?;
+    assert_eq!(recorded(&store)?, Some(SCHEMA_VERSION));
+    store.save_emote_border(NonZeroU64::MIN, Some(1))?;
+    // A database written before the marker existed has no meta table.
+    let transaction = store.0.begin_write()?;
+    assert!(transaction.delete_table(META)?);
+    transaction.commit()?
+  };
+  verify_backup(&path)?;
+  {
+    let store = Store::open(&path)?;
+    assert_eq!(recorded(&store)?, Some(SCHEMA_VERSION));
+    assert_eq!(store.emote_border(NonZeroU64::MIN)?, Some(1));
+    let transaction = store.0.begin_write()?;
+    transaction
+      .open_table(META)?
+      .insert(SCHEMA_KEY, SCHEMA_VERSION + 1)?;
+    transaction.commit()?
+  };
+  for result in [verify_backup(&path), Store::open(&path).map(drop)] {
+    let message = result.err().map(|error| error.to_string());
+    assert!(message.is_some_and(|message| message.contains("schema version 2")));
+  }
+  {
+    let database = Database::open(&path)?;
+    let transaction = database.begin_write()?;
+    assert!(transaction.delete_table(META)?);
+    transaction.open_table(TableDefinition::<u32, u64>::new("meta"))?;
+    transaction.commit()?
+  };
+  std::assert_matches!(verify_backup(&path), Err(_));
+  assert_matches!(Store::open(&path), Err(_));
+  Ok(())
+}
+
+#[test]
 fn offline_backup_is_readable_and_restores_saved_data() -> Result<()> {
   let directory = tempfile::tempdir()?;
   let source = directory.path().join("source.redb");

@@ -172,5 +172,18 @@ fn propagates_initialization_failures_without_publishing_a_partial_store() -> Re
     drop(initialized);
   }
   assert!(failures > 0);
+  // Reopening saved data also reads the schema marker through the failing backend.
+  let mut reopen_failures = 0;
+  for cutoff in 0..32 {
+    let (store, remaining) = fixture()?;
+    remaining.store(cutoff, Ordering::SeqCst);
+    let reopened = Store::initialize(store.0);
+    if reopened.is_err() {
+      reopen_failures += 1;
+    }
+    remaining.store(-1, Ordering::SeqCst);
+    drop(reopened);
+  }
+  assert!(reopen_failures > 0);
   Ok(())
 }
