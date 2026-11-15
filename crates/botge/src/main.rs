@@ -275,6 +275,7 @@ async fn run(
       .driver_timeout(Some(Duration::from_secs(10))),
   );
   let mut discord = ClientBuilder::new_with_http(http, gateway_intents(options.prefix_compose))
+    .activity(discord::presence())
     .event_handler(Events {
       ready,
       commands,
