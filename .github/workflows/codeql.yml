@@ -49,6 +49,7 @@ jobs:
       matrix:
         include:
           - language: actions
+          - language: python
           - language: rust
           - language: typescript
 
@@ -57,6 +58,12 @@ jobs:
         uses: actions/checkout@v7.0.1
         with:
           persist-credentials: false
+
+      - name: Set up Python for extraction
+        if: matrix.language == 'python'
+        uses: actions/setup-python@v7.1.0
+        with:
+          python-version-file: .python-version
 
       - name: Restore Rust extractor dependencies
         if: matrix.language == 'rust'
@@ -68,7 +75,7 @@ jobs:
             .github/codeql/database/rust-cargo-cache
           key: >-
             codeql-rust-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('rust-toolchain.toml')
-            }}-${{ hashFiles('Cargo.toml', 'Cargo.lock') }}
+            }}-${{ hashFiles('Cargo.toml', 'crates/**/Cargo.toml', 'Cargo.lock') }}
           restore-keys: |
             codeql-rust-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('rust-toolchain.toml') }}-
 

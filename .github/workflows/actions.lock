@@ -23,6 +23,7 @@ workflows:
     '.github/workflows/codeql.yml':
         - 'actions/cache@v6.1.0'
         - 'actions/checkout@v7.0.1'
+        - 'actions/setup-python@v7.1.0'
         - 'github/codeql-action@v4.39.3'
     '.github/workflows/dependency-security.yml':
         - 'actions/cache@v6.1.0'

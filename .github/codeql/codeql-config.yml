@@ -5,5 +5,8 @@ paths-ignore:
   - '**/node_modules'
   - activity/dist
   - coverage
+  - .venv
+  - .ruff_cache
+  - .agents/references/cache
   - .github/codeql/database
   - .github/codeql/output

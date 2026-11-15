@@ -17,7 +17,7 @@ Change detection compares the complete PR against its base. Formatting, document
 checks always run; other stages run when their inputs change. Editing BotgeQL exercises every stage.
 Required jobs remain present when optional stages are skipped. Failed change detection fails
 validation. Tests use temporary data, loopback fixtures, and mocks without deployment credentials.
-Rust coverage requires at least 90% lines, functions, regions, and branches per source file. The
+Rust coverage requires at least 95% lines, functions, regions, and branches per source file. The
 combined TypeScript suite requires 90% statements, branches, functions, and lines per runtime source
 file, including repository tooling, the Activity, and its Worker. Declaration-only files are
 excluded.
@@ -81,12 +81,12 @@ commit. It promotes the candidate digest to `latest` and requests the VM update 
 socket over Google Cloud IAP. Promotion and deployment share a concurrency group and cannot cancel
 each other. Cancel obsolete approval requests after updating a PR.
 
-The Dockerfile compiles locked Rust dependencies before copying application sources. Dependency
-artifacts live in image layers so `cache-mode: max` can export them; BuildKit cache mounts alone
-would not survive fresh CI runners. Source-only rebuilds reuse that layer when the toolchain and
-Cargo manifests are unchanged. Cold builds and inaccessible or evicted caches still compile all
-dependencies. Both compilation steps run offline, and only the final binary enters the runtime
-image.
+The Dockerfile copies every workspace manifest and compiles locked dependencies against placeholder
+packages before copying application sources. Dependency artifacts live in image layers so
+`cache-mode: max` can export them; BuildKit cache mounts alone would not survive fresh CI runners.
+Source-only rebuilds reuse that layer when the toolchain and workspace Cargo manifests are
+unchanged. Cold builds and inaccessible or evicted caches still compile all dependencies. Both
+compilation steps run offline, and only the final binary enters the runtime image.
 
 The compiler runs on DHI Debian and targets musl for AMD64 or ARM64. DHI Alpine remains the runtime
 because it supplies FFmpeg 9 with animated WebP decoding; Debian 13's packaged FFmpeg is older.
@@ -107,7 +107,8 @@ These settings live outside workflow files:
 - `main` requires a PR, up-to-date checks, and successful `production` deployment before merge.
 - Required checks include `Validate / BotgeQL`, `Validate / Shell and workflow lint`,
   `Validate / check-pr-target / Check PR target`, the three `Security / Dependency` checks, CodeQL's
-  three language analyses, `Regal lint`, and `Verify actions lockfile`.
+  language analyses, `Regal lint`, and `Verify actions lockfile`. The matrix covers Actions, Python,
+  Rust and TypeScript; add the Python analysis to any explicit required-check list once it has run.
 - The `production` environment requires approval and permits the PR merge refs used for deployment.
   Preserve its secrets and reviewer settings.
 - The organization Actions allowlist includes Scout. SHA pinning remains required; the committed
@@ -120,7 +121,21 @@ includes the caller workflow name so unrelated runs cannot cancel each other.
 
 Optional local CodeQL runs use `.github/codeql/database/` for databases and `.github/codeql/output/`
 for reports. Both directories are ignored except for `.gitkeep` files. Use CI's security-and-quality
-suites; local CodeQL is not required before pushing.
+suites; local CodeQL is not required before pushing. Python analysis covers repository helpers and
+tests, including `.agents/`; virtual environments and cached references are excluded.
+
+To run the Python suite locally with an installed CodeQL CLI:
+
+```sh
+codeql database create .github/codeql/database/python \
+  --language=python --build-mode=none --source-root=. \
+  --codescanning-config=.github/codeql/codeql-config.yml
+codeql database analyze .github/codeql/database/python \
+  codeql/python-queries:codeql-suites/python-security-and-quality.qls \
+  --format=sarif-latest --output=.github/codeql/output/python.sarif
+```
+
+Use a fresh database path for each extraction. Analysis does not start the bot or run deployment.
 
 Install [ShellCheck](https://www.shellcheck.net/) and
 [actionlint](https://github.com/rhysd/actionlint), then run:
