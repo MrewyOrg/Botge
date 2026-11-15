@@ -96,6 +96,12 @@ Use the [test guide](tests/README.md) and
 unavailable checks. Coverage already executes tests; avoid duplicating successful suites without a
 new change or unresolved concern.
 
+Before opening or updating a PR, validate its title with
+`printf '%s\n' "$PR_TITLE" | npx --no-install commitlint` and its full commit range with
+`npx --no-install commitlint --from="$BASE_SHA" --to=HEAD --verbose`. Use the current target-branch
+SHA for `BASE_SHA`; commit hooks check individual commits but do not validate the PR title or
+earlier commits.
+
 - Rust: `sh scripts/check-rust.sh static` checks formatting, Clippy, private Rustdoc/doctests,
   feature combinations and unused dependencies. Select `coverage`, `miri`, or `bench` explicitly for
   those scopes. Use filtered `cargo test --locked` for focused iteration. Miri covers pure Rust;
