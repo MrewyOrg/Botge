@@ -18,12 +18,9 @@ bot, and nothing you do there is saved.
 
 The [Botge wiki](https://github.com/MrewyOrg/Botge/wiki) is the main documentation site.
 
-- [Commands](https://github.com/MrewyOrg/Botge/wiki/Commands)
-- [Activity and server settings](https://github.com/MrewyOrg/Botge/wiki/Activity)
-- [Hosting](https://github.com/MrewyOrg/Botge/wiki/Hosting) and
-  [configuration](https://github.com/MrewyOrg/Botge/wiki/Configuration)
-- [Operations](https://github.com/MrewyOrg/Botge/wiki/Operations) and
-  [troubleshooting](https://github.com/MrewyOrg/Botge/wiki/Troubleshooting)
+- [Using Botge: commands and Activity](https://github.com/MrewyOrg/Botge/wiki/Activity)
+- [Hosting and configuration](https://github.com/MrewyOrg/Botge/wiki/Hosting)
+- [Operations and troubleshooting](https://github.com/MrewyOrg/Botge/wiki/Operations)
 - [Development](https://github.com/MrewyOrg/Botge/wiki/Development)
 - [Roadmap](https://github.com/orgs/MrewyOrg/projects/2/views/6)
 
