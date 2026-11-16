@@ -3,6 +3,7 @@ name: Bug report
 about: Report unexpected behavior
 title: ''
 labels: ''
+type: Bug
 assignees: ''
 ---
 
