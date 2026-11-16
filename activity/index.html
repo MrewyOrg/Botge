@@ -7,100 +7,120 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta name="theme-color" content="#0b0a10" />
-    <title>Botge Emote Studio</title>
+    <meta name="theme-color" content="#0e0e10" />
+    <title>Botge Catalog</title>
   </head>
   <body>
-    <main>
-      <header class="masthead">
-        <div class="masthead-brand">
-          <img
-            class="masthead-art"
-            src="./src/assets/banner.png"
-            width="680"
-            height="240"
-            alt="Botge"
-          />
-          <span class="activity-label">Discord Activity</span>
-        </div>
-        <div id="catalog-intro" class="masthead-copy">
-          <p class="eyebrow">Workspace / Emotes</p>
-          <h1>Emote Studio</h1>
-          <p>Browse, build, and preview emote compositions.</p>
-        </div>
-      </header>
+    <header class="masthead">
+      <div class="masthead-brand">
+        <img
+          class="masthead-art"
+          src="./src/assets/banner.png"
+          width="680"
+          height="240"
+          alt="Botge"
+        />
+        <span class="activity-label">Discord Activity</span>
+      </div>
+      <nav class="workspace-nav" aria-label="Emote workspace">
+        <a id="catalog-link" href="#catalog-heading" aria-current="page">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <rect x="3" y="3" width="7" height="7" rx="1" />
+            <rect x="14" y="3" width="7" height="7" rx="1" />
+            <rect x="3" y="14" width="7" height="7" rx="1" />
+            <rect x="14" y="14" width="7" height="7" rx="1" />
+          </svg>
+          Catalog
+        </a>
+        <a id="settings-link" href="#activity-settings" hidden>
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M4 7h16M4 17h16" />
+            <circle cx="8" cy="7" r="2.5" />
+            <circle cx="16" cy="17" r="2.5" />
+          </svg>
+          Settings
+        </a>
+      </nav>
+    </header>
 
+    <main>
       <noscript><p>Enable JavaScript to browse emotes and use the Activity settings.</p></noscript>
 
       <div class="workspace">
-        <nav class="workspace-nav" aria-label="Emote workspace">
-          <a id="catalog-link" href="#catalog-heading" aria-current="page">
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-              <rect x="3" y="3" width="7" height="7" rx="1" />
-              <rect x="14" y="3" width="7" height="7" rx="1" />
-              <rect x="3" y="14" width="7" height="7" rx="1" />
-              <rect x="14" y="14" width="7" height="7" rx="1" />
-            </svg>
-            Catalog
-          </a>
-          <a id="settings-link" href="#activity-settings" hidden>
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-              <path d="M4 7h16M4 17h16" />
-              <circle cx="8" cy="7" r="2.5" />
-              <circle cx="16" cy="17" r="2.5" />
-            </svg>
-            Settings
-          </a>
-        </nav>
         <section id="catalog-page" class="catalog" aria-labelledby="catalog-heading">
-          <header class="section-header">
-            <h2 id="catalog-heading" tabindex="-1">Emote catalog</h2>
+          <header id="catalog-intro" class="masthead-copy">
+            <h1 id="catalog-title" tabindex="-1">Catalog</h1>
+            <p>Browse, build, and preview emote compositions.</p>
           </header>
-          <nav id="browse-modes" class="browse-modes" aria-label="Browse emotes" hidden>
-            <button id="catalog-mode" type="button" aria-pressed="true">Catalog</button>
-            <button id="trending-mode" type="button" aria-pressed="false">
-              Trending this week
-            </button>
-            <button id="top-mode" type="button" aria-pressed="false">Top all time</button>
-          </nav>
 
           <section class="filters" aria-label="Emote filters">
-            <label class="search"
-              >Search<input id="search" type="search" placeholder="Search emotes…"
-            /></label>
-            <label id="source-filter"
-              >Platform<select id="source">
-                <option value="">All platforms</option>
-              </select></label
-            >
-            <label
-              >Motion<select id="motion">
-                <option value="">All emotes</option>
-                <option value="static">Static</option>
-                <option value="animated">Animated</option>
-              </select></label
-            >
-            <label>
-              Layering
-              <select id="overlay-filter">
-                <option value="">All emotes</option>
-                <option value="overlaying">Overlaying</option>
-                <option value="regular">Regular</option>
-              </select>
-            </label>
-            <label class="search">
-              Tags<input id="tag-search" type="search" placeholder="Tags, separated by commas" />
-            </label>
-            <button id="added-filter" type="button" aria-pressed="false" hidden>
-              Added emotes
-            </button>
+            <div class="filter-bar">
+              <label class="search"
+                ><span class="visually-hidden">Search</span
+                ><input id="search" type="search" placeholder="Search emotes…  ( / )"
+              /></label>
+              <button
+                id="filters-toggle"
+                type="button"
+                aria-expanded="false"
+                aria-controls="advanced-filters"
+              >
+                Filters <span id="filter-count" class="count" hidden></span>
+              </button>
+              <button id="added-filter" type="button" aria-pressed="false" hidden>
+                Added emotes
+              </button>
+            </div>
+            <div id="advanced-filters" class="advanced-filters" hidden>
+              <label class="tags">
+                Tags<input id="tag-search" type="search" placeholder="Tags, separated by commas" />
+              </label>
+              <label id="source-filter"
+                >Platform<select id="source">
+                  <option value="">All platforms</option>
+                </select></label
+              >
+              <label
+                >Motion<select id="motion">
+                  <option value="">All emotes</option>
+                  <option value="static">Static</option>
+                  <option value="animated">Animated</option>
+                </select></label
+              >
+              <label>
+                Layering
+                <select id="overlay-filter">
+                  <option value="">All emotes</option>
+                  <option value="overlaying">Overlaying</option>
+                  <option value="regular">Regular</option>
+                </select>
+              </label>
+              <button id="clear-filters" class="quiet" type="button" disabled>Clear filters</button>
+            </div>
           </section>
+
+          <header class="section-header">
+            <h2 id="catalog-heading" tabindex="-1">Emote catalog</h2>
+            <nav id="browse-modes" class="browse-modes" aria-label="Browse emotes" hidden>
+              <button id="catalog-mode" type="button" aria-pressed="true">Catalog</button>
+              <button id="trending-mode" type="button" aria-pressed="false">
+                Trending this week
+              </button>
+              <button id="top-mode" type="button" aria-pressed="false">Top all time</button>
+            </nav>
+          </header>
 
           <div class="catalog-status">
             <p id="message" role="status">Loading emotes…</p>
-            <button id="select-emotes" type="button" aria-pressed="false">Select emotes</button>
-            <button id="refresh-catalog" class="quiet" type="button" hidden>Refresh catalog</button>
+            <div class="catalog-actions">
+              <button id="refresh-catalog" class="quiet" type="button" hidden>
+                Refresh catalog
+              </button>
+              <button id="select-emotes" type="button" aria-pressed="false">Select emotes</button>
+            </div>
           </div>
+          <ul id="results" class="grid" aria-label="Emotes"></ul>
+          <button id="more" type="button" hidden>Show more</button>
           <div id="selection" class="selection" hidden>
             <p id="selection-status" role="status"></p>
             <div class="preview-actions">
@@ -109,15 +129,16 @@
               <button id="selection-remove" type="button" class="danger" hidden>
                 Remove from server
               </button>
-              <button id="selection-clear" type="button">Clear selection</button>
+              <button id="selection-clear" type="button" class="quiet">Clear selection</button>
             </div>
           </div>
-          <ul id="results" class="grid" aria-label="Emotes"></ul>
-          <button id="more" type="button" hidden>Show more</button>
         </section>
         <aside id="composer-pane" class="tools" aria-label="Composer">
           <details id="composer" class="composer" open>
-            <summary>Emote composer</summary>
+            <summary>
+              Emote composer
+              <span id="composer-count" class="count" title="Composition inputs" hidden></span>
+            </summary>
             <p>Open any emote to add it. Overlaying emotes sit on top of the previous emote.</p>
             <div
               id="composer-preview"
@@ -196,7 +217,7 @@
       </div>
 
       <div id="emote-context-menu" role="menu" aria-label="Emote actions" hidden></div>
-      <dialog id="preview" aria-labelledby="preview-title">
+      <dialog id="preview" aria-labelledby="preview-title" tabindex="-1">
         <form method="dialog"><button class="close" aria-label="Close preview">×</button></form>
         <div id="preview-art" class="preview-art"></div>
         <p class="eyebrow" id="preview-source"></p>

@@ -27,7 +27,7 @@ const defaults = {
     { id: '42', name: 'Moderators' },
     { id: '77', name: 'Artists' }
   ]
-};
+} as const;
 
 test('loads and submits the provider sets and added-emote access', async () => {
   const request = vi
@@ -50,7 +50,7 @@ test('loads and submits the provider sets and added-emote access', async () => {
     'Missing add role'
   );
   panel.querySelector<HTMLButtonElement>('.selected-roles button')?.click();
-  for (const id of ['42', '77']) {
+  for (const id of ['42', '77'] as const) {
     role.value = id;
     role.dispatchEvent(new Event('change'));
     add.click();

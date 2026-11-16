@@ -22,8 +22,8 @@ test('selects several emotes and uses bulk composer and server actions', async (
   sdk.ready.mockResolvedValue();
   sdk.commands.authorize.mockResolvedValue({ code: 'oauth-code' });
 
-  const nextId = '01234567890123456789012347';
-  const ids = [discoveryId, nextId];
+  const nextId = '01234567890123456789012347' as const;
+  const ids = [discoveryId, nextId] as const;
   let entries = [serverEmote];
   let updates = 0;
   const additions = ids.map((id, index) => ({
@@ -76,7 +76,7 @@ test('selects several emotes and uses bulk composer and server actions', async (
   click('#top-mode');
   await waitForText('#results', 'Discovered1');
   click('#select-emotes');
-  for (const item of document.querySelectorAll<HTMLButtonElement>('#results button')) item.click();
+  for (const item of document.querySelectorAll<HTMLButtonElement>('#results .tile')) item.click();
   expect(element('#selection-status').textContent).toBe('2 of 12 selected');
   click('#selection-compose');
   expect(input('#composer-input').value).toBe(ids.map((id) => `7tv:${id}`).join(' '));

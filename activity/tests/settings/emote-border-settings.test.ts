@@ -110,3 +110,28 @@ test('ignores duplicate loads and premature saves, then keeps failed saves edita
   settings.dispatchEvent(new Event('toggle'));
   expect(request).toHaveBeenCalledTimes(2);
 });
+
+test('loads before the panel opens and reports each saved color', async () => {
+  const request = vi
+    .fn()
+    .mockResolvedValueOnce({ color: 'FF7700' })
+    .mockResolvedValueOnce({ color: '' });
+  const onChange = vi.fn();
+  const border = mountEmoteBorderSettings(request, onChange);
+  await border.load();
+  expect(onChange).toHaveBeenLastCalledWith('#ff7700');
+  await border.load();
+  panel().open = true;
+  panel().dispatchEvent(new Event('toggle'));
+  expect(request).toHaveBeenCalledOnce();
+
+  requireValue(
+    panel().querySelector<HTMLInputElement>('input[type="checkbox"]'),
+    'Missing toggle.'
+  ).click();
+  requireValue(panel().querySelector('button'), 'Missing save button.').click();
+  await vi.waitFor(() => {
+    expect(onChange).toHaveBeenLastCalledWith(undefined);
+  });
+  expect(request).toHaveBeenLastCalledWith('');
+});

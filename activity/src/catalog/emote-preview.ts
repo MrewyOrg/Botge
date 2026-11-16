@@ -6,11 +6,13 @@ import { requireValue } from '../validation.ts';
 
 /** Capabilities supplied by the catalog, keeping dialog state private. */
 type PreviewOptions = {
-  readonly composer: ReturnType<typeof createComposer>;
+  readonly composer: Omit<ReturnType<typeof createComposer>, 'setBorder'>;
   readonly canChange: (emote: BrowserEmote, removing: boolean) => boolean;
   readonly isBusy: () => boolean;
   readonly onCompose: () => void;
   readonly openExternal: ((url: string) => Promise<unknown>) | undefined;
+  /** Whether 7TV IDs are real; the demo's placeholder IDs have no 7TV page to open. */
+  readonly linkSevenTV: boolean;
 };
 
 type ChangeEmote = (
@@ -91,7 +93,7 @@ export function createEmotePreview(options: PreviewOptions): EmotePreview {
     add.disabled = options.isBusy();
     remove.hidden = !options.canChange(emote, true);
     remove.disabled = options.isBusy();
-    openSevenTV.hidden = emote.sevenTVId === undefined;
+    openSevenTV.hidden = !options.linkSevenTV || emote.sevenTVId === undefined;
     if (emote.sevenTVId !== undefined)
       openSevenTV.href = `https://7tv.app/emotes/${emote.sevenTVId}`;
     previewImage.src = emote.image;
@@ -111,6 +113,8 @@ export function createEmotePreview(options: PreviewOptions): EmotePreview {
         'The composer is full. Remove an input to add more.'
       : '';
     preview.showModal();
+    // Start on the dialog itself, not its close button, so no control looks preselected.
+    preview.focus();
   }
 
   async function copyName(): Promise<void> {
@@ -141,6 +145,28 @@ export function createEmotePreview(options: PreviewOptions): EmotePreview {
   });
   copy.addEventListener('click', () => {
     void copyName();
+  });
+
+  // Backdrop clicks target the dialog itself. Close only when both the press and the release land
+  // outside its box, so clicks on the padding or a text selection dragged outward keep it open.
+  type Pointer = Readonly<{ target: unknown; clientX: number; clientY: number }>;
+  function outside(event: Pointer): boolean {
+    if (event.target !== preview) return false;
+    const box = preview.getBoundingClientRect();
+    return (
+      event.clientX < box.left
+      || event.clientX > box.right
+      || event.clientY < box.top
+      || event.clientY > box.bottom
+    );
+  }
+  let pressedOutside = false;
+  preview.addEventListener('pointerdown', (event: Pointer) => {
+    pressedOutside = outside(event);
+  });
+  preview.addEventListener('click', (event: Pointer) => {
+    if (pressedOutside && outside(event)) preview.close();
+    pressedOutside = false;
   });
 
   return {

@@ -14,9 +14,9 @@ const base = {
   source: '7TV',
   image: 'wave.webp',
   animated: false
-};
-const overlay = { ...base, name: 'Hat', composeToken: 'Hat', overlaying: true };
-const other = { ...base, name: 'Smile', composeToken: 'Smile' };
+} as const;
+const overlay = { ...base, name: 'Hat', composeToken: 'Hat', overlaying: true } as const;
+const other = { ...base, name: 'Smile', composeToken: 'Smile' } as const;
 
 function element(selector: string): HTMLElement {
   return requireValue(document.querySelector<HTMLElement>(selector), `Missing ${selector}`);
@@ -36,7 +36,7 @@ beforeEach(() => {
 test('layers overlays, reorders inputs, removes inputs, and clears the preview', () => {
   const composer = createComposer();
   expect(element('#composer-copy').hasAttribute('disabled')).toBe(true);
-  for (const emote of [base, overlay, other]) composer.add(emote);
+  for (const emote of [base, overlay, other] as const) composer.add(emote);
   expect(tokens()).toBe('Wave Hat Smile');
   expect(document.querySelectorAll('.composer-column')).toHaveLength(2);
   expect(document.querySelectorAll('.composer-column:first-child img')).toHaveLength(2);
@@ -60,6 +60,31 @@ test('layers overlays, reorders inputs, removes inputs, and clears the preview',
   expect(document.querySelectorAll('.composer-column')).toHaveLength(0);
 });
 
+test('stays collapsed in the compact layout and counts added layers', () => {
+  const matchMedia = vi.fn((query: string) => ({ matches: query === '(max-width: 48rem)' }));
+  vi.stubGlobal('matchMedia', matchMedia);
+  try {
+    const composer = createComposer();
+    expect(document.querySelector('#composer[open]')).toBeNull();
+    expect(element('#composer-count').hidden).toBe(true);
+    composer.add(base);
+    composer.add(overlay);
+    expect(document.querySelector('#composer[open]')).toBeNull();
+    expect(element('#composer-count').hidden).toBe(false);
+    expect(element('#composer-count').textContent).toBe('2');
+  } finally {
+    vi.unstubAllGlobals();
+  }
+});
+
+test('opens when a layer is added in the wide layout', () => {
+  const composer = createComposer();
+  requireValue(document.querySelector<HTMLDetailsElement>('#composer'), 'Missing composer').open =
+    false;
+  composer.add(base);
+  expect(document.querySelector('#composer[open]')).not.toBeNull();
+});
+
 test('ignores emotes without a compose token and stops at the composition limit', () => {
   const composer = createComposer();
   const withoutToken: BrowserEmote = {
@@ -67,7 +92,7 @@ test('ignores emotes without a compose token and stops at the composition limit'
     source: '7TV',
     image: 'wave.webp',
     animated: false
-  };
+  } as const;
   composer.add(withoutToken);
   expect(tokens()).toBe('');
   for (let index = 0; index < MAX_EMOTE_COMPOSE_INPUTS; index += 1) composer.add(base);
@@ -117,4 +142,18 @@ test('ignores stale reorder controls and out-of-range moves', () => {
   element('button[aria-label="Remove Smile"]').click();
   stale.click();
   expect(tokens()).toBe('Wave');
+});
+
+test('draws the saved border around the whole preview canvas', () => {
+  const composer = createComposer();
+  composer.setBorder('#f0b232');
+  expect(document.querySelector('.composer-canvas')).toBeNull();
+  composer.add(base);
+  composer.add(other);
+  const canvas = element('.composer-canvas');
+  expect(canvas.dataset['border']).toBe('#f0b232');
+  expect(canvas.style.getPropertyValue('--emote-border')).toBe('#f0b232');
+  expect(canvas.querySelectorAll('.composer-column')).toHaveLength(2);
+  composer.setBorder(undefined);
+  expect(element('.composer-canvas').hasAttribute('data-border')).toBe(false);
 });

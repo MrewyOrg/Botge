@@ -39,7 +39,7 @@ test('uses the tile as a keyboard anchor and supports navigation and dismissal',
   const actions = [
     { label: 'Compose', run: vi.fn() },
     { label: 'Details', run: vi.fn() }
-  ];
+  ] as const;
   context.open(tile, 0, 0, actions);
   const key = (value: string): boolean =>
     document.activeElement?.dispatchEvent(
@@ -69,4 +69,16 @@ test('uses the tile as a keyboard anchor and supports navigation and dismissal',
   context.open(tile, 20, 25, actions);
   window.dispatchEvent(new Event('scroll'));
   expect(menu.hidden).toBe(true);
+});
+
+test('focuses the menu itself when opened by pointer, then navigates from the first action', () => {
+  const { tile, menu } = fixture();
+  const context = createContextMenu();
+  context.open(tile, 20, 25, [
+    { label: 'Compose', run: vi.fn() },
+    { label: 'Details', run: vi.fn() }
+  ]);
+  expect(document.activeElement).toBe(menu);
+  menu.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, key: 'ArrowDown' }));
+  expect(document.activeElement?.textContent).toBe('Compose');
 });

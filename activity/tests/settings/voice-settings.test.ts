@@ -10,7 +10,7 @@ beforeEach(() => {
   document.body.innerHTML = new DOMParser().parseFromString(html, 'text/html').body.innerHTML;
 });
 
-const defaults = { channelId: null, statusEnabled: false, statusEmoji: null };
+const defaults = { channelId: null, statusEnabled: false, statusEmoji: null } as const;
 
 test.each([
   [null, 'Invalid settings response.'],

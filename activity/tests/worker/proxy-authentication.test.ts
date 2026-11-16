@@ -18,7 +18,7 @@ function headers(payload: string, timestamp: string): Record<string, unknown> {
 }
 
 test('rejects malformed signed JSON and non-object claims', () => {
-  for (const payload of ['{', 'null', '[]', '42']) {
+  for (const payload of ['{', 'null', '[]', '42'] as const) {
     expect(authenticate(headers(payload, '0'))).toBe(false);
   }
 });
