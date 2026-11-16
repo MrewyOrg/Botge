@@ -60,6 +60,11 @@ updates:
       cargo-dependencies:
         patterns:
           - '*'
+    ignore:
+      # Both reqwest versions still require tower-http 0.6, and a second version fails Clippy's
+      # multiple-crate-versions lint. Remove this once reqwest depends on tower-http 0.7.
+      - dependency-name: tower-http
+        versions: ['>=0.7']
     target-branch: dev
 
   - package-ecosystem: npm
