@@ -58,7 +58,7 @@ RUN --network=none for manifest in crates/*/Cargo.toml; do \
   done \
   && cargo build --release --frozen && cp "target/$(cat /rust-target)/release/botge" /botge
 
-FROM dhi.io/alpine-base:3.24@sha256:7b06d747fcb428a0699679955e903b13322c92c79d94ce94c108634f13a714f1 AS botge
+FROM dhi.io/alpine-base:3.24@sha256:6278da77eb7e000c38b95711f93d199b2eb108e371a9eb95fb67b911c1f5e2cd AS botge
 USER 0:0
 WORKDIR /app
 ENV BOTGE_REGISTER_COMMANDS=true
