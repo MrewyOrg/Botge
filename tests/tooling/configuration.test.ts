@@ -13,6 +13,14 @@ test('commit messages require a meaningful subject and an explicit scope', () =>
   });
 });
 
+test('commit checks skip only commits signed off by Dependabot', () => {
+  const [ignore] = commitlint.ignores ?? [];
+  const body = `chore(deps): bump a pinned workflow\n\nUpdates it from ${'a'.repeat(40)} to ${'b'.repeat(40)}`;
+  expect(ignore?.(`${body}\n\nSigned-off-by: dependabot[bot] <support@github.com>`)).toBe(true);
+  expect(ignore?.(`${body}\n\nSigned-off-by: Someone <someone@example.com>`)).toBe(false);
+  expect(ignore?.(`${body} dependabot[bot]`)).toBe(false);
+});
+
 test('staged Rust uses rustfmt without following unstaged child modules', () => {
   expect(staged).toMatchObject({
     '*.rs': ['rustfmt --config skip_children=true', 'cspell'],

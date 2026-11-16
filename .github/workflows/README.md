@@ -9,7 +9,9 @@ deployment → merge. Merging does not deploy again.
 
 [BotgeQL](botgeql.yml) runs on PRs to `dev` and is called by Build and Deploy for PRs to `main`. It
 runs the commands in the [test guide](../../tests/README.md#checks) plus PR title and commit checks.
-Pushes alone do not run it; changes to an open PR and PR title edits do.
+Pushes alone do not run it; changes to an open PR and PR title edits do. Dependabot PR titles and
+Dependabot-signed commits skip commitlint: Dependabot writes lines naming long dependencies or
+commit hashes that it cannot wrap, and merge commits never reuse PR titles.
 
 Its stages run as parallel jobs: documentation and TypeScript, Rust static checks (including the
 stable `rust-version` build), Rust tests and coverage, Miri, and Rust feature and unused-dependency
