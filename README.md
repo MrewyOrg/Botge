@@ -10,6 +10,10 @@ Botge brings Twitch-style emotes to Discord. The Rust bot handles emote commands
 Activity API. The TypeScript Discord Activity lets members browse and compose emotes and lets
 authorized users manage server settings.
 
+Try the [Activity demo](https://botge-activity-demo.mrewy.workers.dev) in your browser. It is an
+unofficial preview with placeholder emotes and in-memory settings, so it needs no Discord account or
+bot, and nothing you do there is saved.
+
 ## Documentation
 
 The [Botge wiki](https://github.com/MrewyOrg/Botge/wiki) is the main documentation site.
