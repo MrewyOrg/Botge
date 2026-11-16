@@ -61,6 +61,10 @@ Follow `.nvmrc`, package engines and committed npm locks; install with `npm ci`.
 single quotes, semicolons and ESM relative imports ending in `.ts`. Group imports by
 Node/dependencies/project; keep type-only imports beside their modules.
 
+Add `as const` to every literal constant and literal data value, including strings, numbers, arrays,
+objects and inline loop arrays (`const PAGE_SIZE = 24 as const;`). Skip collections that are
+mutated. When a constant is a parameter default, annotate the parameter's wider type.
+
 Prefer readonly data: flat `readonly` properties, `readonly T[]`, readonly tuples, `ReadonlyMap`/
 `ReadonlySet`; use `ts-essentials` `DeepReadonly` for nested snapshots. This includes parameters,
 returns, locals, tests and tooling. Keep construction/reordering collections and DOM/SDK
@@ -76,9 +80,10 @@ Comments markers; preserve Rust's native `//!` scope.
 
 The [test guide](tests/README.md) owns check commands, coverage gates, toolchains and prerequisites;
 the [validation skill](.agents/skills/botge-validation/SKILL.md) picks checks for a change. Report
-failures and unavailable checks. Coverage already runs the tests, so don't repeat a passing suite
-without a new change or unresolved concern. Use `.venv/bin/python scripts/doctor.py` after
-environment changes or prerequisite failures.
+failures and unavailable checks. Run only targeted tests: the test files or name filters that cover
+the changed code. Run whole suites or coverage gates only when explicitly asked; CI runs them. Don't
+repeat a passing test without a new change or unresolved concern. Use
+`.venv/bin/python scripts/doctor.py` after environment changes or prerequisite failures.
 
 Python helpers follow the [helper guide](scripts/README.md) and `pyproject.toml`: four spaces,
 single quotes, typed and validated boundaries, standard library only at runtime. Modern Python

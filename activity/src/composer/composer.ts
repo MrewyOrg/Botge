@@ -4,11 +4,15 @@ import type { BrowserEmote } from '../catalog/catalog.ts';
 import { groupEmoteLayers, MAX_EMOTE_COMPOSE_INPUTS } from './compose-layout.ts';
 import { requireValue } from '../validation.ts';
 
+/** Matches the stylesheet breakpoint where the composer becomes a bottom tray. */
+const COMPACT_LAYOUT = '(max-width: 48rem)' as const;
+
 /**
  * Mounts an empty composer and keeps its preview and command tokens synchronized.
  *
  * @remarks
- * Adding or clearing layers redraws the controls. Reordering and removal restore keyboard
+ * Adding or clearing layers redraws the controls and the summary count. Adding opens the panel
+ * except in the compact bottom-tray layout. Reordering and removal restore keyboard
  * focus to a surviving action. Inputs without compose tokens are ignored.
  *
  * @returns Controls for adding layers and checking the shared composition limit.
@@ -30,12 +34,21 @@ export function createComposer(): {
   readonly addMany: (emotes: readonly BrowserEmote[]) => number;
   /** Reports whether the composer has reached its input limit. */
   readonly full: () => boolean;
+  /**
+   * Shows the author's saved border around the preview, as the bot draws it around the image.
+   * @param color - A `#rrggbb` color, or `undefined` for no border.
+   */
+  readonly setBorder: (color: string | undefined) => void;
 } {
   const panel = requireValue(
     document.querySelector<HTMLDetailsElement>('#composer'),
     'Missing composer.'
   );
   const summary = requireValue(panel.querySelector('summary'), 'Missing composer summary.');
+  const count = requireValue(
+    document.querySelector<HTMLElement>('#composer-count'),
+    'Missing composer count.'
+  );
   const preview = requireValue(
     document.querySelector('#composer-preview'),
     'Missing composition preview.'
@@ -58,6 +71,12 @@ export function createComposer(): {
     'Missing composer feedback.'
   );
   const emotes: BrowserEmote[] = [];
+  let border: string | undefined;
+  // Narrow layouts dock the composer as a bottom tray. It starts collapsed and stays collapsed when
+  // layers are added, so the catalog stays visible; the summary count shows the change instead.
+  const compact = (): boolean =>
+    typeof window.matchMedia === 'function' && window.matchMedia(COMPACT_LAYOUT).matches;
+  if (compact()) panel.open = false;
 
   function full(): boolean {
     return emotes.length >= MAX_EMOTE_COMPOSE_INPUTS;
@@ -102,6 +121,14 @@ export function createComposer(): {
     const groups = groupEmoteLayers(emotes, (emote) => emote.overlaying === true);
     preview.replaceChildren();
     layers.replaceChildren();
+    // The canvas stands in for the rendered image, so the border wraps every column at once.
+    const canvas = document.createElement('div');
+    canvas.className = 'composer-canvas';
+    if (border !== undefined) {
+      canvas.dataset['border'] = border;
+      canvas.style.setProperty('--emote-border', border);
+    }
+    if (groups.length > 0) preview.append(canvas);
     for (const group of groups) {
       const column = document.createElement('div');
       column.className = 'composer-column';
@@ -111,7 +138,7 @@ export function createComposer(): {
         image.alt = emote.name;
         column.append(image);
       }
-      preview.append(column);
+      canvas.append(column);
     }
     for (const [index, emote] of emotes.entries()) {
       const row = document.createElement('li');
@@ -133,6 +160,8 @@ export function createComposer(): {
     copy.disabled = emotes.length === 0;
     clear.disabled = emotes.length === 0;
     feedback.textContent = `${emotes.length} of ${MAX_EMOTE_COMPOSE_INPUTS} inputs`;
+    count.textContent = String(emotes.length);
+    count.hidden = emotes.length === 0;
   }
 
   async function copyComposition(): Promise<void> {
@@ -164,7 +193,7 @@ export function createComposer(): {
       .toArray();
     if (added.length > 0) {
       emotes.push(...added);
-      panel.open = true;
+      if (!compact()) panel.open = true;
       render();
     }
     return added.length;
@@ -172,6 +201,10 @@ export function createComposer(): {
 
   return {
     full,
+    setBorder(color: string | undefined): void {
+      border = color;
+      render();
+    },
     add(emote: BrowserEmote): void {
       addMany([emote]);
     },

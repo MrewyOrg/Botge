@@ -158,3 +158,77 @@ test('removes an individually added emote and refreshes the server catalog', asy
   await waitForText('#message', 'No emotes match');
   expect(element('#remove').hidden).toBe(true);
 });
+
+test('keeps loaded discovery pages when an added emote refreshes the server catalog', async () => {
+  vi.stubGlobal('location', new URL('https://12345.discordsays.com/'));
+  vi.stubEnv('VITE_ENABLE_ACTIVITY_ADDS', 'true');
+  vi.stubEnv('VITE_ENABLE_ACTIVITY_CATALOG', 'true');
+  vi.stubEnv('VITE_ENABLE_7TV_DISCOVERY', 'true');
+  sdk.ready.mockResolvedValue();
+  sdk.commands.authorize.mockResolvedValue({ code: 'oauth-code' });
+  const otherId = '01234567890123456789012347' as const;
+  const discovered = (id: string, name: string): Readonly<Record<string, unknown>> => ({
+    id,
+    defaultName: name,
+    flags: { animated: false, nsfw: false, private: false, publicListed: true },
+    images: [{ url: `https://cdn.7tv.app/emote/${id}/2x.webp` }]
+  });
+  let added = false;
+  let discoveryCount = 0;
+  const fetch = vi.fn((path: string) => {
+    if (path === '/botge-api/auth')
+      return Response.json({ accessToken: 'access-token', expiresIn: 3600 });
+    if (path === '/botge-api/emotes') {
+      added = true;
+      return Response.json({ message: 'Added emote.', added: true });
+    }
+    if (path === '/botge-api/catalog') {
+      const saved = {
+        ...serverEmote,
+        name: 'First',
+        composeToken: 'First',
+        sevenTVId: discoveryId
+      } as const;
+      return Response.json({
+        canManageEmotes: true,
+        canComposeDiscovery: true,
+        emotes: added ? [serverEmote, saved] : [serverEmote]
+      });
+    }
+    discoveryCount += 1;
+    const items =
+      discoveryCount === 1 ? [discovered(discoveryId, 'First')] : [discovered(otherId, 'Second')];
+    return Response.json({ data: { emotes: { search: { pageCount: 2, items } } } });
+  });
+  vi.stubGlobal('fetch', fetch);
+
+  await import('../../src/index.ts');
+  await waitForText('#message', 'Showing 1 of 1');
+  click('#trending-mode');
+  await waitForText('#results', 'First');
+  click('#more');
+  await waitForText('#results', 'Second');
+  const first = element('#results .tile');
+  first.focus();
+  first.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
+  const serverAction = [
+    ...document.querySelectorAll<HTMLButtonElement>('#emote-context-menu button')
+  ].find(
+    (button: Readonly<Pick<HTMLButtonElement, 'textContent'>>) =>
+      button.textContent === 'Add to this server'
+  );
+  requireValue(serverAction, 'Missing add to server action').click();
+  first.focus();
+  await waitForText('#message', 'Added emote.');
+
+  expect(discoveryCount).toBe(2);
+  const names = [...document.querySelectorAll('#results .tile strong')].map(
+    (name: Readonly<Pick<Element, 'textContent'>>) => name.textContent
+  );
+  expect(names).toEqual(['First', 'Second']);
+  expect(element('#results .tile').textContent).toContain('Added');
+  // The redrawn tile takes over keyboard focus from the replaced one.
+  expect(document.activeElement).toBe(element('#results .tile'));
+  click('#results .tile');
+  expect(element('#add').hidden).toBe(true);
+});

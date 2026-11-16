@@ -18,7 +18,8 @@ type MenuAction = { readonly label: string; readonly run: () => void };
  */
 export function createContextMenu(): {
   /**
-   * Opens the action menu and focuses its first action.
+   * Opens the action menu. Keyboard invocation focuses the first action; pointer invocation
+   * focuses the menu itself, so no action looks preselected and arrow keys still navigate.
    *
    * @param trigger - Tile that owns the menu and receives restored keyboard focus.
    * @param x - Pointer coordinate in the viewport; two zero coordinates select keyboard anchoring.
@@ -36,6 +37,8 @@ export function createContextMenu(): {
     document.querySelector<HTMLElement>('#emote-context-menu'),
     'Missing emote context menu.'
   );
+  // Focusable only by script, so a pointer-opened menu can take focus without selecting an action.
+  menu.tabIndex = -1;
   let owner: MenuTrigger | undefined;
 
   function close(restoreFocus = false): void {
@@ -112,7 +115,7 @@ export function createContextMenu(): {
       const pointer = x !== 0 || y !== 0;
       menu.style.left = `${Math.max(8, Math.min(pointer ? x : anchor.left, window.innerWidth - menu.offsetWidth - 8))}px`;
       menu.style.top = `${Math.max(8, Math.min(pointer ? y : anchor.bottom, window.innerHeight - menu.offsetHeight - 8))}px`;
-      buttons.at(0)?.focus({ preventScroll: true });
+      (pointer ? menu : buttons.at(0))?.focus({ preventScroll: true });
     }
   };
 }

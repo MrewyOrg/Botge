@@ -9,7 +9,7 @@ import { isRecord } from '../validation.ts';
 /** Public 7TV rankings supported by the discovery browser. */
 export type DiscoveryMode = 'trending' | 'top';
 
-const PAGE_SIZE = 24;
+const PAGE_SIZE = 24 as const;
 const SEARCH = `
   query Discover($query: String, $page: Int!, $perPage: Int!, $sort: Sort!, $filters: Filters, $tags: Tags) {
     emotes {
@@ -25,11 +25,11 @@ const SEARCH = `
       }
     }
   }
-`;
+` as const;
 
 function previewPath(images: readonly unknown[], id: string): string | undefined {
-  for (const size of ['2x', '1x', '3x', '4x']) {
-    for (const format of ['webp', 'avif', 'png', 'gif']) {
+  for (const size of ['2x', '1x', '3x', '4x'] as const) {
+    for (const format of ['webp', 'avif', 'png', 'gif'] as const) {
       const path = `/emote/${id}/${size}.${format}`;
       if (images.some((image) => isRecord(image) && image['url'] === `https://cdn.7tv.app${path}`))
         return path;

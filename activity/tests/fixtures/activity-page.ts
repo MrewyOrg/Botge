@@ -32,15 +32,15 @@ vi.mock('@discord/embedded-app-sdk', () => ({
   })
 }));
 
-export const emoteId = '01234567890123456789012345';
-export const discoveryId = '01234567890123456789012346';
+export const emoteId = '01234567890123456789012345' as const;
+export const discoveryId = '01234567890123456789012346' as const;
 export const publicEmote: BrowserEmote = {
   name: 'Wave',
   source: '7TV',
   image: 'emotes/wave.webp',
   animated: false,
   tags: ['Greeting']
-};
+} as const;
 export const serverEmote: BrowserEmote = {
   ...publicEmote,
   image: `/7tv-cdn/emote/${emoteId}/2x.webp`,
@@ -48,7 +48,7 @@ export const serverEmote: BrowserEmote = {
   sevenTVId: emoteId,
   overlaying: true,
   added: true
-};
+} as const;
 
 export function element(selector: string): HTMLElement {
   return requireValue(document.querySelector<HTMLElement>(selector), `Missing ${selector}`);

@@ -2,8 +2,18 @@ import { expect, test } from 'vitest';
 
 import { filterEmotes, parseCatalog } from '../../src/catalog/catalog.ts';
 
-const still = { name: 'Botge', source: 'Original', image: 'emotes/botge.png', animated: false };
-const motion = { name: 'BotgeWave', source: 'Community', image: 'emotes/wave.gif', animated: true };
+const still = {
+  name: 'Botge',
+  source: 'Original',
+  image: 'emotes/botge.png',
+  animated: false
+} as const;
+const motion = {
+  name: 'BotgeWave',
+  source: 'Community',
+  image: 'emotes/wave.gif',
+  animated: true
+} as const;
 
 test('searches names case-insensitively and combines filters', () => {
   const catalog = parseCatalog([still, motion]);

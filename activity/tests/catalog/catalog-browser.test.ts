@@ -33,12 +33,13 @@ test('browses and paginates the local catalog, previews an emote, and copies its
     await import('../../src/index.ts');
     await waitForText('#message', 'Showing 48 of 50');
     expect(document.querySelector('header.masthead img[alt="Botge"]')).not.toBeNull();
+    expect(document.querySelector('#demo-notice')).toBeNull();
     expect(document.querySelector('#composer[open]')).not.toBeNull();
     click('#more');
     expect(document.querySelectorAll('#results li')).toHaveLength(50);
     expect(element('#more').hidden).toBe(true);
     click('#select-emotes');
-    for (const item of [...document.querySelectorAll<HTMLButtonElement>('#results button')].slice(
+    for (const item of [...document.querySelectorAll<HTMLButtonElement>('#results .tile')].slice(
       0,
       13
     ))
@@ -120,6 +121,50 @@ test('handles a full composer and unrelated context-menu targets', async () => {
   click('#results li button');
   click('#selection-compose');
   expect(element('#selection-status').textContent).toContain('composer is full');
+});
+
+test('adds emotes from the tile shortcut until the composer is full', async () => {
+  vi.stubGlobal('fetch', vi.fn().mockResolvedValue(Response.json([publicEmote])));
+  await import('../../src/index.ts');
+  await waitForText('#message', 'Showing 1 of 1');
+  const shortcut = element('#results .tile-compose');
+  expect(shortcut.getAttribute('aria-label')).toBe('Add Wave to composer');
+  shortcut.click();
+  expect(input('#composer-input').value).toBe('Wave');
+  expect(element('#composer-count').textContent).toBe('1');
+  for (let index = 1; index < 32; index += 1) shortcut.click();
+  expect(element('#composer-count').textContent).toBe('32');
+  shortcut.click();
+  expect(element('#message').textContent).toBe('The composer is full.');
+});
+
+test('focuses search with the slash shortcut outside text fields', async () => {
+  vi.stubGlobal('fetch', vi.fn().mockResolvedValue(Response.json([publicEmote])));
+  await import('../../src/index.ts');
+  await waitForText('#message', 'Showing 1 of 1');
+  const press = (
+    target: Readonly<Pick<EventTarget, 'dispatchEvent'>>,
+    init: Readonly<{ key: string; ctrlKey?: boolean; metaKey?: boolean; altKey?: boolean }>
+  ): boolean =>
+    target.dispatchEvent(
+      new KeyboardEvent('keydown', { bubbles: true, cancelable: true, ...init })
+    );
+
+  for (const init of [
+    { key: 'a' },
+    { key: '/', ctrlKey: true },
+    { key: '/', metaKey: true },
+    { key: '/', altKey: true }
+  ] as const)
+    expect(press(document, init)).toBe(true);
+  expect(document.activeElement).not.toBe(element('#search'));
+  expect(press(element('#tag-search'), { key: '/' })).toBe(true);
+
+  expect(press(element('#results .tile'), { key: '/' })).toBe(false);
+  expect(document.activeElement).toBe(element('#search'));
+  element('#search').blur();
+  expect(press(document, { key: '/' })).toBe(false);
+  expect(document.activeElement).toBe(element('#search'));
 });
 
 test('discards superseded discovery responses and recovers from cancelled requests', async () => {

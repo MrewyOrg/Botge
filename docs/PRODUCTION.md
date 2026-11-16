@@ -126,6 +126,8 @@ All project tooling and services must remain free to use without trial credits o
   images without enabling paid registry features.
 - Keep the Activity on Cloudflare Workers Free. Accept quota failures rather than enabling paid
   usage. Static assets and Worker requests have separate limits.
+- Serve the public Activity demo as static assets only, with no Worker script, so its traffic stays
+  free and never uses the daily Worker requests the Activity needs.
 - Use free capacity for encrypted off-host backups and monitoring; provision and test them
   separately.
 

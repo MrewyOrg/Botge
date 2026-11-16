@@ -7,7 +7,7 @@ WORKDIR /app
 RUN apk add --no-cache --repository=https://dl-cdn.alpinelinux.org/alpine/v3.24/community \
   apk-tools-static
 
-FROM dhi.io/debian-base:trixie-dev@sha256:9e9caa90d9ef807a54a5cef570d83263715cfcb6f3e7342bc0625c80e3b258b8 AS build-tools
+FROM dhi.io/debian-base:trixie-dev@sha256:f90fd43cdf3dd94840b4dc3a2a39fd2a08578e40e7895535e2e20a1275ba6013 AS build-tools
 USER 0:0
 WORKDIR /app
 RUN apt-get update && apt-get install -y --no-install-recommends \

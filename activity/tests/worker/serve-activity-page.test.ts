@@ -6,8 +6,8 @@ import { CONTENT_SECURITY_POLICY, serveActivityPage } from '../../worker/serve-a
 
 const { privateKey, publicKey } = generateKeyPairSync('ed25519');
 const key = publicKey.export({ format: 'der', type: 'spki' }).subarray(-32).toString('hex');
-const html = '<!doctype html><title>Botge</title>';
-const origin = 'https://botge.example.com';
+const html = '<!doctype html><title>Botge</title>' as const;
+const origin = 'https://botge.example.com' as const;
 
 function signedHeaders(expiresAt: number): Headers {
   const createdAt = Math.floor(Date.now() / 1000) - 5;

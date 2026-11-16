@@ -65,12 +65,13 @@ test('releases the API queue after stalled authorization and ignores its late re
     : Response.json([])
   );
   vi.stubGlobal('fetch', fetch);
-  await import('../src/index.ts');
-  await vi.waitFor(() => {
-    expect(element('#voice-settings').hidden).toBe(false);
-  });
+  // The border loads at startup, so its Discord deadline must already run on the fake clock.
   vi.useFakeTimers();
   try {
+    await import('../src/index.ts');
+    await vi.waitFor(() => {
+      expect(element('#voice-settings').hidden).toBe(false);
+    });
     const border = requireValue(
       document.querySelector<HTMLDetailsElement>('#emote-border-settings'),
       'Missing border settings'
@@ -79,7 +80,6 @@ test('releases the API queue after stalled authorization and ignores its late re
       document.querySelector<HTMLDetailsElement>('#voice-settings'),
       'Missing voice settings'
     );
-    border.open = true;
     await vi.advanceTimersByTimeAsync(1);
     voice.open = true;
     await vi.advanceTimersByTimeAsync(1);

@@ -1,7 +1,7 @@
 /* Defines browser composition limits and the overlay grouping shared by preview operations. */
 
 /** Maximum number of composition layers, including overlays; matches the Rust command limit. */
-export const MAX_EMOTE_COMPOSE_INPUTS = 32;
+export const MAX_EMOTE_COMPOSE_INPUTS = 32 as const;
 
 /**
  * Groups ordered layers into base-and-overlay columns.

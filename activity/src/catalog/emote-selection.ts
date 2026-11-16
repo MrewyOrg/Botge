@@ -4,7 +4,7 @@ import type { BrowserEmote } from './catalog.ts';
 import type { createComposer } from '../composer/composer.ts';
 import { requireValue } from '../validation.ts';
 
-const MAX_SELECTION = 12;
+const MAX_SELECTION = 12 as const;
 
 /** Operations supplied by the catalog and composer. */
 type SelectionOptions = {

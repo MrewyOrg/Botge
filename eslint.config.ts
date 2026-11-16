@@ -127,6 +127,12 @@ const config: readonly Readonly<Config>[] = defineConfig([
     }
   },
   {
+    name: 'vite-env-declarations',
+    files: ['activity/src/vite-env.d.ts'],
+    // Vite's ImportMetaEnv can only be extended through interface declaration merging.
+    rules: { '@typescript-eslint/consistent-type-definitions': 'off' }
+  },
+  {
     name: 'optional-integration-tests',
     files: ['tests/integration/**/*.ts'],
     // This suite type-checks separately after its dependencies are installed.

@@ -54,7 +54,7 @@ test('serializes simultaneous requests and shares one session across guilds', as
 test('retries an explicit OAuth rejection once and discards the rejected replacement token', async () => {
   const sdk = commands();
   let exchanges = 0;
-  const expired = { code: 'oauth_expired', message: 'Expired' };
+  const expired = { code: 'oauth_expired', message: 'Expired' } as const;
   const fetch = vi.fn((path: string) => {
     if (path === '/botge-api/auth') {
       exchanges += 1;

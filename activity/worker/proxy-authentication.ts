@@ -4,7 +4,7 @@ import { createPublicKey, verify } from 'node:crypto';
 
 import { isRecord } from '../src/validation.ts';
 
-const ALLOWED_CLOCK_SKEW_SECONDS = 30;
+const ALLOWED_CLOCK_SKEW_SECONDS = 30 as const;
 
 function decodeBase64(value: unknown): Buffer | undefined {
   if (typeof value !== 'string' || !/^[a-z0-9+/_-]+={0,2}$/iu.test(value)) return undefined;

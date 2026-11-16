@@ -2,13 +2,13 @@ import { afterEach, expect, test, vi } from 'vitest';
 
 import { fetchDiscoveryPage, parseDiscoveryPage } from '../../src/catalog/seventv.ts';
 
-const id = '01234567890123456789012345';
+const id = '01234567890123456789012345' as const;
 const emote = {
   id,
   defaultName: 'Example',
   flags: { animated: true, nsfw: false, private: false, publicListed: true },
   images: [{ url: `https://cdn.7tv.app/emote/${id}/2x.webp` }]
-};
+} as const;
 
 function page(items: readonly unknown[]): unknown {
   return { data: { emotes: { search: { pageCount: 3, items } } } };
@@ -47,7 +47,7 @@ test('uses public, safe previews and ignores malformed or unlisted results', () 
       }
     ]
   });
-  expect(parseDiscoveryPage(page([emote]), false).emotes[0]?.image).toBe(emote.images[0]?.url);
+  expect(parseDiscoveryPage(page([emote]), false).emotes[0]?.image).toBe(emote.images[0].url);
 });
 
 test('rejects GraphQL errors and invalid response shapes', () => {

@@ -6,13 +6,23 @@ import { isRecord, requireValue } from '../validation.ts';
  * Mounts the authenticated user's border preference form.
  *
  * @remarks
- * The first opening loads the saved preference. Failed saves leave previously loaded
- * controls editable. Disabling the border preserves the picker color for later reuse.
+ * The first opening loads the saved preference unless {@link load} already did. Failed saves
+ * leave previously loaded controls editable. Disabling the border preserves the picker color for
+ * later reuse.
  *
  * @param request - Reads with no argument, saves a chosen color, or clears with an empty string.
+ * @param onChange - Receives the saved `#rrggbb` color, or `undefined` for no border, after each
+ * successful load or save.
+ * @returns A control that loads the saved preference without opening the panel.
  * @throws `Error` if required form markup is missing.
  */
-export function mountEmoteBorderSettings(request: (color?: string) => Promise<unknown>): void {
+export function mountEmoteBorderSettings(
+  request: (color?: string) => Promise<unknown>,
+  onChange: (color: string | undefined) => void = () => undefined
+): {
+  /** Loads the saved preference into the form and reports it through `onChange`. */
+  readonly load: () => Promise<void>;
+} {
   const panel = requireValue(
     document.querySelector<HTMLDetailsElement>('#emote-border-settings'),
     'Missing emote border settings.'
@@ -46,6 +56,7 @@ export function mountEmoteBorderSettings(request: (color?: string) => Promise<un
       picker.disabled = !enabled.checked;
       if (enabled.checked) picker.value = `#${saved}`;
       loaded = true;
+      onChange(enabled.checked ? `#${saved.toLowerCase()}` : undefined);
       feedback.textContent = color === undefined ? '' : 'Emote border saved.';
     } catch (error) {
       feedback.textContent =
@@ -67,4 +78,9 @@ export function mountEmoteBorderSettings(request: (color?: string) => Promise<un
     if (loaded) void update(enabled.checked ? picker.value : '');
   });
   panel.hidden = false;
+  return {
+    async load(): Promise<void> {
+      if (!loaded) await update();
+    }
+  };
 }
