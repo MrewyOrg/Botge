@@ -127,6 +127,7 @@ impl Fixture {
       )?),
       voice_changed: Arc::clone(&self.changed),
       slots: Semaphore::new(8),
+      sockets: Arc::new(Semaphore::new(GAME_SOCKETS)),
       sessions: Sessions::default(),
       now: unix_seconds,
     })
@@ -222,6 +223,55 @@ impl Fixture {
 }
 
 impl Fixture {
+  /// The router, for scenarios that serve it over a loopback listener.
+  pub(super) fn router(&self) -> Router {
+    self.router.clone()
+  }
+
+  /// Proxy signature headers that are valid for the next minute.
+  pub(super) fn signature(&self) -> anyhow::Result<[(&'static str, String); 3]> {
+    let now = SystemTime::now().duration_since(UNIX_EPOCH)?.as_secs();
+    let payload = json!({ "created_at": now, "expires_at": now + 60 }).to_string();
+    let signature = self.key.sign(payload.as_bytes());
+    Ok([
+      ("x-discord-proxy-payload", STANDARD.encode(payload)),
+      ("x-signature-ed25519", STANDARD.encode(signature.to_bytes())),
+      ("x-signature-timestamp", now.to_string()),
+    ])
+  }
+
+  /// Sends a GET with optional proxy headers and returns the status, content type and body.
+  pub(super) async fn get(
+    &self,
+    path: &str,
+    signed: bool,
+  ) -> anyhow::Result<(StatusCode, Option<String>, Vec<u8>)> {
+    let mut request = Request::builder().method(Method::GET).uri(path);
+    if signed {
+      for (name, value) in self.signature()? {
+        request = request.header(name, value);
+      }
+    }
+    let response = self
+      .router
+      .clone()
+      .oneshot(request.body(Body::empty())?)
+      .await?;
+    let status = response.status();
+    let kind = response
+      .headers()
+      .get(header::CONTENT_TYPE)
+      .and_then(|value| value.to_str().ok())
+      .map(str::to_owned);
+    Ok((
+      status,
+      kind,
+      to_bytes(response.into_body(), 8192).await?.into(),
+    ))
+  }
+}
+
+impl Fixture {
   /// Posts signed JSON with or without `Accept-Encoding: gzip`, returning the response encoding.
   pub(super) async fn content_encoding(
     &self,
@@ -290,6 +340,7 @@ fn bounds_production_authentication_and_command_future_sizes() -> anyhow::Result
     )?,
     proxy: base.proxy,
     application: base.application,
+    sockets: base.sockets,
     voice_changed: base.voice_changed,
     slots: base.slots,
     sessions: base.sessions,
@@ -338,6 +389,7 @@ async fn maps_database_failures_and_bounds_concurrent_requests() -> anyhow::Resu
     )?),
     voice_changed: Arc::clone(&fixture.changed),
     slots: Semaphore::new(1),
+    sockets: Arc::new(Semaphore::new(GAME_SOCKETS)),
     sessions: Sessions::default(),
     now: || Ok(100),
   };

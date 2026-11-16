@@ -24,7 +24,10 @@ repository root.
 | `catalog/emote-selection.ts`       | Bounded multi-selection and bulk controls                 |
 | `composer/`                        | Layer order, composition limits, previews, and the border |
 | `settings/`                        | Voice, provider/role policy, and personal border forms    |
-| `demo/`                            | In-memory API and discovery for the local feature demo    |
+| `game/game-state.ts`               | Guessing game message validation and connection contract  |
+| `game/game-server.ts`              | Ticketed WebSocket connection to a Botge game room        |
+| `game/game-view.ts`                | Game page: blurred round image, guesses, and scoreboard   |
+| `demo/`                            | In-memory API, discovery, and game for the feature demo   |
 | `context-menu.ts`, `validation.ts` | Shared UI and boundary helpers                            |
 
 Tests mirror features under `tests/`, including browser integration suites and Worker tests.
@@ -60,20 +63,40 @@ for each operation. SDK waits have 15-second deadlines; HTTP calls have a 45-sec
 an HTTP 401 `oauth_expired` response renews the token and retries once. Other failures release the
 queue without automatically repeating writes.
 
+## Guessing game
+
+`VITE_ENABLE_ACTIVITY_GAME=true` adds the Guess tab. Players in one Activity instance share a room:
+each round shows an emote from the server's own additions and selected feeds, blurred by the page
+and sharpening over 20 seconds, and the first player to type its name scores. The page asks the
+`game/join` route for a one-use ticket through the queued API session, then opens a WebSocket at
+`/botge-api/game/ws` and presents the ticket in its first message, because a browser cannot attach
+the bearer token to a WebSocket. Round images load from `/botge-api/game/image/<token>`; the token
+is random and changes every round, and the emote's name arrives only with the reveal. The page still
+receives the original image, so the blur deters casual peeking rather than preventing it. Each round
+opens with a three-second ready beat in which the image loads while still hidden, so a slow
+connection does not cost scoring time. During the round the page shows the name as underscores, with
+the first letter revealed halfway and a middle letter at three quarters (never more than a third of
+the name), and lists the room's recent wrong guesses. The guess input accepts no more characters
+than the name has. A lost connection is retried three times, after one, two, and four seconds,
+before the page offers a Reconnect button. While a match is running the Catalog tab is disabled and
+its address leads back to the game, because the catalog lists the names being guessed. Scoreboard
+names come from the Discord SDK's participant list and fall back to an ID-based label.
+
 ## Feature demo
 
 `npm run dev:demo -w activity` starts the dev server in demo mode, which loads `.env.demo` and sets
 `VITE_ENABLE_ACTIVITY_DEMO=true`; plain `npm run dev` keeps the preview catalog. Outside Discord,
 the flag replaces the Botge API and 7TV discovery with the in-memory backend in
 `src/demo/demo-server.ts`. Every guild feature is then available against a pretend server: the
-server catalog, Trending and Top pages, adding and removing emotes, bulk actions, and all settings
-panels. State resets on reload and nothing reaches the network. The page says the emotes are
-placeholders and hides 7TV links, whose placeholder IDs have no 7TV page. Placeholder artwork lives
-in `public/7tv-cdn/demo/` so it passes server catalog validation; `.assetsignore` keeps it out of
-the Activity Worker. Normal builds, the plain dev server, and tests do not load the demo flag, and
-it has no effect inside Discord. The flag is read with dot access, typed in `src/vite-env.d.ts`, so
-Vite replaces it with a constant: normal builds leave out the demo backend and notice entirely, and
-demo builds load them as separate chunks.
+server catalog, Trending and Top pages, adding and removing emotes, bulk actions, all settings
+panels, and a single-player guessing game with the server's rules and timings. State resets on
+reload and nothing reaches the network. The page says the emotes are placeholders and hides 7TV
+links, whose placeholder IDs have no 7TV page. Placeholder artwork lives in `public/7tv-cdn/demo/`
+so it passes server catalog validation; `.assetsignore` keeps it out of the Activity Worker. Normal
+builds, the plain dev server, and tests do not load the demo flag, and it has no effect inside
+Discord. The flag is read with dot access, typed in `src/vite-env.d.ts`, so Vite replaces it with a
+constant: normal builds leave out the demo backend and notice entirely, and demo builds load them as
+separate chunks.
 
 ### Publishing the demo
 

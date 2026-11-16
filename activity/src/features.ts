@@ -13,6 +13,8 @@ export type ActivityFeatures = Readonly<{
   catalogGuildId: string | undefined;
   /** The guild whose settings panels are shown. */
   settingsGuildId: string | undefined;
+  /** The guild whose emotes the guessing game uses. */
+  gameGuildId: string | undefined;
   /** Whether 7TV emotes may be added to the guild. */
   adds: boolean;
   /** Whether the Trending and Top 7TV modes are shown. */
@@ -42,6 +44,7 @@ export function resolveFeatures(
     guildId,
     catalogGuildId: demo || on('VITE_ENABLE_ACTIVITY_CATALOG') ? guildId : undefined,
     settingsGuildId: demo || on('VITE_ENABLE_ACTIVITY_SETTINGS') ? guildId : undefined,
+    gameGuildId: demo || on('VITE_ENABLE_ACTIVITY_GAME') ? guildId : undefined,
     adds: demo || on('VITE_ENABLE_ACTIVITY_ADDS'),
     discovery: demo || on('VITE_ENABLE_7TV_DISCOVERY')
   };

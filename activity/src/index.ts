@@ -35,6 +35,8 @@ import { fetchDiscoveryPage } from './catalog/seventv.ts';
 import { createComposer } from './composer/composer.ts';
 import type { DemoServer } from './demo/demo-server.ts';
 import { resolveFeatures } from './features.ts';
+import { connectGameServer } from './game/game-server.ts';
+import { mountGame } from './game/game-view.ts';
 import { trackInputModality } from './input-modality.ts';
 import { createPageNavigation } from './page-navigation.ts';
 import { mountEmoteBorderSettings } from './settings/emote-border-settings.ts';
@@ -207,6 +209,62 @@ function mountSettings(guildId: string): void {
   });
 }
 
+/** Display names of the people in this Activity instance, by Discord user ID. */
+const participantNames = new Map<string, string>();
+
+/**
+ * Keeps participant names current for the scoreboard.
+ *
+ * @remarks
+ * Names are a convenience: when Discord does not provide them, the scoreboard falls back to a
+ * label derived from each player's ID.
+ */
+async function trackParticipants(onChange: () => void): Promise<void> {
+  if (discord === undefined) return;
+  type Participant = {
+    readonly id: string;
+    readonly username: string;
+    readonly global_name?: string | null | undefined;
+    readonly nickname?: string | undefined;
+  };
+  const update = (participants: readonly Participant[]): void => {
+    participantNames.clear();
+    for (const participant of participants)
+      participantNames.set(
+        participant.id,
+        participant.nickname ?? participant.global_name ?? participant.username
+      );
+    onChange();
+  };
+  await discord.subscribe(
+    'ACTIVITY_INSTANCE_PARTICIPANTS_UPDATE',
+    (event: { readonly participants: readonly Participant[] }) => {
+      update(event.participants);
+    }
+  );
+  update((await discord.commands.getInstanceConnectedParticipants()).participants);
+}
+
+/** Mounts the guessing game; it connects when its page is first shown. */
+function mountGamePage(guildId: string): void {
+  const game = mountGame({
+    connect:
+      demo === undefined ?
+        connectGameServer(
+          async () =>
+            await requestServer('game/join', guildId, { instanceId: discord?.instanceId ?? '' })
+        )
+      : demo.connectGame,
+    playerName: (id) => participantNames.get(id),
+    // The catalog lists the answers, so it stays closed while a match is running.
+    onPlaying: navigation.lockCatalog
+  });
+  navigation.enableGame(game.open);
+  void trackParticipants(game.refresh).catch((error: unknown) => {
+    console.error(error);
+  });
+}
+
 /** Loads the curated preview catalog, or a single Botge emote when it is empty. */
 async function loadLocalCatalog(): Promise<void> {
   const response = await fetch('./catalog.json', { signal: AbortSignal.timeout(10_000) });
@@ -234,6 +292,7 @@ async function loadActivity(): Promise<void> {
       await discord.ready();
     });
   if (features.settingsGuildId !== undefined) mountSettings(features.settingsGuildId);
+  if (features.gameGuildId !== undefined) mountGamePage(features.gameGuildId);
 
   preview.connectChanges(actions.change);
   tiles.connectChanges((emote, removing, feedback) => {

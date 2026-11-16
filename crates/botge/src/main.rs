@@ -256,11 +256,9 @@ async fn run(
   std::fs::create_dir_all(&options.data).context("could not create the data directory")?;
   let store = Arc::new(Store::open(&options.data.join("botge.redb"))?);
   let config = config::Config::load(config_path)?;
-  let application = Arc::new(Application::new(
-    config.general,
-    Arc::clone(&store),
-    options.twitch,
-  )?);
+  let mut application = Application::new(config.general, Arc::clone(&store), options.twitch)?;
+  application.set_game_cache(options.cache.clone());
+  let application = Arc::new(application);
   let commands = commands::Commands::new(Arc::clone(&application), options.cache);
   let watch_sets = config.general.watches_seven_tv_sets();
   let voice_changed = Arc::new(Notify::new());
