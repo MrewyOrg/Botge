@@ -78,6 +78,7 @@ runtime memory headroom.
 | Emote rendering     | Five admitted renders, four concurrent downloads per render.       |
 | Composition files   | 32 inputs, 2 MiB each and 20 MiB combined.                         |
 | Decoded inputs      | 4 Mi pixels per image; 16 Mi combined.                             |
+| Guessing game       | 32 rooms of 25 players, 256 connections, one 2 MiB image per room. |
 | Rendered attachment | At most 20 MiB.                                                    |
 
 Discord command rendering uses temporary files, a five-second FFprobe timeout per input, and a

@@ -32,6 +32,13 @@
           </svg>
           Catalog
         </a>
+        <a id="game-link" href="#activity-game" hidden>
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <circle cx="12" cy="12" r="9" />
+            <path d="M9.5 9.5a2.5 2.5 0 1 1 3.5 2.3c-.6.3-1 .9-1 1.7M12 17h.01" />
+          </svg>
+          Guess
+        </a>
         <a id="settings-link" href="#activity-settings" hidden>
           <svg viewBox="0 0 24 24" aria-hidden="true">
             <path d="M4 7h16M4 17h16" />
@@ -213,6 +220,38 @@
             </form>
             <p role="status"></p>
           </details>
+        </section>
+        <section id="activity-game" class="game" aria-labelledby="game-heading" hidden>
+          <h1 id="game-heading" tabindex="-1">Guess the emote</h1>
+          <p>Name the blurred emote before anyone else. Earlier answers score more.</p>
+          <div class="game-layout">
+            <div class="game-stage">
+              <p id="game-round" class="eyebrow"></p>
+              <div id="game-art" class="game-art"></div>
+              <div class="game-timer"><div id="game-timer" hidden></div></div>
+              <p id="game-hint" class="game-hint" hidden></p>
+              <p id="game-status" role="status"></p>
+              <form id="game-form" hidden>
+                <label
+                  ><span class="visually-hidden">Your guess</span
+                  ><input
+                    id="game-guess"
+                    autocomplete="off"
+                    autocapitalize="off"
+                    spellcheck="false"
+                    maxlength="100"
+                    placeholder="Type the emote's name…"
+                /></label>
+                <button class="primary" type="submit">Guess</button>
+              </form>
+              <button id="game-start" class="primary" type="button" hidden>Start match</button>
+              <ul id="game-guesses" class="game-guesses" aria-label="Wrong guesses"></ul>
+            </div>
+            <section class="game-scores" aria-labelledby="game-scores-heading">
+              <h2 id="game-scores-heading">Scores</h2>
+              <ol id="game-players"></ol>
+            </section>
+          </div>
         </section>
       </div>
 

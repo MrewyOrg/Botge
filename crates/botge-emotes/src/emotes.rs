@@ -45,7 +45,21 @@ impl Emotes {
   ) -> Catalog {
     Catalog::new(
       added,
-      self.client.catalog(self.policy, settings, timeout).await,
+      self
+        .client
+        .catalog(self.policy, settings, true, timeout)
+        .await,
+    )
+  }
+
+  /// Resolves only the guild's own additions and selected feeds, leaving out global feeds.
+  pub async fn guild_catalog(&self, settings: &GuildEmotes, added: Vec<Emote>) -> Catalog {
+    Catalog::new(
+      added,
+      self
+        .client
+        .catalog(self.policy, settings, false, None)
+        .await,
     )
   }
 

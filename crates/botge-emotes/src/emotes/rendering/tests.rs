@@ -11,7 +11,7 @@
 use axum::{Router, routing::get};
 use base64::{Engine as _, engine::general_purpose::STANDARD};
 
-use super::webp::tests::delays;
+use super::webp::tests::{ANIMATED_OVERLAY, delays};
 use super::*;
 
 #[tokio::test]
@@ -137,14 +137,6 @@ const ANIMATED_BASE: &str = concat!(
   "AAAAAAcAAAcAAEkAAAJWUDhMDwAAAC8HwAEABxD9j/4HIqL/AQBBTk1GKAAAAAAAAAAAAAcA",
   "AAcAAHUAAABWUDhMDwAAAC8HwAEAB1DAiP4HIqL/AQBBTk1GKAAAAAAAAAAAAAcAAAcAAKAP",
   "AABWUDhMDwAAAC8HwAEABxDR//4HIqL/AQA=",
-);
-
-// 4×8 yellow, cyan, and magenta frames with delays of 101, 89, and 59 ms.
-pub(super) const ANIMATED_OVERLAY: &str = concat!(
-  "UklGRrQAAABXRUJQVlA4WAoAAAACAAAAAwAABwAAQU5JTQYAAAD/////AwBBTk1GKAAAAAAA",
-  "AAAAAAMAAAcAAGUAAAJWUDhMEAAAAC8DwAEAB9D//kf/AxHR/wBBTk1GKAAAAAAAAAAAAAMA",
-  "AAcAAFkAAABWUDhMEAAAAC8DwAEAB9D/6H//AxHR/wBBTk1GKAAAAAAAAAAAAAMAAAcAADsA",
-  "AABWUDhMEAAAAC8DwAEABxD973//AxHR/wA=",
 );
 
 // cspell:enable

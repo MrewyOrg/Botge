@@ -7,10 +7,12 @@
 //! The health route only reports HTTP readiness.
 //!
 //! Shared authentication and request limits live here. [`voice`], [`catalog`], and [`border`]
-//! own their route payloads, authorization steps, and persistence operations.
+//! own their route payloads, authorization steps, and persistence operations. [`game`] owns the
+//! guessing game's ticket, connection, and round image routes.
 
 mod border;
 mod catalog;
+mod game;
 mod voice;
 
 use std::{
@@ -52,6 +54,8 @@ struct Activity<A> {
   application: Arc<Application>,
   voice_changed: Arc<Notify>,
   slots: Semaphore,
+  /// Game connections open at once across every room.
+  sockets: Arc<Semaphore>,
   sessions: Sessions,
   now: fn() -> Result<u64, std::time::SystemTimeError>,
 }
@@ -61,6 +65,9 @@ struct Activity<A> {
 /// The Activity sends one request at a time. The second slot covers a request the browser
 /// abandoned after its timeout while the server is still finishing it.
 const SESSION_SLOTS: usize = 2;
+
+/// Game connections the API keeps open at once; further upgrades answer 503.
+const GAME_SOCKETS: usize = 256;
 
 /// In-flight request counts keyed by a keyed hash of each credential.
 ///
@@ -202,6 +209,9 @@ pub fn router<A: GuildAccess>(
     )
     .route("/settings/border", post(border::save_border::<A>))
     .route("/settings/border/read", post(border::read_border::<A>))
+    .route("/game/join", post(game::join::<A>))
+    .route("/game/ws", get(game::connect::<A>))
+    .route("/game/image/{token}", get(game::image::<A>))
     .route_layer(axum::middleware::from_fn({
       let application = Arc::clone(&application);
       move |request: Request, next: Next| {
@@ -236,6 +246,7 @@ pub fn router<A: GuildAccess>(
       application,
       voice_changed,
       slots: Semaphore::new(8),
+      sockets: Arc::new(Semaphore::new(GAME_SOCKETS)),
       sessions: Sessions::default(),
       now: unix_seconds,
     }))
@@ -254,6 +265,24 @@ fn unix_seconds() -> Result<u64, std::time::SystemTimeError> {
 }
 
 impl<A: GuildAccess> Activity<A> {
+  /// Checks the Discord proxy signature and its time window.
+  ///
+  /// # Errors
+  ///
+  /// Returns 401 for a missing, invalid, or expired signature, and 500 if the host clock
+  /// cannot be read.
+  fn verify_proxy(&self, headers: &HeaderMap) -> Result<(), ApiError> {
+    let now = (self.now)().map_err(ApiError::internal)?;
+    if self.proxy.verify(headers, now) {
+      Ok(())
+    } else {
+      Err(ApiError::new(
+        StatusCode::UNAUTHORIZED,
+        "Discord Activity proxy authentication failed.",
+      ))
+    }
+  }
+
   /// Checks the proxy signature and request shape before reserving concurrency slots.
   ///
   /// Keep the returned admission alive for the rest of the handler. It holds one of the
@@ -271,13 +300,7 @@ impl<A: GuildAccess> Activity<A> {
     guild: &str,
     code: &str,
   ) -> Result<(NonZeroU64, Credential, Admission<'_>), ApiError> {
-    let now = (self.now)().map_err(ApiError::internal)?;
-    if !self.proxy.verify(headers, now) {
-      return Err(ApiError::new(
-        StatusCode::UNAUTHORIZED,
-        "Discord Activity proxy authentication failed.",
-      ));
-    }
+    self.verify_proxy(headers)?;
     let guild = discord_id(guild).ok_or(ApiError::INVALID)?;
     let credential = if let Some(value) = headers.get(header::AUTHORIZATION) {
       let token = value

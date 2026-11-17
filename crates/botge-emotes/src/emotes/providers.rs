@@ -151,10 +151,12 @@ impl ProviderClient {
   /// Guild-specific feeds are placed before global feeds. Fetches run concurrently but
   /// collection keeps that order so callers can use the first match as the preferred emote.
   /// If a feed exceeds `timeout`, it contributes its last snapshot or an empty list.
+  /// Without `globals`, only the feeds the guild selected itself are included.
   pub(super) async fn catalog(
     self: &Arc<Self>,
     policy: Providers,
     settings: &GuildEmotes,
+    globals: bool,
     timeout: Option<Duration>,
   ) -> Vec<Snapshot> {
     let mut sources = Vec::new();
@@ -179,22 +181,22 @@ impl ProviderClient {
         format!("https://api.frankerfacez.com/v1/room/{channel}"),
       ));
     }
-    if policy.seven_global {
+    if globals && policy.seven_global {
       sources.push((Feed::SevenTv, "https://7tv.io/v3/emote-sets/global".into()));
     }
-    if policy.bttv {
+    if globals && policy.bttv {
       sources.push((
         Feed::BetterTtv,
         "https://api.betterttv.net/3/cached/emotes/global".into(),
       ));
     }
-    if policy.ffz {
+    if globals && policy.ffz {
       sources.push((
         Feed::Ffz,
         "https://api.frankerfacez.com/v1/set/global".into(),
       ));
     }
-    if policy.twitch && self.twitch.is_some() {
+    if globals && policy.twitch && self.twitch.is_some() {
       sources.push((
         Feed::Twitch,
         "https://api.twitch.tv/helix/chat/emotes/global".into(),

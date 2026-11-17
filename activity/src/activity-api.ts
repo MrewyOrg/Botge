@@ -18,6 +18,7 @@ type ActivityFields = {
   'settings/emotes/read': undefined;
   'settings/border': { readonly color: string };
   'settings/border/read': undefined;
+  'game/join': { readonly instanceId: string };
 };
 
 /** Supported Botge API routes, relative to the Activity proxy mapping. */

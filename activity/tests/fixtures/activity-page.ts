@@ -4,10 +4,24 @@ import html from '../../index.html?raw';
 import { requireValue } from '../../src/validation.ts';
 import type { BrowserEmote } from '../../src/catalog/catalog.ts';
 
+type MockParticipants = {
+  readonly participants: readonly {
+    readonly id: string;
+    readonly username: string;
+    readonly global_name?: string | null;
+    readonly nickname?: string;
+  }[];
+};
+
 type MockDiscordSDK = {
   readonly guildId: string;
+  readonly instanceId: string;
   readonly ready: Mock<() => Promise<void>>;
+  readonly subscribe: Mock<
+    (event: string, listener: (event: MockParticipants) => void) => Promise<void>
+  >;
   readonly commands: {
+    readonly getInstanceConnectedParticipants: Mock<() => Promise<MockParticipants>>;
     readonly authorize: Mock<() => Promise<{ readonly code: string }>>;
     readonly authenticate: Mock<() => Promise<unknown>>;
     readonly openExternalLink: Mock<() => Promise<void>>;
@@ -16,8 +30,11 @@ type MockDiscordSDK = {
 
 const mockSdk: MockDiscordSDK = vi.hoisted(() => ({
   guildId: '123456789012345678',
+  instanceId: 'i-1-gc-1-2',
   ready: vi.fn<() => Promise<void>>(),
+  subscribe: vi.fn<(event: string, listener: (event: MockParticipants) => void) => Promise<void>>(),
   commands: {
+    getInstanceConnectedParticipants: vi.fn<() => Promise<MockParticipants>>(),
     authorize: vi.fn<() => Promise<{ code: string }>>(),
     authenticate: vi.fn<() => Promise<unknown>>(),
     openExternalLink: vi.fn<() => Promise<void>>()

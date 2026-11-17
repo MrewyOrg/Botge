@@ -8,6 +8,8 @@ import type { BrowserEmote } from '../catalog/catalog.ts';
 import type { DiscoveryMode, fetchDiscoveryPage } from '../catalog/seventv.ts';
 import type { EmoteSettings } from '../settings/emote-settings.ts';
 import type { VoiceSettings } from '../settings/voice-settings.ts';
+import type { ConnectGame } from '../game/game-state.ts';
+import { connectDemoGame } from './demo-game.ts';
 
 type DiscoveryPage = Awaited<ReturnType<typeof fetchDiscoveryPage>>;
 type DiscoveryEmote = DiscoveryPage['emotes'][number];
@@ -120,6 +122,8 @@ const ROLES = [
 
 /** Browser-only API stand-in with the same response shapes as the Botge Activity routes. */
 export type DemoServer = {
+  /** Opens a single-player guessing game over the non-overlay placeholder artworks. */
+  readonly connectGame: ConnectGame;
   /** Answers one Activity API operation from in-memory state. */
   readonly request: (...operation: ActivityOperation) => Promise<unknown>;
   /** Returns one filtered page of placeholder 7TV discovery results. */
@@ -201,6 +205,9 @@ export function createDemoServer(latency = 250): DemoServer {
         const removing = operation[2].action === 'remove';
         return operation[2].emoteIds.map((emoteId) => ({ emoteId, ...change(emoteId, removing) }));
       }
+      case 'game/join':
+        // The demo game runs in the page through `connectGame` and needs no ticket.
+        return { message: 'The demo game runs in the browser.' };
       case 'settings':
         return { voice, channels: VOICE_CHANNELS };
       case 'settings/voice': {
@@ -253,5 +260,11 @@ export function createDemoServer(latency = 250): DemoServer {
     };
   }
 
-  return { request, discover };
+  const connectGame = connectDemoGame(
+    BASES.filter((base) => base.overlaying !== true).map((base) => ({
+      name: title(base.slug),
+      image: art(base.slug)
+    }))
+  );
+  return { request, discover, connectGame };
 }

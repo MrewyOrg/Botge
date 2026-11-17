@@ -62,8 +62,15 @@ The larger services separate their internal responsibilities into child modules:
   [`commands/`](../crates/botge-discord/src/commands/): composition, message prefixes, autocomplete,
   shortcuts, registration, and cleanup.
 - [`activity.rs`](../crates/botge-activity/src/activity.rs) shares authentication and state across
-  the voice, catalog, and personal border routes in
+  the voice, catalog, personal border, and guessing game routes in
   [`activity/`](../crates/botge-activity/src/activity/).
+- [`game.rs`](../crates/botge-app/src/game.rs) keeps the guessing game's rooms, rounds, and scores
+  in memory: it owns tickets, seats, and the emote pool, and
+  [`game/`](../crates/botge-app/src/game/) holds one room's state and scoring, the match task, and
+  token generation. A room belongs to one Activity instance in one guild and closes with its last
+  connection. The Activity adapter issues a one-use ticket to a verified guild member, seats the
+  WebSocket that presents it, and serves each round's image under a random token so the emote's name
+  stays on the server until the reveal.
 - [`providers.rs`](../crates/botge-emotes/src/emotes/providers.rs) keeps networking and snapshots
   separate from [`normalization.rs`](../crates/botge-emotes/src/emotes/providers/normalization.rs)
   and [`events.rs`](../crates/botge-emotes/src/emotes/providers/events.rs).

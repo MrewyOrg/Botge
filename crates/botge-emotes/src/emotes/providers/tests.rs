@@ -183,10 +183,12 @@ async fn fetches_all_enabled_feeds_and_reuses_cached_results() -> Result<()> {
     ffz_channel: Some("name".into()),
     ..GuildEmotes::default()
   };
-  assert_eq!(client.catalog(policy, &guild, None).await.len(), 7);
+  assert_eq!(client.catalog(policy, &guild, true, None).await.len(), 7);
+  // Without the global feeds, only the three the guild selected remain.
+  assert_eq!(client.catalog(policy, &guild, false, None).await.len(), 3);
   assert_eq!(
     client
-      .catalog(policy, &GuildEmotes::default(), None)
+      .catalog(policy, &GuildEmotes::default(), true, None)
       .await
       .len(),
     4
@@ -199,6 +201,7 @@ async fn fetches_all_enabled_feeds_and_reuses_cached_results() -> Result<()> {
         ..Providers::default()
       },
       &guild,
+      true,
       None,
     )
     .await;
@@ -214,7 +217,7 @@ async fn fetches_all_enabled_feeds_and_reuses_cached_results() -> Result<()> {
     Err(_)
   );
   drop(http);
-  assert_eq!(client.catalog(policy, &guild, None).await.len(), 7);
+  assert_eq!(client.catalog(policy, &guild, true, None).await.len(), 7);
   let unavailable = client
     .cached(Feed::SevenTv, "https://7tv.io/invalid".into())
     .await;
@@ -296,13 +299,16 @@ async fn slow_autocomplete_feeds_finish_one_shared_refresh_after_the_deadline() 
   let deadline = Some(Duration::from_millis(30));
   // Keep the server blocked until both callers have hit their deadlines.
   let (first, second) = tokio::join!(
-    client.catalog(policy, &guild, deadline),
-    client.catalog(policy, &guild, deadline)
+    client.catalog(policy, &guild, true, deadline),
+    client.catalog(policy, &guild, true, deadline)
   );
   assert!(first.is_empty() && second.is_empty());
   release.notify_one();
-  let cached =
-    tokio::time::timeout(Duration::from_secs(2), client.catalog(policy, &guild, None)).await?;
+  let cached = tokio::time::timeout(
+    Duration::from_secs(2),
+    client.catalog(policy, &guild, true, None),
+  )
+  .await?;
   assert_eq!(
     cached
       .iter()
@@ -311,7 +317,7 @@ async fn slow_autocomplete_feeds_finish_one_shared_refresh_after_the_deadline() 
       .map(|entry| entry.name.as_str()),
     Some("SlowWave")
   );
-  assert_eq!(client.catalog(policy, &guild, deadline).await, cached);
+  assert_eq!(client.catalog(policy, &guild, true, deadline).await, cached);
   assert_eq!(requests.load(Ordering::Relaxed), 1);
   Ok(())
 }

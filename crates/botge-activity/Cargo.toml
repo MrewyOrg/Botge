@@ -10,7 +10,7 @@ publish.workspace = true
 
 [dependencies]
 anyhow.workspace = true
-axum.workspace = true
+axum = { workspace = true, features = ['ws'] }
 base64.workspace = true
 botge-app.workspace = true
 botge-domain.workspace = true
@@ -26,11 +26,14 @@ botge-app = { workspace = true, features = ['test-util'] }
 botge-discord = { workspace = true, features = ['test-util'] }
 botge-storage = { workspace = true, features = ['test-util'] }
 botge-test-support.workspace = true
+futures-util.workspace = true
 mimalloc.workspace = true
 reqwest.workspace = true
 rustls.workspace = true
 serenity.workspace = true
 tempfile.workspace = true
+tokio = { workspace = true, features = ['test-util'] }
+tokio-tungstenite.workspace = true
 tower = { version = '0.5', features = ['util'] }
 
 [lints]

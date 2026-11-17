@@ -22,6 +22,7 @@ pub struct Application {
   client: botge_emotes::Emotes,
   render_slot: tokio::sync::Semaphore,
   metrics: Metrics,
+  games: game::Games,
 }
 
 impl Application {
@@ -41,6 +42,7 @@ impl Application {
       client: botge_emotes::Emotes::new(policy, twitch)?,
       render_slot: tokio::sync::Semaphore::new(RENDER_SLOTS),
       metrics: Metrics::default(),
+      games: game::Games::default(),
     })
   }
 
@@ -164,6 +166,8 @@ mod operations;
 pub use operations::{EmoteAction, EmoteChange, GuildCatalog};
 
 mod composition;
+
+pub mod game;
 
 pub mod metrics;
 pub use botge_emotes::rendering::Layer;
