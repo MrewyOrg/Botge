@@ -89,6 +89,25 @@ test('shows the game page once it is enabled and notifies on every visit', () =>
   expect(opened).toBe(2);
 });
 
+test('resets the scroll before the game page positions itself', () => {
+  const navigation = createPageNavigation();
+  const events: string[] = [];
+  const root = document.documentElement;
+  Object.defineProperty(root, 'scrollTop', {
+    configurable: true,
+    set(): void {
+      events.push('scroll reset');
+    }
+  });
+  navigation.enableGame(() => {
+    events.push('game opened');
+  });
+  element('#game-link').click();
+  // Opening centers the start button; a later reset would throw that position away.
+  expect(events).toEqual(['scroll reset', 'game opened']);
+  Reflect.deleteProperty(root, 'scrollTop');
+});
+
 test('closes the catalog while a match is running', () => {
   const navigation = createPageNavigation();
   navigation.enableSettings();

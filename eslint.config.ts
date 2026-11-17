@@ -1,4 +1,5 @@
 import js from '@eslint/js';
+import html from '@html-eslint/eslint-plugin';
 import tsdoc from 'eslint-plugin-tsdoc';
 import { type Config, defineConfig, globalIgnores } from 'eslint/config';
 import { configs } from 'typescript-eslint';
@@ -9,7 +10,7 @@ const globalConfig: readonly Readonly<Config>[] = defineConfig([
     languageOptions: { ecmaVersion: 'latest', sourceType: 'module' }
   },
   { name: 'globalLinterOptions', linterOptions: { noInlineConfig: true } },
-  globalIgnores(['activity/dist/', 'target/', 'coverage/'], 'globalIgnores')
+  globalIgnores(['activity/dist/', 'activity/dist-demo/', 'target/', 'coverage/'], 'globalIgnores')
 ]);
 
 const config: readonly Readonly<Config>[] = defineConfig([
@@ -124,6 +125,42 @@ const config: readonly Readonly<Config>[] = defineConfig([
       'sort-imports': ['error', { ignoreCase: true, ignoreDeclarationSort: true }],
 
       'tsdoc/syntax': 'error'
+    }
+  },
+  {
+    name: 'html',
+    files: ['**/*.html'],
+    plugins: { html },
+    language: 'html/html',
+    extends: ['html/all'],
+    rules: {
+      // Prettier owns HTML layout, spacing and quoting.
+      'html/attrs-newline': 'off',
+      'html/element-newline': 'off',
+      'html/indent': 'off',
+      'html/no-extra-spacing-attrs': 'off',
+      'html/no-extra-spacing-tags': 'off',
+      'html/no-extra-spacing-text': 'off',
+      'html/no-multiple-empty-lines': 'off',
+      'html/no-trailing-spaces': 'off',
+      'html/quotes': 'off',
+
+      'html/id-naming-convention': ['error', 'kebab-case'],
+      // Prettier closes void elements with `/>`.
+      'html/require-closing-tags': ['error', { selfClosing: 'always' }],
+
+      // The Activity is one document whose tabs each show their own top heading.
+      'html/no-multiple-h1': 'off',
+      // Status messages, live regions and dialog titles start empty and are filled by script.
+      'html/no-empty-headings': 'off',
+      'html/require-content': 'off',
+      // Script handles every submit; no form posts to a server.
+      'html/require-form-method': 'off',
+      // The Activity runs inside Discord and is not shared as a link preview.
+      'html/require-open-graph-protocol': 'off',
+      // The rule has no per-attribute exceptions. The color picker, theme color and keyboard hints
+      // degrade gracefully, and Discord's embedded browsers support them.
+      'html/use-baseline': 'off'
     }
   },
   {

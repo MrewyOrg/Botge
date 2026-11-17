@@ -1,7 +1,13 @@
 /* Renders the guessing game page from room states and sends the player's commands. */
 
 import { requireValue } from '../validation.ts';
-import type { ConnectGame, GameConnection, GameMessage, GameState } from './game-state.ts';
+import type {
+  ConnectGame,
+  GameConnection,
+  GameMessage,
+  GamePhase,
+  GameState
+} from './game-state.ts';
 
 /** Blur at the start of a round, in pixels on the displayed image. */
 const START_BLUR_PX = 28 as const;
@@ -10,12 +16,20 @@ const END_BLUR_PX = 3 as const;
 const WRONG_FLASH_MS = 400 as const;
 /** Guess length allowed when a round state carries no hint. */
 const DEFAULT_GUESS_LENGTH = 100 as const;
+/** Devices whose text input opens an on-screen keyboard; matches the top bar's touch padding. */
+const TOUCH_SCREEN = '(hover: none) and (pointer: coarse)' as const;
+/** Space left between the top bar and the stage when a match scrolls it into view. */
+const REVEAL_GAP_PX = 8 as const;
 /** Waits before each automatic reconnect; after the last one the page offers a button. */
 const RECONNECT_DELAYS_MS: readonly number[] = [1000, 2000, 4000] as const;
 
 /** Controls for the mounted game page. */
 type GameView = {
-  /** Connects on the first call; later calls do nothing while a connection is open or pending. */
+  /**
+   * Call each time the page is shown. Connects on the first call; later calls do nothing to the
+   * connection while it is open or pending. Brings the start button to the middle of the screen
+   * once it shows, or a running match's stage just below the top bar.
+   */
   readonly open: () => void;
   /** Redraws player names after the participant list changes. */
   readonly refresh: () => void;
@@ -57,6 +71,8 @@ export function mountGame(options: {
   readonly onPlaying?: (playing: boolean) => void;
 }): GameView {
   const page = element('#activity-game');
+  const stage = element('.game-stage');
+  const masthead = document.querySelector<HTMLElement>('.masthead');
   const round = element('#game-round');
   // The image has no source until a round starts, so it is created here instead of in markup.
   const image = document.createElement('img');
@@ -88,6 +104,44 @@ export function mountGame(options: {
   let failure: string | undefined;
   let retry: ReturnType<typeof setTimeout> | undefined;
   let attempts = 0;
+  let lastPhase: GamePhase | undefined;
+  /** Set when the page is shown; the start button is centered once it appears. */
+  let centerPending = false;
+
+  /** Measures the height below the top bar that the stage may fill during a match. */
+  function fit(): void {
+    const visible = window.visualViewport?.height ?? window.innerHeight;
+    // Viewport sizes differ by platform (iOS shrinks only the visual viewport, Android's web view
+    // usually resizes the page, desktop zoom shrinks it too), so a focused input on a touch screen
+    // is the signal that the on-screen keyboard is up.
+    const keyboard =
+      page.classList.contains('playing')
+      && document.activeElement === guess
+      && typeof window.matchMedia === 'function'
+      && window.matchMedia(TOUCH_SCREEN).matches;
+    document.documentElement.classList.toggle('game-keyboard', keyboard);
+    const bar = masthead?.offsetHeight ?? 0;
+    page.style.setProperty('--game-bar', `${bar}px`);
+    page.style.setProperty('--game-space', `${Math.max(0, visible - bar)}px`);
+  }
+
+  /** Scrolls the start button to the middle of the space below the top bar. */
+  function centerStart(): void {
+    if (page.hidden !== false || start.hidden !== false) return;
+    const box = start.getBoundingClientRect();
+    const visible = window.visualViewport?.height ?? window.innerHeight;
+    const bar = masthead?.offsetHeight ?? 0;
+    const offset = box.top + box.height / 2 - (bar + (visible - bar) / 2);
+    if (Math.abs(offset) > 1) window.scrollBy({ top: offset, behavior: 'instant' });
+  }
+
+  /** Scrolls the stage to just below the top bar while a match runs. */
+  function reveal(): void {
+    if (page.hidden !== false || !page.classList.contains('playing')) return;
+    const offset =
+      stage.getBoundingClientRect().top - (masthead?.offsetHeight ?? 0) - REVEAL_GAP_PX;
+    if (Math.abs(offset) > 1) window.scrollBy({ top: offset, behavior: 'instant' });
+  }
 
   let playing = false;
   function reportPlaying(now: boolean): void {
@@ -183,6 +237,8 @@ export function mountGame(options: {
         return row;
       })
     );
+    // During a match the list is one scrolling line; keep the newest guess in view.
+    guesses.scrollLeft = guesses.scrollWidth;
   }
 
   function describe(current: GameState): string {
@@ -228,14 +284,28 @@ export function mountGame(options: {
     // The hint has one character per character of the name, so a longer guess cannot be right.
     guess.maxLength =
       guessing && current.hint !== undefined ? current.hint.length : DEFAULT_GUESS_LENGTH;
-    const wasHidden = form.hidden !== false;
-    form.hidden = !guessing;
+    // The input stays on screen between rounds so the keyboard a tap opened on mobile stays up.
+    const typing = current.phase !== 'lobby' && current.phase !== 'final';
+    const wasGuessing = lastPhase === 'round';
+    lastPhase = current.phase;
+    form.hidden = !typing;
+    const wasTyping = page.classList.contains('playing');
+    page.classList.toggle('playing', typing);
+    page.dataset['phase'] = current.phase;
+    if (typing !== wasTyping) fit();
     start.hidden = current.phase !== 'lobby' && current.phase !== 'final';
     start.disabled = false;
     start.textContent = current.phase === 'final' ? 'Play again' : 'Start match';
-    if (guessing && wasHidden) {
-      guess.value = '';
+    if (centerPending && !start.hidden) {
+      centerPending = false;
+      centerStart();
+    }
+    // Clear what was typed as soon as the round ends, so the reveal and the next round start empty.
+    if (!guessing) guess.value = '';
+    if (typing && !wasTyping) reveal();
+    if (guessing && !wasGuessing) {
       if (page.hidden === false) guess.focus({ preventScroll: true });
+      reveal();
     }
   }
 
@@ -347,16 +417,47 @@ export function mountGame(options: {
       return;
     }
     start.disabled = true;
+    // Mobile browsers only open the keyboard for focus requested inside a tap, so focus the
+    // input now; the round later reuses it.
+    form.hidden = false;
+    guess.focus({ preventScroll: true });
     connection.send({ type: 'start' });
   });
   form.addEventListener('submit', (event: Readonly<Pick<Event, 'preventDefault'>>) => {
     event.preventDefault();
     const text = guess.value.trim();
-    if (text !== '' && state?.phase === 'round') connection?.send({ type: 'guess', text });
+    if (text !== '' && state?.phase === 'round') {
+      connection?.send({ type: 'guess', text });
+      guess.value = '';
+    }
+    // Tapping Guess must not close the mobile keyboard.
+    guess.focus({ preventScroll: true });
   });
+  // Pressing the button would move focus off the input and dismiss the mobile keyboard.
+  form
+    .querySelector('button')
+    ?.addEventListener('pointerdown', (event: Readonly<Pick<Event, 'preventDefault'>>) => {
+      event.preventDefault();
+    });
+
+  // The on-screen keyboard shrinks only the visual viewport, so a resize of it refits the stage.
+  // It is absent in some embedded browsers and test environments.
+  const viewport: VisualViewport | null | undefined = window.visualViewport;
+  (viewport ?? window).addEventListener('resize', () => {
+    fit();
+    reveal();
+  });
+  guess.addEventListener('focus', fit);
+  guess.addEventListener('blur', fit);
+  fit();
 
   return {
-    open,
+    open(): void {
+      if (page.classList.contains('playing')) reveal();
+      else if (start.hidden !== false) centerPending = true;
+      else centerStart();
+      open();
+    },
     refresh(): void {
       draw();
     }

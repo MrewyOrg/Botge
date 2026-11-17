@@ -1,0 +1,114 @@
+// Floating surfaces.
+
+.context-menu {
+  position: fixed;
+  z-index: 7;
+  display: grid;
+  gap: 0.125rem;
+  min-width: 11rem;
+  max-width: calc(100vw - 1rem);
+  padding: 0.375rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--floating);
+  box-shadow: var(--shadow);
+
+  button {
+    min-height: 0;
+    border-radius: 0.25rem;
+    padding: 0.4rem 0.55rem;
+    color: var(--muted);
+    background: transparent;
+    font-weight: 500;
+    text-align: start;
+
+    &:hover,
+    &:focus-visible {
+      outline: none;
+      color: #fff;
+      background: var(--accent);
+    }
+  }
+}
+
+dialog {
+  width: min(100% - 2rem, 27rem);
+  max-height: 90dvh;
+  overflow-y: auto;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-large);
+  padding: 1rem 1.25rem 1.25rem;
+  color: inherit;
+  background: var(--surface);
+  box-shadow: 0 1rem 3rem rgb(0 0 0 / 60%);
+
+  &::backdrop {
+    background: rgb(0 0 0 / 75%);
+  }
+
+  form {
+    display: flex;
+    justify-content: flex-end;
+  }
+
+  h2 {
+    margin-bottom: 0.75rem;
+    font-size: 1.25rem;
+    overflow-wrap: anywhere;
+  }
+}
+
+.close {
+  min-height: 0;
+  padding: 0.25rem 0.5rem;
+  color: var(--faint);
+  background: transparent;
+  font-size: 1.35rem;
+  line-height: 1;
+
+  &:enabled:hover {
+    color: var(--heading);
+    background: transparent;
+  }
+}
+
+.preview-art,
+.composer-preview {
+  border-radius: var(--radius);
+  background-color: var(--raised);
+  background-image: repeating-conic-gradient(rgb(255 255 255 / 3%) 0 25%, transparent 0 50%);
+  background-size: 1rem 1rem;
+}
+
+.preview-art {
+  display: grid;
+  min-height: 9rem;
+  margin: 0.5rem 0 1rem;
+  place-items: center;
+
+  img {
+    max-width: 8rem;
+    max-height: 8rem;
+    object-fit: contain;
+  }
+}
+
+.preview-actions {
+  margin-top: 0.85rem;
+
+  a {
+    padding: 0.35rem 0.25rem;
+    color: var(--accent-text);
+    font-size: 0.875rem;
+    font-weight: 500;
+
+    &:hover {
+      color: #c9cdfb;
+    }
+  }
+}
+
+.copy-message {
+  min-height: 1.5em;
+  margin-top: 0.55rem;
+}

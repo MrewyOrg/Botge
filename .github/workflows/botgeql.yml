@@ -83,6 +83,8 @@ jobs:
               - '.github/workflows/botgeql.yml'
             static:
               - '**/*.ts'
+              - '**/*.html'
+              - '**/*.scss'
               - '**/tsconfig*.json'
               - '**/tsdoc.json'
               - '**/package{,-lock}.json'

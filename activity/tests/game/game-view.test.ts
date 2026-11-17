@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { afterEach, beforeEach, expect, test, vi } from 'vitest';
+import { afterEach, beforeEach, expect, type MockInstance, test, vi } from 'vitest';
 
 import html from '../../index.html?raw';
 import type {
@@ -97,13 +97,20 @@ function room(): {
   };
 }
 
+// jsdom does not scroll; the stub records the stage being brought into view.
+let scrolled: MockInstance<typeof window.scrollBy>;
+
 beforeEach(() => {
+  scrolled = vi.spyOn(window, 'scrollBy').mockImplementation(() => undefined);
   document.body.innerHTML = new DOMParser().parseFromString(html, 'text/html').body.innerHTML;
   element('#activity-game').hidden = false;
 });
 
 afterEach(() => {
   vi.useRealTimers();
+  vi.restoreAllMocks();
+  vi.unstubAllGlobals();
+  document.documentElement.classList.remove('game-keyboard');
 });
 
 test('sharpens from the start blur to the end blur over the round', () => {
@@ -131,12 +138,16 @@ test('joins once, shows the lobby, and starts a match on request', async () => {
   ).toEqual(['You0', 'Ada0']);
   expect(element('#game-players').firstElementChild?.classList.contains('self')).toBe(true);
   expect(element('#game-form').hidden).toBe(true);
+  // Opening the page centers the start button once the lobby shows it.
+  expect(scrolled).toHaveBeenCalledTimes(1);
 
   const start = control('#game-start', HTMLButtonElement);
   expect(start.hidden).toBe(false);
   start.click();
   expect(game.sent).toEqual([{ type: 'start' }]);
   expect(start.disabled).toBe(true);
+  // Focus inside the tap is what lets mobile browsers open the keyboard for the round.
+  expect(document.activeElement).toBe(control('#game-guess', HTMLInputElement));
 
   game.emit(state({ notice: 'Add more emotes.', players: [{ id: 'me', score: 0 }] }));
   expect(element('#game-status').textContent).toBe('Add more emotes.');
@@ -144,6 +155,31 @@ test('joins once, shows the lobby, and starts a match on request', async () => {
   game.emit(state({ phase: 'loading' }));
   expect(element('#game-status').textContent).toBe('Picking emotes…');
   expect(start.hidden).toBe(true);
+  // The match hides the intro and scrolls the fitted stage just below the top bar.
+  expect(element('#activity-game').classList.contains('playing')).toBe(true);
+  expect(scrolled).toHaveBeenCalledTimes(2);
+});
+
+test('compacts the stage for the keyboard only on touch screens with the guess focused', async () => {
+  const keyboard = (): boolean => document.documentElement.classList.contains('game-keyboard');
+  for (const touch of [true, false] as const) {
+    vi.stubGlobal('matchMedia', (query: string) => ({
+      matches: touch && query.includes('coarse')
+    }));
+    document.body.innerHTML = new DOMParser().parseFromString(html, 'text/html').body.innerHTML;
+    element('#activity-game').hidden = false;
+    const game = room();
+    game.view.open();
+    await Promise.resolve();
+    game.emit(state({ phase: 'round', image: 'abc', remainingMs: 10_000 }));
+
+    const guess = control('#game-guess', HTMLInputElement);
+    expect(document.activeElement).toBe(guess);
+    expect(keyboard()).toBe(touch);
+    guess.blur();
+    expect(keyboard()).toBe(false);
+    document.documentElement.classList.remove('game-keyboard');
+  }
 });
 
 test('blurs the round image, sends guesses, and flashes a wrong one', async () => {
@@ -166,9 +202,18 @@ test('blurs the round image, sends guesses, and flashes a wrong one', async () =
   const form = control('#game-form', HTMLFormElement);
   guess.value = '   ';
   form.requestSubmit();
+  // A blank guess is not sent and keeps what was typed.
+  expect(guess.value).toBe('   ');
   guess.value = ' wave ';
   form.requestSubmit();
   expect(game.sent).toEqual([{ type: 'guess', text: 'wave' }]);
+  // A sent guess empties the box and keeps focus there for the next try.
+  expect(guess.value).toBe('');
+  expect(document.activeElement).toBe(guess);
+  // Pressing Guess does not move focus, which would close a phone's keyboard.
+  const press = new Event('pointerdown', { cancelable: true });
+  requireValue(form.querySelector('button'), 'Missing guess button').dispatchEvent(press);
+  expect(press.defaultPrevented).toBe(true);
 
   game.emit({ type: 'wrong' });
   expect(guess.classList.contains('wrong')).toBe(true);
@@ -182,6 +227,80 @@ test('blurs the round image, sends guesses, and flashes a wrong one', async () =
   expect(image.style.transition).toBe('filter 4000ms linear');
 });
 
+test('clears an unfinished guess when the round ends', async () => {
+  const game = room();
+  game.view.open();
+  await Promise.resolve();
+  game.emit(state({ phase: 'round', image: 'abc', remainingMs: 10_000 }));
+  const guess = control('#game-guess', HTMLInputElement);
+  guess.value = 'half typ';
+  game.emit(state({ phase: 'reveal', answer: 'Wave' }));
+  expect(guess.value).toBe('');
+  // The input stays on screen between rounds, so a phone keeps its keyboard open.
+  expect(element('#game-form').hidden).toBe(false);
+});
+
+/** Places an element at `top` so the scroll it causes is unique to this page. */
+function place(selector: string, top: number, height = 40): void {
+  vi.spyOn(element(selector), 'getBoundingClientRect').mockReturnValue(
+    new DOMRect(0, top, 100, height)
+  );
+}
+
+test('refits the stage to the visible height and keeps it in view on a resize', async () => {
+  const game = room();
+  game.view.open();
+  await Promise.resolve();
+  game.emit(state({ phase: 'round', image: 'abc', remainingMs: 10_000 }));
+  const page = element('#activity-game');
+  place('.game-stage', 300);
+  // Just below the top bar: the stage's top less the 8-pixel gap.
+  const toStage = { top: 292, behavior: 'instant' } as const;
+
+  vi.spyOn(window, 'innerHeight', 'get').mockReturnValue(420);
+  window.dispatchEvent(new Event('resize'));
+  expect(page.style.getPropertyValue('--game-space')).toBe('420px');
+  expect(scrolled).toHaveBeenCalledWith(toStage);
+
+  // Outside a match a resize refits but leaves the scroll position alone.
+  game.emit(state({ phase: 'final', players: [{ id: 'me', score: 0 }] }));
+  scrolled.mockClear();
+  window.dispatchEvent(new Event('resize'));
+  expect(scrolled).not.toHaveBeenCalledWith(toStage);
+});
+
+test('reopening the page returns to a running match or centers the start button', async () => {
+  const game = room();
+  game.view.open();
+  await Promise.resolve();
+  game.emit(state({}));
+  const page = element('#activity-game');
+  place('#game-start', 600);
+  place('.game-stage', 300);
+  // The start button's middle (620) moves to the middle of jsdom's 768-pixel window.
+  const toStart = { top: 236, behavior: 'instant' } as const;
+  const toStage = { top: 292, behavior: 'instant' } as const;
+
+  // The lobby's start button is already showing, so it is centered at once.
+  scrolled.mockClear();
+  game.view.open();
+  expect(scrolled).toHaveBeenCalledWith(toStart);
+
+  game.emit(state({ phase: 'round', image: 'abc', remainingMs: 10_000 }));
+  scrolled.mockClear();
+  game.view.open();
+  expect(scrolled).toHaveBeenCalledWith(toStage);
+
+  // A hidden page never scrolls the document.
+  page.hidden = true;
+  scrolled.mockClear();
+  game.view.open();
+  window.dispatchEvent(new Event('resize'));
+  game.emit(state({}));
+  expect(scrolled).not.toHaveBeenCalledWith(toStage);
+  expect(scrolled).not.toHaveBeenCalledWith(toStart);
+});
+
 test('reveals the answer, names the winner, and offers another match', async () => {
   const game = room();
   game.view.open();
@@ -192,7 +311,7 @@ test('reveals the answer, names the winner, and offers another match', async () 
   game.emit(state({ ...reveal, winner: 'me', points: 4 }));
   expect(element('#game-status').textContent).toBe('You got it: Wave (+4).');
   expect(control('#game-image', HTMLImageElement).style.filter).toBe('none');
-  expect(element('#game-form').hidden).toBe(true);
+  expect(element('#game-form').hidden).toBe(false);
   expect(element('#game-timer').hidden).toBe(true);
 
   game.emit(state({ ...reveal, winner: '1234567890', points: 1 }));
@@ -240,7 +359,7 @@ test('loads the image during the ready beat, then shows the hint and shared gues
   expect(image.getAttribute('src')).toBe('/image/abc');
   expect(image.hidden).toBe(true);
   expect(element('#game-status').textContent).toBe('Get ready…');
-  expect(element('#game-form').hidden).toBe(true);
+  expect(element('#game-form').hidden).toBe(false);
   expect(element('#game-hint').hidden).toBe(true);
   expect(game.playing).toEqual([true]);
 
