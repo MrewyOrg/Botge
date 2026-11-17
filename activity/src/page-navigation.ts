@@ -33,9 +33,8 @@ function element(selector: string, description: string): HTMLElement {
  * The tabs switch pages in place instead of jumping to their fragment, which would scroll the
  * catalog heading past the search and filters. Each switch records the fragment for history
  * navigation, starts at the top unless the game page positions itself, and moves focus to the new page's top heading without scrolling,
- * so Tab continues from the start of that page. The first visit to Settings expands its panels, so
- * Tab reaches their fields instead of only the panel headers; expanding also starts their loads.
- * A fragment for a page that is not enabled shows the catalog. During a guessing game match the
+ * so Tab continues from the start of that page. Settings panels start collapsed and keep whatever
+ * state the user leaves them in; expanding a panel starts its load. A fragment for a page that is not enabled shows the catalog. During a guessing game match the
  * catalog is locked, because it lists the names players are trying to guess.
  *
  * @returns Controls for revealing the authenticated pages after Discord initialization.
@@ -58,7 +57,6 @@ export function createPageNavigation(): PageNavigation {
   const settingsPage = element('#activity-settings', 'settings page');
   const gamePage = element('#activity-game', 'game page');
   const pages = ['catalog', 'settings', 'game'] as const satisfies readonly Page[];
-  let settingsVisited = false;
   let openGame: (() => void) | undefined;
   let catalogLocked = false;
   let shown: Page = 'catalog';
@@ -68,10 +66,6 @@ export function createPageNavigation(): PageNavigation {
     // A locked catalog fragment is replaced so the address matches the page on screen.
     if (page !== requested) window.history.replaceState(null, '', HASHES[page]);
     shown = page;
-    if (page === 'settings' && !settingsVisited) {
-      settingsVisited = true;
-      for (const panel of settingsPage.querySelectorAll('details')) panel.open = true;
-    }
     settingsPage.hidden = page !== 'settings';
     gamePage.hidden = page !== 'game';
     catalogIntro.hidden = page !== 'catalog';

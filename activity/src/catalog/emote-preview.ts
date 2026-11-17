@@ -96,7 +96,7 @@ export function createEmotePreview(options: PreviewOptions): EmotePreview {
     openSevenTV.hidden = !options.linkSevenTV || emote.sevenTVId === undefined;
     if (emote.sevenTVId !== undefined)
       openSevenTV.href = `https://7tv.app/emotes/${emote.sevenTVId}`;
-    previewImage.src = emote.image;
+    previewImage.src = emote.preview ?? emote.image;
     previewArt.append(previewImage);
     previewSource.textContent = emote.added === true ? `${emote.source} · Added` : emote.source;
     previewTitle.textContent = emote.name;

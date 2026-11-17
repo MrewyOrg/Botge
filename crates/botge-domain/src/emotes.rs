@@ -87,9 +87,9 @@ impl Emote {
       .map_or(self.image.as_str(), |(_, image)| image.as_str())
   }
 
-  /// Converts the CDN URL to an Activity-relative path while retaining its query.
-  fn mapped_image(&self) -> Option<String> {
-    let url = cdn_url(&self.image, self.source)?;
+  /// Converts a CDN URL to an Activity-relative path while retaining its query.
+  fn mapped_image(&self, image: &str) -> Option<String> {
+    let url = cdn_url(image, self.source)?;
     let (_, path) = self.source.cdn();
     let query = url
       .query()
@@ -119,6 +119,9 @@ struct CatalogDetails<'a> {
   name: &'a str,
   source: Source,
   image: String,
+  /// The largest published scale up to 4×, omitted when it is the catalog image.
+  #[serde(skip_serializing_if = "Option::is_none")]
+  preview: Option<String>,
   animated: bool,
   overlaying: bool,
   tags: &'a [String],
@@ -126,6 +129,9 @@ struct CatalogDetails<'a> {
 }
 
 /// Maps validated CDN URLs to browser-relative paths and keeps catalog precedence.
+///
+/// Entries whose catalog image is not on the provider's CDN are omitted. A larger preview scale
+/// that fails the same check is omitted while the entry is kept.
 pub fn browser_catalog<'a>(
   emotes: impl IntoIterator<Item = &'a Emote, IntoIter: ExactSizeIterator>,
 ) -> Vec<CatalogEmote<'a>> {
@@ -133,13 +139,17 @@ pub fn browser_catalog<'a>(
   let mut names = HashSet::with_capacity(emotes.len());
   emotes
     .filter_map(|emote| {
-      let image = emote.mapped_image()?;
+      let image = emote.mapped_image(&emote.image)?;
+      let preview = emote
+        .mapped_image(emote.image_at(4))
+        .filter(|preview| *preview != image);
       let unique = names.insert(emote.name.to_ascii_lowercase());
       Some(CatalogEmote {
         details: CatalogDetails {
           name: &emote.name,
           source: emote.source,
           image,
+          preview,
           animated: emote.animated,
           overlaying: emote.overlaying,
           tags: &emote.tags,

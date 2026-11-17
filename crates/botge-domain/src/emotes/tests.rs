@@ -60,13 +60,23 @@ fn bounds_policy_fields_and_preserves_queries_without_creating_ambiguous_tokens(
     example("Other", "3"),
   ];
   emotes[0].image.push_str("?quality=high");
+  emotes[1].sizes = [(1, "1x"), (2, "2x"), (4, "4x")]
+    .map(|(scale, file)| (scale, format!("https://cdn.7tv.app/emote/2/{file}.png")))
+    .into();
   emotes[2].source = Source::BetterTtv;
   emotes[2].image = "https://cdn.betterttv.net/emote/3/2x.png".into();
+  emotes[2].sizes = [(2, "https://cdn.betterttv.net/emote/3/2x.png".to_owned())].into();
   let catalog = serde_json::to_value(browser_catalog(&emotes))?;
   assert_eq!(
     catalog.pointer("/0/image"),
     Some(&serde_json::json!("/7tv-cdn/emote/1/2x.png?quality=high"))
   );
+  assert_eq!(catalog.pointer("/0/preview"), None);
+  assert_eq!(
+    catalog.pointer("/1/preview").and_then(Value::as_str),
+    Some("/7tv-cdn/emote/2/4x.png")
+  );
+  assert_eq!(catalog.pointer("/2/preview"), None);
   assert_eq!(catalog.pointer("/0/composeToken"), None);
   assert_eq!(catalog.pointer("/1/composeToken"), None);
   assert_eq!(catalog.pointer("/2/sevenTVId"), None);
