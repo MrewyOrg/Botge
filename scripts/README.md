@@ -44,9 +44,9 @@ output, not documentation semantics or cross-references. The
 [compact Python baseline](../.agents/references/python/README.md) records upstream guidance, local
 choices and the audit.
 
-Python validation enforces at least 90% line and branch coverage in every helper file. It includes
-Python subprocesses and normalizes copied fixtures; reports are generated in `coverage/python/`.
-Tests and generated files are outside the measured helper source set.
+Python validation enforces the [Python coverage gate](../tests/README.md#coverage-gates) in every
+helper file. It includes Python subprocesses and normalizes copied fixtures. Tests and generated
+files are outside the measured helper source set.
 
 ## Rust coverage validation
 
