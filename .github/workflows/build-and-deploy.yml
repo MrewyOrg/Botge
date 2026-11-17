@@ -58,7 +58,7 @@ jobs:
     name: Build candidate
     needs: [validate, security, filter-paths]
     if: needs.filter-paths.outputs.build == 'true' && !github.event.pull_request.draft
-    uses: docker/github-builder/.github/workflows/build.yml@81f670be367bfb44c9a238f3b6e747ae61d30d03
+    uses: docker/github-builder/.github/workflows/build.yml@1037c7b9c980b1eb201d37bb9f1fa6caaa96af60
     permissions:
       contents: read
       id-token: write
