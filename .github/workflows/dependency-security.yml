@@ -58,12 +58,22 @@ jobs:
         run: >-
           npm --prefix tests/integration audit --package-lock-only --ignore-scripts
           --audit-level=critical
-      - name: Require both npm audits
+      - name: Audit Activity deployment dependencies
+        if: matrix.ecosystem == 'npm'
+        id: npm-deploy
+        continue-on-error: true
+        run: >-
+          npm --prefix activity/deploy audit --package-lock-only --ignore-scripts
+          --audit-level=critical
+      - name: Require every npm audit
         if: matrix.ecosystem == 'npm'
         env:
           ROOT_RESULT: ${{ steps.npm-root.outcome }}
           INTEGRATION_RESULT: ${{ steps.npm-integration.outcome }}
-        run: test "$ROOT_RESULT" = success && test "$INTEGRATION_RESULT" = success
+          DEPLOY_RESULT: ${{ steps.npm-deploy.outcome }}
+        run: >-
+          test "$ROOT_RESULT" = success && test "$INTEGRATION_RESULT" = success && test
+          "$DEPLOY_RESULT" = success
       - name: Restore pinned Rust audit tool
         if: matrix.ecosystem == 'cargo'
         id: cargo-audit-cache

@@ -128,6 +128,8 @@ All project tooling and services must remain free to use without trial credits o
   usage. Static assets and Worker requests have separate limits.
 - Serve the public Activity demo as static assets only, with no Worker script, so its traffic stays
   free and never uses the daily Worker requests the Activity needs.
+- Deploy both from CI with a Cloudflare API token made from the **Edit Cloudflare Workers** template
+  and limited to the deploying account. Deployments are free and count against no request quota.
 - Use free capacity for encrypted off-host backups and monitoring; provision and test them
   separately.
 

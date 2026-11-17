@@ -1,4 +1,6 @@
-# Workflows use standard GitHub-hosted runners and no repository variables.
+# Workflows use standard GitHub-hosted runners. The production environment supplies the Activity's
+# public key as a variable; everything else comes from secrets.
 self-hosted-runner:
   labels: []
-config-variables: []
+config-variables:
+  - DISCORD_ACTIVITY_PUBLIC_KEY

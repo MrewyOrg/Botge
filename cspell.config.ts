@@ -121,6 +121,7 @@ const cSpellSettings: Readonly<CSpellSettings> = defineConfig({
     'vsicons',
     'webp',
     'webpki',
+    'workerd',
     'xlaoyu'
   ]
 });

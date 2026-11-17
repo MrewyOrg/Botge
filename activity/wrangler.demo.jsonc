@@ -5,5 +5,7 @@
   "compatibility_date": "2026-11-10",
   // Assets only, with no Worker script: Cloudflare serves static asset requests free and without
   // counting them toward the account's daily Worker request limit, which the Activity relies on.
-  "assets": { "directory": "./dist-demo" }
+  "assets": { "directory": "./dist-demo" },
+  // Only the demo's own URL serves it; per-version preview URLs are not used.
+  "preview_urls": false
 }
