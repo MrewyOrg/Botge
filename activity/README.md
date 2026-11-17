@@ -29,6 +29,9 @@ repository root.
 | `game/game-view.ts`                | Game page: blurred round image, guesses, and scoreboard   |
 | `demo/`                            | In-memory API, discovery, and game for the feature demo   |
 | `context-menu.ts`, `validation.ts` | Shared UI and boundary helpers                            |
+| `style.scss`                       | Stylesheet entry that loads the partials in cascade order |
+| `styles/`                          | Theme, top bar, layout, controls, panels, and utilities   |
+| `catalog/_*.scss`, `game/_*.scss`  | Catalog filters, tiles and overlays; the game page        |
 
 Tests mirror features under `tests/`, including browser integration suites and Worker tests.
 `tests/fixtures/activity-page.ts` shares page and Discord fixtures.

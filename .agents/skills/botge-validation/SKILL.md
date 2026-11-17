@@ -38,7 +38,8 @@ unrelated suites for documentation-only edits.
 - **Pure Rust logic covered by Miri:** `cargo miri setup`, then `sh scripts/check-rust.sh miri`
 - **Activity, Worker, or shared TypeScript tooling:** `npm run check:static` and
   `npm run test:coverage`; `npm run check` when coverage is outside the change
-- **Activity HTML, styles, or build configuration:** `npm run check:markup -w activity`
+- **Activity HTML, styles, or build configuration:** `npm run check:markup -w activity`, plus
+  `npm run eslint` for HTML and `npm run stylelint` for SCSS
 - **Python tooling:** `.venv/bin/python scripts/check_python.py`
 - **Control scripts or tooling tests:** `npm test -- --run --project Tooling`; `npm run lint:shell`
   for shell changes

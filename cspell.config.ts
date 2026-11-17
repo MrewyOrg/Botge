@@ -110,6 +110,7 @@ const cSpellSettings: Readonly<CSpellSettings> = defineConfig({
     'udeps',
     'unaliased',
     'uninlined',
+    'unnamespaced',
     'unscored',
     'unstub',
     'upserts',

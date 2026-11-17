@@ -36,6 +36,10 @@ const JOIN_DEADLINE: Duration = Duration::from_secs(10);
 const GUESS_INTERVAL: Duration = Duration::from_millis(200);
 /// Keeps idle lobby connections open through intermediate proxies.
 const PING_INTERVAL: Duration = Duration::from_secs(30);
+/// How long a connection that has answered a ping may then stay silent before it is closed.
+///
+/// Two missed answers cover one slow reply without dropping a live player.
+const SILENCE_LIMIT: Duration = Duration::from_secs(60);
 
 /// The guild and Activity instance a player wants to join.
 #[derive(Deserialize)]
@@ -173,9 +177,13 @@ impl Connection for WebSocket {
   }
 }
 
-/// Runs one player's connection until either side closes it.
+/// Runs one player's connection until either side closes it or the player goes silent.
 ///
-/// Dropping the seat at the end frees the player's place and closes an empty room.
+/// A phone that suspends the app or loses its network often leaves the connection open
+/// without closing it, so a peer that has answered a ping and then sends nothing for
+/// [`SILENCE_LIMIT`] is treated as gone. A peer whose answers never arrive, as when a
+/// proxy on the way answers pings itself, is kept until the connection closes. Dropping
+/// the seat at the end frees the player's place and closes an empty room.
 async fn session(mut socket: impl Connection, application: &Arc<Application>) {
   let Some(seat) = admit(&mut socket, application).await else {
     drop(
@@ -192,6 +200,8 @@ async fn session(mut socket: impl Connection, application: &Arc<Application>) {
   let mut ping = tokio::time::interval(PING_INTERVAL);
   ping.set_missed_tick_behavior(MissedTickBehavior::Delay);
   let mut last_guess: Option<Instant> = None;
+  let mut heard = Instant::now();
+  let mut answers_pings = false;
   if send_state(&mut socket, &seat).await.is_err() {
     return;
   }
@@ -203,15 +213,21 @@ async fn session(mut socket: impl Connection, application: &Arc<Application>) {
         }
       }
       _ = ping.tick() => {
+        if answers_pings && heard.elapsed() >= SILENCE_LIMIT {
+          break;
+        }
         if socket.deliver(Message::Ping(Vec::new().into())).await.is_err() {
           break;
         }
       }
       message = socket.receive() => {
         let Some(Ok(message)) = message else { break };
+        heard = Instant::now();
         let Message::Text(body) = message else {
-          if matches!(message, Message::Close(_)) {
-            break;
+          match message {
+            Message::Close(_) => break,
+            Message::Pong(_) => answers_pings = true,
+            _ => {}
           }
           continue;
         };

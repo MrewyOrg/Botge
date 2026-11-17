@@ -1,0 +1,299 @@
+// Guessing game: the blurred emote and guess form beside the scoreboard.
+
+.game {
+  grid-column: 1 / -1;
+  display: grid;
+  gap: 0.75rem;
+  scroll-margin-top: calc(var(--bar-total) + 1rem);
+
+  h1 {
+    font-size: 1.5rem;
+    letter-spacing: -0.02em;
+  }
+
+  > p {
+    color: var(--muted);
+  }
+
+  // During a match the stage fills the visible height below the top bar, which the game view
+  // measures into `--game-space` (the on-screen keyboard shrinks it). The emote takes whatever
+  // that leaves, so the round, input and wrong guesses always stay on screen.
+  // Outside a match there is no emote or timer to show.
+  &:not(.playing) :is(.game-art-space, .game-timer) {
+    display: none;
+  }
+
+  &.playing {
+    > h1,
+    > p {
+      display: none;
+    }
+
+    .game-layout {
+      margin-top: 0;
+    }
+
+    .game-stage {
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 0.5rem;
+      height: min(calc(var(--game-space, 100dvh) - 1rem), 42rem);
+      padding: 0.75rem;
+    }
+
+    .game-art-space {
+      flex: 1 1 0;
+      height: auto;
+      min-height: 4rem;
+    }
+
+    // One scrolling line keeps the stage height fixed however many guesses arrive.
+    .game-guesses {
+      flex: none;
+      flex-wrap: nowrap;
+      justify-content: flex-start;
+      width: 100%;
+      overflow-x: auto;
+      scrollbar-width: none;
+
+      li {
+        flex: none;
+        white-space: nowrap;
+      }
+    }
+  }
+}
+
+// The game view sets `game-keyboard` on the root only while a match has the on-screen keyboard up.
+.game-keyboard {
+  // The round label rides on the stage corner beside the emote.
+  .game-stage > .eyebrow {
+    position: absolute;
+    inset-block-start: 0.75rem;
+    inset-inline-start: 0.75rem;
+    z-index: 1;
+    padding: 0.15rem 0.45rem;
+    border-radius: var(--radius);
+    background: rgb(14 14 16 / 80%);
+  }
+
+  // The hint and placeholder already ask for the name, so the round's status line gives way.
+  [data-phase='round'] .game-stage > [role='status'] {
+    display: none;
+  }
+}
+
+.game-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) clamp(14rem, 24vw, 19rem);
+  align-items: start;
+  gap: 1.5rem;
+  margin-top: 0.5rem;
+
+  @media (width <= 48rem) {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.game-stage,
+.game-scores {
+  min-width: 0;
+  padding: 1.25rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-large);
+  background: var(--surface);
+}
+
+.game-stage {
+  display: grid;
+  justify-items: center;
+  gap: 0.85rem;
+  text-align: center;
+  scroll-margin-top: calc(var(--game-bar, var(--bar-total)) + 0.5rem);
+
+  > * {
+    flex: none;
+  }
+
+  .eyebrow {
+    min-height: 1rem;
+    margin: 0;
+  }
+
+  [role='status'] {
+    min-height: 1.375rem;
+    color: var(--heading);
+    font-weight: 600;
+    overflow-wrap: anywhere;
+  }
+
+  form {
+    display: flex;
+    gap: 0.5rem;
+    width: min(100%, 26rem);
+
+    label {
+      flex: 1;
+      min-width: 0;
+    }
+
+    input {
+      width: 100%;
+    }
+  }
+}
+
+// The space the emote frame may fill; the frame is the largest square that fits inside it.
+.game-art-space {
+  display: grid;
+  place-items: center;
+  align-self: stretch;
+  height: 16rem;
+  container-type: size;
+}
+
+// The frame clips the blur so a soft edge never reveals the emote's outline size.
+.game-art {
+  display: grid;
+  place-items: center;
+  width: min(100cqw, 100cqh, 22rem);
+  aspect-ratio: 1;
+  overflow: hidden;
+  border-radius: var(--radius-large);
+  background: var(--raised);
+
+  img {
+    width: 85%;
+    height: 85%;
+    object-fit: contain;
+    user-select: none;
+    pointer-events: none;
+  }
+}
+
+.game-timer {
+  width: min(100%, 16rem);
+  height: 0.25rem;
+  overflow: hidden;
+  border-radius: 0.125rem;
+  background: var(--line);
+
+  div {
+    height: 100%;
+    background: var(--accent);
+    transform-origin: left;
+  }
+}
+
+// The masked name: one underscore per hidden letter, spaced so its length can be counted.
+.game-hint {
+  color: var(--heading);
+  font:
+    700 1.25rem/1.2 ui-monospace,
+    'SF Mono',
+    Menlo,
+    Consolas,
+    monospace;
+  letter-spacing: 0.35em;
+
+  // The trailing letter gap would push the text off center.
+  margin-inline-end: -0.35em;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.game-guesses {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.35rem;
+  width: min(100%, 26rem);
+  min-height: 1.75rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+
+  li {
+    max-width: 100%;
+    padding: 0.15rem 0.5rem;
+    border-radius: var(--radius);
+    color: var(--muted);
+    background: var(--raised);
+    font-size: 0.8rem;
+    overflow-wrap: anywhere;
+  }
+
+  span {
+    color: var(--faint);
+  }
+}
+
+// The round focuses the guess box itself and its caret shows where typing goes, so it takes no
+// focus ring.
+.game-guess:focus-visible {
+  outline: none;
+}
+
+.game-guess.wrong {
+  border-color: var(--danger);
+  animation: game-wrong 300ms ease-out;
+
+  // Outranks the shared input hover border, so the flash still shows under the pointer.
+  &:enabled:hover {
+    border-color: var(--danger);
+  }
+}
+
+@keyframes game-wrong {
+  25% {
+    transform: translateX(-0.25rem);
+  }
+
+  75% {
+    transform: translateX(0.25rem);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .game-guess.wrong {
+    animation: none;
+  }
+}
+
+.game-scores {
+  h2 {
+    margin-bottom: 0.6rem;
+    font-size: 1rem;
+  }
+
+  ol {
+    display: grid;
+    gap: 0.35rem;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  li {
+    display: flex;
+    justify-content: space-between;
+    gap: 0.75rem;
+    padding: 0.45rem 0.6rem;
+    border-radius: var(--radius);
+    background: var(--raised);
+    overflow-wrap: anywhere;
+
+    &.self {
+      color: var(--heading);
+      background: var(--accent-background);
+    }
+  }
+
+  .score {
+    flex: none;
+    color: var(--heading);
+    font-weight: 700;
+  }
+}

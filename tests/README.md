@@ -28,9 +28,9 @@ here instead of repeating them. Run commands from the repository root. The
 | `sh scripts/check-rust.sh coverage`        | all Rust tests and the per-file coverage gate       |
 | `sh scripts/check-rust.sh miri`            | pure Rust tests (after `cargo miri setup`)          |
 | `sh scripts/check-rust.sh bench`           | nightly libtest benchmarks                          |
-| `npm run check:static`                     | TypeScript types, ESLint, unused code               |
+| `npm run check:static`                     | Types, ESLint (TS and HTML), Stylelint, unused code |
 | `npm run test:coverage`                    | Activity, Worker and tooling tests + gate           |
-| `npm run check:markup -w activity`         | Activity HTML and SCSS                              |
+| `npm run check:markup -w activity`         | Activity build, HTML validation                     |
 | `npm run markdownlint`, `npm run cspell`   | Markdown and spelling                               |
 | `npm run lint:shell`                       | ShellCheck                                          |
 | `npm run lint:workflows`                   | actionlint, including composite actions             |

@@ -106,6 +106,8 @@ beforeEach(() => {
   dialog.close = (): void => {
     dialog.open = false;
   };
+  // jsdom does not scroll; the game page scrolls itself into place when it opens.
+  vi.spyOn(window, 'scrollBy').mockImplementation(() => undefined);
 });
 
 afterEach(() => {

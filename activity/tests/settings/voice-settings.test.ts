@@ -37,6 +37,52 @@ test.each([
   }
 );
 
+test('ignores a save before the settings load and while another save is in flight', async () => {
+  let finishSave: (value: unknown) => void = () => undefined;
+  const pendingSave = new Promise((resolve: (value: unknown) => void) => {
+    finishSave = resolve;
+  });
+  const loaded = {
+    voice: { ...defaults, channelId: '42' },
+    channels: [{ id: '42', name: 'Lobby' }]
+  } as const;
+  const request = vi.fn().mockResolvedValueOnce(loaded).mockReturnValueOnce(pendingSave);
+  mountVoiceSettings(request);
+  const panel = requireValue(
+    document.querySelector<HTMLDetailsElement>('#voice-settings'),
+    'Missing settings'
+  );
+  const form = requireValue(panel.querySelector('form'), 'Missing form');
+  const submit = (): void => {
+    form.dispatchEvent(new Event('submit', { cancelable: true }));
+  };
+
+  // Nothing is saved before the stored settings arrive, so defaults never overwrite them.
+  submit();
+  expect(request).not.toHaveBeenCalled();
+  panel.open = true;
+  await vi.waitFor(() => {
+    expect(panel.querySelector('fieldset')?.disabled).toBe(false);
+  });
+
+  submit();
+  submit();
+  expect(request).toHaveBeenCalledTimes(2);
+  expect(request).toHaveBeenLastCalledWith({
+    channelId: '42',
+    statusEnabled: false,
+    statusEmoji: null
+  });
+  expect(panel.getAttribute('aria-busy')).toBe('true');
+  finishSave(loaded);
+  await vi.waitFor(() => {
+    expect(panel.querySelector('#voice-feedback')?.textContent).toBe(
+      'Saved. Botge will apply the voice settings.'
+    );
+  });
+  expect(panel.hasAttribute('aria-busy')).toBe(false);
+});
+
 test('shows a saved channel that is no longer available and lets the admin retry a failed save', async () => {
   const request = vi
     .fn()

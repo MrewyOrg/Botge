@@ -1,0 +1,87 @@
+// Discord-native darker theme: surfaces, type and controls follow the Discord client so the
+// Activity reads as part of it. Text keeps at least 4.5:1 contrast and control boundaries at
+// least 3:1 against every surface they sit on.
+:root {
+  --background: #0e0e10;
+  --surface: #151518;
+  --raised: #08080a;
+  --floating: #1c1c20;
+  --hover: #1c1c20;
+  --active: #232328;
+  --line: #232328;
+  --control: #72747d;
+  --text: #dbdee1;
+  --heading: #f2f3f5;
+  --muted: #b5bac1;
+  --faint: #949ba4;
+  --accent: #5865f2;
+  --accent-hover: #4752c4;
+  --accent-text: #949cf7;
+  --accent-background: rgb(88 101 242 / 18%);
+  --secondary: #4e5058;
+  --secondary-hover: #6d6f78;
+  --danger: #da373c;
+  --danger-hover: #a12828;
+  --radius: 0.5rem;
+  --radius-large: 0.75rem;
+  --shadow: 0 0.5rem 1.5rem rgb(0 0 0 / 50%);
+  --gutter: clamp(0.75rem, 3vw, 1.5rem);
+  --bar: 3.25rem;
+
+  // Space above the top bar's contents that Discord's mobile leave bar covers.
+  --bar-inset: 0rem;
+
+  // The top bar's full height, for sticky offsets and in-page jumps.
+  --bar-total: calc(var(--bar) + var(--bar-inset));
+
+  @media (hover: none) and (pointer: coarse) {
+    --bar-inset: calc(env(safe-area-inset-top, 0px) + 3rem);
+  }
+
+  // Height reserved for the docked composer tray in the compact layout.
+  --tray: 0rem;
+
+  color-scheme: dark;
+  color: var(--text);
+  background: var(--background);
+  font:
+    1rem/1.375 'gg sans',
+    'Noto Sans',
+    system-ui,
+    -apple-system,
+    'Segoe UI',
+    sans-serif;
+  -webkit-font-smoothing: antialiased;
+
+  @media (width <= 48rem) {
+    --tray: 3.5rem;
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  min-width: 0;
+  min-height: 100vh;
+  margin: 0;
+  background: var(--background);
+}
+
+main {
+  width: min(100% - 2 * var(--gutter), 86rem);
+  margin-inline: auto;
+  padding: 1.25rem 0 calc(var(--tray) + 2.5rem);
+}
+
+h1,
+h2,
+p {
+  margin: 0;
+}
+
+h1,
+h2 {
+  color: var(--heading);
+}

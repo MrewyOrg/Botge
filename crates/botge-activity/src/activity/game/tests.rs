@@ -31,7 +31,8 @@ use tokio::{sync::mpsc, task::JoinHandle};
 
 use super::super::tests::Fixture;
 use super::{
-  Connection, GUESS_INTERVAL, JOIN_DEADLINE, MAX_GUESS_BYTES, PING_INTERVAL, content_type, session,
+  Connection, GUESS_INTERVAL, JOIN_DEADLINE, MAX_GUESS_BYTES, PING_INTERVAL, SILENCE_LIMIT,
+  content_type, session,
 };
 
 /// An in-memory connection whose deliveries can be made to fail.
@@ -370,6 +371,47 @@ async fn keeps_a_seat_through_stray_frames_and_closes_on_protocol_errors() -> an
   drop(frames);
   tokio::time::timeout(Duration::from_secs(5), session).await??;
   Ok(())
+}
+
+#[tokio::test(start_paused = true)]
+async fn closes_a_connection_that_stops_answering_pings() -> anyhow::Result<()> {
+  let fixture = Fixture::new()?;
+  let mut watcher = Player::seated(&fixture, "member").await?;
+  watcher.hear("state", Some("lobby")).await?;
+  let mut silent = Player::seated(&fixture, "admin").await?;
+  silent.hear("state", Some("lobby")).await?;
+  watcher.hear("state", Some("lobby")).await?;
+
+  // A player who keeps answering stays connected well past the silence limit.
+  for _ in 0..4 {
+    silent.frame(Frame::Pong(vec![].into()))?;
+    tokio::time::sleep(PING_INTERVAL).await;
+  }
+  assert!(!silent.session.is_finished());
+
+  // Then the phone suspends the app: no answers, and no close either.
+  tokio::time::sleep(SILENCE_LIMIT + PING_INTERVAL).await;
+  let room = loop {
+    let state = watcher.hear("state", Some("lobby")).await?;
+    if at(&state, "/state/players").as_array().map(Vec::len) == Some(1) {
+      break state;
+    }
+  };
+  // The silent admin (user 1) left; the watcher keeps the room.
+  assert_ne!(at(&room, "/state/players/0/id"), "1");
+  silent.ended().await
+}
+
+#[tokio::test(start_paused = true)]
+async fn keeps_a_connection_whose_ping_answers_never_arrive() -> anyhow::Result<()> {
+  let fixture = Fixture::new()?;
+  let mut player = Player::seated(&fixture, "admin").await?;
+  player.hear("state", Some("lobby")).await?;
+  // Without a first answer the silence is the route's, not the player's.
+  tokio::time::sleep(SILENCE_LIMIT * 3).await;
+  assert!(!player.session.is_finished());
+  player.frame(Frame::Close(None))?;
+  player.ended().await
 }
 
 #[tokio::test(start_paused = true)]

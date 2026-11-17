@@ -1,0 +1,166 @@
+// Form controls.
+
+label {
+  display: grid;
+  gap: 0.375rem;
+  min-width: 0;
+  color: var(--faint);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+
+  &:has(input[type='checkbox']) {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    color: var(--text);
+    font-size: 0.9rem;
+    font-weight: 500;
+    letter-spacing: normal;
+    text-transform: none;
+  }
+}
+
+input,
+select,
+button {
+  min-width: 0;
+  min-height: 2.375rem;
+  border: 1px solid var(--control);
+  border-radius: var(--radius);
+  padding: 0.45rem 0.7rem;
+  color: var(--text);
+  background: var(--raised);
+  font: inherit;
+  font-size: 0.875rem;
+  letter-spacing: normal;
+  text-transform: none;
+}
+
+input,
+select {
+  transition: border-color 120ms ease-out;
+
+  &:enabled:hover {
+    border-color: var(--muted);
+  }
+
+  &::placeholder {
+    color: var(--faint);
+  }
+}
+
+input[readonly] {
+  color: var(--muted);
+}
+
+input[type='checkbox'] {
+  flex: none;
+  width: 1.125rem;
+  min-height: 0;
+  height: 1.125rem;
+  margin: 0;
+  accent-color: var(--accent);
+}
+
+@media (width <= 30rem) {
+  // Keep settings and preview inputs readable without mobile focus zoom.
+  input,
+  select {
+    font-size: 1rem;
+  }
+}
+
+input[type='color'] {
+  inline-size: 4rem;
+  block-size: 2.375rem;
+  padding: 0.2rem;
+
+  &:enabled {
+    cursor: pointer;
+  }
+
+  &:disabled {
+    opacity: 0.5;
+  }
+}
+
+button {
+  border-color: transparent;
+  color: #fff;
+  background: var(--secondary);
+  font-weight: 600;
+  cursor: pointer;
+  transition:
+    background-color 120ms ease-out,
+    color 120ms ease-out;
+
+  &:enabled:hover {
+    background: var(--secondary-hover);
+  }
+
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  &.primary {
+    background: var(--accent);
+
+    &:enabled:hover {
+      background: var(--accent-hover);
+    }
+  }
+
+  &.danger {
+    background: var(--danger);
+
+    &:enabled:hover {
+      background: var(--danger-hover);
+    }
+  }
+
+  &.quiet {
+    color: var(--muted);
+    background: transparent;
+
+    &:enabled:hover {
+      color: var(--heading);
+      background: var(--hover);
+    }
+  }
+}
+
+.browse-modes button[aria-pressed='true'],
+.toggle[aria-pressed='true'] {
+  color: #fff;
+  background: var(--accent);
+
+  &:enabled:hover {
+    background: var(--accent-hover);
+  }
+}
+
+:focus-visible {
+  outline: 2px solid var(--accent-text);
+  outline-offset: 2px;
+}
+
+// Headings, the open menu, and the preview dialog take focus only so assistive technology follows
+// the page; they are containers, not controls.
+[tabindex='-1']:focus {
+  outline: none;
+}
+
+// After a click or tap, focus the page moves itself (dialogs, menus, restored focus) stays unmarked.
+// Keyboard users keep their focus rings; see input-modality.ts.
+:root[data-input='pointer'] :focus-visible {
+  outline: none;
+}
+
+.message,
+.composer p {
+  color: var(--faint);
+  font-size: 0.85rem;
+}

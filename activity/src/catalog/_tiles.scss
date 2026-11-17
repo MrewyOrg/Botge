@@ -1,0 +1,140 @@
+// Emote grid.
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 7.5rem), 1fr));
+  gap: 0.5rem;
+  margin-block: 0.5rem 0.8rem;
+  padding: 0;
+  list-style: none;
+
+  @media (width <= 30rem) {
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 6.3rem), 1fr));
+  }
+}
+
+.grid li {
+  position: relative;
+  min-width: 0;
+
+  &:hover .tile-compose,
+  .tile-compose:focus-visible {
+    opacity: 1;
+  }
+}
+
+// One-click composer button layered over the tile corner; hidden while selecting emotes.
+.tile-compose {
+  position: absolute;
+  top: 0.35rem;
+  right: 0.35rem;
+  display: grid;
+  width: 1.75rem;
+  min-height: 0;
+  height: 1.75rem;
+  place-items: center;
+  padding: 0;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: var(--shadow);
+  font-size: 1.1rem;
+  line-height: 1;
+  opacity: 0;
+  transition:
+    opacity 120ms ease-out,
+    background-color 120ms ease-out;
+
+  &:enabled:hover {
+    background: var(--accent-hover);
+  }
+
+  // Touch screens have no hover, so keep the button visible there.
+  @media (hover: none) {
+    opacity: 1;
+  }
+}
+
+.grid:has(.tile[aria-pressed]) .tile-compose {
+  display: none;
+}
+
+.tile {
+  display: grid;
+  grid-template-rows: auto 1fr;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-large);
+  color: var(--text);
+  background: var(--surface);
+  font-weight: 400;
+  text-align: start;
+  transition:
+    background-color 120ms ease-out,
+    border-color 120ms ease-out;
+
+  &:enabled:hover {
+    border-color: var(--secondary);
+    background: var(--hover);
+
+    .tile-art img {
+      transform: scale(1.08);
+    }
+  }
+
+  &[aria-pressed='true'] {
+    border-color: var(--accent-text);
+    background: var(--accent-background);
+    box-shadow: inset 0 0 0 1px var(--accent-text);
+  }
+}
+
+.tile-art {
+  display: grid;
+  min-height: 5.25rem;
+  place-items: center;
+  padding: 0.6rem;
+
+  img {
+    max-width: 100%;
+    object-fit: contain;
+    transition: transform 140ms ease-out;
+  }
+}
+
+.tile-details {
+  display: grid;
+  align-content: start;
+  gap: 0.1rem;
+  padding: 0.1rem 0.65rem 0.55rem;
+  overflow-wrap: anywhere;
+
+  strong {
+    color: var(--heading);
+    font-size: 0.82rem;
+    font-weight: 600;
+  }
+
+  span {
+    color: var(--faint);
+    font-size: 0.7rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    // stylelint-disable-next-line declaration-no-important -- Reduced motion overrides every component transition.
+    transition: none !important;
+  }
+
+  .tile:enabled:hover .tile-art img {
+    transform: none;
+  }
+}
+
+.more {
+  display: block;
+  margin: 0.75rem auto;
+}

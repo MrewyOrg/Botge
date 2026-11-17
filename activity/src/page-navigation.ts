@@ -32,7 +32,7 @@ function element(selector: string, description: string): HTMLElement {
  * @remarks
  * The tabs switch pages in place instead of jumping to their fragment, which would scroll the
  * catalog heading past the search and filters. Each switch records the fragment for history
- * navigation, scrolls to the top, and moves focus to the new page's top heading without scrolling,
+ * navigation, starts at the top unless the game page positions itself, and moves focus to the new page's top heading without scrolling,
  * so Tab continues from the start of that page. The first visit to Settings expands its panels, so
  * Tab reaches their fields instead of only the panel headers; expanding also starts their loads.
  * A fragment for a page that is not enabled shows the catalog. During a guessing game match the
@@ -94,8 +94,9 @@ export function createPageNavigation(): PageNavigation {
     if (catalogLocked && page === 'catalog') return;
     const hash = HASHES[page];
     if (window.location.hash !== hash) window.history.pushState(null, '', hash);
-    show(page);
+    // Reset the scroll before the switch, so a page that positions itself on open keeps its place.
     document.documentElement.scrollTop = 0;
+    show(page);
     headings[page].focus({ preventScroll: true });
   }
 

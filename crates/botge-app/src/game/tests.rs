@@ -697,3 +697,68 @@ async fn plays_every_round_in_order_and_ends_on_the_final_scoreboard() {
     solved + READY_TIME + ROUND_TIME + REVEAL_TIME
   );
 }
+
+#[tokio::test(start_paused = true)]
+async fn cancels_the_match_when_its_last_player_leaves() {
+  let room = Arc::new(Room::new((NonZeroU64::MIN, "instance".into())));
+  assert!(room.sit(ALICE));
+  assert!(room.open_match());
+  let playing = tokio::spawn(run_match(Arc::new(Scripted), Arc::clone(&room)));
+  let match_task = playing.abort_handle();
+  room.lock().task = Some(playing);
+  until(&room, |shown| shown.phase == "round" && shown.round == 1).await;
+
+  assert!(
+    room.leave(ALICE),
+    "the room is empty once its only player leaves"
+  );
+  tokio::task::yield_now().await;
+  assert!(match_task.is_finished(), "the match stopped with the room");
+  assert!(room.lock().task.is_none());
+
+  // Long after a whole match would have ended, nothing has moved on.
+  tokio::time::sleep((READY_TIME + ROUND_TIME + REVEAL_TIME) * 20).await;
+  let left = room.snapshot();
+  assert_eq!((left.phase, left.round), ("round", 1));
+  assert!(left.players.is_empty());
+}
+
+#[tokio::test(start_paused = true)]
+async fn keeps_playing_for_the_others_when_one_player_leaves() {
+  const CAROL: NonZeroU64 = NonZeroU64::new(3).unwrap();
+  let room = Arc::new(Room::new((NonZeroU64::MIN, "instance".into())));
+  assert!(room.sit(ALICE) && room.sit(BOB) && room.sit(CAROL));
+  assert!(room.open_match());
+  let playing = tokio::spawn(run_match(Arc::new(Scripted), Arc::clone(&room)));
+  let match_task = playing.abort_handle();
+  room.lock().task = Some(playing);
+  until(&room, |shown| shown.phase == "round" && shown.round == 1).await;
+  assert_eq!(room.guess(BOB, "Emote0"), Guess::Correct);
+
+  // Bob leaves with points and Carol without; Alice is still playing.
+  assert!(!room.leave(BOB));
+  assert!(!room.leave(CAROL));
+  let ids = |shown: &Snapshot| -> Vec<String> {
+    shown
+      .players
+      .iter()
+      .map(|player| player.id.clone())
+      .collect()
+  };
+  // Rows are ordered by score, and only a scored row outlives its seat.
+  assert_eq!(ids(&room.snapshot()), ["2", "1"]);
+
+  let last = until(&room, |shown| shown.phase == "final").await;
+  assert_eq!(last.rounds, ROUNDS, "every round was played");
+  assert!(match_task.is_finished());
+  let scores: Vec<_> = last
+    .players
+    .iter()
+    .map(|player| (player.id.as_str(), player.score))
+    .collect();
+  assert_eq!(scores, [("2", 4), ("1", 0)]);
+
+  // The next match drops the player who left.
+  assert!(room.open_match());
+  assert_eq!(ids(&room.snapshot()), ["1"]);
+}

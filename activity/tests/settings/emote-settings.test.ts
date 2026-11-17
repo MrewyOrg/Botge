@@ -90,6 +90,76 @@ test.each([
   }
 );
 
+test('ignores a save before the settings load and while another save is in flight', async () => {
+  let finishSave: (value: unknown) => void = () => undefined;
+  const pendingSave = new Promise((resolve: (value: unknown) => void) => {
+    finishSave = resolve;
+  });
+  const request = vi.fn().mockResolvedValueOnce(defaults).mockReturnValueOnce(pendingSave);
+  mountEmoteSettings(request);
+  const panel = settingsPanel();
+  const form = requireValue(panel.querySelector('form'), 'Missing form');
+  const submit = (): void => {
+    form.dispatchEvent(new Event('submit', { cancelable: true }));
+  };
+
+  // Nothing is saved before the stored settings arrive, so defaults never overwrite them.
+  submit();
+  expect(request).not.toHaveBeenCalled();
+  panel.open = true;
+  await vi.waitFor(() => {
+    expect(panel.querySelector('fieldset')?.disabled).toBe(false);
+  });
+
+  submit();
+  submit();
+  expect(request).toHaveBeenCalledTimes(2);
+  expect(panel.querySelector('fieldset')?.disabled).toBe(true);
+  finishSave(defaults);
+  await vi.waitFor(() => {
+    expect(panel.querySelector('[role="status"]')?.textContent).toContain('Saved.');
+  });
+  expect(panel.querySelector('fieldset')?.disabled).toBe(false);
+});
+
+test('stops adding manager roles at the 25-role limit', async () => {
+  const roles = Array.from({ length: 26 }, (_: unknown, index: number) => ({
+    id: String(100 + index),
+    name: `Role ${index}`
+  }));
+  const saved = roles.slice(0, 25).map((entry: Readonly<{ id: string }>) => entry.id);
+  const request = vi
+    .fn()
+    .mockResolvedValueOnce({ ...defaults, roles, allowedRoles: saved })
+    .mockResolvedValueOnce({ ...defaults, roles, allowedRoles: saved });
+  mountEmoteSettings(request);
+  const panel = settingsPanel();
+  panel.open = true;
+  await vi.waitFor(() => {
+    expect(panel.querySelector('fieldset')?.disabled).toBe(false);
+  });
+  const role = requireValue(panel.querySelector('select'), 'Missing role picker');
+  const add = requireValue(
+    panel.querySelector<HTMLButtonElement>('[name="add-role"]'),
+    'Missing add role'
+  );
+  expect(role.disabled).toBe(true);
+  expect(panel.querySelectorAll('.selected-roles li')).toHaveLength(25);
+
+  // A forced choice of the remaining role is still refused.
+  role.value = '125';
+  role.dispatchEvent(new Event('change'));
+  add.click();
+  expect(panel.querySelectorAll('.selected-roles li')).toHaveLength(25);
+  panel.querySelector<HTMLButtonElement>('button[type="submit"]')?.click();
+  await vi.waitFor(() => {
+    expect(request).toHaveBeenCalledTimes(2);
+  });
+  expect(request).toHaveBeenLastCalledWith(
+    expect.objectContaining({ allowedRoles: saved }) as unknown
+  );
+});
+
 test('keeps selected roles editable after a malformed save response', async () => {
   const request = vi
     .fn()

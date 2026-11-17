@@ -232,3 +232,69 @@ test('keeps loaded discovery pages when an added emote refreshes the server cata
   click('#results .tile');
   expect(element('#add').hidden).toBe(true);
 });
+
+test('offers no server changes and sends none without the manage permission', async () => {
+  vi.stubGlobal('location', new URL('https://12345.discordsays.com/'));
+  vi.stubEnv('VITE_ENABLE_ACTIVITY_ADDS', 'true');
+  vi.stubEnv('VITE_ENABLE_ACTIVITY_CATALOG', 'true');
+  vi.stubEnv('VITE_ENABLE_7TV_DISCOVERY', 'true');
+  sdk.ready.mockResolvedValue();
+  sdk.commands.authorize.mockResolvedValue({ code: 'oauth-code' });
+  const fetch = vi.fn((path: string) => {
+    if (path === '/botge-api/auth')
+      return Response.json({ accessToken: 'access-token', expiresIn: 3600 });
+    if (path === '/botge-api/catalog')
+      return Response.json({
+        canManageEmotes: false,
+        canComposeDiscovery: true,
+        emotes: [serverEmote]
+      });
+    const items = [
+      {
+        id: discoveryId,
+        defaultName: 'DiscoverWave',
+        flags: { animated: false, nsfw: false, private: false, publicListed: true },
+        images: [{ url: `https://cdn.7tv.app/emote/${discoveryId}/2x.webp` }]
+      }
+    ] as const;
+    return Response.json({ data: { emotes: { search: { pageCount: 1, items } } } });
+  });
+  vi.stubGlobal('fetch', fetch);
+  const serverActions = (): readonly string[] =>
+    [...document.querySelectorAll('#emote-context-menu button')]
+      .map((button: Readonly<Pick<Element, 'textContent'>>) => button.textContent)
+      .filter((label: string | null) => label?.endsWith('this server') === true);
+
+  await import('../../src/index.ts');
+  await waitForText('#message', 'Showing 1 of 1');
+  // A saved emote cannot be removed.
+  click('#results button');
+  expect(element('#remove').hidden).toBe(true);
+  previewDialog().close();
+  element('#results .tile').dispatchEvent(
+    new MouseEvent('contextmenu', { bubbles: true, cancelable: true })
+  );
+  expect(element('#emote-context-menu').textContent).toContain('View details');
+  expect(serverActions()).toEqual([]);
+
+  // A discovered emote cannot be added, one at a time or in bulk.
+  click('#trending-mode');
+  await waitForText('#results', 'DiscoverWave');
+  click('#results button');
+  expect(element('#add').hidden).toBe(true);
+  previewDialog().close();
+  element('#results .tile').dispatchEvent(
+    new MouseEvent('contextmenu', { bubbles: true, cancelable: true })
+  );
+  expect(element('#emote-context-menu').textContent).toContain('View details');
+  expect(serverActions()).toEqual([]);
+  click('#select-emotes');
+  click('#results button');
+  expect(element('#selection-add').hidden).toBe(true);
+  expect(element('#selection-remove').hidden).toBe(true);
+
+  const changes = fetch.mock.calls.filter(([path]: readonly [string]) =>
+    path.startsWith('/botge-api/emotes')
+  );
+  expect(changes).toEqual([]);
+});

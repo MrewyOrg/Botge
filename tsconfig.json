@@ -6,6 +6,7 @@
     "eslint.config.ts",
     "lint-staged.config.ts",
     "prettier.config.ts",
+    "stylelint.config.ts",
     "vitest.config.ts"
   ],
   "include": ["tests/control/**/*.ts", "tests/tooling/**/*.ts"],

@@ -1,0 +1,184 @@
+// Top bar: brand, page tabs and the Activity badge.
+
+.masthead {
+  position: sticky;
+  top: 0;
+  z-index: 6;
+  display: flex;
+  align-items: center;
+  gap: clamp(0.5rem, 2vw, 1.25rem);
+  min-height: var(--bar-total);
+  padding-block-start: var(--bar-inset);
+  padding-inline: var(--gutter);
+  border-bottom: 1px solid var(--line);
+  background: rgb(14 14 16 / 88%);
+  backdrop-filter: blur(12px);
+
+  // While the keyboard is open in a match, only the space reserved for Discord's bar remains.
+  .game-keyboard & {
+    min-height: 0;
+    border-bottom: 0;
+
+    > * {
+      display: none;
+    }
+  }
+}
+
+.masthead-brand {
+  display: contents;
+}
+
+.masthead-art {
+  display: block;
+  flex: none;
+  width: auto;
+  height: 2.25rem;
+  margin-inline-start: -0.35rem;
+  mix-blend-mode: screen;
+}
+
+.activity-label {
+  flex: none;
+  order: 3;
+  margin-inline-start: auto;
+  padding: 0.1rem 0.45rem;
+  border-radius: 0.25rem;
+  color: #fff;
+  background: var(--accent);
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+
+  @media (width <= 30rem) {
+    display: none;
+  }
+}
+
+.workspace-nav {
+  display: flex;
+  order: 2;
+  gap: 0.25rem;
+  min-width: 0;
+
+  a {
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
+    padding: 0.4rem 0.75rem;
+    border-radius: 0.375rem;
+    color: var(--faint);
+    font-size: 0.875rem;
+    font-weight: 600;
+    text-decoration: none;
+    transition:
+      background-color 120ms ease-out,
+      color 120ms ease-out;
+
+    &:hover,
+    &:focus-visible {
+      color: var(--heading);
+      background: var(--hover);
+    }
+  }
+
+  // The catalog is closed during a guessing game match.
+  a[aria-disabled='true'] {
+    opacity: 0.45;
+    cursor: not-allowed;
+
+    &:hover,
+    &:focus-visible {
+      color: var(--faint);
+      background: none;
+    }
+  }
+
+  a[aria-current='page'] {
+    color: var(--heading);
+    background: var(--active);
+
+    circle {
+      fill: var(--active);
+    }
+  }
+
+  svg {
+    width: 1.125rem;
+    height: 1.125rem;
+    fill: none;
+    stroke: currentcolor;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    stroke-width: 1.8;
+  }
+
+  circle {
+    fill: var(--background);
+  }
+
+  a:hover circle,
+  a:focus-visible circle {
+    fill: var(--hover);
+  }
+
+  // Three tabs do not fit beside the brand on a phone; their labels do without the icons.
+  @media (width <= 30rem) {
+    &:has(.game-tab:not([hidden])) {
+      a {
+        padding-inline: 0.55rem;
+      }
+
+      svg {
+        display: none;
+      }
+    }
+  }
+}
+
+.masthead-copy {
+  margin-bottom: 1rem;
+
+  h1 {
+    font-size: clamp(1.5rem, 3.5vw, 1.875rem);
+    font-weight: 800;
+    line-height: 1.15;
+    letter-spacing: -0.02em;
+  }
+
+  p {
+    margin-top: 0.25rem;
+    color: var(--muted);
+    font-size: 0.9rem;
+  }
+}
+
+.demo-notice {
+  display: grid;
+  gap: 0.15rem;
+  margin-bottom: 1rem;
+  padding: 0.7rem 0.9rem;
+  border: 1px solid var(--line);
+  border-left: 4px solid var(--accent);
+  border-radius: var(--radius);
+  background: var(--accent-background);
+  font-size: 0.875rem;
+
+  strong {
+    color: var(--heading);
+  }
+
+  p {
+    color: var(--muted);
+  }
+}
+
+.eyebrow {
+  margin-bottom: 0.25rem;
+  color: var(--faint);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}

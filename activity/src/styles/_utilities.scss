@@ -1,0 +1,6 @@
+// Global utilities load last, so they apply over every component rule.
+
+[hidden] {
+  // stylelint-disable-next-line declaration-no-important -- Script-controlled visibility must override component display rules.
+  display: none !important;
+}
