@@ -184,6 +184,8 @@ async fn fetches_all_enabled_feeds_and_reuses_cached_results() -> Result<()> {
     ..GuildEmotes::default()
   };
   assert_eq!(client.catalog(policy, &guild, true, None).await.len(), 7);
+  // Without the global feeds, only the three the guild selected remain.
+  assert_eq!(client.catalog(policy, &guild, false, None).await.len(), 3);
   assert_eq!(
     client
       .catalog(policy, &GuildEmotes::default(), true, None)

@@ -8,10 +8,16 @@
   clippy::unwrap_used,
   reason = "Fixture values are known to be present; a panic fails the scenario"
 )]
+use std::sync::atomic::{AtomicIsize, Ordering};
+
 use botge_domain::providers::Providers;
 use botge_storage::Store;
 
-use super::*;
+use super::{
+  play::{IMAGES_UNAVAILABLE, POOL_UNAVAILABLE, TOO_FEW_EMOTES, play_round},
+  room::{MAX_PLAYERS, MAX_SHARED_GUESS_CHARS, MAX_SHARED_GUESSES, masked, points_after},
+  *,
+};
 use crate::access::{AccessToken, Membership, VoiceChannel};
 
 const ALICE: NonZeroU64 = NonZeroU64::MIN;
@@ -92,6 +98,120 @@ fn application() -> Result<(tempfile::TempDir, Arc<Application>)> {
 
 fn credential() -> Credential {
   Credential::AccessToken("token".into())
+}
+
+/// A guild with enough saved emotes to play, whose images come from a loopback server.
+struct Playable {
+  _directory: tempfile::TempDir,
+  store: Arc<Store>,
+  application: Arc<Application>,
+  /// Image downloads the server still answers; later ones receive 404.
+  images: Arc<AtomicIsize>,
+  _server: botge_test_support::TestServer,
+}
+
+impl Playable {
+  async fn new(emotes: usize, images: isize) -> Result<Self> {
+    use axum::{Router, http::StatusCode, routing::get};
+    let pixel = botge_test_support::png_pixel()?;
+    let images = Arc::new(AtomicIsize::new(images));
+    let remaining = Arc::clone(&images);
+    let server = botge_test_support::TestServer::start(Router::new().route(
+      "/7tv/emote/{id}/2x.png",
+      get(move || {
+        let served = remaining.fetch_sub(1, Ordering::Relaxed) > 0;
+        let pixel = pixel.clone();
+        async move {
+          if served {
+            Ok(pixel)
+          } else {
+            Err(StatusCode::NOT_FOUND)
+          }
+        }
+      }),
+    ))
+    .await?;
+    let directory = tempfile::tempdir()?;
+    let store = Arc::new(Store::open(&directory.path().join("game.redb"))?);
+    for index in 0..emotes {
+      let emote = botge_test_support::example(&format!("Emote{index}"), &format!("{index:024x}"));
+      assert!(store.add_emote(NonZeroU64::MIN, emote)?);
+    }
+    let mut application = Application::new(
+      Providers {
+        seven_added: true,
+        ..Providers::default()
+      },
+      Arc::clone(&store),
+      None,
+    )?;
+    application.set_game_cache(Some(server.origin.clone()));
+    Ok(Self {
+      _directory: directory,
+      store,
+      application: Arc::new(application),
+      images,
+      _server: server,
+    })
+  }
+
+  async fn seat(&self) -> Result<Seat> {
+    let issued = self
+      .application
+      .join_game(&Members, NonZeroU64::MIN, &credential(), "instance")
+      .await?;
+    self
+      .application
+      .take_seat(&issued.ticket)
+      .context("the ticket was not redeemed")
+  }
+}
+
+/// Hands out emotes named `Emote0`, `Emote1`, … in order, each with an image, without a
+/// database or a network.
+struct Scripted;
+
+impl Rounds for Scripted {
+  fn pool(
+    &self,
+    _guild: NonZeroU64,
+  ) -> impl Future<Output = Result<Option<(usize, Vec<Emote>)>>> + Send {
+    let picks = (0..ROUNDS)
+      .map(|index| botge_test_support::example(&format!("Emote{index}"), &format!("{index:024x}")))
+      .collect();
+    std::future::ready(Ok(Some((ROUNDS, picks))))
+  }
+
+  fn next(
+    &self,
+    picks: &mut vec::IntoIter<Emote>,
+  ) -> impl Future<Output = Option<(String, Image)>> + Send {
+    std::future::ready(picks.next().map(|emote| (emote.name, image())))
+  }
+}
+
+/// Waits until the room's snapshot satisfies `wanted`.
+async fn until(room: &Room, wanted: impl Fn(&Snapshot) -> bool) -> Snapshot {
+  let mut changes = room.changed.subscribe();
+  loop {
+    let snapshot = room.snapshot();
+    if wanted(&snapshot) {
+      return snapshot;
+    }
+    changes.changed().await.unwrap();
+  }
+}
+
+/// Waits until the room reaches `phase` and returns what it shows then.
+async fn reach(seat: &Seat, phase: &str) -> Snapshot {
+  let mut changes = seat.changes();
+  loop {
+    let snapshot = seat.snapshot();
+    if snapshot.phase == phase {
+      return snapshot;
+    }
+    changes.changed().await.unwrap();
+  }
 }
 
 #[tokio::test(start_paused = true)]
@@ -356,4 +476,224 @@ async fn shares_recent_wrong_guesses_with_the_room_until_the_next_round() {
   assert_eq!(room.snapshot().guesses.len(), MAX_SHARED_GUESSES);
   room.begin_round(2, 2, "Next".into(), image());
   assert!(room.snapshot().guesses.is_empty());
+}
+
+#[tokio::test]
+async fn picks_one_round_per_distinct_base_emote_with_spares() -> Result<()> {
+  let playable = Playable::new(12, 0).await?;
+  let mut overlay = botge_test_support::example("Overlay", &format!("{:024x}", 100));
+  overlay.overlaying = true;
+  let blank = botge_test_support::example("  ", &format!("{:024x}", 101));
+  let mut elsewhere = botge_test_support::example("Elsewhere", &format!("{:024x}", 102));
+  elsewhere.image = "https://example.com/emote.png".into();
+  for unusable in [overlay, blank, elsewhere] {
+    assert!(playable.store.add_emote(NonZeroU64::MIN, unusable)?);
+  }
+  let (rounds, picks) = playable
+    .application
+    .pool(NonZeroU64::MIN)
+    .await?
+    .context("the pool was too small")?;
+  assert_eq!(rounds, ROUNDS);
+  let mut names: Vec<_> = picks.iter().map(|emote| emote.name.as_str()).collect();
+  names.sort_unstable();
+  names.dedup();
+  assert_eq!(names.len(), 12, "every base emote is a pick or a spare");
+  assert!(names.iter().all(|name| name.starts_with("Emote")));
+
+  let short = Playable::new(MIN_POOL - 1, 0).await?;
+  assert!(short.application.pool(NonZeroU64::MIN).await?.is_none());
+  Ok(())
+}
+
+#[tokio::test]
+async fn plays_a_round_with_a_downloaded_image_and_ends_when_no_more_load() -> Result<()> {
+  let playable = Playable::new(MIN_POOL, 1).await?;
+  let seat = playable.seat().await?;
+  assert!(seat.start());
+  assert!(!seat.start(), "a loading match cannot be started again");
+  let ready = tokio::time::timeout(Duration::from_secs(5), reach(&seat, "ready")).await?;
+  assert_eq!((ready.round, ready.rounds), (1, MIN_POOL));
+  let token = ready.image.context("the ready beat has no image")?;
+  let image = playable
+    .application
+    .game_image(&token)
+    .context("the round image is not served")?;
+  assert_eq!(image.bytes, botge_test_support::png_pixel()?);
+  assert_eq!(image.filename, "emote.png");
+  assert_eq!(
+    playable.images.load(Ordering::Relaxed),
+    0,
+    "one image was downloaded"
+  );
+
+  // From here the ready beat, the round and the reveal run on the paused clock.
+  tokio::time::pause();
+  reach(&seat, "round").await;
+  let answer = (0..MIN_POOL)
+    .map(|index| format!("Emote{index}"))
+    .find(|name| seat.guess(name) == Guess::Correct)
+    .context("no saved emote was the answer")?;
+  assert_eq!(reach(&seat, "reveal").await.answer, Some(answer));
+  // Every other image is unavailable, so the match ends after its first round.
+  let last = reach(&seat, "final").await;
+  assert!(last.notice.is_none());
+  assert_eq!(last.players.first().map(|player| player.score), Some(4));
+  Ok(())
+}
+
+#[tokio::test]
+async fn returns_to_the_lobby_when_images_or_saved_emotes_cannot_be_loaded() -> Result<()> {
+  let playable = Playable::new(MIN_POOL, 0).await?;
+  let seat = playable.seat().await?;
+  assert!(seat.start());
+  let lobby = tokio::time::timeout(Duration::from_secs(5), async {
+    loop {
+      let lobby = reach(&seat, "lobby").await;
+      if lobby.notice.is_some() {
+        break lobby;
+      }
+      seat.changes().changed().await.unwrap();
+    }
+  })
+  .await?;
+  assert_eq!(lobby.notice, Some(IMAGES_UNAVAILABLE));
+
+  playable.store.invalidate_table("guild_emotes")?;
+  assert!(seat.start());
+  let lobby = tokio::time::timeout(Duration::from_secs(5), async {
+    loop {
+      let lobby = reach(&seat, "lobby").await;
+      if lobby.notice == Some(POOL_UNAVAILABLE) {
+        break lobby;
+      }
+      seat.changes().changed().await.unwrap();
+    }
+  })
+  .await?;
+  assert_eq!(lobby.phase, "lobby");
+  Ok(())
+}
+
+#[tokio::test]
+async fn bounds_waiting_tickets_open_rooms_and_players_in_a_room() -> Result<()> {
+  let (_directory, application) = application()?;
+  let seat_for = |instance: &str, user: u64| {
+    let ticket = token();
+    application.games.tickets().insert(
+      ticket.clone(),
+      Ticket {
+        key: (NonZeroU64::MIN, instance.into()),
+        user: NonZeroU64::new(user).unwrap(),
+        expires: Instant::now() + TICKET_LIFETIME,
+      },
+    );
+    application.take_seat(&ticket)
+  };
+  let players: Vec<_> = (1..=MAX_PLAYERS)
+    .map(|user| seat_for("full", u64::try_from(user).unwrap()))
+    .collect();
+  assert!(players.iter().all(Option::is_some));
+  assert!(seat_for("full", 1000).is_none(), "the room is full");
+
+  let rooms: Vec<_> = (1..MAX_ROOMS)
+    .map(|room| seat_for(&format!("room{room}"), 1))
+    .collect();
+  assert!(rooms.iter().all(Option::is_some));
+  assert!(seat_for("one-too-many", 1).is_none());
+  drop(rooms);
+  assert!(seat_for("one-too-many", 1).is_some());
+
+  for _ in 0..MAX_TICKETS {
+    application
+      .join_game(&Members, NonZeroU64::MIN, &credential(), "instance")
+      .await?;
+  }
+  let busy = application
+    .join_game(&Members, NonZeroU64::MIN, &credential(), "instance")
+    .await;
+  assert!(matches!(busy, Err(AccessError(FailureKind::Conflict, _))));
+  Ok(())
+}
+
+#[tokio::test]
+async fn ignores_transitions_outside_their_phase_and_players_without_a_seat() {
+  let room = Room::new((NonZeroU64::MIN, "instance".into()));
+  assert!(room.sit(ALICE));
+  assert!(
+    !room.leave(BOB),
+    "a stranger leaving does not empty the room"
+  );
+  room.start_guessing();
+  room.time_up();
+  assert!(room.ready_until().is_none());
+  assert_eq!(room.snapshot().phase, "lobby");
+
+  let room = room_with_round("Wave");
+  room.start_guessing();
+  assert!(room.ready_until().is_none());
+  // A correct guess from a connection whose player row is gone still ends the round.
+  assert_eq!(
+    room.guess(NonZeroU64::new(3).unwrap(), "wave"),
+    Guess::Correct
+  );
+  let revealed = room.snapshot();
+  assert_eq!(revealed.winner.as_deref(), Some("3"));
+  assert!(revealed.players.iter().all(|player| player.score == 0));
+  room.time_up();
+  assert_eq!(room.snapshot().phase, "reveal");
+}
+
+#[tokio::test(start_paused = true)]
+async fn a_round_without_a_ready_beat_runs_its_timers_and_changes_nothing() {
+  let room = Room::new((NonZeroU64::MIN, "instance".into()));
+  let started = Instant::now();
+  play_round(&room).await;
+  assert_eq!(started.elapsed(), ROUND_TIME);
+  assert_eq!(room.snapshot().phase, "lobby");
+}
+
+#[tokio::test(start_paused = true)]
+async fn plays_every_round_in_order_and_ends_on_the_final_scoreboard() {
+  let room = Arc::new(Room::new((NonZeroU64::MIN, "instance".into())));
+  assert!(room.sit(ALICE) && room.sit(BOB));
+  assert!(room.open_match());
+  let started = Instant::now();
+  let playing = tokio::spawn(run_match(Arc::new(Scripted), Arc::clone(&room)));
+
+  // Alice names the first nine emotes at once; nobody names the last one.
+  for round in 1..ROUNDS {
+    let open = until(&room, |shown| {
+      shown.phase == "round" && shown.round == round
+    })
+    .await;
+    assert_eq!(open.rounds, ROUNDS);
+    assert_eq!(
+      room.guess(ALICE, &format!("Emote{}", round - 1)),
+      Guess::Correct
+    );
+  }
+  let unsolved = until(&room, |shown| {
+    shown.phase == "reveal" && shown.round == ROUNDS
+  })
+  .await;
+  assert_eq!(unsolved.answer.as_deref(), Some("Emote9"));
+  assert!(unsolved.winner.is_none());
+
+  playing.await.unwrap();
+  let last = room.snapshot();
+  assert_eq!(last.phase, "final");
+  assert!(last.notice.is_none());
+  let scores: Vec<_> = last
+    .players
+    .iter()
+    .map(|player| (player.id.as_str(), player.score))
+    .collect();
+  assert_eq!(scores, [("1", 36), ("2", 0)]);
+  // Nine solved rounds hold the ready beat and the reveal; the last also runs its timer out.
+  let solved = (READY_TIME + REVEAL_TIME) * 9;
+  assert_eq!(
+    started.elapsed(),
+    solved + READY_TIME + ROUND_TIME + REVEAL_TIME
+  );
 }

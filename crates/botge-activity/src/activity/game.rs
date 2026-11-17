@@ -125,16 +125,10 @@ pub(super) async fn image<A: GuildAccess>(
     .application
     .game_image(&token)
     .ok_or(ApiError::new(StatusCode::NOT_FOUND, "This round is over."))?;
-  let content_type = match image.filename {
-    "emote.gif" => "image/gif",
-    "emote.jpg" => "image/jpeg",
-    "emote.webp" => "image/webp",
-    _ => "image/png",
-  };
   Ok(
     (
       [
-        (header::CONTENT_TYPE, content_type),
+        (header::CONTENT_TYPE, content_type(image.filename)),
         (header::X_CONTENT_TYPE_OPTIONS, "nosniff"),
       ],
       image.bytes.clone(),
@@ -143,14 +137,50 @@ pub(super) async fn image<A: GuildAccess>(
   )
 }
 
+/// Maps a round image's filename to the media type its bytes were recognized as.
+fn content_type(filename: &str) -> &'static str {
+  match filename {
+    "emote.gif" => "image/gif",
+    "emote.jpg" => "image/jpeg",
+    "emote.webp" => "image/webp",
+    _ => "image/png",
+  }
+}
+
+/// The messages a session exchanges with one player.
+///
+/// The session depends on this instead of the socket type so that its timeout, rate-limit
+/// and failed-delivery paths can be exercised without a network connection.
+trait Connection {
+  /// The next message, or `None` once the peer has closed the connection.
+  fn receive(&mut self) -> impl Future<Output = Option<Result<Message, axum::Error>>> + Send;
+
+  /// Sends one message.
+  ///
+  /// # Errors
+  ///
+  /// Returns an error once the connection is closed.
+  fn deliver(&mut self, message: Message) -> impl Future<Output = Result<(), axum::Error>> + Send;
+}
+
+impl Connection for WebSocket {
+  fn receive(&mut self) -> impl Future<Output = Option<Result<Message, axum::Error>>> + Send {
+    self.recv()
+  }
+
+  fn deliver(&mut self, message: Message) -> impl Future<Output = Result<(), axum::Error>> + Send {
+    self.send(message)
+  }
+}
+
 /// Runs one player's connection until either side closes it.
 ///
 /// Dropping the seat at the end frees the player's place and closes an empty room.
-async fn session(mut socket: WebSocket, application: &Arc<Application>) {
+async fn session(mut socket: impl Connection, application: &Arc<Application>) {
   let Some(seat) = admit(&mut socket, application).await else {
     drop(
       socket
-        .send(text(&serde_json::json!({
+        .deliver(text(&serde_json::json!({
           "type": "error",
           "message": "Could not join the game. Reopen it to try again.",
         })))
@@ -173,11 +203,11 @@ async fn session(mut socket: WebSocket, application: &Arc<Application>) {
         }
       }
       _ = ping.tick() => {
-        if socket.send(Message::Ping(Vec::new().into())).await.is_err() {
+        if socket.deliver(Message::Ping(Vec::new().into())).await.is_err() {
           break;
         }
       }
-      message = socket.recv() => {
+      message = socket.receive() => {
         let Some(Ok(message)) = message else { break };
         let Message::Text(body) = message else {
           if matches!(message, Message::Close(_)) {
@@ -195,8 +225,8 @@ async fn session(mut socket: WebSocket, application: &Arc<Application>) {
 }
 
 /// Waits for the first message and redeems its ticket.
-async fn admit(socket: &mut WebSocket, application: &Arc<Application>) -> Option<Seat> {
-  let message = tokio::time::timeout(JOIN_DEADLINE, socket.recv())
+async fn admit(socket: &mut impl Connection, application: &Arc<Application>) -> Option<Seat> {
+  let message = tokio::time::timeout(JOIN_DEADLINE, socket.receive())
     .await
     .ok()??
     .ok()?;
@@ -211,7 +241,7 @@ async fn admit(socket: &mut WebSocket, application: &Arc<Application>) -> Option
 
 /// Applies one command and reports whether the connection should stay open.
 async fn obey(
-  socket: &mut WebSocket,
+  socket: &mut impl Connection,
   seat: &Seat,
   command: Command,
   last_guess: &mut Option<Instant>,
@@ -233,7 +263,7 @@ async fn obey(
       *last_guess = Some(now);
       seat.guess(&guess) != Guess::Wrong
         || socket
-          .send(text(&serde_json::json!({ "type": "wrong" })))
+          .deliver(text(&serde_json::json!({ "type": "wrong" })))
           .await
           .is_ok()
     }
@@ -245,9 +275,9 @@ async fn obey(
 /// # Errors
 ///
 /// Returns an error once the connection is closed.
-async fn send_state(socket: &mut WebSocket, seat: &Seat) -> Result<(), axum::Error> {
+async fn send_state(socket: &mut impl Connection, seat: &Seat) -> Result<(), axum::Error> {
   socket
-    .send(text(&serde_json::json!({
+    .deliver(text(&serde_json::json!({
       "type": "state",
       "state": seat.snapshot(),
     })))

@@ -32,6 +32,7 @@ reqwest.workspace = true
 rustls.workspace = true
 serenity.workspace = true
 tempfile.workspace = true
+tokio = { workspace = true, features = ['test-util'] }
 tokio-tungstenite.workspace = true
 tower = { version = '0.5', features = ['util'] }
 

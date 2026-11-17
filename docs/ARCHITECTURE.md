@@ -65,7 +65,9 @@ The larger services separate their internal responsibilities into child modules:
   the voice, catalog, personal border, and guessing game routes in
   [`activity/`](../crates/botge-activity/src/activity/).
 - [`game.rs`](../crates/botge-app/src/game.rs) keeps the guessing game's rooms, rounds, and scores
-  in memory. A room belongs to one Activity instance in one guild and closes with its last
+  in memory: it owns tickets, seats, and the emote pool, and
+  [`game/`](../crates/botge-app/src/game/) holds one room's state and scoring, the match task, and
+  token generation. A room belongs to one Activity instance in one guild and closes with its last
   connection. The Activity adapter issues a one-use ticket to a verified guild member, seats the
   WebSocket that presents it, and serves each round's image under a random token so the emote's name
   stays on the server until the reveal.

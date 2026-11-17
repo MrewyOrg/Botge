@@ -10,8 +10,18 @@ use anyhow::{Context as _, Result};
 use base64::{Engine as _, engine::general_purpose::STANDARD};
 use tokio::fs;
 
-use super::super::{Asset, Image, RenderOptions, inspect, render, tests::ANIMATED_OVERLAY};
+use super::super::{Asset, Image, RenderOptions, inspect, render};
 use super::*;
+
+// cspell:disable
+// 4×8 yellow, cyan, and magenta frames with delays of 101, 89, and 59 ms.
+pub(in crate::emotes::rendering) const ANIMATED_OVERLAY: &str = concat!(
+  "UklGRrQAAABXRUJQVlA4WAoAAAACAAAAAwAABwAAQU5JTQYAAAD/////AwBBTk1GKAAAAAAA",
+  "AAAAAAMAAAcAAGUAAAJWUDhMEAAAAC8DwAEAB9D//kf/AxHR/wBBTk1GKAAAAAAAAAAAAAMA",
+  "AAcAAFkAAABWUDhMEAAAAC8DwAEAB9D/6H//AxHR/wBBTk1GKAAAAAAAAAAAAAMAAAcAADsA",
+  "AABWUDhMEAAAAC8DwAEABxD973//AxHR/wA=",
+);
+// cspell:enable
 
 /// Reads the encoded frame delays directly from the WebP container.
 pub(in crate::emotes::rendering) fn delays(image: &Image) -> Vec<u32> {

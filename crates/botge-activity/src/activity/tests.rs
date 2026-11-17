@@ -153,6 +153,7 @@ impl Fixture {
       None,
     )?;
     if let Some(origin) = origin {
+      application.set_game_cache(Some(origin.clone()));
       application.use_provider_fixture(origin);
     }
     let application = Arc::new(application);
