@@ -205,6 +205,9 @@ export function createDemoServer(latency = 250): DemoServer {
         const removing = operation[2].action === 'remove';
         return operation[2].emoteIds.map((emoteId) => ({ emoteId, ...change(emoteId, removing) }));
       }
+      case 'catalog/watch':
+        // The demo catalog changes only through this page, so there is nothing to watch.
+        return { message: 'The demo catalog has no live updates.' };
       case 'game/join':
         // The demo game runs in the page through `connectGame` and needs no ticket.
         return { message: 'The demo game runs in the browser.' };

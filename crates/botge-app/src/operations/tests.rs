@@ -25,9 +25,10 @@ impl GuildAccess for Access {
     &self,
     credential: &Credential,
   ) -> impl Future<Output = Result<NonZeroU64, ApiError>> + Send {
-    std::future::ready(match credential {
-      Credential::Code(code) if code == "admin" => Ok(NonZeroU64::MIN),
-      _ => Err(ApiError::UNAUTHORIZED),
+    std::future::ready(if credential.token() == "admin" {
+      Ok(NonZeroU64::MIN)
+    } else {
+      Err(ApiError::UNAUTHORIZED)
     })
   }
   fn membership(
@@ -36,7 +37,7 @@ impl GuildAccess for Access {
     credential: &Credential,
   ) -> impl Future<Output = Result<super::super::access::Membership, ApiError>> + Send {
     std::future::ready(Ok(super::super::access::Membership {
-      administrator: matches!(credential,Credential::Code(code) if code=="admin"),
+      administrator: credential.token() == "admin",
       roles: vec![],
       available_roles: vec![],
     }))
@@ -46,16 +47,14 @@ impl GuildAccess for Access {
     _guild: NonZeroU64,
     credential: &Credential,
   ) -> impl Future<Output = Result<Vec<super::super::access::VoiceChannel>, ApiError>> + Send {
-    std::future::ready(
-      if matches!(credential,Credential::Code(code) if code=="admin") {
-        Ok(vec![super::super::access::VoiceChannel {
-          id: "42".into(),
-          name: "Fixture".into(),
-        }])
-      } else {
-        Err(ApiError::FORBIDDEN)
-      },
-    )
+    std::future::ready(if credential.token() == "admin" {
+      Ok(vec![super::super::access::VoiceChannel {
+        id: "42".into(),
+        name: "Fixture".into(),
+      }])
+    } else {
+      Err(ApiError::FORBIDDEN)
+    })
   }
 }
 
@@ -144,8 +143,8 @@ async fn denies_writes_and_wakes_voice_only_after_a_valid_commit() -> Result<()>
     None,
   )?;
   let guild = NonZeroU64::MIN;
-  let member = Credential::Code("member".into());
-  let admin = Credential::Code("admin".into());
+  let member = Credential::new("member".into());
+  let admin = Credential::new("admin".into());
   let changed = Notify::new();
   let saved = VoiceSettings {
     channel_id: Some("42".into()),
@@ -235,7 +234,7 @@ async fn distinguishes_provider_identity_and_rechecks_member_capabilities() -> R
     None,
   )?;
   let guild = NonZeroU64::MIN;
-  let member = Credential::Code("member".into());
+  let member = Credential::new("member".into());
   let view = application
     .guild_catalog(&Access, guild, &member)
     .await
@@ -278,7 +277,7 @@ async fn rejects_invalid_mutations_before_any_provider_or_storage_write() -> Res
     None,
   )?;
   let guild = NonZeroU64::MIN;
-  let admin = Credential::Code("admin".into());
+  let admin = Credential::new("admin".into());
   for id in ["", "bad", "0123456789012345678901234/"] {
     assert_matches!(
       application.add_emote(&Access, guild, &admin, id).await,
@@ -336,7 +335,7 @@ async fn disabled_additions_never_offer_management_even_to_administrators() -> R
   let store = Arc::new(Store::open(&directory.path().join("disabled.redb"))?);
   let application = Application::new(Providers::default(), store, None)?;
   let catalog = application
-    .guild_catalog(&Access, NonZeroU64::MIN, &Credential::Code("admin".into()))
+    .guild_catalog(&Access, NonZeroU64::MIN, &Credential::new("admin".into()))
     .await
     .map_err(|error| anyhow::anyhow!("{error:?}"))?;
   assert!(!catalog.can_manage);

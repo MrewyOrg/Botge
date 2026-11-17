@@ -212,6 +212,10 @@ fn reports_malformed_rows_without_replacing_them() -> Result<()> {
   assert_matches!(store.voice_settings(guild), Err(_));
   assert_matches!(store.all_voice_settings(), Err(_));
   assert_matches!(store.guild_emotes(guild), Err(_));
+  assert_matches!(
+    store.guilds_with_seven_tv_set("01234567890123456789012345"),
+    Err(_)
+  );
   assert_matches!(store.added_emotes(guild), Err(_));
   assert_matches!(store.remove_emote(guild, "1"), Err(_));
   assert_matches!(store.added_emotes(guild), Err(_));
@@ -382,5 +386,29 @@ fn rejects_a_backup_with_a_missing_border_table_without_recreating_it() -> Resul
   let before = std::fs::read(&path)?;
   std::assert_matches!(verify_backup(&path), Err(_));
   assert_eq!(std::fs::read(&path)?, before);
+  Ok(())
+}
+
+#[cfg(test)]
+#[test]
+fn lists_the_guilds_that_select_a_seven_tv_set() -> Result<()> {
+  let directory = tempfile::tempdir()?;
+  let store = Store::open(&directory.path().join("botge.redb"))?;
+  let set = "01234567890123456789012345";
+  let selecting = GuildEmotes {
+    seven_tv_set: Some(set.into()),
+    ..GuildEmotes::default()
+  };
+  let other = GuildEmotes {
+    seven_tv_set: Some("abcdefabcdefabcdefabcdef".into()),
+    ..GuildEmotes::default()
+  };
+  let guild = |id: u64| NonZeroU64::new(id).ok_or_else(|| anyhow::anyhow!("zero guild"));
+  store.save_guild_emotes(guild(1)?, &selecting)?;
+  store.save_guild_emotes(guild(2)?, &other)?;
+  store.save_guild_emotes(guild(3)?, &GuildEmotes::default())?;
+  store.save_guild_emotes(guild(4)?, &selecting)?;
+  assert_eq!(store.guilds_with_seven_tv_set(set)?, [guild(1)?, guild(4)?]);
+  assert_eq!(store.guilds_with_seven_tv_set("unused")?, []);
   Ok(())
 }

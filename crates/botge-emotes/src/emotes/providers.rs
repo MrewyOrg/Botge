@@ -58,6 +58,12 @@ enum Feed {
   Twitch,
 }
 
+/// The feed URL of 7TV's global set, which every guild with global 7TV emotes shares.
+pub(super) const GLOBAL_SEVEN_TV_SET: &str = "https://7tv.io/v3/emote-sets/global";
+
+/// Set changes buffered for slow receivers; a receiver that falls further behind is told so.
+const SET_CHANGE_BUFFER: usize = 64;
+
 /// Shares HTTP connections, provider snapshots, and in-flight refreshes across callers.
 ///
 /// `cache` holds the last published snapshot for each URL. `refreshing` coordinates waiters
@@ -70,6 +76,8 @@ pub(super) struct ProviderClient {
   twitch: Option<(String, String)>,
   /// Event stream sessions that ended, cleanly or with an error.
   pub(super) reconnects: AtomicU64,
+  /// Announces 7TV sets that changed while a feed using them was cached.
+  pub(super) set_changes: tokio::sync::broadcast::Sender<super::SetChange>,
   #[cfg(any(test, feature = "test-util"))]
   pub(super) test_origin: Option<Url>,
 }
@@ -91,6 +99,7 @@ impl ProviderClient {
       refreshing: Mutex::new(HashMap::new()),
       twitch,
       reconnects: AtomicU64::new(0),
+      set_changes: tokio::sync::broadcast::channel(SET_CHANGE_BUFFER).0,
       #[cfg(any(test, feature = "test-util"))]
       test_origin: None,
     })
@@ -182,7 +191,7 @@ impl ProviderClient {
       ));
     }
     if globals && policy.seven_global {
-      sources.push((Feed::SevenTv, "https://7tv.io/v3/emote-sets/global".into()));
+      sources.push((Feed::SevenTv, GLOBAL_SEVEN_TV_SET.into()));
     }
     if globals && policy.bttv {
       sources.push((

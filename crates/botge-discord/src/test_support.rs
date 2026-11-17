@@ -20,16 +20,11 @@ pub fn redirect_oauth(
     if origin.scheme() != "http" || origin.host_str() != Some("127.0.0.1") {
       return Err(ApiError::UNAUTHORIZED);
     }
-    let url = request.url_mut();
-    url
-      .set_scheme("http")
-      .map_err(|()| ApiError::UNAUTHORIZED)?;
-    url
-      .set_host(Some("127.0.0.1"))
-      .map_err(|_error| ApiError::UNAUTHORIZED)?;
-    url
-      .set_port(origin.port())
-      .map_err(|()| ApiError::UNAUTHORIZED)?;
+    // Keep the fixed API path and query while sending them to the validated loopback origin.
+    let mut redirected = origin;
+    redirected.set_path(request.url().path());
+    redirected.set_query(request.url().query());
+    *request.url_mut() = redirected;
   }
   Ok(request)
 }
@@ -52,7 +47,50 @@ pub(crate) fn guild() -> Value {
   })
 }
 
-/// Supplies OAuth and guild responses for both access checks and bot startup tests.
+/// A gateway member record for guild 1 that joined with no roles.
+#[must_use]
+pub fn gateway_member(id: &str) -> Value {
+  json!({
+    "user":user(id),"roles":[],"joined_at":"2026-01-01T00:00:00Z",
+    "deaf":false,"mute":false,"flags":0
+  })
+}
+
+/// A full `GUILD_CREATE` payload for guild 1 with voice and text channels and `members`.
+///
+/// The gateway sends the guild object itself as the event payload.
+#[must_use]
+pub fn gateway_guild(owner: &str, members: &[&str]) -> Value {
+  let mut fields = guild().as_object().cloned().unwrap_or_default();
+  fields.insert("owner_id".into(), json!(owner));
+  fields.insert("joined_at".into(), json!("2026-01-01T00:00:00Z"));
+  fields.insert("large".into(), json!(false));
+  fields.insert("member_count".into(), json!(3));
+  fields.insert(
+    "members".into(),
+    members.iter().copied().map(gateway_member).collect(),
+  );
+  for empty in [
+    "voice_states",
+    "presences",
+    "threads",
+    "stage_instances",
+    "guild_scheduled_events",
+  ] {
+    fields.insert(empty.into(), json!([]));
+  }
+  fields.insert(
+    "channels".into(),
+    json!([
+      {"id":"42","guild_id":"1","name":"Second","type":2,"position":2},
+      {"id":"43","guild_id":"1","name":"First","type":2,"position":1},
+      {"id":"44","guild_id":"1","name":"Text","type":0,"position":0}
+    ]),
+  );
+  Value::Object(fields)
+}
+
+/// Supplies OAuth and member responses for both access checks and bot startup tests.
 /// The `owner` code resolves to the guild owner. Other valid codes resolve to a regular member.
 pub fn fixture_routes() -> Router {
   Router::new()
@@ -100,33 +138,11 @@ pub fn fixture_routes() -> Router {
       }),
     )
     .route(
-      "/api/v10/guilds/{guild}",
-      get(
-        |axum::extract::Path(id): axum::extract::Path<String>| async move {
-          if id == "1" {
-            Ok(Json(guild()))
-          } else {
-            Err(StatusCode::NOT_FOUND)
-          }
-        },
-      ),
-    )
-    .route(
       "/api/v10/guilds/1/members/{id}",
       get(
         |axum::extract::Path(id): axum::extract::Path<String>| async move {
           Json(json!({"user":user(&id),"roles":[],"deaf":false,"mute":false,"flags":0}))
         },
       ),
-    )
-    .route(
-      "/api/v10/guilds/1/channels",
-      get(|| async {
-        Json(json!([
-            {"id":"42","name":"Second","type":2,"position":2},
-            {"id":"43","name":"First","type":2,"position":1},
-            {"id":"44","name":"Text","type":0}
-        ]))
-      }),
     )
 }

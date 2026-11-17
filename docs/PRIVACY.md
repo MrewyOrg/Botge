@@ -1,6 +1,6 @@
 # Privacy Policy and deployment notice
 
-Last reviewed: 2026-11-10.
+Last reviewed: 2026-11-17.
 
 This describes Botge's optional features and known gaps; each host needs a deployment-specific
 privacy notice. The **operator** controls configuration, accounts, storage, hosting, logs, and
@@ -23,10 +23,12 @@ retention, or request-handling processes.
 
 ## Data received and stored
 
-The bot receives Discord interaction options, guild and channel IDs, and voice state events. The
-Activity uses Discord OAuth with the `identify` scope. Botge exchanges the short-lived code and
-checks guild membership and roles for catalog, server settings, and added-emote requests. The
-personal emote border setting uses the authenticated Discord user ID.
+The bot receives Discord interaction options, guild and channel IDs, voice state events, and guild
+member join, update and leave events. It keeps guilds' roles and channels and members' roles in
+memory to check Activity permissions and does not store them. The Activity uses Discord OAuth with
+the `identify` scope. Botge exchanges the short-lived code and checks guild membership and roles for
+catalog, server settings, and added-emote requests. The personal emote border setting uses the
+authenticated Discord user ID.
 
 When the operator enables the `+` emote shortcut, the bot receives message content and checks for
 that prefix. It uses matching message contents to resolve emotes and reply, without storing them.
@@ -48,8 +50,15 @@ through the operator's HTTPS tunnel.
 Optional 7TV discovery sends searches, filters, and page requests through Discord’s Activity proxy.
 Enabled providers receive requests for emote catalogs, set updates, and images. When opening the
 server catalog or changing settings, Botge verifies Discord's signed proxy metadata. OAuth access
-tokens stay in Activity memory until renewal or closure and are sent to the bot for identification
-on each API operation. Botge does not persist them; the browser does not put them in local storage.
+tokens stay in Activity memory until renewal or closure and are sent to the bot with each API
+operation. Botge does not persist them, and the browser does not put them in local storage. To avoid
+asking Discord on every operation, the bot keeps a keyed hash of each token with its account ID in
+memory for up to five minutes, and member records it fetched from Discord for up to 30 seconds.
+
+An open server catalog keeps a connection to the bot that reports when the catalog changed. It
+carries no catalog data and closes within an hour. In the guessing game, players in the same
+Activity instance see each other's Discord account IDs, scores, round winners, and wrong guesses
+shortened to 40 characters. Rooms exist only in memory and end when every player leaves.
 
 Botge joins the configured voice channel muted and does not record or transcribe voice. Clearing the
 setting removes the saved channel ID. Botge stores the optional channel status and its toggle.

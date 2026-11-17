@@ -1,14 +1,21 @@
 //! Adapts Discord gateway events and OAuth responses to Botge's commands and Activity API.
 //!
 //! [`OAuthClient`] groups one application's identity and secret. [`DiscordAccess`] shares a
-//! bounded transport and checks the caller's identity and guild membership on each request, so a
-//! revoked token or removed role applies at once. Only the guild object (role definitions and
-//! owner) is cached, for [`GUILD_CACHE_TTL`], so role permission edits apply within that window. OAuth transport/decode failures are
+//! bounded transport and keeps each Activity request cheap. Guilds and members come from the
+//! gateway cache, which the `GUILDS` and privileged `GUILD_MEMBERS` intents keep current, so
+//! their changes apply at once. A member the cache lacks is fetched over REST and reused for
+//! [`MEMBER_CACHE_TTL`]. The account behind a token is identified when Botge exchanges the code
+//! and reused for [`IDENTITY_CACHE_TTL`], so a revoked token stops working within that window.
+//! Denials (a rejected token or a non-member) are reused for
+//! [`DENIAL_CACHE_TTL`], so repeated attempts do not add to Discord's invalid-request limit;
+//! other failures are never cached. When Discord rate-limits an OAuth call, OAuth calls pause
+//! until its retry window ends. OAuth transport/decode failures are
 //! sanitized before they reach logs or HTTP responses. Gateway callbacks route interactions
 //! to commands and notify the voice worker when readiness changes.
 
 use std::{
   collections::HashMap,
+  hash::{BuildHasher as _, Hash, RandomState},
   num::NonZeroU64,
   sync::{Arc, Mutex, OnceLock, PoisonError},
   time::{Duration, Instant},
@@ -18,17 +25,18 @@ use reqwest::StatusCode;
 use serde::Deserialize;
 use serenity::{
   all::{
-    ActivityData, ChannelType, Context, EventHandler, GuildId, Interaction, Message, PartialGuild,
+    ActivityData, ChannelType, Context, EventHandler, Guild, GuildId, Interaction, Member, Message,
     Permissions, Ready, UserId,
   },
   async_trait,
+  cache::Cache,
   http::Http,
 };
 use tokio::sync::{Notify, watch};
 
 use botge_app::access::{
-  AccessError as ApiError, AccessToken, Credential, GuildAccess, GuildRole, Membership,
-  VoiceChannel,
+  AccessError as ApiError, AccessToken, Credential, FailureKind, GuildAccess, GuildRole,
+  Membership, VoiceChannel,
 };
 
 use crate::commands::{self, Commands};
@@ -51,10 +59,69 @@ pub fn presence() -> ActivityData {
   ActivityData::watching(STATUS)
 }
 
-/// How long a fetched guild's roles and owner are reused across Activity requests.
-pub const GUILD_CACHE_TTL: Duration = Duration::from_secs(30);
-/// Guilds kept at once; expired entries are dropped first, then the whole cache if still full.
-const GUILD_CACHE_LIMIT: usize = 256;
+/// How long a member record fetched over REST is reused.
+pub const MEMBER_CACHE_TTL: Duration = Duration::from_secs(30);
+/// How long the account behind an Activity access token is reused without asking Discord.
+///
+/// A token revoked on Discord's side, or stolen and then revoked, stops working within this
+/// window. Membership and roles are checked on every request regardless.
+pub const IDENTITY_CACHE_TTL: Duration = Duration::from_mins(5);
+/// How long a denial is reused, capped by the window of the record it replaces.
+///
+/// Discord temporarily blocks a client IP after too many 401, 403 and 429 answers, so repeated
+/// requests from someone who is denied are answered locally for a short time.
+pub const DENIAL_CACHE_TTL: Duration = Duration::from_secs(10);
+/// The longest OAuth pause taken from a rate-limit answer; longer requests are cut to this.
+const MAX_OAUTH_PAUSE: Duration = Duration::from_secs(60);
+/// Answers requests for a guild the gateway has not delivered yet.
+const STARTING: ApiError = ApiError(
+  FailureKind::Upstream,
+  "Botge is still connecting to Discord. Try again shortly.",
+);
+/// Member records and token identities kept at once.
+const USER_CACHE_LIMIT: usize = 4096;
+
+/// A bounded map whose entries expire a fixed time after they were stored.
+///
+/// When an insert finds the map full, expired entries are dropped first, then every entry.
+struct Expiring<K, V> {
+  entries: Mutex<HashMap<K, (Instant, V)>>,
+  limit: usize,
+}
+
+impl<K: Eq + Hash, V: Clone> Expiring<K, V> {
+  fn new(limit: usize) -> Self {
+    Self {
+      entries: Mutex::new(HashMap::new()),
+      limit,
+    }
+  }
+
+  /// Returns the value stored for `key` less than `ttl(value)` ago.
+  fn get(&self, key: &K, ttl: impl FnOnce(&V) -> Duration) -> Option<V> {
+    let now = Instant::now();
+    self
+      .entries
+      .lock()
+      .unwrap_or_else(PoisonError::into_inner)
+      .get(key)
+      .filter(|(stored, value)| now.duration_since(*stored) < ttl(value))
+      .map(|(_, value)| value.clone())
+  }
+
+  /// Stores `value`, replacing any earlier entry for `key`.
+  fn insert(&self, key: K, value: V, ttl: Duration) {
+    let now = Instant::now();
+    let mut entries = self.entries.lock().unwrap_or_else(PoisonError::into_inner);
+    if entries.len() >= self.limit {
+      entries.retain(|_, (stored, _)| now.duration_since(*stored) < ttl);
+      if entries.len() >= self.limit {
+        entries.clear();
+      }
+    }
+    entries.insert(key, (now, value));
+  }
+}
 
 /// Exchanges Activity authorization codes and uses the bot client to check guild permissions.
 pub struct DiscordAccess {
@@ -64,17 +131,106 @@ pub struct DiscordAccess {
   http: Arc<Http>,
   // Shared connection settings only; credentials belong to individual requests.
   transport: &'static reqwest::Client,
-  guilds: Mutex<HashMap<GuildId, (Instant, Arc<PartialGuild>)>>,
-  guild_ttl: Duration,
+  /// Members the gateway cache lacks; `None` records that the user is not a member.
+  members: Expiring<(GuildId, UserId), Option<Arc<Member>>>,
+  member_ttl: Duration,
+  /// Accounts keyed by a keyed hash of the access token; the token itself is not kept.
+  /// `None` records that Discord rejected the token.
+  identities: Expiring<u64, Option<UserId>>,
+  token_hasher: RandomState,
+  identity_ttl: Duration,
+  /// When the current OAuth rate-limit pause ends.
+  oauth_paused_until: Mutex<Option<Instant>>,
+  /// The gateway cache of guilds, channels, roles and members.
+  gateway: Arc<Cache>,
+  /// Whether the gateway has delivered its guild list since connecting.
+  ready: watch::Receiver<bool>,
+}
+
+/// The gateway cache and readiness a [`DiscordAccess`] reads guilds from.
+#[derive(Debug)]
+pub struct Gateway {
+  /// Kept current by the `GUILDS` and privileged `GUILD_MEMBERS` intents.
+  pub cache: Arc<Cache>,
+  /// True once the gateway is ready; guilds it lists then arrive shortly after.
+  pub ready: watch::Receiver<bool>,
+}
+
+/// Reports the caller's administrator status and, for administrators, the selectable roles.
+fn membership_in(guild: &Guild, member: &Member) -> Membership {
+  let administrator = guild.member_permissions(member).administrator();
+  let mut roles = Vec::new();
+  if administrator {
+    // Exclude @everyone and integration-managed roles from the selectable roles.
+    roles.extend(
+      guild
+        .roles
+        .values()
+        .filter(|role| role.id.get() != guild.id.get() && !role.managed),
+    );
+    roles.sort_unstable_by_key(|role| (std::cmp::Reverse(role.position), role.id));
+  }
+  Membership {
+    administrator,
+    roles: member.roles.iter().map(ToString::to_string).collect(),
+    available_roles: roles
+      .into_iter()
+      .map(|role| GuildRole {
+        id: role.id.to_string(),
+        name: role.name.clone(),
+      })
+      .collect(),
+  }
+}
+
+/// Lists the voice channels Botge can view and join, sorted as Discord shows them.
+///
+/// # Errors
+///
+/// Returns a forbidden error unless `member` administers the guild.
+fn voice_choices(
+  guild: &Guild,
+  member: &Member,
+  bot: &Member,
+) -> Result<Vec<VoiceChannel>, ApiError> {
+  if !guild.member_permissions(member).administrator() {
+    return Err(ApiError::FORBIDDEN);
+  }
+  // Evaluate the bot's channel-specific permissions, including Discord overrides.
+  let mut channels: Vec<_> = guild
+    .channels
+    .values()
+    .filter(|channel| {
+      channel.kind == ChannelType::Voice
+        && guild
+          .user_permissions_in(channel, bot)
+          .contains(Permissions::VIEW_CHANNEL | Permissions::CONNECT)
+    })
+    .collect();
+  channels.sort_unstable_by_key(|channel| (channel.position, channel.id));
+  Ok(
+    channels
+      .into_iter()
+      .map(|channel| VoiceChannel {
+        id: channel.id.to_string(),
+        name: channel.name.clone(),
+      })
+      .collect(),
+  )
 }
 
 impl DiscordAccess {
-  /// Creates the OAuth client and shares the bot HTTP client for guild queries.
+  /// Creates the OAuth client and reads guilds from the gateway cache.
   ///
   /// # Errors
   ///
   /// Returns an error if the shared Discord HTTP client cannot be initialized.
-  pub fn new(oauth: OAuthClient, bot_user: UserId, http: Arc<Http>) -> anyhow::Result<Self> {
+  pub fn new(
+    oauth: OAuthClient,
+    bot_user: UserId,
+    http: Arc<Http>,
+    gateway: Gateway,
+  ) -> anyhow::Result<Self> {
     let transport = discord_client()?;
     Ok(Self {
       application_id: oauth.application_id,
@@ -82,43 +238,81 @@ impl DiscordAccess {
       bot_user,
       http,
       transport,
-      guilds: Mutex::new(HashMap::new()),
-      guild_ttl: GUILD_CACHE_TTL,
+      members: Expiring::new(USER_CACHE_LIMIT),
+      member_ttl: MEMBER_CACHE_TTL,
+      identities: Expiring::new(USER_CACHE_LIMIT),
+      token_hasher: RandomState::new(),
+      identity_ttl: IDENTITY_CACHE_TTL,
+      oauth_paused_until: Mutex::new(None),
+      gateway: gateway.cache,
+      ready: gateway.ready,
     })
   }
 
-  /// Returns the guild's roles and owner, fetching them when the cached copy is missing or old.
-  ///
-  /// Concurrent misses may fetch twice; the last response is kept. Failures are not cached.
+  /// How long a cached lookup is reused: its full window when found, a short one when denied.
+  fn window<T>(window: Duration, value: Option<&T>) -> Duration {
+    if value.is_some() {
+      window
+    } else {
+      window.min(DENIAL_CACHE_TTL)
+    }
+  }
+
+  /// Runs `read` on the gateway's copy of `id`.
   ///
   /// # Errors
   ///
-  /// Returns a membership denial or upstream error when the guild cannot be fetched.
-  async fn guild(&self, id: GuildId) -> Result<Arc<PartialGuild>, ApiError> {
-    let now = Instant::now();
-    let cached = self
-      .guilds
-      .lock()
-      .unwrap_or_else(PoisonError::into_inner)
-      .get(&id)
-      .filter(|(fetched, _)| now.duration_since(*fetched) < self.guild_ttl)
-      .map(|(_, guild)| Arc::clone(guild));
-    if let Some(guild) = cached {
-      return Ok(guild);
+  /// Returns a starting error while the gateway is not ready or has not delivered the guild
+  /// yet, and a membership denial for a guild Botge is not in.
+  fn read_guild<R>(&self, id: GuildId, read: impl FnOnce(&Guild) -> R) -> Result<R, ApiError> {
+    if let Some(guild) = self.gateway.guild(id) {
+      return Ok(read(&guild));
     }
-    let guild = Arc::new(
-      id.to_partial_guild(&self.http)
-        .await
-        .map_err(guild_access_error)?,
-    );
-    let mut guilds = self.guilds.lock().unwrap_or_else(PoisonError::into_inner);
-    guilds.retain(|_, (fetched, _)| now.duration_since(*fetched) < self.guild_ttl);
-    if guilds.len() >= GUILD_CACHE_LIMIT {
-      guilds.clear();
+    let starting = !*self.ready.borrow() || self.gateway.unavailable_guilds().get(&id).is_some();
+    Err(if starting {
+      STARTING
+    } else {
+      ApiError::NOT_MEMBER
+    })
+  }
+
+  /// Returns a member from the gateway cache, or over REST when the cache lacks them.
+  ///
+  /// A REST copy is reused for [`MEMBER_CACHE_TTL`] and a denial for [`DENIAL_CACHE_TTL`].
+  /// Concurrent misses may fetch twice; the last response is kept.
+  ///
+  /// # Errors
+  ///
+  /// Returns a membership denial, cached or fresh, or an uncached upstream error.
+  async fn member(&self, guild: GuildId, user: UserId) -> Result<Arc<Member>, ApiError> {
+    if let Some(member) = self.read_guild(guild, |cached| cached.members.get(&user).cloned())? {
+      return Ok(Arc::new(member));
     }
-    guilds.insert(id, (now, Arc::clone(&guild)));
-    drop(guilds);
-    Ok(guild)
+    let key = (guild, user);
+    let window = self.member_ttl;
+    if let Some(member) = self
+      .members
+      .get(&key, |member| Self::window(window, member.as_ref()))
+    {
+      return member.ok_or(ApiError::NOT_MEMBER);
+    }
+    match guild
+      .member(&self.http, user)
+      .await
+      .map_err(guild_access_error)
+    {
+      Ok(member) => {
+        let member = Arc::new(member);
+        self.members.insert(key, Some(Arc::clone(&member)), window);
+        Ok(member)
+      }
+      Err(error) => {
+        if error.0 == FailureKind::PermissionDenied {
+          self.members.insert(key, None, window);
+        }
+        Err(error)
+      }
+    }
   }
 
   /// Exchanges one code for an access token and its lifetime.
@@ -175,27 +369,55 @@ impl DiscordAccess {
       .json()
       .await
       .map_err(oauth_error)?;
+    // Identify the new token now, so the first request made with it needs no identity call. A
+    // failure here leaves that request to identify it instead.
+    if let Ok(Some(user)) = self.fetch_identity(&token.access_token).await {
+      let key = self.token_hasher.hash_one(&token.access_token);
+      self.identities.insert(key, Some(user), self.identity_ttl);
+    }
     Ok(AccessToken {
       access_token: token.access_token,
       expires_in: token.expires_in,
     })
   }
 
-  /// Resolves identity for every request, including token reuse, so revoked tokens are rejected.
+  /// Resolves the account behind an access token.
+  ///
+  /// The account is reused for [`IDENTITY_CACHE_TTL`] after Discord confirms it, here or in
+  /// [`Self::exchange_code`], and a rejection for [`DENIAL_CACHE_TTL`]. Entries are keyed by a
+  /// keyed hash of the token, so a revoked token is rejected once its window ends. A 64-bit keyed
+  /// hash makes a collision between two live tokens negligible, and callers cannot choose tokens
+  /// that collide.
   ///
   /// # Errors
   ///
-  /// Returns an authorization error for a revoked token or invalid identity; code-exchange,
-  /// transport, HTTP, and response-decoding failures are mapped to client-safe API errors.
+  /// Returns an authorization error for a revoked token or invalid identity; transport, HTTP,
+  /// and response-decoding failures are mapped to client-safe API errors.
   async fn identify(&self, credential: &Credential) -> Result<UserId, ApiError> {
+    let key = self.token_hasher.hash_one(credential.token());
+    let window = self.identity_ttl;
+    if let Some(user) = self
+      .identities
+      .get(&key, |user| Self::window(window, user.as_ref()))
+    {
+      return user.ok_or(ApiError::UNAUTHORIZED);
+    }
+    let user = self.fetch_identity(credential.token()).await?;
+    self.identities.insert(key, user, window);
+    user.ok_or(ApiError::UNAUTHORIZED)
+  }
+
+  /// Asks Discord which account owns `token`; `None` means Discord rejected the token.
+  ///
+  /// # Errors
+  ///
+  /// Returns an authorization error for an invalid account ID, and client-safe errors for
+  /// transport, HTTP, and response-decoding failures.
+  async fn fetch_identity(&self, token: &str) -> Result<Option<UserId>, ApiError> {
     #[derive(Deserialize)]
     struct Identity {
       id: String,
     }
-    let token = match credential {
-      Credential::Code(code) => self.exchange_code(code).await?.access_token,
-      Credential::AccessToken(token) => token.clone(),
-    };
     let request = self
       .transport
       .get("https://discord.com/api/v10/users/@me")
@@ -204,7 +426,7 @@ impl DiscordAccess {
       .map_err(oauth_error)?;
     let response = self.send_oauth(request).await?;
     if response.status() == StatusCode::UNAUTHORIZED {
-      return Err(ApiError::UNAUTHORIZED);
+      return Ok(None);
     }
     let user: Identity = response
       .error_for_status()
@@ -213,20 +435,52 @@ impl DiscordAccess {
       .await
       .map_err(oauth_error)?;
     discord_id(&user.id)
-      .map(|id| UserId::new(id.get()))
+      .map(|id| Some(UserId::new(id.get())))
       .ok_or(ApiError::UNAUTHORIZED)
   }
 
   /// Sends a request built from a fixed Discord endpoint, using loopback fixtures in tests.
   ///
+  /// A 429 answer pauses every OAuth call for its `Retry-After` seconds, at least one second and
+  /// at most [`MAX_OAUTH_PAUSE`]. Calls made during the pause fail without contacting Discord.
+  /// The pause is shared because each token is identified at most once per identity window, so a
+  /// 429 here reflects Botge's address or application rather than one user.
+  ///
   /// # Errors
   ///
-  /// Returns a sanitized upstream error if the HTTP client cannot be initialized or the
-  /// request fails. Response statuses are interpreted by the caller.
+  /// Returns a rate-limit error during a pause or for a 429 answer, and a sanitized upstream
+  /// error if the request fails. Other response statuses are interpreted by the caller.
   async fn send_oauth(&self, request: reqwest::Request) -> Result<reqwest::Response, ApiError> {
+    let paused = *self
+      .oauth_paused_until
+      .lock()
+      .unwrap_or_else(PoisonError::into_inner);
+    if paused.is_some_and(|until| Instant::now() < until) {
+      return Err(ApiError::RATE_LIMITED);
+    }
     #[cfg(any(test, feature = "test-util"))]
     let request = crate::test_support::redirect_oauth(request, self.http.proxy.as_deref())?;
-    self.transport.execute(request).await.map_err(oauth_error)
+    let response = self.transport.execute(request).await.map_err(oauth_error)?;
+    if response.status() == StatusCode::TOO_MANY_REQUESTS {
+      let pause = response
+        .headers()
+        .get(reqwest::header::RETRY_AFTER)
+        .and_then(|value| value.to_str().ok())
+        .and_then(|value| value.trim().parse::<f64>().ok())
+        .and_then(|seconds| Duration::try_from_secs_f64(seconds).ok())
+        .unwrap_or(MAX_OAUTH_PAUSE)
+        .clamp(Duration::from_secs(1), MAX_OAUTH_PAUSE);
+      tracing::warn!(
+        pause_seconds = pause.as_secs_f64(),
+        message = "Discord rate-limited an OAuth request"
+      );
+      *self
+        .oauth_paused_until
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner) = Some(Instant::now() + pause);
+      return Err(ApiError::RATE_LIMITED);
+    }
+    Ok(response)
   }
 }
 
@@ -282,36 +536,9 @@ impl GuildAccess for DiscordAccess {
     credential: &Credential,
   ) -> Result<Membership, ApiError> {
     let user = self.identify(credential).await?;
-    let guild_id = GuildId::new(guild.get());
-    let (guild, member) = tokio::try_join!(self.guild(guild_id), async {
-      guild_id
-        .member(&self.http, user)
-        .await
-        .map_err(guild_access_error)
-    })?;
-    let administrator = guild.member_permissions(&member).administrator();
-    let mut roles = Vec::new();
-    if administrator {
-      // Exclude @everyone and integration-managed roles from the selectable roles.
-      roles.extend(
-        guild
-          .roles
-          .values()
-          .filter(|role| role.id.get() != guild_id.get() && !role.managed),
-      );
-      roles.sort_unstable_by_key(|role| (std::cmp::Reverse(role.position), role.id));
-    }
-    Ok(Membership {
-      administrator,
-      roles: member.roles.iter().map(ToString::to_string).collect(),
-      available_roles: roles
-        .into_iter()
-        .map(|role| GuildRole {
-          id: role.id.to_string(),
-          name: role.name.clone(),
-        })
-        .collect(),
-    })
+    let guild = GuildId::new(guild.get());
+    let member = self.member(guild, user).await?;
+    self.read_guild(guild, |cached| membership_in(cached, &member))
   }
 
   /// Lists voice channels where Botge has both View Channel and Connect permissions.
@@ -319,49 +546,17 @@ impl GuildAccess for DiscordAccess {
   /// # Errors
   ///
   /// Returns an error for invalid credentials, insufficient administrator access, or failed
-  /// Discord guild, member, or channel lookups.
+  /// Discord guild or member lookups.
   async fn voice_channels(
     &self,
     guild: NonZeroU64,
     credential: &Credential,
   ) -> Result<Vec<VoiceChannel>, ApiError> {
     let user = self.identify(credential).await?;
-    let guild_id = GuildId::new(guild.get());
-    let (guild, member) = tokio::try_join!(self.guild(guild_id), async {
-      guild_id
-        .member(&self.http, user)
-        .await
-        .map_err(guild_access_error)
-    })?;
-    if !guild.member_permissions(&member).administrator() {
-      return Err(ApiError::FORBIDDEN);
-    }
-
-    let (channels, bot) = tokio::try_join!(
-      guild_id.channels(&self.http),
-      guild_id.member(&self.http, self.bot_user)
-    )
-    .map_err(guild_access_error)?;
-    // Evaluate the bot's channel-specific permissions, including Discord overrides.
-    let mut channels: Vec<_> = channels
-      .into_values()
-      .filter(|channel| {
-        channel.kind == ChannelType::Voice
-          && guild
-            .user_permissions_in(channel, &bot)
-            .contains(Permissions::VIEW_CHANNEL | Permissions::CONNECT)
-      })
-      .collect();
-    channels.sort_unstable_by_key(|channel| (channel.position, channel.id));
-    Ok(
-      channels
-        .into_iter()
-        .map(|channel| VoiceChannel {
-          id: channel.id.to_string(),
-          name: channel.name,
-        })
-        .collect(),
-    )
+    let guild = GuildId::new(guild.get());
+    let (member, bot) =
+      tokio::try_join!(self.member(guild, user), self.member(guild, self.bot_user))?;
+    self.read_guild(guild, |cached| voice_choices(cached, &member, &bot))?
   }
 }
 
@@ -453,9 +648,14 @@ impl EventHandler for Events {
 
 #[cfg(test)]
 impl DiscordAccess {
-  /// Changes how long guilds are reused, so tests can force a fresh fetch.
-  const fn set_guild_ttl(&mut self, ttl: Duration) {
-    self.guild_ttl = ttl;
+  /// Changes how long REST members are reused, so tests can force a fresh fetch.
+  const fn set_member_ttl(&mut self, ttl: Duration) {
+    self.member_ttl = ttl;
+  }
+
+  /// Changes how long token identities are reused, so tests can force a fresh lookup.
+  const fn set_identity_ttl(&mut self, ttl: Duration) {
+    self.identity_ttl = ttl;
   }
 }
 

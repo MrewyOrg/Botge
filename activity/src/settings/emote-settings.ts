@@ -159,8 +159,7 @@ export function mountEmoteSettings(request: SettingsRequest): void {
       for (const id of saved.allowedRoles) selected.add(id);
       renderRoles();
       loaded = true;
-      feedback.textContent =
-        settings === undefined ? '' : 'Saved. Refresh the catalog to see changes.';
+      feedback.textContent = settings === undefined ? '' : 'Saved.';
     } catch (error) {
       feedback.textContent =
         error instanceof Error ? error.message : 'Could not load emote settings.';

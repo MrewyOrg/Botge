@@ -89,6 +89,7 @@ impl Application {
     let message = format!("Added emote {}.", emote.name);
     let (id, name) = (emote.id.clone(), emote.name.clone());
     if database(move || store.add_emote(guild, emote)).await? {
+      self.catalog_changed(crate::CatalogChange::Guild(guild));
       return Ok(message);
     }
     // Storage refused the addition; read the saved list once to explain why.
@@ -119,6 +120,7 @@ impl Application {
         "This emote is not individually added.",
       ));
     }
+    self.catalog_changed(crate::CatalogChange::Guild(guild));
     Ok(())
   }
 
@@ -428,6 +430,7 @@ impl Application {
       Ok(saved)
     })
     .await?;
+    self.catalog_changed(crate::CatalogChange::Guild(guild));
     Ok((saved, roles))
   }
   /// Reads a personal border under the current credential's authenticated identity.

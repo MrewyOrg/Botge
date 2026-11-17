@@ -187,13 +187,25 @@ impl Store {
   /// Returns an error if the snapshot cannot be read or any saved row is malformed.
   /// No partial list is returned.
   pub fn all_voice_settings(&self) -> Result<Vec<(NonZeroU64, VoiceSettings)>> {
+    self.read_all(VOICE_SETTINGS)
+  }
+
+  /// Decodes every row of a guild-keyed JSON table in one read transaction.
+  ///
+  /// # Errors
+  ///
+  /// Returns an error if the table cannot be read or a row cannot be decoded.
+  fn read_all<T: DeserializeOwned>(
+    &self,
+    definition: TableDefinition<'static, NonZeroU64, &'static str>,
+  ) -> Result<Vec<(NonZeroU64, T)>> {
     let transaction = self.0.begin_read()?;
-    let table = transaction.open_table(VOICE_SETTINGS)?;
+    let table = transaction.open_table(definition)?;
     table
       .iter()?
       .map(|row| {
-        let (guild, settings) = row?;
-        Ok((guild.value(), serde_json::from_str(settings.value())?))
+        let (guild, value) = row?;
+        Ok((guild.value(), serde_json::from_str(value.value())?))
       })
       .collect()
   }
@@ -217,6 +229,24 @@ impl Store {
   pub fn save_guild_emotes(&self, guild: NonZeroU64, settings: &GuildEmotes) -> Result<()> {
     anyhow::ensure!(settings.valid(), "invalid guild emote settings");
     self.save_json(GUILD_EMOTES, guild, settings)
+  }
+
+  /// Lists the guilds whose saved policy selects `set_id` as their personal 7TV set.
+  ///
+  /// Reads every guild policy in one transaction; rows are few and small.
+  ///
+  /// # Errors
+  ///
+  /// Returns an error if the table cannot be read or a saved policy cannot be decoded.
+  pub fn guilds_with_seven_tv_set(&self, set_id: &str) -> Result<Vec<NonZeroU64>> {
+    Ok(
+      self
+        .read_all::<GuildEmotes>(GUILD_EMOTES)?
+        .into_iter()
+        .filter(|(_, policy)| policy.seven_tv_set.as_deref() == Some(set_id))
+        .map(|(guild, _)| guild)
+        .collect(),
+    )
   }
 
   /// Returns the guild's individual additions in storage order, or an empty list.

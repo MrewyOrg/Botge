@@ -19,6 +19,7 @@ import { DiscordSDK } from '@discord/embedded-app-sdk';
 import demoEmoteUrl from '../../assets/botge-emoji.png';
 import iconUrl from '../../assets/botge-icon.png';
 import { type ActivityOperation, createActivityApi, waitForDiscord } from './activity-api.ts';
+import { watchCatalog } from './catalog/catalog-watch.ts';
 import { parseCatalog } from './catalog/catalog.ts';
 import { createEmoteAccess } from './catalog/emote-access.ts';
 import { createEmoteActions } from './catalog/emote-actions.ts';
@@ -151,6 +152,7 @@ const results = createEmoteResults({
     selection.refresh();
   }
 });
+const watchingCatalog = new Set<'catalog'>();
 const actions = createEmoteActions({
   request: requestServer,
   guildId: features.guildId,
@@ -159,7 +161,19 @@ const actions = createEmoteActions({
   results,
   selection,
   preview,
-  report
+  report,
+  onCatalogLoaded() {
+    const guildId = features.catalogGuildId;
+    // The demo catalog changes only through this page, so it needs no watch.
+    if (demo !== undefined || guildId === undefined || watchingCatalog.has('catalog')) return;
+    watchingCatalog.add('catalog');
+    watchCatalog({
+      watch: async () => await requestServer('catalog/watch', guildId),
+      onChange() {
+        void actions.refreshCatalog(true);
+      }
+    });
+  }
 });
 
 function element(selector: string): HTMLElement {
@@ -173,14 +187,16 @@ function mountBrowseModes(): void {
     ['trending', element('#trending-mode')],
     ['top', element('#top-mode')]
   ] as const;
-  const serverOnly = [element('#added-filter'), element('#refresh-catalog')];
+  const addedFilter = element('#added-filter');
+  const retry = element('#refresh-catalog');
   for (const [value, button] of buttons) {
     button.addEventListener('click', () => {
       if (results.mode() !== value) selection.clear();
       const catalogMode = value === 'catalog';
       element('#source-filter').hidden = !catalogMode;
-      for (const control of serverOnly)
-        control.hidden = !catalogMode || features.catalogGuildId === undefined;
+      addedFilter.hidden = !catalogMode || features.catalogGuildId === undefined;
+      // The catalog load decides whether Try again shows; other modes never show it.
+      if (!catalogMode) retry.hidden = true;
       for (const [key, tab] of buttons) tab.setAttribute('aria-pressed', String(key === value));
       results.setMode(value satisfies BrowseMode);
       if (catalogMode) void actions.refreshCatalog();
@@ -327,8 +343,7 @@ async function loadActivity(): Promise<void> {
     return;
   }
   const addedFilter = element('#added-filter');
-  const refresh = element('#refresh-catalog');
-  refresh.hidden = false;
+  const retry = element('#refresh-catalog');
   addedFilter.hidden = false;
   addedFilter.addEventListener('click', () => {
     addedFilter.setAttribute(
@@ -337,7 +352,7 @@ async function loadActivity(): Promise<void> {
     );
     results.update();
   });
-  refresh.addEventListener('click', () => {
+  retry.addEventListener('click', () => {
     void actions.refreshCatalog();
   });
   await actions.refreshCatalog();

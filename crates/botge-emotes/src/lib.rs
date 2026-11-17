@@ -6,7 +6,7 @@ mod emotes;
 #[cfg(test)]
 use botge_test_support as tests;
 #[doc(inline)]
-pub use emotes::{Emotes, catalog, rendering};
+pub use emotes::{Emotes, SetChange, catalog, rendering};
 
 // Keep native test and benchmark allocation behavior aligned with the executable.
 #[cfg(all(test, not(miri)))]

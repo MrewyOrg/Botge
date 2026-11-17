@@ -14,6 +14,7 @@ use std::{
 use anyhow::Context as _;
 use axum::{
   body::{Body, to_bytes},
+  extract::ws::Message as Frame,
   http::{Method, Request},
 };
 use base64::{Engine as _, engine::general_purpose::STANDARD};
@@ -30,11 +31,26 @@ use super::*;
 /// The counter measures guild authorization independently of provider lookups.
 pub(super) struct TestAccess(Arc<AtomicUsize>);
 
-/// In this fixture, codes and tokens encode the same fixed test identity.
+/// In this fixture, a code exchanges for a token with the same text, naming a fixed identity.
 fn fixture_identity(credential: &Credential) -> &str {
-  match credential {
-    Credential::Code(value) | Credential::AccessToken(value) => value,
+  credential.token()
+}
+
+/// Moves a scenario's `code` field into the bearer header the Activity would send after
+/// exchanging it. `/auth` bodies keep their code, because that route exchanges it.
+fn with_bearer(path: &str, body: &Value) -> (Value, Option<String>) {
+  let Some(code) = body.get("code").and_then(Value::as_str) else {
+    return (body.clone(), None);
+  };
+  if path == "/auth" {
+    return (body.clone(), None);
   }
+  let bearer = format!("Bearer {code}");
+  let mut body = body.clone();
+  if let Some(fields) = body.as_object_mut() {
+    fields.remove("code");
+  }
+  (body, Some(bearer))
 }
 
 #[expect(
@@ -43,7 +59,11 @@ fn fixture_identity(credential: &Credential) -> &str {
 )]
 impl GuildAccess for TestAccess {
   async fn exchange_code(&self, code: &str) -> Result<AccessToken, botge_app::access::AccessError> {
-    self.user_id(&Credential::Code(code.into())).await?;
+    // `stall` stands for a Discord exchange that never answers.
+    if code == "stall" {
+      std::future::pending::<()>().await;
+    }
+    self.user_id(&Credential::new(code.into())).await?;
     Ok(AccessToken {
       access_token: code.into(),
       expires_in: 3600,
@@ -176,13 +196,18 @@ impl Fixture {
   }
 
   /// Posts JSON with optional proxy headers and checks the response's cache policy.
+  ///
+  /// Scenarios name the caller with a `code` field; see [`with_bearer`].
   pub(super) async fn post(
     &self,
     path: &str,
     body: &Value,
     signed: bool,
   ) -> anyhow::Result<(StatusCode, Value)> {
-    self.post_with_token(path, body, signed, None).await
+    let (body, bearer) = with_bearer(path, body);
+    self
+      .post_with_token(path, &body, signed, bearer.as_deref())
+      .await
   }
 
   pub(super) async fn post_with_token(
@@ -219,7 +244,10 @@ impl Fixture {
     );
     let status = response.status();
     let body = to_bytes(response.into_body(), 8192).await?;
-    Ok((status, serde_json::from_slice(&body)?))
+    // Axum's extractor rejections are plain text; keep them readable instead of failing here.
+    let body = serde_json::from_slice(&body)
+      .unwrap_or_else(|_error| Value::String(String::from_utf8_lossy(&body).into_owned()));
+    Ok((status, body))
   }
 }
 
@@ -283,6 +311,7 @@ impl Fixture {
     let now = SystemTime::now().duration_since(UNIX_EPOCH)?.as_secs();
     let payload = json!({ "created_at": now, "expires_at": now + 60 }).to_string();
     let signature = self.key.sign(payload.as_bytes());
+    let (body, bearer) = with_bearer(path, body);
     let mut request = Request::builder()
       .method(Method::POST)
       .uri(path)
@@ -290,6 +319,9 @@ impl Fixture {
       .header("x-discord-proxy-payload", STANDARD.encode(payload))
       .header("x-signature-ed25519", STANDARD.encode(signature.to_bytes()))
       .header("x-signature-timestamp", now);
+    if let Some(bearer) = bearer {
+      request = request.header(header::AUTHORIZATION, bearer);
+    }
     if accept_gzip {
       request = request.header(header::ACCEPT_ENCODING, "gzip");
     }
@@ -338,6 +370,10 @@ fn bounds_production_authentication_and_command_future_sizes() -> anyhow::Result
       },
       serenity::all::UserId::new(42),
       Arc::clone(&http),
+      crate::discord::Gateway {
+        cache: Arc::new(serenity::cache::Cache::new()),
+        ready: tokio::sync::watch::channel(true).1,
+      },
     )?,
     proxy: base.proxy,
     application: base.application,
@@ -351,7 +387,7 @@ fn bounds_production_authentication_and_command_future_sizes() -> anyhow::Result
   let authentication = authenticate(
     State(Arc::clone(&state)),
     HeaderMap::new(),
-    Json(ReadSettings {
+    Json(Authorize {
       guild_id: "1".into(),
       code: "fixture".into(),
     }),
@@ -398,6 +434,7 @@ async fn maps_database_failures_and_bounds_concurrent_requests() -> anyhow::Resu
   let payload = json!({"created_at":now,"expires_at":now + 60}).to_string();
   let signature = fixture.key.sign(payload.as_bytes());
   let headers = Request::builder()
+    .header(header::AUTHORIZATION, "Bearer admin")
     .header("x-discord-proxy-payload", STANDARD.encode(payload))
     .header("x-signature-ed25519", STANDARD.encode(signature.to_bytes()))
     .header("x-signature-timestamp", now)
@@ -406,18 +443,18 @@ async fn maps_database_failures_and_bounds_concurrent_requests() -> anyhow::Resu
     .0
     .headers;
   let (_, _, permit) = state
-    .validate(&headers, "1", "admin")
+    .validate(&headers, "1")
     .map_err(|error| anyhow::anyhow!(error.1))?;
   let error = state
-    .validate(&headers, "1", "admin")
+    .validate(&headers, "1")
     .err()
     .context("request limit was not enforced")?;
   assert_eq!(error.0, StatusCode::SERVICE_UNAVAILABLE);
   drop(permit);
-  assert_matches!(state.validate(&headers, "1", "admin").map(|_| ()), Ok(()));
+  assert_matches!(state.validate(&headers, "1").map(|_| ()), Ok(()));
   state.now = || Ok(200);
   let error = state
-    .validate(&headers, "1", "admin")
+    .validate(&headers, "1")
     .err()
     .context("expired signature accepted")?;
   assert_eq!(error.0, StatusCode::UNAUTHORIZED);
@@ -427,7 +464,7 @@ async fn maps_database_failures_and_bounds_concurrent_requests() -> anyhow::Resu
       .map(|value| value.as_secs())
   };
   let error = state
-    .validate(&headers, "1", "admin")
+    .validate(&headers, "1")
     .err()
     .context("clock failure accepted")?;
   assert_eq!(error.0, StatusCode::INTERNAL_SERVER_ERROR);
@@ -478,8 +515,27 @@ async fn exchanges_codes_and_reuses_tokens_without_skipping_write_authorization(
       .post_with_token("/auth", &json!({"guildId":"1"}), true, Some("Bearer admin"))
       .await?
       .0,
-    StatusCode::BAD_REQUEST
+    StatusCode::UNPROCESSABLE_ENTITY,
+    "the auth route needs a code, not a bearer token"
   );
+  for code in ["", "invalid code", &"a".repeat(513)] {
+    let body = json!({"guildId":"1", "code":code});
+    assert_eq!(
+      fixture.post("/auth", &body, true).await?.0,
+      StatusCode::BAD_REQUEST
+    );
+  }
+  // Only the auth route exchanges codes; other routes refuse one instead of exchanging it.
+  for headers in [None, Some("Bearer admin")] {
+    let body = json!({"guildId":"1","code":"admin","voice":voice});
+    assert_ne!(
+      fixture
+        .post_with_token("/settings/voice", &body, true, headers)
+        .await?
+        .0,
+      StatusCode::OK
+    );
+  }
   assert_eq!(
     fixture.store.voice_settings(NonZeroU64::MIN)?,
     serde_json::from_value(voice)?
@@ -496,7 +552,7 @@ async fn rejects_unsigned_unauthorized_and_invalid_changes() -> anyhow::Result<(
     (true, "member", "42", StatusCode::FORBIDDEN),
     (true, "invalid code", "42", StatusCode::BAD_REQUEST),
     (true, "", "42", StatusCode::BAD_REQUEST),
-    (true, &"a".repeat(513), "42", StatusCode::BAD_REQUEST),
+    (true, &"a".repeat(2049), "42", StatusCode::BAD_REQUEST),
     (true, "admin", "0", StatusCode::BAD_REQUEST),
     (true, "admin", "43", StatusCode::BAD_REQUEST),
   ] {
@@ -527,12 +583,7 @@ fn limits_each_credential_without_blocking_other_sessions() -> anyhow::Result<()
   let fixture = Fixture::new()?;
   let mut state = fixture.state()?;
   state.now = || Ok(100);
-  let headers = validation_headers(&fixture.key)?;
-  let admit = |code: &str| {
-    state
-      .validate(&headers, "1", code)
-      .map(|(_, _, admission)| admission)
-  };
+  let admit = |secret: &str| state.admit(secret);
   let mut held = Vec::new();
   for _ in 0..SESSION_SLOTS {
     held.push(admit("first").map_err(|error| anyhow::anyhow!(error.1))?);
@@ -559,22 +610,16 @@ fn limits_each_credential_without_blocking_other_sessions() -> anyhow::Result<()
 }
 
 #[test]
-fn validates_credentials_before_admission_without_falling_back_from_a_bad_bearer()
--> anyhow::Result<()> {
+fn requires_a_well_formed_bearer_token_before_admission() -> anyhow::Result<()> {
   let fixture = Fixture::new()?;
   let mut state = fixture.state()?;
   state.now = || Ok(100);
   let mut headers = validation_headers(&fixture.key)?;
-  for code in ["a".repeat(513), "a$".into(), "é".into()] {
-    let error = state
-      .validate(&headers, "1", &code)
-      .err()
-      .context("invalid code accepted")?;
-    assert_eq!(error.0, StatusCode::BAD_REQUEST);
-  }
-  for code in ["a-b_c".to_owned(), "a".repeat(512)] {
-    assert_matches!(state.validate(&headers, "1", &code), Ok(_));
-  }
+  let error = state
+    .validate(&headers, "1")
+    .err()
+    .context("request without a bearer token accepted")?;
+  assert_eq!(error.0, StatusCode::BAD_REQUEST);
   for token in [
     "Bearer a!".to_owned(),
     format!("Bearer {}", "a".repeat(2049)),
@@ -584,24 +629,24 @@ fn validates_credentials_before_admission_without_falling_back_from_a_bad_bearer
       header::HeaderValue::from_str(&token)?,
     );
     let error = state
-      .validate(&headers, "1", "admin")
+      .validate(&headers, "1")
       .err()
-      .context("invalid bearer fell back to code")?;
+      .context("invalid bearer accepted")?;
     assert_eq!(error.0, StatusCode::BAD_REQUEST);
   }
   headers.insert(
     header::AUTHORIZATION,
     header::HeaderValue::from_bytes(&[0xff])?,
   );
-  assert_matches!(state.validate(&headers, "1", "admin"), Err(_));
+  assert_matches!(state.validate(&headers, "1"), Err(_));
   headers.insert(
     header::AUTHORIZATION,
     header::HeaderValue::from_str(&format!("Bearer {}", "a".repeat(2048)))?,
   );
-  assert_matches!(state.validate(&headers, "1", ""), Ok(_));
+  assert_matches!(state.validate(&headers, "1"), Ok(_));
   state.slots.close();
   let error = state
-    .validate(&headers, "1", "")
+    .validate(&headers, "1")
     .err()
     .context("closed admission accepted request")?;
   assert_eq!(error.0, StatusCode::SERVICE_UNAVAILABLE);
@@ -642,5 +687,43 @@ async fn every_catalog_route_rejects_unsigned_input_before_application_work() ->
     );
   }
   assert_eq!(fixture.membership_calls.load(Ordering::Relaxed), 0);
+  Ok(())
+}
+
+/// An in-memory connection whose deliveries can be made to fail.
+pub(super) struct Wire {
+  pub(super) incoming: tokio::sync::mpsc::UnboundedReceiver<Result<Frame, axum::Error>>,
+  pub(super) outgoing: tokio::sync::mpsc::UnboundedSender<Frame>,
+  pub(super) broken: Arc<std::sync::atomic::AtomicBool>,
+}
+
+impl socket::Connection for Wire {
+  fn receive(&mut self) -> impl Future<Output = Option<Result<Frame, axum::Error>>> + Send {
+    self.incoming.recv()
+  }
+
+  fn deliver(&mut self, message: Frame) -> impl Future<Output = Result<(), axum::Error>> + Send {
+    std::future::ready(if self.broken.load(Ordering::Relaxed) {
+      Err(axum::Error::new(std::io::Error::other("closed")))
+    } else {
+      self.outgoing.send(message).map_err(axum::Error::new)
+    })
+  }
+}
+
+#[test]
+fn maps_rate_limits_to_too_many_requests() {
+  let error = ApiError::from(botge_app::access::AccessError::RATE_LIMITED);
+  assert_eq!(error.0, StatusCode::TOO_MANY_REQUESTS);
+}
+
+#[tokio::test(start_paused = true)]
+async fn answers_bad_gateway_when_the_code_exchange_stalls() -> anyhow::Result<()> {
+  let fixture = Fixture::new()?;
+  let body = json!({"guildId":"1","code":"stall"});
+  assert_eq!(
+    fixture.post("/auth", &body, true).await?.0,
+    StatusCode::BAD_GATEWAY
+  );
   Ok(())
 }

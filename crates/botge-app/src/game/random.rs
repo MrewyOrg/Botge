@@ -15,7 +15,7 @@ pub(super) fn random() -> u64 {
 }
 
 /// Returns a 128-bit random token as 32 hex digits.
-pub(super) fn token() -> String {
+pub(crate) fn token() -> String {
   format!("{:016x}{:016x}", random(), random())
 }
 

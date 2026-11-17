@@ -28,7 +28,7 @@ test.each([
           exchanges === 1 ? payload : { accessToken: 'session', expiresIn: 3600 }
         );
       }
-      catalogRequests += 1;
+      if (path === '/botge-api/catalog') catalogRequests += 1;
       return Response.json({ canManageEmotes: true, emotes: [serverEmote] });
     });
     vi.stubGlobal('fetch', fetch);

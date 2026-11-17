@@ -27,23 +27,30 @@ type ActionOptions = {
   readonly preview: Pick<ReturnType<typeof createEmotePreview>, 'setBusy' | 'refreshActions'>;
   /** Shows a catalog status message. */
   readonly report: (feedback: string) => void;
+  /** Called after every successful server catalog load. */
+  readonly onCatalogLoaded?: () => void;
 };
 
 /**
  * Creates the server catalog loader and the add and remove actions.
  *
  * @remarks
- * One catalog load and one change run at a time; repeated requests while busy are ignored. A
- * successful change reloads the catalog so tiles, the preview, and selection show the new state.
- * Bulk changes keep failed emotes selected for a retry.
+ * One catalog load and one change run at a time. A load requested during another runs once
+ * after it, so a change reported mid-load is not lost; repeated change requests while busy are
+ * ignored. A successful change reloads the catalog so tiles, the preview, and selection show the
+ * new state. Bulk changes keep failed emotes selected for a retry. The Try again button appears
+ * only after a failed load.
  *
  * @param options - API access, target guilds, shared state, and the controls to update.
  * @returns Catalog loading, single changes, and bulk selection changes.
- * @throws `Error` if the refresh button is missing.
+ * @throws `Error` if the Try again button is missing.
  */
 export function createEmoteActions(options: ActionOptions): {
-  /** Reloads the server catalog; does nothing without a catalog guild or while loading. */
-  readonly refreshCatalog: () => Promise<void>;
+  /**
+   * Reloads the server catalog; does nothing without a catalog guild.
+   * @param quiet - Skips the loading message, for reloads the user did not ask for.
+   */
+  readonly refreshCatalog: (quiet?: boolean) => Promise<void>;
   /**
    * Adds or removes one emote and reports progress and the outcome.
    * @param emote - The emote to change; ignored when the change is not allowed.
@@ -62,23 +69,29 @@ export function createEmoteActions(options: ActionOptions): {
   readonly changeSelection: (removing: boolean) => Promise<void>;
 } {
   const { request, guildId, catalogGuildId, access, results, selection, preview, report } = options;
-  const refresh = requireValue(
+  const retry = requireValue(
     document.querySelector<HTMLButtonElement>('#refresh-catalog'),
-    'Missing catalog refresh.'
+    'Missing catalog retry.'
   );
-  // A set, like the access busy flag, so the post-await reset is not a stale reassignment.
+  // Sets, like the access busy flag, so the post-await resets are not stale reassignments.
   const loading = new Set<'catalog'>();
+  const queued = new Set<'catalog'>();
 
   /** Reports catalog problems only while the catalog is on screen. */
   function reportCatalog(feedback: string): void {
     if (results.mode() === 'catalog') report(feedback);
   }
 
-  async function refreshCatalog(): Promise<void> {
-    if (catalogGuildId === undefined || loading.has('catalog')) return;
+  async function refreshCatalog(quiet = false): Promise<void> {
+    if (catalogGuildId === undefined) return;
+    if (loading.has('catalog')) {
+      queued.add('catalog');
+      return;
+    }
     loading.add('catalog');
-    refresh.disabled = true;
-    reportCatalog('Loading server emotes…');
+    retry.disabled = true;
+    if (!quiet) reportCatalog('Loading server emotes…');
+    let loaded = false;
     try {
       const payload = await request('catalog', catalogGuildId);
       if (!isRecord(payload) || !Array.isArray(payload['emotes'])) {
@@ -95,11 +108,15 @@ export function createEmoteActions(options: ActionOptions): {
         canComposeDiscovery: payload['canComposeDiscovery'] === true
       });
       results.setCatalog(entries);
+      loaded = true;
     } catch {
-      reportCatalog('Could not load server emotes. Use Refresh to try again.');
+      reportCatalog('Could not load server emotes.');
     } finally {
       loading.delete('catalog');
-      refresh.disabled = false;
+      retry.disabled = false;
+      retry.hidden = loaded || results.mode() !== 'catalog';
+      if (loaded) options.onCatalogLoaded?.();
+      if (queued.delete('catalog')) void refreshCatalog(true);
     }
   }
 

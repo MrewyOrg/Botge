@@ -12,15 +12,18 @@ use axum::{
   Json,
   extract::{
     Path, State,
-    ws::{Message, WebSocket, WebSocketUpgrade},
+    ws::{Message, WebSocketUpgrade},
   },
   http::{HeaderMap, StatusCode, header},
   response::{IntoResponse as _, Response},
 };
 use serde::Deserialize;
-use tokio::time::{Instant, MissedTickBehavior};
+use tokio::time::Instant;
 
-use super::{Activity, ApiError, GuildAccess};
+use super::{
+  Activity, ApiError, GuildAccess,
+  socket::{self, Connection, JOIN_DEADLINE, Liveness},
+};
 use botge_app::{
   Application,
   game::{GameTicket, Guess, Seat},
@@ -30,24 +33,14 @@ use botge_app::{
 const MAX_MESSAGE_BYTES: usize = 1024;
 /// The longest guess checked against the answer.
 const MAX_GUESS_BYTES: usize = 200;
-/// How long a new connection may take to present its ticket.
-const JOIN_DEADLINE: Duration = Duration::from_secs(10);
 /// Guesses arriving faster than this are ignored.
 const GUESS_INTERVAL: Duration = Duration::from_millis(200);
-/// Keeps idle lobby connections open through intermediate proxies.
-const PING_INTERVAL: Duration = Duration::from_secs(30);
-/// How long a connection that has answered a ping may then stay silent before it is closed.
-///
-/// Two missed answers cover one slow reply without dropping a live player.
-const SILENCE_LIMIT: Duration = Duration::from_secs(60);
 
 /// The guild and Activity instance a player wants to join.
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub(super) struct JoinGame {
   guild_id: String,
-  #[serde(default)]
-  code: String,
   instance_id: String,
 }
 
@@ -71,7 +64,7 @@ pub(super) async fn join<A: GuildAccess>(
   headers: HeaderMap,
   Json(request): Json<JoinGame>,
 ) -> Result<Json<GameTicket>, ApiError> {
-  let (guild, credential, _permit) = state.validate(&headers, &request.guild_id, &request.code)?;
+  let (guild, credential, _permit) = state.validate(&headers, &request.guild_id)?;
   Ok(Json(
     state
       .application
@@ -83,7 +76,7 @@ pub(super) async fn join<A: GuildAccess>(
 /// Upgrades a signed proxy request to a room connection.
 ///
 /// The connection holds one of the shared socket slots until it closes. Its first message
-/// must present a ticket from [`join`] within ten seconds.
+/// must present a ticket from [`join`] within [`JOIN_DEADLINE`].
 ///
 /// # Errors
 ///
@@ -93,24 +86,12 @@ pub(super) async fn connect<A: GuildAccess>(
   headers: HeaderMap,
   upgrade: WebSocketUpgrade,
 ) -> Result<Response, ApiError> {
-  state.verify_proxy(&headers)?;
-  let permit = Arc::clone(&state.sockets)
-    .try_acquire_owned()
-    .map_err(|_error| {
-      ApiError::new(
-        StatusCode::SERVICE_UNAVAILABLE,
-        "Botge is busy. Try again shortly.",
-      )
-    })?;
-  let application = Arc::clone(&state.application);
-  Ok(
-    upgrade
-      .max_message_size(MAX_MESSAGE_BYTES)
-      .max_frame_size(MAX_MESSAGE_BYTES)
-      .on_upgrade(move |socket| async move {
-        session(socket, &application).await;
-        drop(permit);
-      }),
+  socket::upgrade(
+    &state,
+    &headers,
+    upgrade,
+    MAX_MESSAGE_BYTES,
+    |socket, application| async move { session(socket, &application).await },
   )
 }
 
@@ -151,39 +132,10 @@ fn content_type(filename: &str) -> &'static str {
   }
 }
 
-/// The messages a session exchanges with one player.
-///
-/// The session depends on this instead of the socket type so that its timeout, rate-limit
-/// and failed-delivery paths can be exercised without a network connection.
-trait Connection {
-  /// The next message, or `None` once the peer has closed the connection.
-  fn receive(&mut self) -> impl Future<Output = Option<Result<Message, axum::Error>>> + Send;
-
-  /// Sends one message.
-  ///
-  /// # Errors
-  ///
-  /// Returns an error once the connection is closed.
-  fn deliver(&mut self, message: Message) -> impl Future<Output = Result<(), axum::Error>> + Send;
-}
-
-impl Connection for WebSocket {
-  fn receive(&mut self) -> impl Future<Output = Option<Result<Message, axum::Error>>> + Send {
-    self.recv()
-  }
-
-  fn deliver(&mut self, message: Message) -> impl Future<Output = Result<(), axum::Error>> + Send {
-    self.send(message)
-  }
-}
-
 /// Runs one player's connection until either side closes it or the player goes silent.
 ///
-/// A phone that suspends the app or loses its network often leaves the connection open
-/// without closing it, so a peer that has answered a ping and then sends nothing for
-/// [`SILENCE_LIMIT`] is treated as gone. A peer whose answers never arrive, as when a
-/// proxy on the way answers pings itself, is kept until the connection closes. Dropping
-/// the seat at the end frees the player's place and closes an empty room.
+/// Silence follows [`Liveness`]. Dropping the seat at the end frees the player's place and
+/// closes an empty room.
 async fn session(mut socket: impl Connection, application: &Arc<Application>) {
   let Some(seat) = admit(&mut socket, application).await else {
     drop(
@@ -197,11 +149,9 @@ async fn session(mut socket: impl Connection, application: &Arc<Application>) {
     return;
   };
   let mut changes = seat.changes();
-  let mut ping = tokio::time::interval(PING_INTERVAL);
-  ping.set_missed_tick_behavior(MissedTickBehavior::Delay);
+  let mut ping = socket::pings();
   let mut last_guess: Option<Instant> = None;
-  let mut heard = Instant::now();
-  let mut answers_pings = false;
+  let mut liveness = Liveness::new();
   if send_state(&mut socket, &seat).await.is_err() {
     return;
   }
@@ -213,7 +163,7 @@ async fn session(mut socket: impl Connection, application: &Arc<Application>) {
         }
       }
       _ = ping.tick() => {
-        if answers_pings && heard.elapsed() >= SILENCE_LIMIT {
+        if liveness.silent() {
           break;
         }
         if socket.deliver(Message::Ping(Vec::new().into())).await.is_err() {
@@ -222,12 +172,10 @@ async fn session(mut socket: impl Connection, application: &Arc<Application>) {
       }
       message = socket.receive() => {
         let Some(Ok(message)) = message else { break };
-        heard = Instant::now();
+        liveness.heard(matches!(message, Message::Pong(_)));
         let Message::Text(body) = message else {
-          match message {
-            Message::Close(_) => break,
-            Message::Pong(_) => answers_pings = true,
-            _ => {}
+          if matches!(message, Message::Close(_)) {
+            break;
           }
           continue;
         };

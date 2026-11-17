@@ -9,6 +9,7 @@ import { isRecord } from './validation.ts';
 /** Route-specific JSON bodies. Read routes take no operation fields. */
 type ActivityFields = {
   'catalog': undefined;
+  'catalog/watch': undefined;
   'emotes': { readonly emoteId: string };
   'emotes/remove': { readonly emoteId: string };
   'emotes/batch': { readonly action: 'add' | 'remove'; readonly emoteIds: readonly string[] };

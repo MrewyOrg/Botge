@@ -145,9 +145,18 @@ sequenceDiagram
 
 The diagram shows a voice settings save. Discord maps `/` to the Worker, which verifies the signed
 HTML request and sends it with a strict same-origin Content-Security-Policy, and `/botge-api` to the
-bot's API tunnel. The API verifies signatures independently. Each request checks the token holder
-and their guild membership with Discord; only the guild's role definitions and owner are reused for
-30 seconds. Responses over 1 KiB are gzip-compressed when the client accepts it.
+bot's API tunnel. The API verifies signatures independently and accepts a one-use code only on
+`/auth`; every other route needs the bearer token. Botge asks Discord who owns a token when it
+exchanges the code and again every five minutes, so a revoked token stops working within that
+window; membership and roles are checked on every request. Guilds and members come from the gateway
+cache, which the `GUILDS` and privileged `GUILD_MEMBERS` intents keep current, so role, owner,
+channel and membership changes apply at once. Until the gateway delivers a guild, requests for it
+answer that Botge is still connecting. Discord sends every member at startup only for guilds of up
+to 250 members; a member the cache lacks is fetched over REST and reused for 30 seconds. Denials are
+reused for 10 seconds, and a Discord rate limit on OAuth pauses those calls until its retry time.
+Responses over 1 KiB are gzip-compressed when the client accepts it. An open catalog keeps a
+ticketed WebSocket at `/catalog/ws` that reports when the server's catalog changed, so the page
+reloads it without polling.
 
 Guild owners and administrators can manage voice and emote settings. Members can read the server
 catalog. Adding or removing emotes follows the server's emote management policy, and personal border

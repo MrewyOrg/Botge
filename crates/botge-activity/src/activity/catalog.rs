@@ -17,8 +17,6 @@ use botge_domain::emotes::{GuildEmotes, browser_catalog};
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub(super) struct ChangeEmote {
   guild_id: String,
-  #[serde(default)]
-  code: String,
   emote_id: String,
 }
 
@@ -27,8 +25,6 @@ pub(super) struct ChangeEmote {
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub(super) struct SaveEmoteSettings {
   guild_id: String,
-  #[serde(default)]
-  code: String,
   emotes: GuildEmotes,
 }
 
@@ -47,7 +43,7 @@ pub(super) async fn read_catalog<A: GuildAccess>(
   headers: HeaderMap,
   Json(request): Json<ReadSettings>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
-  let (guild, credential, _permit) = state.validate(&headers, &request.guild_id, &request.code)?;
+  let (guild, credential, _permit) = state.validate(&headers, &request.guild_id)?;
   let result = state
     .application
     .guild_catalog(&state.access, guild, &credential)
@@ -69,7 +65,7 @@ pub(super) async fn add_emote<A: GuildAccess>(
   headers: HeaderMap,
   Json(request): Json<ChangeEmote>,
 ) -> Result<(StatusCode, Json<serde_json::Value>), ApiError> {
-  let (guild, credential, _permit) = state.validate(&headers, &request.guild_id, &request.code)?;
+  let (guild, credential, _permit) = state.validate(&headers, &request.guild_id)?;
   let message = state
     .application
     .add_emote(&state.access, guild, &credential, &request.emote_id)
@@ -94,7 +90,7 @@ pub(super) async fn remove_emote<A: GuildAccess>(
   headers: HeaderMap,
   Json(request): Json<ChangeEmote>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
-  let (guild, credential, _permit) = state.validate(&headers, &request.guild_id, &request.code)?;
+  let (guild, credential, _permit) = state.validate(&headers, &request.guild_id)?;
   state
     .application
     .remove_emote(&state.access, guild, &credential, request.emote_id)
@@ -111,8 +107,6 @@ use botge_app::{EmoteAction, EmoteChange};
 /// One operation applied to a batch of distinct 7TV IDs.
 pub(super) struct ChangeEmotes {
   guild_id: String,
-  #[serde(default)]
-  code: String,
   action: EmoteAction,
   emote_ids: Vec<String>,
 }
@@ -133,7 +127,7 @@ pub(super) async fn change_emotes<A: GuildAccess>(
   headers: HeaderMap,
   Json(request): Json<ChangeEmotes>,
 ) -> Result<Json<Vec<EmoteChange>>, ApiError> {
-  let (guild, credential, _permit) = state.validate(&headers, &request.guild_id, &request.code)?;
+  let (guild, credential, _permit) = state.validate(&headers, &request.guild_id)?;
   Ok(Json(
     state
       .application
@@ -166,7 +160,7 @@ pub(super) async fn read_emote_settings<A: GuildAccess>(
   headers: HeaderMap,
   Json(request): Json<ReadSettings>,
 ) -> Result<Json<EmoteSettingsResponse>, ApiError> {
-  let (guild, credential, _permit) = state.validate(&headers, &request.guild_id, &request.code)?;
+  let (guild, credential, _permit) = state.validate(&headers, &request.guild_id)?;
   let (emotes, roles) = state
     .application
     .read_emote_settings(&state.access, guild, &credential)
@@ -188,7 +182,7 @@ pub(super) async fn save_emote_settings<A: GuildAccess>(
   headers: HeaderMap,
   Json(request): Json<SaveEmoteSettings>,
 ) -> Result<Json<EmoteSettingsResponse>, ApiError> {
-  let (guild, credential, _permit) = state.validate(&headers, &request.guild_id, &request.code)?;
+  let (guild, credential, _permit) = state.validate(&headers, &request.guild_id)?;
   let (emotes, roles) = state
     .application
     .save_emote_settings(&state.access, guild, &credential, request.emotes)
