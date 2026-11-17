@@ -256,6 +256,13 @@ jobs:
 
       - name: Build the Activity
         if: needs.filter-paths.outputs.activity == 'true'
+        # Vite reads these at build time; without them the page shows only the preview catalog.
+        env:
+          VITE_ENABLE_ACTIVITY_CATALOG: 'true'
+          VITE_ENABLE_ACTIVITY_ADDS: 'true'
+          VITE_ENABLE_ACTIVITY_SETTINGS: 'true'
+          VITE_ENABLE_ACTIVITY_GAME: 'true'
+          VITE_ENABLE_7TV_DISCOVERY: 'true'
         run: |
           npm ci --prefer-offline --no-audit
           npm run build -w activity

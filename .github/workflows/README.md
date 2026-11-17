@@ -90,14 +90,16 @@ Cargo removes only the placeholder package's artifacts before compiling the real
 smoke check requires a real version response and verifies animated WebP as the runtime user.
 
 `Deploy` then builds and deploys the Activity Worker with the same approval when Activity or Worker
-inputs changed, after the bot so the page never calls an older API. A separate `Deploy demo` job
-runs only after `Deploy` succeeds, so the same approval releases it, and builds and deploys the
-static demo when its inputs changed. It runs for every ready PR in the `activity-demo` environment,
-without reviewers, so that environment always records a deployment for the merge rule; unchanged
-runs succeed without uploading. Both use Wrangler from `activity/deploy/`, which has its own
-lockfile so CI's `npm ci` never downloads Wrangler's native runtime. A failed Activity deploy fails
-`production` and blocks the merge even though the bot is already updated; redeploy or roll back the
-Worker with Wrangler before retrying.
+inputs changed, after the bot so the page never calls an older API. The build turns on every
+Activity feature flag (catalog, adds, settings, Guess and 7TV discovery) in its `Build the Activity`
+step, because Vite reads them at build time and the page otherwise shows only the preview catalog. A
+separate `Deploy demo` job runs only after `Deploy` succeeds, so the same approval releases it, and
+builds and deploys the static demo when its inputs changed. It runs for every ready PR in the
+`activity-demo` environment, without reviewers, so that environment always records a deployment for
+the merge rule; unchanged runs succeed without uploading. Both use Wrangler from `activity/deploy/`,
+which has its own lockfile so CI's `npm ci` never downloads Wrangler's native runtime. A failed
+Activity deploy fails `production` and blocks the merge even though the bot is already updated;
+redeploy or roll back the Worker with Wrangler before retrying.
 
 The host handler verifies the running digest and gateway readiness, then saves the pin for
 subsequent starts. Update host-side Compose and control files before the first digest deployment.
@@ -166,7 +168,8 @@ The root `.shellcheckrc` enables every optional ShellCheck rule for scripts, inc
 files. Script shebangs select Bash or POSIX shell. actionlint deliberately invokes ShellCheck with
 `--norc` and its own workflow-specific exclusions, so embedded workflow commands use actionlint's
 checks. The lint script copies `.github/actionlint.yaml` into its temporary workspace; this config
-allows no custom runner labels or repository variables. Add declared variables there when needed.
+allows no custom runner labels and declares the `DISCORD_ACTIVITY_PUBLIC_KEY` variable. Add other
+variables there when needed.
 
 When action versions or workflow membership change, regenerate the lockfile with
 [gh-actions-lock](https://github.com/github/gh-actions-lock); do not edit it manually:
