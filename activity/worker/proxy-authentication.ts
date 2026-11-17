@@ -1,5 +1,6 @@
 /* Verifies original signed bytes before trusting Discord proxy timestamps. */
 
+import { Buffer } from 'node:buffer';
 import { createPublicKey, verify } from 'node:crypto';
 
 import { isRecord } from '../src/validation.ts';

@@ -1,0 +1,13 @@
+{
+  // Browser code: DOM and Vite types only, so a Node API used by mistake fails the type check.
+  "extends": "../tsconfig.base.json",
+  "include": ["src/**/*.ts"],
+  "compilerOptions": {
+    "composite": false,
+    "declaration": true,
+    "noEmit": true,
+    "lib": ["ESNext", "DOM"],
+    "types": ["vite/client"],
+    "tsBuildInfoFile": "../node_modules/.cache/botge/activity-app.tsbuildinfo"
+  }
+}
