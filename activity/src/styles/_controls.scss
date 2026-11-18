@@ -40,10 +40,19 @@ button {
 
 input,
 select {
-  transition: border-color 120ms ease-out;
+  transition:
+    border-color 120ms ease-out,
+    box-shadow 120ms ease-out,
+    background-color 120ms ease-out;
 
   &:enabled:hover {
     border-color: var(--muted);
+    background: var(--surface);
+  }
+
+  &:focus-visible {
+    border-color: var(--accent-text);
+    box-shadow: 0 0 0 1px var(--accent-text);
   }
 
   &::placeholder {
@@ -94,10 +103,17 @@ button {
   cursor: pointer;
   transition:
     background-color 120ms ease-out,
-    color 120ms ease-out;
+    color 120ms ease-out,
+    box-shadow 120ms ease-out,
+    transform 80ms ease-out;
 
   &:enabled:hover {
     background: var(--secondary-hover);
+  }
+
+  &:enabled:active {
+    background: var(--secondary-active);
+    transform: translateY(1px);
   }
 
   &:disabled {
@@ -111,6 +127,10 @@ button {
     &:enabled:hover {
       background: var(--accent-hover);
     }
+
+    &:enabled:active {
+      background: var(--accent-active);
+    }
   }
 
   &.danger {
@@ -118,6 +138,22 @@ button {
 
     &:enabled:hover {
       background: var(--danger-hover);
+    }
+
+    &:enabled:active {
+      background: var(--danger-active);
+    }
+  }
+
+  &.success {
+    background: var(--success);
+
+    &:enabled:hover {
+      background: var(--success-hover);
+    }
+
+    &:enabled:active {
+      background: var(--success-active);
     }
   }
 
@@ -129,6 +165,11 @@ button {
       color: var(--heading);
       background: var(--hover);
     }
+
+    &:enabled:active {
+      color: var(--heading);
+      background: var(--active);
+    }
   }
 }
 
@@ -136,9 +177,14 @@ button {
 .toggle[aria-pressed='true'] {
   color: #fff;
   background: var(--accent);
+  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 12%);
 
   &:enabled:hover {
     background: var(--accent-hover);
+  }
+
+  &:enabled:active {
+    background: var(--accent-active);
   }
 }
 

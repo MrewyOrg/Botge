@@ -17,7 +17,7 @@ export type BrowseMode = 'catalog' | DiscoveryMode;
 
 type ResultsOptions = {
   /** Builds the list item for one emote. */
-  readonly tile: (emote: BrowserEmote) => HTMLLIElement;
+  readonly tile: (emote: BrowserEmote, showComposerShortcut?: boolean) => HTMLLIElement;
   /** Loads one page of discovery results. */
   readonly discover: (
     mode: DiscoveryMode,
@@ -102,6 +102,7 @@ export function createEmoteResults(options: ResultsOptions): {
   let debounce: ReturnType<typeof setTimeout> | undefined;
   /** Undecorated 7TV entries in display order, kept to redraw tiles after catalog changes. */
   const loaded: DiscoveryEmote[] = [];
+  const searchByMode: Record<BrowseMode, string> = { catalog: '', trending: '', top: '' };
 
   /** Applies the guild's saved state and compose permission to a 7TV discovery entry. */
   function discoveryTile(emote: DiscoveryEmote): HTMLLIElement {
@@ -110,17 +111,20 @@ export function createEmoteResults(options: ResultsOptions): {
     const token =
       known?.composeToken
       ?? (options.composeAnyDiscovery || access.canComposeDiscovery() ? `7tv:${id}` : undefined);
-    return tile({
-      ...emote,
-      ...(known?.added === true ? { added: true } : {}),
-      ...(known?.composeToken !== undefined ? { overlaying: known.overlaying === true } : {}),
-      ...(token === undefined ? {} : { composeToken: token })
-    });
+    return tile(
+      {
+        ...emote,
+        ...(known?.added === true ? { added: true } : {}),
+        ...(known?.composeToken !== undefined ? { overlaying: known.overlaying === true } : {}),
+        ...(token === undefined ? {} : { composeToken: token })
+      },
+      false
+    );
   }
 
   function renderMore(count: number = PAGE_SIZE): void {
     const next: readonly BrowserEmote[] = matches.slice(visible, visible + count);
-    results.append(...next.map(tile));
+    results.append(...next.map((emote) => tile(emote)));
     visible += next.length;
     more.hidden = visible >= matches.length;
     report(
@@ -205,7 +209,9 @@ export function createEmoteResults(options: ResultsOptions): {
   return {
     mode: () => mode,
     setMode(value): void {
+      searchByMode[mode] = search.value;
       mode = value;
+      search.value = searchByMode[mode];
       update();
     },
     update,

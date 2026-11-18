@@ -16,8 +16,8 @@ import {
 
 test('refreshes the server catalog, browses discovery, and adds an emote through Discord', async () => {
   vi.stubGlobal('location', new URL('https://12345.discordsays.com/'));
-  vi.stubEnv('VITE_ENABLE_ACTIVITY_ADDS', 'true');
   vi.stubEnv('VITE_ENABLE_ACTIVITY_CATALOG', 'true');
+  vi.stubEnv('VITE_ENABLE_ACTIVITY_ADDS', 'true');
   vi.stubEnv('VITE_ENABLE_7TV_DISCOVERY', 'true');
   sdk.ready.mockResolvedValue();
   sdk.commands.authorize.mockResolvedValue({ code: 'oauth-code' });
@@ -137,6 +137,7 @@ test('refreshes the server catalog, browses discovery, and adds an emote through
 test('removes an individually added emote and refreshes the server catalog', async () => {
   vi.stubGlobal('location', new URL('https://12345.discordsays.com/'));
   vi.stubEnv('VITE_ENABLE_ACTIVITY_CATALOG', 'true');
+  vi.stubEnv('VITE_ENABLE_ACTIVITY_ADDS', 'true');
   sdk.ready.mockResolvedValue();
   sdk.commands.authorize.mockResolvedValue({ code: 'oauth-code' });
   let removed = false;
@@ -149,18 +150,32 @@ test('removes an individually added emote and refreshes the server catalog', asy
       removed = true;
       return Response.json({ message: 'Removed emote.', removed: true });
     }
+    if (path.endsWith('/emotes')) {
+      removed = false;
+      return Response.json({ message: 'Added emote.', added: true });
+    }
     return Response.json({ canManageEmotes: true, emotes: removed ? [] : [serverEmote] });
   });
   vi.stubGlobal('fetch', fetch);
   await import('../../src/index.ts');
   await waitForText('#message', 'Showing 1 of 1');
   click('#results button');
+  expect(element('#compose-add').hidden).toBe(false);
   expect(element('#remove').hidden).toBe(false);
   expect(element('#add').hidden).toBe(true);
   click('#remove');
   await waitForText('#copy-message', 'Removed emote.');
   await waitForText('#message', 'No emotes match');
+  expect(element('#compose-add').hidden).toBe(true);
   expect(element('#remove').hidden).toBe(true);
+  expect(element('#add').hidden).toBe(false);
+  expect(element('#preview-source').textContent).toBe('7TV');
+  click('#add');
+  await waitForText('#copy-message', 'Added emote.');
+  expect(element('#compose-add').hidden).toBe(false);
+  expect(element('#remove').hidden).toBe(false);
+  expect(element('#add').hidden).toBe(true);
+  expect(element('#preview-source').textContent).toBe('7TV · Added');
 });
 
 test('keeps loaded discovery pages when an added emote refreshes the server catalog', async () => {

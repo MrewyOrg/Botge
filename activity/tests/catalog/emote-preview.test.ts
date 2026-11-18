@@ -103,3 +103,31 @@ test('closes on a backdrop click but not on clicks or drags that start inside', 
     expect(dialog.open).toBe(false);
   }
 });
+
+test('shows the largest image only after it loads and ignores loads for earlier emotes', () => {
+  const listen = vi.spyOn(EventTarget.prototype, 'addEventListener');
+  const images = (): readonly HTMLImageElement[] => [
+    ...new Set(listen.mock.contexts.filter((target) => target instanceof HTMLImageElement))
+  ];
+  const preview = createEmotePreview({
+    composer: { add: vi.fn(), addMany: vi.fn(), full: () => false },
+    canChange: () => false,
+    isBusy: () => false,
+    onCompose: vi.fn(),
+    openExternal: undefined,
+    linkSevenTV: true
+  });
+  const art = element('#preview-art');
+  preview.show({ ...publicEmote, preview: 'emotes/wave-4x.webp' } as const);
+  const [large] = images();
+  expect(large?.getAttribute('src')).toBe('emotes/wave-4x.webp');
+  expect(art.childElementCount).toBe(0);
+  preview.show({ ...publicEmote, name: 'Other', image: 'emotes/other.webp' } as const);
+  const other = images().at(-1);
+  large?.dispatchEvent(new Event('load'));
+  expect(art.childElementCount).toBe(0);
+  other?.dispatchEvent(new Event('load'));
+  expect(art.querySelector('img')?.getAttribute('src')).toBe('emotes/other.webp');
+  expect(art.childElementCount).toBe(1);
+  vi.restoreAllMocks();
+});

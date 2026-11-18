@@ -42,8 +42,6 @@ export function createEmotePreview(options: PreviewOptions): EmotePreview {
     'Missing preview.'
   );
   const previewArt = requireValue(document.querySelector('#preview-art'), 'Missing preview art.');
-  const previewImage = document.createElement('img');
-  previewImage.alt = '';
   const previewSource = requireValue(
     document.querySelector('#preview-source'),
     'Missing preview source.'
@@ -84,21 +82,51 @@ export function createEmotePreview(options: PreviewOptions): EmotePreview {
     'Missing 7TV link.'
   );
   let selected: BrowserEmote | undefined;
+  let pendingArt: HTMLImageElement | undefined;
 
-  function showPreview(emote: BrowserEmote): void {
+  /**
+   * Clears the art at once and shows the largest image after it loads, so neither the previous
+   * emote nor a smaller stand-in appears while it downloads. A load that finishes after another
+   * emote was opened is discarded.
+   */
+  function showArt(emote: BrowserEmote): void {
+    const image = document.createElement('img');
+    image.alt = '';
+    pendingArt = image;
+    previewArt.replaceChildren();
+    function reveal(): void {
+      if (pendingArt === image) previewArt.replaceChildren(image);
+    }
+    image.addEventListener('load', reveal, { once: true });
+    image.addEventListener('error', reveal, { once: true });
+    image.src = emote.preview ?? emote.image;
+    if (image.complete) reveal();
+  }
+
+  function isSelected(emote: BrowserEmote | undefined): boolean {
+    return (
+      selected === emote
+      || (emote?.sevenTVId !== undefined && selected?.sevenTVId === emote.sevenTVId)
+    );
+  }
+
+  function syncActions(emote: BrowserEmote): void {
     selected = emote;
     composeAdd.hidden = emote.composeToken === undefined;
     composeAdd.disabled = options.composer.full();
     add.hidden = !options.canChange(emote, false);
-    add.disabled = options.isBusy();
     remove.hidden = !options.canChange(emote, true);
+    previewSource.textContent = emote.added === true ? `${emote.source} · Added` : emote.source;
+  }
+
+  function showPreview(emote: BrowserEmote): void {
+    syncActions(emote);
+    add.disabled = options.isBusy();
     remove.disabled = options.isBusy();
     openSevenTV.hidden = !options.linkSevenTV || emote.sevenTVId === undefined;
     if (emote.sevenTVId !== undefined)
       openSevenTV.href = `https://7tv.app/emotes/${emote.sevenTVId}`;
-    previewImage.src = emote.preview ?? emote.image;
-    previewArt.append(previewImage);
-    previewSource.textContent = emote.added === true ? `${emote.source} · Added` : emote.source;
+    showArt(emote);
     previewTitle.textContent = emote.name;
     previewTags.replaceChildren(
       ...emoteTags(emote).map((tag) => {
@@ -109,7 +137,7 @@ export function createEmotePreview(options: PreviewOptions): EmotePreview {
     );
     previewName.value = emote.name;
     copyMessage.textContent =
-      !composeAdd.hidden && composeAdd.disabled ?
+      emote.composeToken !== undefined && composeAdd.disabled ?
         'The composer is full. Remove an input to add more.'
       : '';
     preview.showModal();
@@ -174,7 +202,7 @@ export function createEmotePreview(options: PreviewOptions): EmotePreview {
       function changePreviewEmote(removing: boolean): void {
         const emote = selected;
         void changeEmote(emote, removing, (feedback) => {
-          if (selected === emote) copyMessage.textContent = feedback;
+          if (isSelected(emote)) copyMessage.textContent = feedback;
         });
       }
       add.addEventListener('click', () => {
@@ -186,9 +214,8 @@ export function createEmotePreview(options: PreviewOptions): EmotePreview {
     },
     show: showPreview,
     refreshActions(emote): void {
-      if (selected !== emote) return;
-      add.hidden = !options.canChange(emote, false);
-      remove.hidden = !options.canChange(emote, true);
+      if (!isSelected(emote)) return;
+      syncActions(emote);
     },
     setBusy(busy): void {
       add.disabled = busy;

@@ -28,6 +28,10 @@
       color: #fff;
       background: var(--accent);
     }
+
+    &:active {
+      background: var(--accent-active);
+    }
   }
 }
 
@@ -70,6 +74,10 @@ dialog {
     color: var(--heading);
     background: transparent;
   }
+
+  &:enabled:active {
+    background: transparent;
+  }
 }
 
 .preview-art,
@@ -86,8 +94,9 @@ dialog {
   margin: 0.5rem 0 1rem;
   place-items: center;
 
+  // Height sets the size; wide emotes may use the full width instead of shrinking to a square.
   img {
-    max-width: 8rem;
+    max-width: 100%;
     max-height: 8rem;
     object-fit: contain;
   }

@@ -36,6 +36,13 @@ export function createEmoteAccess(allowAdds: boolean): {
   readonly canChange: (emote: BrowserEmote, removing: boolean) => boolean;
   /** Reports whether discovery emotes may be composed by 7TV ID. */
   readonly canComposeDiscovery: () => boolean;
+  /**
+   * Applies a successful server change to the shared saved-emote state immediately.
+   * @param emote - The emote that was added or removed.
+   * @param removing - `true` when the emote was removed, `false` when it was added.
+   * @returns The emote with its updated server and composer state.
+   */
+  readonly setChanged: (emote: BrowserEmote, removing: boolean) => BrowserEmote;
   /** Reports whether a server change is in flight. */
   readonly isBusy: () => boolean;
   /**
@@ -67,6 +74,26 @@ export function createEmoteAccess(allowAdds: boolean): {
       return removing ? saved?.added === true : allowAdds && saved === undefined;
     },
     canComposeDiscovery: () => composeDiscovery,
+    setChanged(emote, removing): BrowserEmote {
+      if (emote.sevenTVId === undefined) return emote;
+      if (removing) {
+        known.delete(emote.sevenTVId);
+        const removed: { -readonly [K in keyof BrowserEmote]: BrowserEmote[K] } = {
+          ...emote,
+          added: false
+        };
+        if (composeDiscovery) removed.composeToken = `7tv:${emote.sevenTVId}`;
+        else delete removed.composeToken;
+        return removed;
+      }
+      const added: BrowserEmote = {
+        ...emote,
+        added: true,
+        composeToken: emote.composeToken ?? emote.name
+      };
+      known.set(emote.sevenTVId, added);
+      return added;
+    },
     isBusy: () => busy,
     setBusy(value): void {
       busy = value;
