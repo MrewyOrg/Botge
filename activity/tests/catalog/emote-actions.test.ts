@@ -29,6 +29,8 @@ test('refreshes the server catalog, browses discovery, and adds an emote through
   const fetch = vi.fn((path: string) => {
     if (path === '/botge-api/auth')
       return Response.json({ accessToken: 'access-token', expiresIn: 3600 });
+    // A refused watch keeps the page from opening a live update connection.
+    if (path === '/botge-api/catalog/watch') return Response.json({ message: 'Not watched.' });
     if (path === '/botge-api/catalog') {
       catalogCount += 1;
       if (catalogCount === 2) return Response.json({ message: 'Catalog unavailable.' });
@@ -141,6 +143,8 @@ test('removes an individually added emote and refreshes the server catalog', asy
   const fetch = vi.fn((path: string) => {
     if (path === '/botge-api/auth')
       return Response.json({ accessToken: 'access-token', expiresIn: 3600 });
+    // A refused watch keeps the page from opening a live update connection.
+    if (path === '/botge-api/catalog/watch') return Response.json({ message: 'Not watched.' });
     if (path.endsWith('/emotes/remove')) {
       removed = true;
       return Response.json({ message: 'Removed emote.', removed: true });
@@ -178,6 +182,8 @@ test('keeps loaded discovery pages when an added emote refreshes the server cata
   const fetch = vi.fn((path: string) => {
     if (path === '/botge-api/auth')
       return Response.json({ accessToken: 'access-token', expiresIn: 3600 });
+    // A refused watch keeps the page from opening a live update connection.
+    if (path === '/botge-api/catalog/watch') return Response.json({ message: 'Not watched.' });
     if (path === '/botge-api/emotes') {
       added = true;
       return Response.json({ message: 'Added emote.', added: true });
@@ -243,6 +249,8 @@ test('offers no server changes and sends none without the manage permission', as
   const fetch = vi.fn((path: string) => {
     if (path === '/botge-api/auth')
       return Response.json({ accessToken: 'access-token', expiresIn: 3600 });
+    // A refused watch keeps the page from opening a live update connection.
+    if (path === '/botge-api/catalog/watch') return Response.json({ message: 'Not watched.' });
     if (path === '/botge-api/catalog')
       return Response.json({
         canManageEmotes: false,
@@ -297,4 +305,59 @@ test('offers no server changes and sends none without the manage permission', as
     path.startsWith('/botge-api/emotes')
   );
   expect(changes).toEqual([]);
+});
+
+test('reloads the server catalog quietly when Botge reports a change', async () => {
+  /** Lets the test play the server's side of the watch connection. */
+  class FakeSocket extends EventTarget {
+    public static readonly created: FakeSocket[] = [];
+    public readonly sent: string[] = [];
+    public constructor() {
+      super();
+      FakeSocket.created.push(this);
+    }
+    public send(data: string): void {
+      this.sent.push(data);
+    }
+    public close(): void {
+      this.dispatchEvent(new Event('close'));
+    }
+    public receive(type: string): void {
+      this.dispatchEvent(new MessageEvent('message', { data: JSON.stringify({ type }) }));
+    }
+  }
+  vi.stubGlobal('WebSocket', FakeSocket);
+  vi.stubGlobal('location', new URL('https://12345.discordsays.com/'));
+  vi.stubEnv('VITE_ENABLE_ACTIVITY_CATALOG', 'true');
+  sdk.ready.mockResolvedValue();
+  sdk.commands.authorize.mockResolvedValue({ code: 'oauth-code' });
+
+  let catalogCount = 0;
+  const fetch = vi.fn((path: string) => {
+    if (path === '/botge-api/auth')
+      return Response.json({ accessToken: 'access-token', expiresIn: 3600 });
+    if (path === '/botge-api/catalog/watch') return Response.json({ ticket: 'ticket-1' });
+    catalogCount += 1;
+    const emotes = Array.from({ length: catalogCount }, (_, index) => ({
+      ...serverEmote,
+      name: `Wave${String(index)}`,
+      composeToken: `Wave${String(index)}`
+    }));
+    return Response.json({ canManageEmotes: false, emotes });
+  });
+  vi.stubGlobal('fetch', fetch);
+
+  await import('../../src/index.ts');
+  await waitForText('#message', 'Showing 1 of 1');
+  const socket = await vi.waitFor(() => requireValue(FakeSocket.created.at(0), 'No socket'));
+  socket.dispatchEvent(new Event('open'));
+  expect(socket.sent).toEqual([JSON.stringify({ type: 'watch', ticket: 'ticket-1' })]);
+  socket.receive('watching');
+  // Two changes in a row: the second arrives mid-load and runs once that load ends.
+  socket.receive('changed');
+  expect(element('#message').textContent).not.toContain('Loading');
+  socket.receive('changed');
+  await waitForText('#message', 'Showing 3 of 3');
+  expect(catalogCount).toBe(3);
+  expect(element('#refresh-catalog').hidden).toBe(true);
 });

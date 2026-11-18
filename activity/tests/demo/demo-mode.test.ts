@@ -22,7 +22,8 @@ test('runs every guild feature against the in-memory demo outside Discord', asyn
   expect(element('#demo-notice').textContent).toContain('not affiliated with Discord or 7TV');
   expect(element('#settings-link').hidden).toBe(false);
   expect(element('#browse-modes').hidden).toBe(false);
-  expect(element('#refresh-catalog').hidden).toBe(false);
+  // Try again appears only after a failed catalog load.
+  expect(element('#refresh-catalog').hidden).toBe(true);
   expect(element('#added-filter').hidden).toBe(false);
 
   click('#trending-mode');

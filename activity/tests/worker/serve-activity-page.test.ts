@@ -48,6 +48,20 @@ test('rejects expired signatures and fails closed without a configured key', () 
   expect(serveActivityPage(new Request(origin), undefined, html).status).toBe(503);
 });
 
+test('rebuilds its verifier when the configured key changes', () => {
+  const other = generateKeyPairSync('ed25519');
+  const otherKey = other.publicKey
+    .export({ format: 'der', type: 'spki' })
+    .subarray(-32)
+    .toString('hex');
+  const headers = signedHeaders(Math.floor(Date.now() / 1000) + 60);
+  // The same key is reused across requests, and a changed key takes effect at once.
+  expect(serveActivityPage(new Request(origin, { headers }), key, html).status).toBe(200);
+  expect(serveActivityPage(new Request(origin, { headers }), key, html).status).toBe(200);
+  expect(serveActivityPage(new Request(origin, { headers }), otherKey, html).status).toBe(401);
+  expect(serveActivityPage(new Request(origin, { headers }), key, html).status).toBe(200);
+});
+
 test('serves the entry page only for known paths and navigation methods', () => {
   expect(serveActivityPage(new Request(`${origin}/index`), key, html).status).toBe(404);
   const response = serveActivityPage(new Request(origin, { method: 'POST' }), key, html);

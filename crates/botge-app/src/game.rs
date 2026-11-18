@@ -20,13 +20,13 @@ use anyhow::{Context as _, Result};
 use botge_domain::emotes::Emote;
 use botge_emotes::rendering::{self, Image, Layer};
 use serde::Serialize;
-use tokio::{sync::watch, time::Instant};
+use tokio::sync::watch;
 use url::Url;
 
 pub use self::room::{Guess, Score, SharedGuess, Snapshot};
 use self::{
   play::{Rounds, run_match},
-  random::{shuffle, token},
+  random::shuffle,
   room::Room,
 };
 use crate::{
@@ -36,6 +36,8 @@ use crate::{
 
 mod play;
 mod random;
+use crate::tickets::Tickets;
+pub(crate) use random::token;
 mod room;
 
 /// Rounds in one match; a smaller pool shortens the match to one round per emote.
@@ -55,10 +57,6 @@ const SECOND_LETTER: Duration = Duration::from_secs(15);
 
 /// Rooms the process keeps at once.
 const MAX_ROOMS: usize = 32;
-/// Unredeemed tickets kept at once; expired ones are dropped before this is checked.
-const MAX_TICKETS: usize = 512;
-/// How long a ticket can wait for its connection.
-const TICKET_LIFETIME: Duration = Duration::from_secs(30);
 /// How long one round image may take to download before the emote is skipped.
 const IMAGE_DEADLINE: Duration = Duration::from_secs(10);
 /// Provider scale requested for round images.
@@ -73,16 +71,9 @@ type RoomKey = (NonZeroU64, String);
 #[derive(Debug, Default)]
 pub struct Games {
   rooms: Mutex<HashMap<RoomKey, Arc<Room>>>,
-  tickets: Mutex<HashMap<String, Ticket>>,
+  /// Authorized players who have not connected yet.
+  tickets: Tickets<(RoomKey, NonZeroU64)>,
   cache: Option<Url>,
-}
-
-/// An authorized player who has not connected yet.
-#[derive(Debug)]
-struct Ticket {
-  key: RoomKey,
-  user: NonZeroU64,
-  expires: Instant,
 }
 
 /// A one-use ticket and the account it was issued to.
@@ -158,10 +149,6 @@ impl Games {
   fn rooms(&self) -> MutexGuard<'_, HashMap<RoomKey, Arc<Room>>> {
     self.rooms.lock().unwrap_or_else(PoisonError::into_inner)
   }
-
-  fn tickets(&self) -> MutexGuard<'_, HashMap<String, Ticket>> {
-    self.tickets.lock().unwrap_or_else(PoisonError::into_inner)
-  }
 }
 
 impl Application {
@@ -196,22 +183,11 @@ impl Application {
     }
     membership(access, guild, credential).await?;
     let user = user_id(access, credential).await?;
-    let now = Instant::now();
-    let ticket = token();
-    let mut tickets = self.games.tickets();
-    tickets.retain(|_, ticket| ticket.expires > now);
-    if tickets.len() >= MAX_TICKETS {
-      return Err(BUSY);
-    }
-    tickets.insert(
-      ticket.clone(),
-      Ticket {
-        key: (guild, instance.to_owned()),
-        user,
-        expires: now + TICKET_LIFETIME,
-      },
-    );
-    drop(tickets);
+    let ticket = self
+      .games
+      .tickets
+      .issue(((guild, instance.to_owned()), user))
+      .ok_or(BUSY)?;
     Ok(GameTicket {
       ticket,
       user_id: user.to_string(),
@@ -224,10 +200,7 @@ impl Application {
   /// process already keeps its maximum number of rooms.
   #[must_use]
   pub fn take_seat(self: &Arc<Self>, ticket: &str) -> Option<Seat> {
-    let Ticket { key, user, expires } = self.games.tickets().remove(ticket)?;
-    if expires <= Instant::now() {
-      return None;
-    }
+    let (key, user) = self.games.tickets.redeem(ticket)?;
     let mut rooms = self.games.rooms();
     let room = if let Some(room) = rooms.get(&key) {
       Arc::clone(room)

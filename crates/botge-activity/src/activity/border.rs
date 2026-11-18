@@ -16,8 +16,6 @@ use super::{Activity, ApiError, GuildAccess, ReadSettings};
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub(super) struct SaveBorder {
   guild_id: String,
-  #[serde(default)]
-  code: String,
   color: String,
 }
 
@@ -62,7 +60,7 @@ pub(super) async fn read_border<A: GuildAccess>(
   headers: HeaderMap,
   Json(request): Json<ReadSettings>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
-  let (_, credential, _permit) = state.validate(&headers, &request.guild_id, &request.code)?;
+  let (_, credential, _permit) = state.validate(&headers, &request.guild_id)?;
   Ok(border_response(
     state
       .application
@@ -84,7 +82,7 @@ pub(super) async fn save_border<A: GuildAccess>(
   headers: HeaderMap,
   Json(request): Json<SaveBorder>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
-  let (_, credential, _permit) = state.validate(&headers, &request.guild_id, &request.code)?;
+  let (_, credential, _permit) = state.validate(&headers, &request.guild_id)?;
   let color = parse_border(&request.color)?;
   state
     .application

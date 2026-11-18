@@ -4,7 +4,7 @@ default-members = ['crates/botge']
 resolver = '3'
 
 [workspace.package]
-version = '5.4.2'
+version = '5.4.3'
 edition = '2024'
 # Stable release that builds the production image; checks keep the pinned nightly.
 rust-version = '1.99.1'
@@ -16,14 +16,14 @@ publish = false
 anyhow = '1'
 axum = '0.8'
 base64 = '0.23'
-botge-activity = { path = 'crates/botge-activity', version = '5.4.2' }
-botge-app = { path = 'crates/botge-app', version = '5.4.2' }
-botge-discord = { path = 'crates/botge-discord', version = '5.4.2' }
-botge-domain = { path = 'crates/botge-domain', version = '5.4.2' }
-botge-emotes = { path = 'crates/botge-emotes', version = '5.4.2' }
-botge-storage = { path = 'crates/botge-storage', version = '5.4.2' }
-botge-test-support = { path = 'crates/botge-test-support', version = '5.4.2' }
-botge-voice = { path = 'crates/botge-voice', version = '5.4.2' }
+botge-activity = { path = 'crates/botge-activity', version = '5.4.3' }
+botge-app = { path = 'crates/botge-app', version = '5.4.3' }
+botge-discord = { path = 'crates/botge-discord', version = '5.4.3' }
+botge-domain = { path = 'crates/botge-domain', version = '5.4.3' }
+botge-emotes = { path = 'crates/botge-emotes', version = '5.4.3' }
+botge-storage = { path = 'crates/botge-storage', version = '5.4.3' }
+botge-test-support = { path = 'crates/botge-test-support', version = '5.4.3' }
+botge-voice = { path = 'crates/botge-voice', version = '5.4.3' }
 ed25519-dalek = '3'
 futures-util = '0.3'
 hex = '0.4'
@@ -40,6 +40,7 @@ rustls = { version = '0.23', default-features = false, features = ['aws-lc-rs'] 
 serde = { version = '1', features = ['derive'] }
 serde_json = '1'
 serenity = { version = '0.12', default-features = false, features = [
+  'cache',
   'client',
   'gateway',
   'model',

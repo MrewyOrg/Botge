@@ -1,0 +1,21 @@
+{
+  // Code that runs under Node or the Workers runtime: the Worker, build scripts, tests and the
+  // Vitest config. Tests also check the browser modules they import, with Node types available,
+  // so the build flags those modules read are declared here too.
+  "extends": "../tsconfig.base.json",
+  "include": [
+    "worker/**/*.ts",
+    "scripts/**/*.ts",
+    "tests/**/*.ts",
+    "vitest.config.ts",
+    "src/vite-env.d.ts"
+  ],
+  "compilerOptions": {
+    "composite": false,
+    "declaration": true,
+    "noEmit": true,
+    "lib": ["ESNext", "DOM"],
+    "types": ["node", "vite/client"],
+    "tsBuildInfoFile": "../node_modules/.cache/botge/activity-node.tsbuildinfo"
+  }
+}

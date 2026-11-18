@@ -81,3 +81,19 @@ updates:
     labels:
       - dependencies
     target-branch: dev
+
+  # Wrangler for CI deployments has its own lockfile, so its native runtime stays out of `npm ci`.
+  - package-ecosystem: npm
+    directory: '/activity/deploy'
+    schedule:
+      interval: weekly
+      day: monday
+      time: '12:49'
+    groups:
+      activity-deploy-dependencies:
+        patterns:
+          - '*'
+    versioning-strategy: increase
+    labels:
+      - dependencies
+    target-branch: dev

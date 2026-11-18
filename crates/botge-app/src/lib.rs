@@ -23,6 +23,7 @@ pub struct Application {
   render_slot: tokio::sync::Semaphore,
   metrics: Metrics,
   games: game::Games,
+  catalog_watch: catalog_watch::CatalogWatch,
 }
 
 impl Application {
@@ -43,6 +44,7 @@ impl Application {
       render_slot: tokio::sync::Semaphore::new(RENDER_SLOTS),
       metrics: Metrics::default(),
       games: game::Games::default(),
+      catalog_watch: catalog_watch::CatalogWatch::default(),
     })
   }
 
@@ -140,8 +142,11 @@ impl Application {
   }
 
   /// Runs the long-lived 7TV event worker until its task is cancelled.
+  ///
+  /// Set edits it receives are announced to open catalog watches.
   pub async fn watch_sets(self: Arc<Self>) {
-    self.client.watch_sets().await;
+    let sets = self.client.set_changes();
+    tokio::join!(self.client.watch_sets(), self.relay_set_changes(sets));
   }
 }
 
@@ -168,6 +173,10 @@ pub use operations::{EmoteAction, EmoteChange, GuildCatalog};
 mod composition;
 
 pub mod game;
+
+pub mod catalog_watch;
+mod tickets;
+pub use catalog_watch::{CatalogChange, CatalogWatcher, WatchTicket};
 
 pub mod metrics;
 pub use botge_emotes::rendering::Layer;

@@ -75,6 +75,14 @@ async fn gateway(
           .await?;
         sequence += 1;
         socket
+          .send(dispatch(
+            "GUILD_CREATE",
+            sequence,
+            &botge_discord::test_support::gateway_guild("2", &["42"]),
+          ))
+          .await?;
+        sequence += 1;
+        socket
           .send(dispatch("RESUMED", sequence, &json!({})))
           .await?;
         sequence += 1;
@@ -217,6 +225,10 @@ async fn rejects_activity_startup_when_identity_or_listener_is_unavailable() -> 
     let error = activity_server(
       Some(options),
       &Arc::new(http_for(server)),
+      discord::Gateway {
+        cache: Arc::new(serenity::cache::Cache::new()),
+        ready: watch::channel(true).1,
+      },
       Arc::clone(&emotes),
       Arc::new(Notify::new()),
     )
@@ -361,7 +373,8 @@ fn loads_runtime_configuration_and_rejects_partial_activity_credentials() -> Res
 
 #[test]
 fn only_requests_message_content_when_prefix_compose_is_enabled() {
-  let default = GatewayIntents::GUILDS | GatewayIntents::GUILD_VOICE_STATES;
+  let default =
+    GatewayIntents::GUILDS | GatewayIntents::GUILD_MEMBERS | GatewayIntents::GUILD_VOICE_STATES;
   assert_eq!(gateway_intents(false), default);
   assert_eq!(
     gateway_intents(true),
@@ -534,7 +547,9 @@ async fn starts_gateway_and_http_reconciles_voice_and_handles_shutdown() -> Resu
             .header("x-discord-proxy-payload", STANDARD.encode(payload))
             .header("x-signature-ed25519", STANDARD.encode(signature.to_bytes()))
             .header("x-signature-timestamp", now)
-            .json(&json!({"guildId":"1","code":"owner","voice":{"channelId":null,"statusEnabled":true,"statusEmoji":"wave"}}))
+            // The fixture exchanges the owner's code for the token "2".
+            .bearer_auth("2")
+            .json(&json!({"guildId":"1","voice":{"channelId":null,"statusEnabled":true,"statusEmoji":"wave"}}))
             .send().await?;
     assert_eq!(response.status(), StatusCode::OK);
     assert_eq!(state_rx.recv().await, Some(Value::Null));
@@ -568,9 +583,18 @@ async fn keeps_disabled_activity_idle_and_rejects_invalid_api_configuration() ->
   let http = Arc::new(Http::new("fixture"));
   let changed = Arc::new(Notify::new());
   assert!(
-    activity_server(None, &http, Arc::clone(&emotes), Arc::clone(&changed))
-      .await?
-      .is_none()
+    activity_server(
+      None,
+      &http,
+      discord::Gateway {
+        cache: Arc::new(serenity::cache::Cache::new()),
+        ready: watch::channel(true).1,
+      },
+      Arc::clone(&emotes),
+      Arc::clone(&changed),
+    )
+    .await?
+    .is_none()
   );
   let activity = ActivityOptions {
     secret: "fixture".into(),
@@ -579,7 +603,17 @@ async fn keeps_disabled_activity_idle_and_rejects_invalid_api_configuration() ->
     address: "127.0.0.1:0".parse()?,
   };
   assert_matches!(
-    activity_server(Some(activity), &http, emotes, changed).await,
+    activity_server(
+      Some(activity),
+      &http,
+      discord::Gateway {
+        cache: Arc::new(serenity::cache::Cache::new()),
+        ready: watch::channel(true).1,
+      },
+      emotes,
+      changed,
+    )
+    .await,
     Err(_)
   );
   assert_matches!(

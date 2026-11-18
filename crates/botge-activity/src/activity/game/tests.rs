@@ -29,32 +29,9 @@ use axum::extract::ws::Message as Frame;
 use botge_app::Application;
 use tokio::{sync::mpsc, task::JoinHandle};
 
-use super::super::tests::Fixture;
-use super::{
-  Connection, GUESS_INTERVAL, JOIN_DEADLINE, MAX_GUESS_BYTES, PING_INTERVAL, SILENCE_LIMIT,
-  content_type, session,
-};
-
-/// An in-memory connection whose deliveries can be made to fail.
-struct Wire {
-  incoming: mpsc::UnboundedReceiver<Result<Frame, axum::Error>>,
-  outgoing: mpsc::UnboundedSender<Frame>,
-  broken: Arc<AtomicBool>,
-}
-
-impl Connection for Wire {
-  fn receive(&mut self) -> impl Future<Output = Option<Result<Frame, axum::Error>>> + Send {
-    self.incoming.recv()
-  }
-
-  fn deliver(&mut self, message: Frame) -> impl Future<Output = Result<(), axum::Error>> + Send {
-    std::future::ready(if self.broken.load(Ordering::Relaxed) {
-      Err(axum::Error::new(std::io::Error::other("closed")))
-    } else {
-      self.outgoing.send(message).map_err(axum::Error::new)
-    })
-  }
-}
+use super::super::socket::{JOIN_DEADLINE, PING_INTERVAL, SILENCE_LIMIT};
+use super::super::tests::{Fixture, Wire};
+use super::{GUESS_INTERVAL, MAX_GUESS_BYTES, content_type, session};
 
 /// The browser's side of one in-memory session.
 struct Player {

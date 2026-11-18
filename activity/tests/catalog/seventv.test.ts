@@ -50,6 +50,22 @@ test('uses public, safe previews and ignores malformed or unlisted results', () 
   expect(parseDiscoveryPage(page([emote]), false).emotes[0]?.image).toBe(emote.images[0].url);
 });
 
+test('previews the largest published scale and keeps the 2x tile image', () => {
+  const scaled = {
+    ...emote,
+    images: ['1x', '2x', '4x'].map((size) => ({
+      url: `https://cdn.7tv.app/emote/${id}/${size}.webp`
+    }))
+  };
+  expect(parseDiscoveryPage(page([scaled]), true).emotes[0]).toMatchObject({
+    image: `/7tv-cdn/emote/${id}/2x.webp`,
+    preview: `/7tv-cdn/emote/${id}/4x.webp`
+  });
+  expect(parseDiscoveryPage(page([scaled]), false).emotes[0]?.preview).toBe(
+    `https://cdn.7tv.app/emote/${id}/4x.webp`
+  );
+});
+
 test('rejects GraphQL errors and invalid response shapes', () => {
   expect(() => parseDiscoveryPage({ errors: [{ message: 'Rate limited' }] }, false)).toThrow();
   expect(() => parseDiscoveryPage({ data: {} }, false)).toThrow();

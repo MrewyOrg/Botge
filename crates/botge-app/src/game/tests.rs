@@ -12,6 +12,7 @@ use std::sync::atomic::{AtomicIsize, Ordering};
 
 use botge_domain::providers::Providers;
 use botge_storage::Store;
+use tokio::time::Instant;
 
 use super::{
   play::{IMAGES_UNAVAILABLE, POOL_UNAVAILABLE, TOO_FEW_EMOTES, play_round},
@@ -97,7 +98,7 @@ fn application() -> Result<(tempfile::TempDir, Arc<Application>)> {
 }
 
 fn credential() -> Credential {
-  Credential::AccessToken("token".into())
+  Credential::new("token".into())
 }
 
 /// A guild with enough saved emotes to play, whose images come from a loopback server.
@@ -360,7 +361,7 @@ async fn denies_tickets_without_membership_or_a_valid_instance() -> Result<()> {
       .await;
     assert_eq!(invalid.unwrap_err().0, FailureKind::InvalidInput);
   }
-  assert!(application.games.tickets().is_empty());
+  assert!(application.games.tickets.is_empty());
   assert!(application.take_seat("unknown").is_none());
   Ok(())
 }
@@ -384,7 +385,7 @@ async fn redeems_a_ticket_once_and_closes_the_room_with_its_last_seat() -> Resul
   assert_eq!(application.games.rooms().len(), 1);
 
   let expired = join().await?;
-  tokio::time::advance(TICKET_LIFETIME).await;
+  tokio::time::advance(crate::tickets::TICKET_LIFETIME).await;
   assert!(application.take_seat(&expired.ticket).is_none());
 
   drop(seat);
@@ -579,15 +580,14 @@ async fn returns_to_the_lobby_when_images_or_saved_emotes_cannot_be_loaded() -> 
 async fn bounds_waiting_tickets_open_rooms_and_players_in_a_room() -> Result<()> {
   let (_directory, application) = application()?;
   let seat_for = |instance: &str, user: u64| {
-    let ticket = token();
-    application.games.tickets().insert(
-      ticket.clone(),
-      Ticket {
-        key: (NonZeroU64::MIN, instance.into()),
-        user: NonZeroU64::new(user).unwrap(),
-        expires: Instant::now() + TICKET_LIFETIME,
-      },
-    );
+    let ticket = application
+      .games
+      .tickets
+      .issue((
+        (NonZeroU64::MIN, instance.into()),
+        NonZeroU64::new(user).unwrap(),
+      ))
+      .unwrap();
     application.take_seat(&ticket)
   };
   let players: Vec<_> = (1..=MAX_PLAYERS)
@@ -604,7 +604,7 @@ async fn bounds_waiting_tickets_open_rooms_and_players_in_a_room() -> Result<()>
   drop(rooms);
   assert!(seat_for("one-too-many", 1).is_some());
 
-  for _ in 0..MAX_TICKETS {
+  for _ in 0..crate::tickets::MAX_TICKETS {
     application
       .join_game(&Members, NonZeroU64::MIN, &credential(), "instance")
       .await?;

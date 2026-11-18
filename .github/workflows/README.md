@@ -89,6 +89,18 @@ because it supplies FFmpeg 9 with animated WebP decoding; Debian 13's packaged F
 Cargo removes only the placeholder package's artifacts before compiling the real bot. The runtime
 smoke check requires a real version response and verifies animated WebP as the runtime user.
 
+`Deploy` then builds and deploys the Activity Worker with the same approval when Activity or Worker
+inputs changed, after the bot so the page never calls an older API. The build turns on every
+Activity feature flag (catalog, adds, settings, Guess and 7TV discovery) in its `Build the Activity`
+step, because Vite reads them at build time and the page otherwise shows only the preview catalog. A
+separate `Deploy demo` job runs only after `Deploy` succeeds, so the same approval releases it, and
+builds and deploys the static demo when its inputs changed. It runs for every ready PR in the
+`activity-demo` environment, without reviewers, so that environment always records a deployment for
+the merge rule; unchanged runs succeed without uploading. Both use Wrangler from `activity/deploy/`,
+which has its own lockfile so CI's `npm ci` never downloads Wrangler's native runtime. A failed
+Activity deploy fails `production` and blocks the merge even though the bot is already updated;
+redeploy or roll back the Worker with Wrangler before retrying.
+
 The host handler verifies the running digest and gateway readiness, then saves the pin for
 subsequent starts. Update host-side Compose and control files before the first digest deployment.
 Previous images remain available for rollback. PRs without image changes still require production
@@ -100,13 +112,20 @@ approval but retain the running image without restarting it. See
 
 These settings live outside workflow files:
 
-- `main` requires a PR, up-to-date checks, and successful `production` deployment before merge.
+- `main` requires a PR, up-to-date checks, and successful `production` and `activity-demo`
+  deployments before merge.
 - Required checks include `Validate / BotgeQL`, `Validate / Shell and workflow lint`,
   `Validate / check-pr-target / Check PR target`, the three `Security / Dependency` checks, CodeQL's
   language analyses, `Regal lint`, and `Verify actions lockfile`. The matrix covers Actions, Python,
   Rust and TypeScript; add the Python analysis to any explicit required-check list once it has run.
 - The `production` environment requires approval and permits the PR merge refs used for deployment.
-  Preserve its secrets and reviewer settings.
+  Preserve its secrets and reviewer settings. It also holds `CLOUDFLARE_API_TOKEN` and
+  `CLOUDFLARE_ACCOUNT_ID` secrets and the `DISCORD_ACTIVITY_PUBLIC_KEY` variable. Create the token
+  from Cloudflare's **Edit Cloudflare Workers** template and limit it to the deploying account, as
+  [Cloudflare's GitHub Actions guide](https://developers.cloudflare.com/workers/ci-cd/external-cicd/github-actions/)
+  describes.
+- The `activity-demo` environment has no reviewers, permits the same merge refs, and holds the same
+  two Cloudflare secrets.
 - The organization Actions allowlist includes Scout. SHA pinning remains required; the committed
   lockfile supplies resolved SHAs. Default tokens are read-only and cannot approve PRs.
 
@@ -149,7 +168,8 @@ The root `.shellcheckrc` enables every optional ShellCheck rule for scripts, inc
 files. Script shebangs select Bash or POSIX shell. actionlint deliberately invokes ShellCheck with
 `--norc` and its own workflow-specific exclusions, so embedded workflow commands use actionlint's
 checks. The lint script copies `.github/actionlint.yaml` into its temporary workspace; this config
-allows no custom runner labels or repository variables. Add declared variables there when needed.
+allows no custom runner labels and declares the `DISCORD_ACTIVITY_PUBLIC_KEY` variable. Add other
+variables there when needed.
 
 When action versions or workflow membership change, regenerate the lockfile with
 [gh-actions-lock](https://github.com/github/gh-actions-lock); do not edit it manually:

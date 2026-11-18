@@ -155,16 +155,32 @@ impl ProviderClient {
   /// Marks one set or all cached sets stale while retaining their last usable snapshots.
   ///
   /// `None` marks every entry that has a 7TV set ID. Feeds without a set ID are unaffected.
+  /// A named set that a cached feed uses is announced on [`ProviderClient::set_changes`],
+  /// marked global when it is 7TV's global set. A reconnect (`None`) announces nothing, because
+  /// it does not show that any set changed.
   async fn expire_sets(&self, set_id: Option<&str>) {
     let now = Instant::now();
-    for entry in self.cache.lock().await.values_mut() {
+    let mut matched = false;
+    let mut global = false;
+    for (url, entry) in self.cache.lock().await.iter_mut() {
       if entry
         .set_id
         .as_deref()
         .is_some_and(|id| set_id.is_none_or(|target| id == target))
       {
         entry.expires = now;
+        matched = true;
+        if url == super::GLOBAL_SEVEN_TV_SET {
+          global = true;
+        }
       }
+    }
+    if matched && let Some(id) = set_id {
+      // Sending fails only when nobody listens, which needs no handling.
+      drop(self.set_changes.send(crate::emotes::SetChange {
+        id: id.to_owned(),
+        global,
+      }));
     }
   }
 }

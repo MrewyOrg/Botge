@@ -23,7 +23,7 @@ jobs:
       pull-requests: read
 
   filter-paths:
-    name: Filter image paths
+    name: Filter deployment paths
     runs-on: ubuntu-latest
     timeout-minutes: 5
     permissions:
@@ -45,8 +45,42 @@ jobs:
               - 'Dockerfile.rego'
               - 'LICENSE.txt'
               - 'rust-toolchain.toml'
+            # The Activity Worker serves the built page, so page and Worker inputs both count.
+            activity:
+              - '.github/workflows/build-and-deploy.yml'
+              - '.nvmrc'
+              - 'activity/deploy/**'
+              - 'activity/index.html'
+              - 'activity/package.json'
+              - 'activity/public/**'
+              - 'activity/src/**'
+              - 'activity/tsconfig*.json'
+              - 'assets/**'
+              - 'package-lock.json'
+              - 'package.json'
+              - 'tsconfig.base.json'
+              - 'activity/worker/**'
+              - 'activity/wrangler.jsonc'
+            demo:
+              - '.github/workflows/build-and-deploy.yml'
+              - '.nvmrc'
+              - 'activity/deploy/**'
+              - 'activity/index.html'
+              - 'activity/package.json'
+              - 'activity/public/**'
+              - 'activity/src/**'
+              - 'activity/tsconfig*.json'
+              - 'assets/**'
+              - 'package-lock.json'
+              - 'package.json'
+              - 'tsconfig.base.json'
+              - 'activity/.env.demo'
+              - 'activity/scripts/**'
+              - 'activity/wrangler.demo.jsonc'
     outputs:
       build: ${{ steps.changes.outputs.build }}
+      activity: ${{ steps.changes.outputs.activity }}
+      demo: ${{ steps.changes.outputs.demo }}
 
   security:
     name: Security
@@ -58,7 +92,7 @@ jobs:
     name: Build candidate
     needs: [validate, security, filter-paths]
     if: needs.filter-paths.outputs.build == 'true' && !github.event.pull_request.draft
-    uses: docker/github-builder/.github/workflows/build.yml@81f670be367bfb44c9a238f3b6e747ae61d30d03
+    uses: docker/github-builder/.github/workflows/build.yml@1037c7b9c980b1eb201d37bb9f1fa6caaa96af60
     permissions:
       contents: read
       id-token: write
@@ -148,7 +182,9 @@ jobs:
           "$GITHUB_STEP_SUMMARY"
 
       - name: Checkout the tested candidate
-        if: needs.filter-paths.outputs.build == 'true'
+        if:
+          needs.filter-paths.outputs.build == 'true' || needs.filter-paths.outputs.activity ==
+          'true'
         uses: actions/checkout@v7.0.1
         with:
           ref: ${{ github.sha }}
@@ -200,3 +236,120 @@ jobs:
             --command="BOTGE_CONTROL_SOCKET=$(printf '%q' "$BOTGE_CONTROL_SOCKET") bash -s -- deploy $(printf '%q' "$IMAGE_DIGEST")" \
               < scripts/botge-control.sh
           printf 'Deployed candidate: mrewy/botge@%s\n' "$IMAGE_DIGEST" >> "$GITHUB_STEP_SUMMARY"
+
+      # The bot goes first, so the Activity page never calls an API older than itself.
+      - name: Record an unchanged Activity
+        if: needs.filter-paths.outputs.activity != 'true'
+        run:
+          echo 'No Activity changes; the deployed Activity Worker is retained.' >>
+          "$GITHUB_STEP_SUMMARY"
+
+      - name: Set up Node.js
+        if: needs.filter-paths.outputs.activity == 'true'
+        uses: actions/setup-node@v7.1.0
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            activity/deploy/package-lock.json
+
+      - name: Build the Activity
+        if: needs.filter-paths.outputs.activity == 'true'
+        # Vite reads these at build time; without them the page shows only the preview catalog.
+        env:
+          VITE_ENABLE_ACTIVITY_CATALOG: 'true'
+          VITE_ENABLE_ACTIVITY_ADDS: 'true'
+          VITE_ENABLE_ACTIVITY_SETTINGS: 'true'
+          VITE_ENABLE_ACTIVITY_GAME: 'true'
+          VITE_ENABLE_7TV_DISCOVERY: 'true'
+        run: |
+          npm ci --prefer-offline --no-audit
+          npm run build -w activity
+
+      - name: Deploy the Activity Worker
+        if: needs.filter-paths.outputs.activity == 'true'
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          DISCORD_ACTIVITY_PUBLIC_KEY: ${{ vars.DISCORD_ACTIVITY_PUBLIC_KEY }}
+          WRANGLER_SEND_METRICS: 'false'
+        run: |
+          [[ "$DISCORD_ACTIVITY_PUBLIC_KEY" =~ ^[0-9a-fA-F]{64}$ ]] || {
+            echo 'Set the DISCORD_ACTIVITY_PUBLIC_KEY variable on the production environment.' >&2
+            exit 1
+          }
+          # Install scripts stay off: Wrangler bundles and uploads without them.
+          npm ci --prefix activity/deploy --ignore-scripts --no-audit
+          activity/deploy/node_modules/.bin/wrangler deploy --config activity/wrangler.jsonc \
+            --var "DISCORD_ACTIVITY_PUBLIC_KEY:$DISCORD_ACTIVITY_PUBLIC_KEY"
+          echo 'Deployed the Activity Worker.' >> "$GITHUB_STEP_SUMMARY"
+
+  deploy-demo:
+    name: Deploy demo
+    # Only an approved, successful production deployment releases the demo, so one approval covers
+    # both. It then runs for every ready PR, so its environment always records a deployment for the
+    # merge rule; the upload happens only when demo inputs changed.
+    needs: [filter-paths, deploy]
+    if: ${{ !github.event.pull_request.draft }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: activity-demo
+    concurrency:
+      group: botge-activity-demo
+      cancel-in-progress: false
+    permissions:
+      contents: read
+      pull-requests: read
+    steps:
+      - name: Reject stale pull requests and changed targets
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.number }}
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha }}
+          EXPECTED_MERGE: ${{ github.sha }}
+        run: |
+          gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER" |
+            jq --exit-status --arg head "$EXPECTED_HEAD" --arg merge "$EXPECTED_MERGE" \
+              --arg repo "$GITHUB_REPOSITORY" '
+                .state == "open" and .base.ref == "main" and .head.ref == "dev" and
+                .head.repo.full_name == $repo and .head.sha == $head and .merge_commit_sha == $merge
+              ' > /dev/null
+
+      - name: Record an unchanged demo
+        if: needs.filter-paths.outputs.demo != 'true'
+        run: echo 'No demo changes; the deployed demo is retained.' >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Checkout the tested candidate
+        if: needs.filter-paths.outputs.demo == 'true'
+        uses: actions/checkout@v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+
+      - name: Set up Node.js
+        if: needs.filter-paths.outputs.demo == 'true'
+        uses: actions/setup-node@v7.1.0
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            activity/deploy/package-lock.json
+
+      - name: Build the demo
+        if: needs.filter-paths.outputs.demo == 'true'
+        run: |
+          npm ci --prefer-offline --no-audit
+          npm run build:demo -w activity
+
+      - name: Deploy the demo
+        if: needs.filter-paths.outputs.demo == 'true'
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          WRANGLER_SEND_METRICS: 'false'
+        run: |
+          npm ci --prefix activity/deploy --ignore-scripts --no-audit
+          activity/deploy/node_modules/.bin/wrangler deploy --config activity/wrangler.demo.jsonc
+          echo 'Deployed the demo.' >> "$GITHUB_STEP_SUMMARY"

@@ -243,3 +243,38 @@ async fn bounds_a_stalled_handshake_and_propagates_connection_refusal() -> Resul
   std::assert_matches!(ProviderClient::new(None)?.event_session(&url).await, Err(_));
   Ok(())
 }
+
+#[tokio::test]
+async fn announces_changed_sets_that_a_cached_feed_uses() -> Result<()> {
+  let client = ProviderClient::new(None)?;
+  let personal = "01234567890123456789012345";
+  let global = "abcdefabcdefabcdefabcdef";
+  let cached = |set_id: &str| Cached {
+    emotes: std::sync::Arc::from([]),
+    expires: Instant::now() + Duration::from_secs(100),
+    set_id: Some(set_id.into()),
+  };
+  let mut cache = client.cache.lock().await;
+  cache.insert("personal".into(), cached(personal));
+  cache.insert(super::super::GLOBAL_SEVEN_TV_SET.into(), cached(global));
+  drop(cache);
+  let mut changes = client.set_changes.subscribe();
+
+  client.expire_sets(Some(personal)).await;
+  client.expire_sets(Some(global)).await;
+  // Sets no cached feed uses, and reconnects, announce nothing.
+  client.expire_sets(Some("unused")).await;
+  client.expire_sets(None).await;
+
+  for (id, global) in [(personal, false), (global, true)] {
+    assert_eq!(
+      changes.try_recv()?,
+      crate::emotes::SetChange {
+        id: id.into(),
+        global,
+      }
+    );
+  }
+  assert!(changes.try_recv().is_err(), "unexpected announcement");
+  Ok(())
+}

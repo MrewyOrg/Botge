@@ -29,21 +29,21 @@ test('switches pages in place and focuses the top heading of each page', () => {
   expect(window.location.hash).toBe('#activity-settings');
   expect(element('#activity-settings').hidden).toBe(false);
   expect(document.activeElement).toBe(element('#settings-heading'));
-  // The first visit expands every panel so Tab reaches their fields.
-  expect(panels().every((panel: Readonly<Pick<HTMLDetailsElement, 'open'>>) => panel.open)).toBe(
-    true
+  // Panels start collapsed; each loads its settings when the user expands it.
+  expect(panels().some((panel: Readonly<Pick<HTMLDetailsElement, 'open'>>) => panel.open)).toBe(
+    false
   );
   const [first] = panels();
-  requireValue(first, 'Missing panel').open = false;
+  requireValue(first, 'Missing panel').open = true;
 
   element('#catalog-link').click();
   expect(window.location.hash).toBe('#catalog-heading');
   expect(element('#catalog-page').hidden).toBe(false);
   expect(document.activeElement).toBe(element('#catalog-title'));
 
-  // Later visits keep panels the user collapsed.
+  // Later visits keep panels the user expanded.
   element('#settings-link').click();
-  expect(first?.open).toBe(false);
+  expect(first?.open).toBe(true);
   element('#settings-link').click();
   expect(window.location.hash).toBe('#activity-settings');
 });

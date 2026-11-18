@@ -39,10 +39,8 @@ impl GuildAccess for Pending {
 
 #[tokio::test(start_paused = true)]
 async fn times_out_capabilities_without_polling_them_forever() {
-  let credential = Credential::AccessToken("never-print-this-token".into());
+  let credential = Credential::new("never-print-this-token".into());
   assert!(!format!("{credential:?}").contains("never-print"));
-  let code = Credential::Code("never-print-this-code".into());
-  assert!(!format!("{code:?}").contains("never-print"));
   let token = AccessToken {
     access_token: "never-print-this-token".into(),
     expires_in: 3600,

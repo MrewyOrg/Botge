@@ -1,6 +1,6 @@
 # Terms of Service and hosting guidance
 
-Last reviewed: 2026-11-08.
+Last reviewed: 2026-11-17.
 
 Botge is self-hosted software. The **operator** runs an instance and must review these use and
 integration requirements. These terms do not certify legal clearance for features, images, or
@@ -40,7 +40,9 @@ Users must follow Discord's [terms](https://discord.com/terms) and
 [Community Guidelines](https://discord.com/guidelines). Operators must also follow the
 [Developer Terms](https://support-dev.discord.com/hc/en-us/articles/8562894815383-Discord-Developer-Terms-of-Service)
 and [Developer Policy][discord-developer-policy], including permitted API access, necessary intents,
-data security, deletion requests, and applicable app-review requirements.
+data security, deletion requests, and applicable app-review requirements. Botge requests the
+privileged Server Members intent to check Activity permissions. Enable it in the Developer Portal;
+Discord requires approval for privileged intents once an app is in 100 or more servers.
 
 Do not use an instance for illegal content, intellectual-property infringement, sexual exploitation,
 hate or harassment, graphic violence, malware, phishing, unsolicited messaging, or attacks on other

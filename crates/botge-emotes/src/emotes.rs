@@ -15,6 +15,15 @@ use catalog::Catalog;
 use providers::ProviderClient;
 use std::sync::Arc;
 
+/// A 7TV set that changed while a cached feed used it.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct SetChange {
+  /// The 7TV set ID.
+  pub id: String,
+  /// Whether the set is 7TV's global set, shared by every guild with global 7TV emotes.
+  pub global: bool,
+}
+
 /// Provider clients and immutable feed snapshots shared by application operations.
 pub struct Emotes {
   policy: Providers,
@@ -84,6 +93,14 @@ impl Emotes {
   /// Watches enabled 7TV sets until the worker is cancelled.
   pub async fn watch_sets(&self) {
     self.client.watch_sets(&self.events).await;
+  }
+
+  /// Subscribes to 7TV sets that change while [`Self::watch_sets`] runs.
+  ///
+  /// A receiver that falls behind is told how many changes it missed.
+  #[must_use]
+  pub fn set_changes(&self) -> tokio::sync::broadcast::Receiver<SetChange> {
+    self.client.set_changes.subscribe()
   }
 
   /// Counts 7TV event stream sessions that ended since startup.

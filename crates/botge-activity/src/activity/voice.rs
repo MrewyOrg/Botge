@@ -13,8 +13,6 @@ use botge_domain::settings::VoiceSettings;
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub(super) struct SaveSettings {
   guild_id: String,
-  #[serde(default)]
-  code: String,
   voice: VoiceSettings,
 }
 
@@ -39,7 +37,7 @@ pub(super) async fn read_settings<A: GuildAccess>(
   headers: HeaderMap,
   Json(request): Json<ReadSettings>,
 ) -> Result<Json<SettingsResponse>, ApiError> {
-  let (guild, credential, _permit) = state.validate(&headers, &request.guild_id, &request.code)?;
+  let (guild, credential, _permit) = state.validate(&headers, &request.guild_id)?;
   let (voice, channels) = state
     .application
     .read_voice_settings(&state.access, guild, &credential)
@@ -63,7 +61,7 @@ pub(super) async fn save_settings<A: GuildAccess>(
   headers: HeaderMap,
   Json(request): Json<SaveSettings>,
 ) -> Result<Json<SettingsResponse>, ApiError> {
-  let (guild, credential, _permit) = state.validate(&headers, &request.guild_id, &request.code)?;
+  let (guild, credential, _permit) = state.validate(&headers, &request.guild_id)?;
   let (voice, channels) = state
     .application
     .save_voice_settings(

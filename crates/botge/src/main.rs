@@ -264,6 +264,7 @@ async fn run(
   let voice_changed = Arc::new(Notify::new());
   let (ready, voice_ready) = watch::channel(false);
   let health_router = health::router(ready.subscribe(), Arc::clone(&application));
+  let gateway_ready = ready.subscribe();
   let health_listener = TcpListener::bind(options.health_address)
     .await
     .context("could not bind health listener")?;
@@ -287,6 +288,10 @@ async fn run(
   let api = activity_server(
     options.activity,
     &http,
+    discord::Gateway {
+      cache: Arc::clone(&discord.cache),
+      ready: gateway_ready,
+    },
     Arc::clone(&application),
     Arc::clone(&voice_changed),
   )
@@ -323,8 +328,12 @@ fn abort_workers(voice: &tokio::task::JoinHandle<()>, sets: Option<&tokio::task:
 }
 
 /// Requests message content only when the operator enables prefix commands.
+///
+/// The privileged members intent keeps the gateway cache's member records current for Activity
+/// permission checks; the Developer Portal must enable it or Discord refuses the connection.
 fn gateway_intents(prefix_compose: bool) -> GatewayIntents {
-  let intents = GatewayIntents::GUILDS | GatewayIntents::GUILD_VOICE_STATES;
+  let intents =
+    GatewayIntents::GUILDS | GatewayIntents::GUILD_MEMBERS | GatewayIntents::GUILD_VOICE_STATES;
   if prefix_compose {
     intents
       | GatewayIntents::GUILD_MESSAGES
@@ -347,6 +356,7 @@ fn gateway_intents(prefix_compose: bool) -> GatewayIntents {
 async fn activity_server(
   options: Option<ActivityOptions>,
   http: &Arc<Http>,
+  gateway: discord::Gateway,
   application: Arc<Application>,
   voice_changed: Arc<Notify>,
 ) -> Result<Option<(TcpListener, axum::Router)>> {
@@ -362,6 +372,7 @@ async fn activity_server(
     },
     bot_user,
     Arc::clone(http),
+    gateway,
   )?;
   let listener = TcpListener::bind(options.address).await?;
   Ok(Some((

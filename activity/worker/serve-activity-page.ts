@@ -21,6 +21,23 @@ export const CONTENT_SECURITY_POLICY: string = [
   "form-action 'none'"
 ].join('; ');
 
+/** The verifier for the last configured key; a deployment keeps one key, so it is built once. */
+let authenticator:
+  | { readonly key: string; readonly verify: ReturnType<typeof createProxyAuthenticator> }
+  | undefined;
+
+/**
+ * Returns the proxy verifier for `key`, building it only when the key changes.
+ *
+ * @param key - Configured Discord public key.
+ * @returns The cached or newly built verifier.
+ * @throws `Error` if the key is malformed; nothing is cached then.
+ */
+function authenticatorFor(key: string): ReturnType<typeof createProxyAuthenticator> {
+  if (authenticator?.key !== key) authenticator = { key, verify: createProxyAuthenticator(key) };
+  return authenticator.verify;
+}
+
 /**
  * Minimal HTTP request shape consumed by the HTML gate.
  *
@@ -39,7 +56,8 @@ export type ActivityPageRequest = {
  * @remarks
  * Only the root and index page accept GET or HEAD. Every response uses no-store, nosniff and
  * no-referrer, including failures; the page also carries {@link CONTENT_SECURITY_POLICY}. Asset
- * routes are handled separately by the Worker platform.
+ * routes are handled separately by the Worker platform. The verifier for a key is built on first
+ * use and reused while the key stays the same.
  *
  * @param request - Request with an absolute URL and proxy headers.
  * @param publicKey - Configured Discord public key; missing or malformed keys fail closed.
@@ -69,7 +87,7 @@ export function serveActivityPage(
 
   let authenticated: boolean;
   try {
-    const verify = createProxyAuthenticator(publicKey ?? '');
+    const verify = authenticatorFor(publicKey ?? '');
     authenticated = verify({
       'x-signature-ed25519': request.headers.get('X-Signature-Ed25519'),
       'x-signature-timestamp': request.headers.get('X-Signature-Timestamp'),

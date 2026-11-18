@@ -1,19 +1,23 @@
 //! Activity HTTP handlers for Discord-authenticated settings and catalog operations.
 //!
-//! Requests carry Discord proxy signature headers and an OAuth bearer token (legacy callers
-//! may send a one-use code). The signature authenticates the proxy request. Discord identifies
+//! Requests carry Discord proxy signature headers and an OAuth bearer token. Only the auth route
+//! accepts a one-use code, which it exchanges for that token. The signature authenticates the
+//! proxy request. Discord identifies
 //! the token holder, whose guild membership and permissions are checked separately for operations
 //! scoped to a guild. Border preferences belong to the authenticated user across guilds.
 //! The health route only reports HTTP readiness.
 //!
 //! Shared authentication and request limits live here. [`voice`], [`catalog`], and [`border`]
 //! own their route payloads, authorization steps, and persistence operations. [`game`] owns the
-//! guessing game's ticket, connection, and round image routes.
+//! guessing game's ticket, connection, and round image routes. [`watch`] owns the connection that
+//! tells an open catalog when to reload.
 
 mod border;
 mod catalog;
 mod game;
+mod socket;
 mod voice;
+mod watch;
 
 use std::{
   collections::HashMap,
@@ -54,7 +58,7 @@ struct Activity<A> {
   application: Arc<Application>,
   voice_changed: Arc<Notify>,
   slots: Semaphore,
-  /// Game connections open at once across every room.
+  /// Game and catalog watch connections open at once.
   sockets: Arc<Semaphore>,
   sessions: Sessions,
   now: fn() -> Result<u64, std::time::SystemTimeError>,
@@ -66,7 +70,7 @@ struct Activity<A> {
 /// abandoned after its timeout while the server is still finishing it.
 const SESSION_SLOTS: usize = 2;
 
-/// Game connections the API keeps open at once; further upgrades answer 503.
+/// Game and catalog watch connections the API keeps open at once; further upgrades answer 503.
 const GAME_SOCKETS: usize = 256;
 
 /// In-flight request counts keyed by a keyed hash of each credential.
@@ -110,11 +114,13 @@ impl Drop for SessionSlot<'_> {
       .active
       .lock()
       .unwrap_or_else(PoisonError::into_inner);
-    if let Some(count) = active.get_mut(&self.key) {
+    // The slot's own entry exists for as long as the slot does.
+    let remaining = active.get_mut(&self.key).map(|count| {
       *count -= 1;
-      if *count == 0 {
-        active.remove(&self.key);
-      }
+      *count
+    });
+    if remaining == Some(0) {
+      active.remove(&self.key);
     }
   }
 }
@@ -142,6 +148,7 @@ impl From<botge_app::access::AccessError> for ApiError {
       FailureKind::NotFound => StatusCode::NOT_FOUND,
       FailureKind::Conflict => StatusCode::CONFLICT,
       FailureKind::Upstream => StatusCode::BAD_GATEWAY,
+      FailureKind::RateLimited => StatusCode::TOO_MANY_REQUESTS,
       FailureKind::Internal => StatusCode::INTERNAL_SERVER_ERROR,
     };
     Self(status, error.1, error.0 == FailureKind::Unauthenticated)
@@ -171,12 +178,18 @@ impl IntoResponse for ApiError {
   }
 }
 
-/// Guild context with an optional legacy code; browser requests use a bearer header.
+/// Guild context for a read; the caller is identified by the bearer header.
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 struct ReadSettings {
   guild_id: String,
-  #[serde(default)]
+}
+
+/// A one-use authorization code to exchange for the bearer token used by every other route.
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct Authorize {
+  guild_id: String,
   code: String,
 }
 
@@ -209,6 +222,8 @@ pub fn router<A: GuildAccess>(
     )
     .route("/settings/border", post(border::save_border::<A>))
     .route("/settings/border/read", post(border::read_border::<A>))
+    .route("/catalog/watch", post(watch::watch::<A>))
+    .route("/catalog/ws", get(watch::connect::<A>))
     .route("/game/join", post(game::join::<A>))
     .route("/game/ws", get(game::connect::<A>))
     .route("/game/image/{token}", get(game::image::<A>))
@@ -298,40 +313,33 @@ impl<A: GuildAccess> Activity<A> {
     &self,
     headers: &HeaderMap,
     guild: &str,
-    code: &str,
   ) -> Result<(NonZeroU64, Credential, Admission<'_>), ApiError> {
     self.verify_proxy(headers)?;
     let guild = discord_id(guild).ok_or(ApiError::INVALID)?;
-    let credential = if let Some(value) = headers.get(header::AUTHORIZATION) {
-      let token = value
-        .to_str()
-        .ok()
-        .and_then(|value| value.strip_prefix("Bearer "))
-        .filter(|token| {
-          !token.is_empty()
-            && token.len() <= 2048
-            && token.bytes().all(|byte| {
-              byte.is_ascii_alphanumeric()
-                || matches!(byte, b'_' | b'-' | b'.' | b'~' | b'+' | b'/' | b'=')
-            })
-        })
-        .ok_or(ApiError::INVALID)?;
-      Credential::AccessToken(token.to_owned())
-    } else {
-      if code.is_empty()
-        || code.len() > 512
-        || !code
-          .bytes()
-          .all(|byte| byte.is_ascii_alphanumeric() || byte == b'_' || byte == b'-')
-      {
-        return Err(ApiError::INVALID);
-      }
-      Credential::Code(code.to_owned())
-    };
-    let secret = match &credential {
-      Credential::AccessToken(token) => token,
-      Credential::Code(code) => code,
-    };
+    let token = headers
+      .get(header::AUTHORIZATION)
+      .and_then(|value| value.to_str().ok())
+      .and_then(|value| value.strip_prefix("Bearer "))
+      .filter(|token| {
+        !token.is_empty()
+          && token.len() <= 2048
+          && token.bytes().all(|byte| {
+            byte.is_ascii_alphanumeric()
+              || matches!(byte, b'_' | b'-' | b'.' | b'~' | b'+' | b'/' | b'=')
+          })
+      })
+      .ok_or(ApiError::INVALID)?;
+    let admission = self.admit(token)?;
+    Ok((guild, Credential::new(token.to_owned()), admission))
+  }
+
+  /// Reserves one of the secret's request slots and one shared slot.
+  ///
+  /// # Errors
+  ///
+  /// Yields 429 when the secret already has two requests in flight and 503 when the shared
+  /// limit is full.
+  fn admit(&self, secret: &str) -> Result<Admission<'_>, ApiError> {
     let session = self.sessions.admit(secret).ok_or(ApiError::new(
       StatusCode::TOO_MANY_REQUESTS,
       "Too many requests at once. Try again shortly.",
@@ -342,14 +350,10 @@ impl<A: GuildAccess> Activity<A> {
         "Botge is busy. Try again shortly.",
       )
     })?;
-    Ok((
-      guild,
-      credential,
-      Admission {
-        _session: session,
-        _shared: shared,
-      },
-    ))
+    Ok(Admission {
+      _session: session,
+      _shared: shared,
+    })
   }
 }
 
@@ -363,12 +367,20 @@ impl<A: GuildAccess> Activity<A> {
 async fn authenticate<A: GuildAccess>(
   State(state): State<Arc<Activity<A>>>,
   headers: HeaderMap,
-  Json(request): Json<ReadSettings>,
+  Json(request): Json<Authorize>,
 ) -> Result<Json<AccessToken>, ApiError> {
-  let (_, credential, _permit) = state.validate(&headers, &request.guild_id, &request.code)?;
-  let Credential::Code(code) = credential else {
+  state.verify_proxy(&headers)?;
+  discord_id(&request.guild_id).ok_or(ApiError::INVALID)?;
+  let code = request.code;
+  if code.is_empty()
+    || code.len() > 512
+    || !code
+      .bytes()
+      .all(|byte| byte.is_ascii_alphanumeric() || byte == b'_' || byte == b'-')
+  {
     return Err(ApiError::INVALID);
-  };
+  }
+  let _permit = state.admit(&code)?;
   let token = tokio::time::timeout(Duration::from_secs(20), state.access.exchange_code(&code))
     .await
     .map_err(ApiError::upstream)??;

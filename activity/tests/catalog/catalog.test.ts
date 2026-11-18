@@ -58,6 +58,20 @@ test.each([
   expect(() => parseCatalog([{ ...still, image }], true)).toThrow();
 });
 
+test('keeps a mapped preview image only in a server catalog', () => {
+  const serverEmote = {
+    ...still,
+    image: '/7tv-cdn/emote/id/2x.webp',
+    preview: '/7tv-cdn/emote/id/4x.webp'
+  };
+  expect(parseCatalog([serverEmote], true)).toEqual([serverEmote]);
+  expect(parseCatalog([{ ...still, preview: 'emotes/large.png' }])[0]?.preview).toBeUndefined();
+  expect(() =>
+    parseCatalog([{ ...serverEmote, preview: 'https://example.com/4x.webp' }], true)
+  ).toThrow();
+  expect(() => parseCatalog([{ ...serverEmote, preview: 4 }], true)).toThrow();
+});
+
 test('preserves the query string on mapped CDN URLs', () => {
   const emote = { ...still, image: '/twitch-cdn/emoticons/v2/123/static/light/2.0?v=1' };
   expect(parseCatalog([emote], true)).toEqual([emote]);

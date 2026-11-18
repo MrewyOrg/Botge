@@ -31,13 +31,24 @@ pub struct Membership {
   pub available_roles: Vec<GuildRole>,
 }
 
-/// A one-use authorization code or an access token obtained from that code.
-/// Neither credential is logged or persisted by the API.
-pub enum Credential {
-  /// A short-lived, single-use authorization code.
-  Code(String),
-  /// A browser-held access token.
-  AccessToken(String),
+/// A browser-held Discord access token. It is neither logged nor persisted by the API.
+///
+/// One-use authorization codes are exchanged only by [`GuildAccess::exchange_code`], so no
+/// guild or user operation can trigger an exchange.
+pub struct Credential(String);
+
+impl Credential {
+  /// Wraps an access token that the adapter has already checked for shape.
+  #[must_use]
+  pub const fn new(token: String) -> Self {
+    Self(token)
+  }
+
+  /// Returns the token for the request that sends it to Discord.
+  #[must_use]
+  pub fn token(&self) -> &str {
+    &self.0
+  }
 }
 
 /// Short-lived browser authentication returned by the code-exchange endpoint.
@@ -117,6 +128,8 @@ pub enum FailureKind {
   Conflict,
   /// An external provider could not complete the request.
   Upstream,
+  /// An external provider asked Botge to slow down; the caller can retry shortly.
+  RateLimited,
   /// Local storage or worker execution failed.
   Internal,
 }
@@ -149,6 +162,11 @@ impl AccessError {
   pub const NOT_MEMBER: Self = Self(
     FailureKind::PermissionDenied,
     "Could not verify your server membership.",
+  );
+  /// A sanitized rate-limit failure while Discord's retry window is open.
+  pub const RATE_LIMITED: Self = Self(
+    FailureKind::RateLimited,
+    "Discord is busy. Try again in a few seconds.",
   );
   /// A sanitized invalid failure.
   pub const INVALID: Self = Self(FailureKind::InvalidInput, "Invalid Activity request.");

@@ -19,6 +19,7 @@ repository root.
 | `catalog/emote-results.ts`         | Catalog paging, discovery pages, and in-place redraws     |
 | `catalog/emote-tiles.ts`           | Tiles, the composer shortcut, and the right-click menu    |
 | `catalog/emote-actions.ts`         | Server catalog loading and single and bulk add/remove     |
+| `catalog/catalog-watch.ts`         | Live catalog updates over a ticketed WebSocket            |
 | `catalog/filter-panel.ts`          | Collapsible filters, filter count, and the `/` shortcut   |
 | `catalog/emote-preview.ts`         | Emote preview dialog and its actions                      |
 | `catalog/emote-selection.ts`       | Bounded multi-selection and bulk controls                 |
@@ -66,6 +67,19 @@ for each operation. SDK waits have 15-second deadlines; HTTP calls have a 45-sec
 an HTTP 401 `oauth_expired` response renews the token and retries once. Other failures release the
 queue without automatically repeating writes.
 
+## Live catalog updates
+
+After the server catalog first loads, the page asks the `catalog/watch` route for a one-use ticket
+and opens a WebSocket at `/botge-api/catalog/ws`, presenting the ticket in its first message as the
+game does. Botge sends `{"type":"changed"}` after an addition, removal or emote settings save in
+that server, and when 7TV reports an edit to the server's 7TV set or the global set; the page then
+reloads the catalog without a loading message. BTTV, FFZ and Twitch send no change events, so their
+edits appear on the next reload. A dropped connection reconnects after 1, 2, 5, 10, 30 and then
+every 60 seconds and reloads once, since changes may have been missed. Botge closes each connection
+after an hour, which rechecks membership on reconnect, and a refused ticket ends watching until the
+Activity reopens. The Try again button appears only after a catalog load fails. The demo has no
+watch, because its catalog changes only through the page.
+
 ## Guessing game
 
 `VITE_ENABLE_ACTIVITY_GAME=true` adds the Guess tab. Players in one Activity instance share a room:
@@ -110,14 +124,16 @@ the Activity page's Content Security Policy, `frame-ancestors 'none'`, `nosniff`
 script. Cloudflare serves static asset requests free, and they do not count toward the account's
 daily Worker request limit that the Activity shares.
 
-Deploy it from the repository root, like the Activity Worker but with the demo build and config. The
-first deploy creates the `botge-activity-demo` Worker. It needs no `--var`, because no Worker script
-runs:
+Build and Deploy publishes the Activity Worker and the demo when their inputs change; see the
+[workflow guide](../.github/workflows/README.md#candidate-and-deployment). Both use Wrangler from
+`deploy/`, pinned by its own lockfile. To deploy the demo by hand, run from the repository root. The
+first deploy creates the `botge-activity-demo` Worker, and it needs no `--var`, because no Worker
+script runs:
 
 ```sh
 npm run build:demo -w activity
-npm exec --ignore-scripts --package=wrangler -- \
-  wrangler deploy --config activity/wrangler.demo.jsonc
+npm ci --prefix activity/deploy --ignore-scripts
+activity/deploy/node_modules/.bin/wrangler deploy --config activity/wrangler.demo.jsonc
 ```
 
 Keep both Workers on the Free plan; see the [cost policy](../docs/PRODUCTION.md#cost-policy). GitHub

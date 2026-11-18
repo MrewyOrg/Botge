@@ -27,8 +27,16 @@ const SEARCH = `
   }
 ` as const;
 
-function previewPath(images: readonly unknown[], id: string): string | undefined {
-  for (const size of ['2x', '1x', '3x', '4x'] as const) {
+/** Catalog tiles prefer 2x; the preview dialog prefers the largest published scale. */
+const TILE_SIZES = ['2x', '1x', '3x', '4x'] as const;
+const PREVIEW_SIZES = ['4x', '3x', '2x', '1x'] as const;
+
+function imagePath(
+  images: readonly unknown[],
+  id: string,
+  sizes: readonly string[]
+): string | undefined {
+  for (const size of sizes) {
     for (const format of ['webp', 'avif', 'png', 'gif'] as const) {
       const path = `/emote/${id}/${size}.${format}`;
       if (images.some((image) => isRecord(image) && image['url'] === `https://cdn.7tv.app${path}`))
@@ -85,13 +93,16 @@ export function parseDiscoveryPage(
     )
       return [];
 
-    const path = previewPath(images, id);
+    const path = imagePath(images, id, TILE_SIZES);
     if (path === undefined) return [];
+    const preview = imagePath(images, id, PREVIEW_SIZES);
+    const origin = embedded ? '/7tv-cdn' : 'https://cdn.7tv.app';
     return [
       {
         name: defaultName,
         source: '7TV',
-        image: (embedded ? '/7tv-cdn' : 'https://cdn.7tv.app') + path,
+        image: origin + path,
+        ...(preview !== undefined && preview !== path ? { preview: origin + preview } : {}),
         animated: flags['animated'],
         sevenTVId: id,
         ...(typeof flags['defaultZeroWidth'] === 'boolean' ?

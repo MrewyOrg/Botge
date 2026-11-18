@@ -21,7 +21,7 @@
     "dev:demo": "vite --host 127.0.0.1 --mode demo",
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",
-    "typecheck": "tsc --project tsconfig.json"
+    "typecheck": "tsc --build"
   },
   "dependencies": {
     "@discord/embedded-app-sdk": "^2.5.0"

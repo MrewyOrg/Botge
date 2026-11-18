@@ -19,6 +19,8 @@ export type BrowserEmote = DeepReadonly<{
   name: string;
   source: string;
   image: string;
+  /** A larger image for the preview dialog; absent when the catalog image is the largest. */
+  preview?: string;
   animated: boolean;
   added?: boolean;
   overlaying?: boolean;
@@ -68,7 +70,7 @@ export function parseCatalog(input: unknown, server = false): readonly BrowserEm
   if (!Array.isArray(input)) throw new Error('Expected an emote catalog array.');
   return input.map((entry: unknown) => {
     if (!isRecord(entry)) throw new Error('Expected an emote catalog entry.');
-    const { name, source, image, animated, added, composeToken, sevenTVId, tags } = entry;
+    const { name, source, image, preview, animated, added, composeToken, sevenTVId, tags } = entry;
     // Accept older catalog snapshots that used the provider's zeroWidth name.
     const overlaying = entry['overlaying'] ?? entry['zeroWidth'];
     if (
@@ -80,6 +82,9 @@ export function parseCatalog(input: unknown, server = false): readonly BrowserEm
       || !(server ?
         isMappedImage(image)
       : /^emotes\/(?:[\w-]+\/)*[\w-]+\.(?:png|webp|gif|jpe?g)$/iu.test(image))
+      || (server
+        && preview !== undefined
+        && (typeof preview !== 'string' || !isMappedImage(preview)))
       || typeof animated !== 'boolean'
       || (server && added !== undefined && typeof added !== 'boolean')
       || (server && sevenTVId !== undefined && (source !== '7TV' || !isSevenTVEmoteId(sevenTVId)))
@@ -95,6 +100,7 @@ export function parseCatalog(input: unknown, server = false): readonly BrowserEm
       name: name.trim(),
       source: source.trim(),
       image,
+      ...(server && typeof preview === 'string' ? { preview } : {}),
       animated,
       ...(server && typeof added === 'boolean' ? { added } : {}),
       ...(server && typeof sevenTVId === 'string' ? { sevenTVId } : {}),

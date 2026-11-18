@@ -33,6 +33,7 @@ allowed-duplicate-crates = [
   'cpufeatures',
   'crypto-common',
   'curve25519-dalek',
+  'dashmap',
   'digest',
   'ed25519',
   'ed25519-dalek',
