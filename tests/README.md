@@ -68,10 +68,14 @@ reports them as optional. SwiftUI views are covered by UI tests rather than the 
 ### Lockdown Mode
 
 The iOS app must work the same with Lockdown Mode on. `LockdownTests` simulates its restrictions in
-unit tests on every run. Before a release, also turn Lockdown Mode on in a simulator's Settings →
-Privacy & Security, run `npm run test:ios:lockdown`, then repeat on a device: log in, browse
-animated emotes, play a Guess round, check the Live Activity, run a Shortcut and open the legal
-screens.
+unit tests on every run. `npm run test:ios:lockdown` runs every iOS test on a dedicated "iPhone 17e
+Lockdown" simulator, created on first use. The iOS simulator has no Lockdown Mode switch, so the
+script sets the `LDMGlobalEnabled` default that Lockdown Mode sets; WebKit honours it, so Discord's
+sign-in sheet runs in Lockdown. `LockdownModeUITests` fails the plan if the setting is off.
+
+Other system restrictions apply only on a device. Before a release, turn Lockdown Mode on in
+Settings → Privacy & Security on an iPhone and repeat: log in, browse animated emotes, play a Guess
+round, check the Live Activity, run a Shortcut and open the legal screens.
 
 ## Test layout
 

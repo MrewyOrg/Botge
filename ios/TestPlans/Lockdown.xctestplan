@@ -5,8 +5,14 @@
       "name": "Lockdown Mode",
       "options": {
         "environmentVariableEntries": [
-          { "key": "BOTGE_UI_TEST", "value": "1" },
-          { "key": "BOTGE_EXPECT_LOCKDOWN", "value": "1" }
+          {
+            "key": "BOTGE_UI_TEST",
+            "value": "1"
+          },
+          {
+            "key": "BOTGE_EXPECT_LOCKDOWN",
+            "value": "1"
+          }
         ]
       }
     }
@@ -20,8 +26,7 @@
         "containerPath": "container:Botge.xcodeproj",
         "identifier": "BotgeKitTests",
         "name": "BotgeKitTests"
-      },
-      "selectedTests": ["LockdownTests"]
+      }
     },
     {
       "target": {
