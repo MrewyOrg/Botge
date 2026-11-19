@@ -13,15 +13,16 @@ struct MainTabView: View {
 
   /// Provides the API for the feature tabs.
   @Environment(AppModel.self) private var model
-  /// The selected tab.
-  @State private var selection: Section = .emotes
   /// The saved server choice.
   @AppStorage(PreferenceKey.defaultGuildID) private var selectedGuildID = ""
+  /// Whether the app is in the foreground.
+  @Environment(\.scenePhase) private var scenePhase
   /// The selected server's Guess room, kept here so a match survives switching tabs.
   @State private var guess: GuessModel?
 
   var body: some View {
-    TabView(selection: $selection) {
+    @Bindable var model = model
+    TabView(selection: $model.selectedTab) {
       Tab("Emotes", systemImage: "face.smiling", value: .emotes) {
         ServerScope { guild in
           EmotesView(guild: guild, app: model)
@@ -58,6 +59,11 @@ struct MainTabView: View {
     }
     .task {
       await GuessActivityController.endLeftovers()
+    }
+    .onChange(of: scenePhase) { _, phase in
+      if phase == .active {
+        guess?.resume()
+      }
     }
     .task(id: guess?.taskID) {
       await guess?.play()

@@ -32,6 +32,9 @@ struct ServerView: View {
         Text("The saved settings stay as they are.")
       }
       .task { await model.load() }
+      .onChange(of: model.hasChanges, initial: true) { _, changed in
+        model.app.hasUnsavedServerChanges = changed
+      }
   }
 
   /// The settings form, or the loading or failure state.
@@ -66,6 +69,7 @@ struct ServerView: View {
         BorderSection(model: model)
       }
       .disabled(model.isSaving)
+      .scrollDismissesKeyboard(.interactively)
       .refreshable { await model.load() }
     }
   }

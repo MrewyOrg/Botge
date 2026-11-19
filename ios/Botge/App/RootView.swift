@@ -1,3 +1,4 @@
+import BotgeKit
 import SwiftUI
 
 /// Chooses between the configuration error, login, and the main tabs, behind App Lock.
@@ -23,6 +24,19 @@ struct RootView: View {
     }
     .appLock()
     .task { await model.restore() }
+    .onOpenURL { url in
+      let scheme = Bundle.main.object(forInfoDictionaryKey: AppLink.schemeKey) as? String ?? ""
+      switch AppLink(url: url, scheme: scheme) {
+      case .emotes:
+        model.selectedTab = .emotes
+
+      case .guess:
+        model.selectedTab = .guess
+
+      case nil:
+        break
+      }
+    }
     .animation(.default, value: model.phase)
   }
 }

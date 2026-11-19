@@ -5,11 +5,13 @@ import SwiftUI
 struct GuessStageView: View {
   /// Side of the square image area.
   private static let size: CGFloat = 200
-  /// Size of the lobby and trophy symbols.
-  private static let symbolSize: CGFloat = 64
+  /// The largest symbol is this fraction of the image area.
+  private static let symbolFraction: CGFloat = 2
   /// Corner radius of the image area.
   private static let cornerRadius: CGFloat = 24
 
+  /// Size of the lobby and trophy symbols, growing with the text size.
+  @ScaledMetric private var symbolSize: CGFloat = 64
   /// When animated round images play.
   @AppStorage(PreferenceKey.emotePlayback) private var playback: EmotePlayback = .followReduceMotion
   /// Whether the system asks for less motion.
@@ -62,7 +64,7 @@ struct GuessStageView: View {
     case .reveal:
       if let image {
         frame(image)
-          .accessibilityLabel(state.answer ?? "")
+          .accessibilityLabel(state.answer.map { "Emote: \($0)" } ?? String(localized: "Emote"))
       } else {
         symbol
       }
@@ -78,7 +80,7 @@ struct GuessStageView: View {
   /// The game's symbol for the lobby and the end of a match.
   private var symbol: some View {
     Image(systemName: state.phase == .final ? "trophy.fill" : "gamecontroller.fill")
-      .font(.system(size: Self.symbolSize))
+      .font(.system(size: min(symbolSize, Self.size / Self.symbolFraction)))
       .foregroundStyle(.tint)
       .accessibilityHidden(true)
   }

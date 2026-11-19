@@ -31,6 +31,12 @@ final class AppModel {
   private(set) var guildsFailure: APIError?
   /// Whether a Guess match is running; the Emotes tab hides its emotes meanwhile.
   var isPlayingGuess = false
+  /// Whether the Server tab has edits that are not saved yet.
+  var hasUnsavedServerChanges = false
+  /// The selected tab; App Intents change it to open a feature.
+  var selectedTab: MainTabView.Section = .emotes
+  /// A search from an App Intent that the Emotes tab has not applied yet.
+  var pendingSearch: String?
 
   /// OAuth request builder, or `nil` when the build is misconfigured.
   let oauth: DiscordOAuth?
@@ -193,6 +199,14 @@ final class AppModel {
   /// - Returns: The client.
   func makeGameClient() -> GameClient? {
     api.map { GameClient(api: $0, connector: sockets) }
+  }
+
+  /// Opens the Emotes tab and searches the selected server's emotes, for App Intents.
+  ///
+  /// - Parameter query: The search text.
+  func search(_ query: String) {
+    pendingSearch = query.trimmingCharacters(in: .whitespacesAndNewlines)
+    selectedTab = .emotes
   }
 
   /// Clears the downloaded and decoded image caches.

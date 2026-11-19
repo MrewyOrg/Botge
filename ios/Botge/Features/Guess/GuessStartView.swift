@@ -40,6 +40,7 @@ struct GuessStartView: View {
         )
       }
     }
+    .scrollDismissesKeyboard(.interactively)
     .navigationTitle("Guess")
   }
 

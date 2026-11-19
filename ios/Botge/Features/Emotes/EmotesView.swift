@@ -22,6 +22,15 @@ struct EmotesView: View {
         prompt: Text(searchPrompt)
       )
       .toolbar { EmotesToolbar(model: model) }
+      .onChange(of: model.app.pendingSearch, initial: true) { _, query in
+        guard let query else {
+          return
+        }
+
+        model.source = .server
+        model.filter.query = query
+        model.app.pendingSearch = nil
+      }
       .safeAreaBar(edge: .top) { EmotesSourcePicker(model: model) }
       .safeAreaInset(edge: .bottom) { SelectionBar(model: model) }
       .sheet(item: $model.sheet) { sheet in

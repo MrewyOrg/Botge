@@ -3,8 +3,14 @@ import SwiftUI
 
 /// One server in the picker: icon, name, and whether the user administers it.
 struct ServerRow: View {
-  /// Side length of the server icon.
-  private static let iconSize: CGFloat = 40
+  /// How far the initials may shrink to fit the icon.
+  private static let initialsScale = 0.5
+
+  /// Side length of the server icon, growing with the text size.
+  @ScaledMetric private var iconSize: CGFloat = 40
+
+  /// The text size; accessibility sizes stack the icon above the name.
+  @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
   /// The server shown.
   let guild: SharedGuild
@@ -12,14 +18,22 @@ struct ServerRow: View {
   let isSelected: Bool
 
   var body: some View {
-    HStack {
+    let layout = dynamicTypeSize.isAccessibilitySize
+      ? AnyLayout(VStackLayout(alignment: .leading))
+      : AnyLayout(HStackLayout())
+    layout {
       AsyncImage(url: guild.icon) { image in
         image.resizable()
       } placeholder: {
-        Image(systemName: "person.3.fill")
-          .foregroundStyle(.secondary)
+        Text(guild.initials)
+          .font(.caption.weight(.semibold))
+          .minimumScaleFactor(Self.initialsScale)
+          .lineLimit(1)
+          .padding(Metrics.tightSpacing)
+          .frame(maxWidth: .infinity, maxHeight: .infinity)
+          .background(.fill.secondary)
       }
-      .frame(width: Self.iconSize, height: Self.iconSize)
+      .frame(width: iconSize, height: iconSize)
       .clipShape(.circle)
       .accessibilityHidden(true)
       VStack(alignment: .leading) {

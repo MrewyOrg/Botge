@@ -16,7 +16,11 @@ struct EmoteCell: View {
         model.sheet = .preview(emote)
       }
     } label: {
-      EmoteTile(emote: emote, isSelected: model.selection.contains(emote.id))
+      EmoteTile(
+        emote: emote,
+        isSelected: model.selection.contains(emote.id),
+        isSelecting: model.isSelecting
+      )
     }
     .buttonStyle(.plain)
     .contextMenu {

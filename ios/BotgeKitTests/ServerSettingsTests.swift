@@ -77,4 +77,12 @@ struct ServerSettingsTests {
     #expect(color.hex == "FF0010")
     #expect([color.red, color.green, color.blue] == [Int]([255, 0, 16]))
   }
+
+  @Test
+  func `server initials take the first letter of up to three words`() {
+    let initials = ["Botge Fan Club Server", "Solo", "  ", "#1 fans & co"].map { name in
+      SharedGuild(id: "1", name: name, icon: nil, isAdministrator: false).initials
+    }
+    #expect(initials == ["BFC", "S", "", "#f&"])
+  }
 }

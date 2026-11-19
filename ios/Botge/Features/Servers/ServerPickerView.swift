@@ -41,7 +41,7 @@ struct ServerPickerView: View {
         ProgressView("Loading Servers")
       }
     }
-    .navigationTitle("Choose a Server")
+    .navigationTitle("Servers")
     .refreshable { await model.loadGuilds() }
   }
 }

@@ -24,6 +24,8 @@ struct EmotesContent: View {
       emptyState
     } else {
       EmoteGrid(model: model, emotes: emotes)
+        // Dense grids cap text growth, like Photos, so several emotes still fit across.
+        .dynamicTypeSize(...DynamicTypeSize.accessibility1)
         .id(model.source)
     }
   }

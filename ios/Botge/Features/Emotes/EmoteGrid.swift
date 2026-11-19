@@ -5,9 +5,8 @@ import SwiftUI
 ///
 /// Each source gets its own grid, which reopens at the emote that was at its top.
 struct EmoteGrid: View {
-  /// Smallest tile width; columns adapt to the screen.
-  private static let tileWidth: CGFloat = 76
-
+  /// Smallest tile width, growing with the text size; columns adapt to the screen.
+  @ScaledMetric private var tileWidth: CGFloat = 76
   /// The server's catalog state.
   let model: EmotesModel
   /// The emotes shown, computed once per update.
@@ -19,7 +18,7 @@ struct EmoteGrid: View {
     let lastID = emotes.last?.id
     ScrollView {
       LazyVGrid(
-        columns: [GridItem(.adaptive(minimum: Self.tileWidth))],
+        columns: [GridItem(.adaptive(minimum: tileWidth))],
         spacing: Metrics.compactSpacing
       ) {
         ForEach(emotes) { emote in

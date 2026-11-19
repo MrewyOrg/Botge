@@ -113,6 +113,7 @@ const cSpellSettings: Readonly<CSpellSettings> = defineConfig({
     'setsar',
     'seventv',
     'simctl',
+    'Siri',
     'socat',
     'srgb',
     'sswg',

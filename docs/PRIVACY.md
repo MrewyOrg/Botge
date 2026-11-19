@@ -78,7 +78,16 @@ backups and iCloud. Logging out revokes the access token when Discord is reachab
 The app sends the access token to the operator's Botge server with each request, as the Activity
 does, and the server applies the same membership checks and token handling described above. To list
 servers in the app, Botge checks the caller's membership in each server it has joined. App players
-in the guessing game share a room with other app players, not with a Discord Activity.
+in the guessing game share a room with other app players, not with a Discord Activity. A room is
+named by a code that players share themselves; Botge keeps rooms, scores and wrong guesses only in
+memory while the room is open, as for the Activity.
+
+During a match the app shows a Live Activity on the Lock Screen and in the Dynamic Island with the
+server name, round, countdown, score and place. It is created and updated on the device without a
+push server, so it is visible to anyone who can see the locked phone, and it ends with the match.
+Siri, Spotlight and Shortcuts can open the app to search emotes or the Guess tab; a spoken search is
+handled by Siri under Apple's terms, and the app receives only the search text, which stays on the
+device.
 
 App settings, including the chosen server, stay on the device. Face ID or the passcode is checked by
 iOS; Botge never receives biometric data. Emote images are downloaded from the providers' CDNs and

@@ -2,6 +2,9 @@ import SwiftUI
 
 /// One scoreboard row: place, name and points, with the local player in bold.
 struct GuessScoreRow: View {
+  /// The text size; accessibility sizes stack the place, name and points.
+  @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
   /// The player's display name.
   let name: String
   /// The player's points.
@@ -12,7 +15,10 @@ struct GuessScoreRow: View {
   let isPlayer: Bool
 
   var body: some View {
-    HStack {
+    let layout = dynamicTypeSize.isAccessibilitySize
+      ? AnyLayout(VStackLayout(alignment: .leading))
+      : AnyLayout(HStackLayout())
+    layout {
       Text(rank, format: .number)
         .monospacedDigit()
         .foregroundStyle(.secondary)

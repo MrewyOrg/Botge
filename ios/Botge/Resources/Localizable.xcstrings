@@ -4,6 +4,16 @@
     "%@ can't be composed or the composition is full." : {
 
     },
+    "%@ got it: %@ (+%lld)." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@ got it: %2$@ (+%3$lld)."
+          }
+        }
+      }
+    },
     "%@ is already on the server." : {
 
     },
@@ -20,7 +30,25 @@
         }
       }
     },
+    "%lld players are here. Anyone can start." : {
+
+    },
+    "🎮 Gaming" : {
+
+    },
     "7TV returned no emotes." : {
+
+    },
+    "7TV Set" : {
+
+    },
+    "A 7TV set ID has 24 or 26 letters and digits." : {
+
+    },
+    "A channel name has up to 25 letters, digits and underscores." : {
+
+    },
+    "A Twitch user ID has only digits." : {
 
     },
     "About & Legal" : {
@@ -47,6 +75,9 @@
     "Administrator" : {
 
     },
+    "Administrators can always add and remove emotes." : {
+
+    },
     "All Sources" : {
 
     },
@@ -68,10 +99,22 @@
     "Appearance" : {
 
     },
+    "Ask a friend in this server for their room code. Discord Activity games are separate." : {
+
+    },
     "Ask for %@ or your passcode when opening Botge." : {
 
     },
+    "BetterTTV" : {
+
+    },
+    "Blurred emote" : {
+
+    },
     "Botge" : {
+
+    },
+    "Botge applies voice changes shortly after you save." : {
 
     },
     "Botge could not be reached. Check your connection and try again." : {
@@ -80,7 +123,13 @@
     "Botge could not complete the request." : {
 
     },
+    "Botge draws this border around emotes it posts for you, in every server." : {
+
+    },
     "Botge forgets your Discord login on this device." : {
+
+    },
+    "Botge Guess room %@" : {
 
     },
     "Botge Is Locked" : {
@@ -98,6 +147,9 @@
     "Botge sent an answer this version of the app does not understand." : {
 
     },
+    "Botge shows blurred emotes from %@. Name them in time." : {
+
+    },
     "BOTGE_API_BASE_URL needs HTTPS, or HTTP to a local address. Write https:/$()/ in xcconfig." : {
 
     },
@@ -107,10 +159,22 @@
     "Cache & Storage" : {
 
     },
+    "Can't Reach the Room" : {
+
+    },
     "Cancel" : {
 
     },
-    "Choose a Server" : {
+    "Channel" : {
+
+    },
+    "Channel Status" : {
+
+    },
+    "Choose up to %lld roles." : {
+
+    },
+    "Choose up to %lld roles. Save on the Server tab to apply." : {
 
     },
     "Clear" : {
@@ -131,7 +195,7 @@
     "Clear the image cache?" : {
 
     },
-    "Coming Soon" : {
+    "Color" : {
 
     },
     "Command Text" : {
@@ -152,7 +216,19 @@
     "Copy Name" : {
 
     },
+    "Create a Room" : {
+
+    },
     "Dark" : {
+
+    },
+    "Discard" : {
+
+    },
+    "Discard Changes" : {
+
+    },
+    "Discard your changes?" : {
 
     },
     "Discord could not be reached. Check your connection and try again." : {
@@ -176,16 +252,34 @@
     "Done" : {
 
     },
+    "Emote" : {
+
+    },
+    "Emote Border" : {
+
+    },
     "Emote images download again when needed." : {
 
     },
     "Emote images download again when needed. Your login and settings are kept." : {
 
     },
+    "Emote Managers" : {
+
+    },
+    "Emote Sources" : {
+
+    },
     "Emotes" : {
 
     },
+    "Emotes Hidden" : {
+
+    },
     "Emotes Unavailable" : {
+
+    },
+    "Everyone" : {
 
     },
     "Everyone in %@ loses these emotes." : {
@@ -203,7 +297,19 @@
     "Follow Reduce Motion" : {
 
     },
+    "FrankerFaceZ" : {
+
+    },
+    "Get ready…" : {
+
+    },
     "Guess" : {
+
+    },
+    "Guess the emote" : {
+
+    },
+    "Guesses" : {
 
     },
     "Haptics" : {
@@ -212,7 +318,32 @@
     "Haptics & Motion" : {
 
     },
+    "Hint: %@" : {
+
+    },
     "Image Cache" : {
+
+    },
+    "Invite" : {
+
+    },
+    "Join a Room" : {
+
+    },
+    "Join my Botge Guess room in %@: %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Join my Botge Guess room in %1$@: %2$@"
+          }
+        }
+      }
+    },
+    "Join Room" : {
+
+    },
+    "Joining Room %@" : {
 
     },
     "Layers (%lld/%lld)" : {
@@ -224,6 +355,18 @@
           }
         }
       }
+    },
+    "Leave" : {
+
+    },
+    "Leave a source empty to turn it off." : {
+
+    },
+    "Leave Match" : {
+
+    },
+    "Leave the match?" : {
+
     },
     "Legal" : {
 
@@ -240,6 +383,9 @@
     "Loading Servers" : {
 
     },
+    "Loading Settings" : {
+
+    },
     "Log Out" : {
 
     },
@@ -250,6 +396,21 @@
 
     },
     "Login was cancelled." : {
+
+    },
+    "Manager Roles" : {
+
+    },
+    "Match over. %@ wins." : {
+
+    },
+    "Match over. It's a tie." : {
+
+    },
+    "Match over. Nobody scored." : {
+
+    },
+    "Match over. You win." : {
 
     },
     "Motion" : {
@@ -267,10 +428,25 @@
     "No Matches" : {
 
     },
+    "No Roles" : {
+
+    },
     "No Shared Servers" : {
 
     },
     "Only emotes the server added can be removed." : {
+
+    },
+    "Only server administrators can change Botge's voice settings and emote sources." : {
+
+    },
+    "Open Botge Guess" : {
+
+    },
+    "Opens Botge and searches the emotes of the server you picked in the app." : {
+
+    },
+    "Opens the emote guessing game in Botge." : {
 
     },
     "Optic ID" : {
@@ -288,10 +464,25 @@
     "Paste into the emotes option of /emote-compose. Overlays draw over the emote before them." : {
 
     },
+    "Picking emotes…" : {
+
+    },
+    "Play Again" : {
+
+    },
+    "Play Guess" : {
+
+    },
+    "Player %@" : {
+
+    },
     "Preview" : {
 
     },
     "Privacy Policy" : {
+
+    },
+    "Reconnecting…" : {
 
     },
     "Regular" : {
@@ -315,7 +506,44 @@
     "Remove from the server?" : {
 
     },
+    "Roles" : {
+
+    },
+    "Room %@" : {
+
+    },
+    "Room Code" : {
+
+    },
+    "Round %lld of %lld" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Round %1$lld of %2$lld"
+          }
+        }
+      }
+    },
+    "Save" : {
+
+    },
+    "Saved." : {
+
+    },
+    "Saved. Botge applies voice changes shortly." : {
+
+    },
+    "Scores" : {
+
+    },
     "Search 7TV" : {
+
+    },
+    "Search Botge Emotes" : {
+
+    },
+    "Search Emotes" : {
 
     },
     "Search server emotes" : {
@@ -333,7 +561,16 @@
     "Selected" : {
 
     },
+    "Selects or deselects the emote" : {
+
+    },
+    "Send" : {
+
+    },
     "Server" : {
+
+    },
+    "Servers" : {
 
     },
     "Servers Unavailable" : {
@@ -348,7 +585,13 @@
     "Set DISCORD_APPLICATION_ID in ios/Config/Botge.local.xcconfig and rebuild." : {
 
     },
+    "Set ID" : {
+
+    },
     "Settings" : {
+
+    },
+    "Settings Unavailable" : {
 
     },
     "Share Link" : {
@@ -363,6 +606,18 @@
     "Source Code" : {
 
     },
+    "Start Match" : {
+
+    },
+    "Status" : {
+
+    },
+    "Status Text" : {
+
+    },
+    "Stay Disconnected" : {
+
+    },
     "Still" : {
 
     },
@@ -375,19 +630,34 @@
     "Terms of Service" : {
 
     },
+    "The emote list comes back when the Guess match ends." : {
+
+    },
     "The login sheet could not open. Try again." : {
 
     },
-    "Theme" : {
+    "The saved settings stay as they are." : {
 
     },
-    "This part of Botge for %@ arrives in a later build." : {
+    "The status can't be longer than %lld bytes." : {
+
+    },
+    "Theme" : {
 
     },
     "This removes every emote from the composition." : {
 
     },
     "This server has no emotes yet." : {
+
+    },
+    "This server has no roles Botge can offer." : {
+
+    },
+    "Time is up. It was %@." : {
+
+    },
+    "Time left" : {
 
     },
     "Top" : {
@@ -408,6 +678,12 @@
     "Turn on App Lock" : {
 
     },
+    "Twitch User ID" : {
+
+    },
+    "Type the name of this emote." : {
+
+    },
     "Unlock" : {
 
     },
@@ -420,7 +696,32 @@
     "Version" : {
 
     },
+    "Voice" : {
+
+    },
+    "You" : {
+
+    },
+    "You are the only player here. Start whenever you like." : {
+
+    },
+    "You got it: %@ (+%lld)." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "You got it: %1$@ (+%2$lld)."
+          }
+        }
+      }
+    },
     "Your Discord login expired. Log in again." : {
+
+    },
+    "Your Emote Border" : {
+
+    },
+    "Your score stays in this match, but you can't keep playing it." : {
 
     }
   },

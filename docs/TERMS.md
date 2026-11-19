@@ -96,7 +96,9 @@ chosen when the app is built. Using it is subject to the same Discord terms, acc
 operator terms as the Activity. Builds signed with a free Apple ID run only on the signer's devices
 and expire after seven days; distributing the app through Apple's stores requires the operator to
 accept Apple's own developer and store terms. The operator answers for the app they build and
-distribute, including its privacy notice.
+distribute, including its privacy notice. App players share Guess room codes themselves; anyone in
+the server who has a code can join that room, so players should share codes only with people they
+want to play with.
 
 ## Operator responsibilities and service terms
 

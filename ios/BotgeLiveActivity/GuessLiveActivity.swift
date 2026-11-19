@@ -6,6 +6,10 @@ import WidgetKit
 /// Lock Screen and Dynamic Island presentation of a running Guess match.
 struct GuessLiveActivity: Widget {
   private static let compactTimerWidth: CGFloat = 44
+  /// Opens the app on the Guess tab when the Live Activity is tapped.
+  private static let guessURL = AppLink.guess.url(
+    scheme: Bundle.main.object(forInfoDictionaryKey: AppLink.schemeKey) as? String ?? ""
+  )
   /// Width of the Lock Screen countdown, so it stays at the trailing edge.
   private static let lockScreenTimerWidth: CGFloat = 80
 
@@ -32,6 +36,7 @@ struct GuessLiveActivity: Widget {
         }
       }
       .padding()
+      .widgetURL(Self.guessURL)
     } dynamicIsland: { context in
       DynamicIsland {
         DynamicIslandExpandedRegion(.leading) {
@@ -57,6 +62,7 @@ struct GuessLiveActivity: Widget {
         Image(systemName: "gamecontroller.fill")
           .accessibilityLabel("Guess")
       }
+      .widgetURL(Self.guessURL)
     }
   }
 

@@ -38,8 +38,14 @@ final class GuessModel {
   private(set) var haptic: HapticEvent?
   /// Changes to restart ``play()`` after a failure.
   private(set) var attempt = 0
-  /// The guess being typed.
-  var guess = ""
+  /// The guess being typed, at most as long as the hint, since a longer guess cannot match.
+  var guess = "" {
+    didSet {
+      if let limit = state?.hint?.count, state?.phase == .round, guess.count > limit {
+        guess = String(guess.prefix(limit))
+      }
+    }
+  }
 
   /// The open connection, while connected.
   private var socket: GameConnection?
@@ -89,6 +95,14 @@ final class GuessModel {
     image = nil
     imageToken = nil
     guess = ""
+  }
+
+  /// Tries again when the app returns to the foreground after the connection failed, since
+  /// iOS closes connections of apps in the background.
+  func resume() {
+    if case .failed = connection, room != nil {
+      retry()
+    }
   }
 
   /// Tries again after the connection failed.

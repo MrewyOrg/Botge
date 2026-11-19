@@ -16,6 +16,7 @@ struct VoiceSection: View {
       } label: {
         Label("Channel", systemImage: "speaker.wave.2")
       }
+      .pickerStyle(.navigationLink)
       .accessibilityIdentifier("server.voice.channel")
       Toggle(isOn: $model.voiceDraft.isStatusEnabled) {
         Label("Channel Status", systemImage: "text.bubble")

@@ -50,11 +50,25 @@ struct GuessPlayView: View {
       }
       .frame(maxWidth: .infinity)
       .listRowBackground(Color.clear)
+      roomCode
       if !state.phase.isPlaying {
         startButton
       }
     }
     .listRowSeparator(.hidden)
+  }
+
+  /// The room code to share, while waiting in the lobby.
+  @ViewBuilder private var roomCode: some View {
+    if state.phase == .lobby, let room = model.room {
+      LabeledContent("Room Code") {
+        Text(room.code)
+          .monospaced()
+          .textSelection(.enabled)
+      }
+      .listRowBackground(Color.clear)
+      .accessibilityIdentifier("guess.code.label")
+    }
   }
 
   /// The masked name while the round is open, with spaced letters.

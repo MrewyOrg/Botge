@@ -56,6 +56,23 @@ You need macOS with Xcode 27 (open it once to install the iOS 27 simulator).
    General → VPN & Device Management.
 4. Free signing expires after seven days: run from Xcode again to renew it.
 
+## Features
+
+- **Emotes:** the server catalog and 7TV Trending and Top, with search, filters, the composer and,
+  for emote managers, adding and removing emotes one at a time or in batches.
+- **Guess:** create a room and share its code, or join one by code. App rooms (`app-<code>`) are
+  separate from Discord Activity rooms. The Emotes tab is hidden during a match, and a Live Activity
+  shows the round on the Lock Screen.
+- **Server:** voice settings, emote sources and emote managers for administrators, and everyone's
+  personal emote border.
+- **Settings:** appearance, App Lock, haptics and animation, image cache, legal documents and
+  logout.
+- **Siri, Spotlight and Shortcuts:** "Search emotes in Botge" asks for a search and opens the Emotes
+  tab; "Play Guess in Botge" opens the Guess tab. Both can be assigned to the Action button.
+
+With `npm run run:ios -- --fixtures`, the app uses offline fixture data: one administrator server, a
+small catalog, and a scripted one-round Guess room whose answer is `catJAM`.
+
 ## Checks
 
 From the repository root:
@@ -93,6 +110,11 @@ or let the commit hook format.
 - **SwiftFormat and SwiftLint disagree:**
   - SwiftFormat rewrites `count == 0` to `isEmpty`, so custom collections need an `isEmpty`.
   - Write `public nonisolated`; SwiftLint's modifier order is configured to match SwiftFormat.
+  - SwiftFormat moves a property attribute with labelled arguments to its own line, which
+    `attributes` rejects; drop the labels, as with the bare `@Parameter var search` whose title
+    comes from its name.
+  - A Sendable class that must be `nonisolated` clashes on `final nonisolated` order; make it an
+    `actor` with `nonisolated` members instead, as `FixtureGameSocket` does.
   - SwiftFormat puts the brace of a multi-line `if`/`while` condition on its own line, which
     `opening_brace` rejects. Move the extra conditions into a `guard` inside the loop.
 - **"Not available due to missing import":** `MemberImportVisibility` is on, so import the module

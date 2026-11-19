@@ -4,6 +4,8 @@
 <dict>
   <key>BotgeAPIBaseURL</key>
   <string>$(BOTGE_API_BASE_URL)</string>
+  <key>BotgeURLScheme</key>
+  <string>$(BOTGE_BUNDLE_PREFIX)</string>
   <key>DiscordApplicationID</key>
   <string>$(DISCORD_APPLICATION_ID)</string>
   <key>CFBundleURLTypes</key>
@@ -14,6 +16,14 @@
       <key>CFBundleURLSchemes</key>
       <array>
         <string>discord-$(DISCORD_APPLICATION_ID)</string>
+      </array>
+    </dict>
+    <dict>
+      <key>CFBundleURLName</key>
+      <string>Botge links</string>
+      <key>CFBundleURLSchemes</key>
+      <array>
+        <string>$(BOTGE_BUNDLE_PREFIX)</string>
       </array>
     </dict>
   </array>
