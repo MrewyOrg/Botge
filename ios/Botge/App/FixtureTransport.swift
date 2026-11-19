@@ -4,12 +4,25 @@ import Foundation
 
 /// Answers UI-test requests from fixtures, so UI tests never reach the network.
 ///
-/// `POST /guilds` returns one fixture server, `POST /catalog` a small catalog and 7TV's `gql`
-/// endpoint a page of discovery results, long enough to scroll; every other request, including
-/// images, fails as if offline.
+/// `POST /guilds` returns one fixture server, `POST /catalog` a small catalog, the settings
+/// routes fixture settings (saves echo what was sent) and 7TV's `gql` endpoint a page of
+/// discovery results, long enough to scroll; every other request, including images, fails as
+/// if offline.
 struct FixtureTransport: HTTPTransport {
-  /// Fixture bodies by the request path's last component.
+  /// The path prefix of app API routes.
+  private static let routePrefix = "/app/v1/"
+  /// Joinable voice channels.
+  private static let channels = #"[{"id":"200000000000000001","name":"Lounge"}]"#
+  /// Roles for the manager picker.
+  private static let roles = #"[{"id":"300000000000000001","name":"Moderators"}]"#
+
+  /// Fixture bodies by app API route.
   private static let bodies: [String: String] = [
+    "settings": #"{"voice":{"channelId":null,"statusEnabled":false,"statusEmoji":null},"#
+      + #""channels":\#(channels)}"#,
+    "settings/emotes/read": #"{"sevenTvSet":null,"bttvTwitchId":null,"ffzChannel":null,"#
+      + #""allowEveryone":false,"allowedRoles":[],"roles":\#(roles)}"#,
+    "settings/border/read": #"{"color":""}"#,
     "guilds": """
     {"guilds":[{"id":"100000000000000001","name":"Fixture Server","icon":null,\
     "administrator":true}]}
@@ -49,9 +62,10 @@ struct FixtureTransport: HTTPTransport {
   /// - Returns: The fixture body and a 200 response.
   /// - Throws: `URLError(.notConnectedToInternet)` for every request without a fixture.
   func data(for request: URLRequest) throws -> (Data, URLResponse) {
-    let path = request.url?.lastPathComponent
     guard let url = request.url,
-          let body = path == "gql" ? Self.discoveryBody : Self.bodies[url.lastPathComponent],
+          let body = url.lastPathComponent == "gql"
+          ? Self.discoveryBody
+          : Self.body(route: Self.route(of: url), request: request),
           let response = HTTPURLResponse(
             url: url,
             statusCode: Self.okStatus,
@@ -63,6 +77,50 @@ struct FixtureTransport: HTTPTransport {
     }
 
     return (Data(body.utf8), response)
+  }
+
+  /// The app API route of `url`, such as `settings/emotes/read`.
+  ///
+  /// - Parameter url: A request URL.
+  /// - Returns: The path after `/app/v1/`, or the whole path for other URLs.
+  private static func route(of url: URL) -> String {
+    let path = url.path()
+    guard let range = path.range(of: routePrefix) else {
+      return path
+    }
+
+    return String(path[range.upperBound...])
+  }
+
+  /// The fixture answer for `route`; settings saves echo the sent values.
+  ///
+  /// - Parameters:
+  ///   - route: The app API route.
+  ///   - request: The request, whose JSON body a save echoes.
+  /// - Returns: The answer body, or `nil` when the route has no fixture.
+  private static func body(route: String, request: URLRequest) -> String? {
+    let sent = request.httpBody
+      .flatMap { try? JSONSerialization.jsonObject(with: $0) as? [String: Any] } ?? [:]
+    let field: (String) -> String? = { key in
+      sent[key]
+        .flatMap { try? JSONSerialization.data(withJSONObject: $0, options: .fragmentsAllowed) }
+        .flatMap { String(bytes: $0, encoding: .utf8) }
+    }
+    switch route {
+    case "settings/border":
+      return field("color").map { #"{"color":\#($0)}"# }
+
+    case "settings/emotes":
+      return field("emotes").map { emotes in
+        String(emotes.dropLast()) + #","roles":\#(roles)}"#
+      }
+
+    case "settings/voice":
+      return field("voice").map { #"{"voice":\#($0),"channels":\#(channels)}"# }
+
+    default:
+      return bodies[route]
+    }
   }
 }
 #endif

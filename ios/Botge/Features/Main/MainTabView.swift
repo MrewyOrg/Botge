@@ -31,7 +31,8 @@ struct MainTabView: View {
       }
       Tab("Server", systemImage: "server.rack", value: .server) {
         ServerScope { guild in
-          FeaturePlaceholderView(title: "Server", systemImage: "server.rack", guild: guild)
+          ServerView(guild: guild, app: model)
+            .id(guild.id)
         }
       }
       Tab("Settings", systemImage: "gearshape", value: .settings) {
