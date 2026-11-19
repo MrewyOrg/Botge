@@ -35,6 +35,9 @@ here instead of repeating them. Run commands from the repository root. The
 | `npm run lint:shell`                       | ShellCheck                                          |
 | `npm run lint:workflows`                   | actionlint, including composite actions             |
 | `.venv/bin/python scripts/check_python.py` | Python helpers (see the helper guide)               |
+| `npm run check:ios`                        | SwiftFormat lint and strict SwiftLint               |
+| `npm run test:ios`                         | iOS unit and UI tests, BotgeKit coverage gate       |
+| `npm run test:ios:lockdown`                | Lockdown test plan (simulator in Lockdown Mode)     |
 
 CI runs the same commands. Coverage commands already run their tests, so don't repeat a passing
 suite. For focused iteration, use a filtered `cargo test --locked` or Vitest run.
@@ -52,11 +55,23 @@ exclude executable code to pass.
 | Rust       | 95% lines, branches, functions and regions | `coverage/rust/` (opt-in HTML) |
 | TypeScript | 90% statements, branches, functions, lines | `coverage/typescript/`         |
 | Python     | 90% lines and branches                     | `coverage/python/`             |
+| Swift      | 90% lines in BotgeKit                      | `ios/DerivedData/*.xcresult`   |
 
 For the Rust HTML report, add `--html --output-dir coverage/rust` to the coverage scope. TypeScript
 covers runtime files in repository tooling, the Activity and its Worker; declaration-only `.d.ts`
 files are excluded. `npm run test:coverage -w activity` writes an Activity-only report to
 `coverage/activity/`. Type checking validates `expectTypeOf` assertions; Vitest alone does not.
+
+The iOS checks need macOS, Xcode 27 and the pinned tools from `npm run setup:ios`; the doctor
+reports them as optional. SwiftUI views are covered by UI tests rather than the line gate.
+
+### Lockdown Mode
+
+The iOS app must work the same with Lockdown Mode on. `LockdownTests` simulates its restrictions in
+unit tests on every run. Before a release, also turn Lockdown Mode on in a simulator's Settings →
+Privacy & Security, run `npm run test:ios:lockdown`, then repeat on a device: log in, browse
+animated emotes, play a Guess round, check the Live Activity, run a Shortcut and open the legal
+screens.
 
 ## Test layout
 

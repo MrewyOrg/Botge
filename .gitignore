@@ -29,3 +29,11 @@ node_modules/
 .ruff_cache/
 # cspell:words pycache
 **/__pycache__/
+# iOS: the Xcode project is generated from ios/project.yml; tools and builds are local.
+/ios/*.xcodeproj/
+/ios/Config/*.local.xcconfig
+/ios/Tools/.build/
+/ios/Tools/bin/
+DerivedData/
+xcuserdata/
+*.xcuserstate

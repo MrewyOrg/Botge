@@ -45,6 +45,7 @@ jobs:
       shell: ${{ steps.paths.outputs.shell }}
       workflows: ${{ steps.paths.outputs.workflows }}
       python: ${{ steps.paths.outputs.python }}
+      ios: ${{ steps.paths.outputs.ios }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v7.0.1
@@ -138,6 +139,12 @@ jobs:
               - '.agents/scripts/**/*.sh'
               - '.husky/{pre-commit,commit-msg,post-merge}'
               - '.shellcheckrc'
+              - '.github/workflows/botgeql.yml'
+            ios:
+              - 'ios/**'
+              - 'docs/{TERMS,PRIVACY}.md'
+              - 'LICENSE.txt'
+              - 'scripts/{check,setup}-ios*.sh'
               - '.github/workflows/botgeql.yml'
             workflows:
               - '.github/workflows/*.{yml,yaml}'
@@ -328,6 +335,46 @@ jobs:
         run: sh scripts/check-rust.sh dependencies
 
   # Rulesets require this check name. It passes only when every stage succeeded or was skipped.
+  # Standard macOS runners are free for public repositories; see docs/PRODUCTION.md#cost-policy.
+  ios:
+    name: iOS lint, tests and coverage
+    needs: changes
+    if: always() && !cancelled() && needs.changes.outputs.ios == 'true'
+    runs-on: macos-latest
+    timeout-minutes: 60
+    env:
+      BOTGE_IOS_DESTINATION: platform=iOS Simulator,name=iPhone 17e,OS=latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+
+      # The app targets iOS 27, so use the newest installed Xcode 27.
+      - name: Select Xcode 27
+        run: |
+          xcode=$(find /Applications -maxdepth 1 -name 'Xcode_27*.app' | sort -V | tail -n 1)
+          test -n "$xcode"
+          sudo xcode-select --switch "$xcode"
+          xcodebuild -version
+
+      - name: Restore pinned iOS tools
+        uses: actions/cache@v6.1.0
+        with:
+          path: ios/Tools/.build
+          key:
+            ios-tools-${{ runner.os }}-${{ runner.arch }}-${{
+            hashFiles('ios/Tools/Package.resolved') }}
+
+      - name: Build pinned iOS tools
+        run: sh scripts/setup-ios-tools.sh
+
+      - name: Check Swift formatting and lints
+        run: sh scripts/check-ios.sh static
+
+      - name: Run iOS tests and enforce coverage
+        run: sh scripts/check-ios.sh test
+
   botgeql:
     name: BotgeQL
     needs:
@@ -338,7 +385,8 @@ jobs:
         rust-static,
         rust-coverage,
         rust-miri,
-        rust-dependencies
+        rust-dependencies,
+        ios
       ]
     if: always()
     runs-on: ubuntu-latest
@@ -351,7 +399,7 @@ jobs:
             documentation-and-typescript=${{ needs.documentation-and-typescript.result }}
             rust-static=${{ needs.rust-static.result }} rust-coverage=${{ needs.rust-coverage.result
             }} rust-miri=${{ needs.rust-miri.result }} rust-dependencies=${{
-            needs.rust-dependencies.result }}
+            needs.rust-dependencies.result }} ios=${{ needs.ios.result }}
         run: |
           status=0
           for entry in $RESULTS; do

@@ -1,0 +1,181 @@
+# XcodeGen specification for the Botge iOS app. Generate the gitignored Xcode project with
+# `npm run generate:ios`; edit this file, not Botge.xcodeproj.
+
+name: Botge
+
+options:
+  minimumXcodeGenVersion: 2.47.0
+  deploymentTarget:
+    iOS: '27.0'
+  xcodeVersion: '27.2'
+  developmentLanguage: en
+  createIntermediateGroups: true
+  groupSortPosition: top
+  generateEmptyDirectories: true
+
+configFiles:
+  Debug: Config/Botge.xcconfig
+  Release: Config/Botge.xcconfig
+
+settings:
+  base:
+    MARKETING_VERSION: 5.4.3
+    CURRENT_PROJECT_VERSION: 1
+    SWIFT_VERSION: '6.0'
+    SWIFT_STRICT_CONCURRENCY: complete
+    SWIFT_TREAT_WARNINGS_AS_ERRORS: true
+    GCC_TREAT_WARNINGS_AS_ERRORS: true
+    SWIFT_UPCOMING_FEATURE_EXISTENTIAL_ANY: true
+    SWIFT_UPCOMING_FEATURE_INTERNAL_IMPORTS_BY_DEFAULT: true
+    SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY: true
+    ENABLE_USER_SCRIPT_SANDBOXING: true
+    ENABLE_MODULE_VERIFIER: true
+    TARGETED_DEVICE_FAMILY: '1'
+    SUPPORTED_PLATFORMS: iphoneos iphonesimulator
+    SUPPORTS_MACCATALYST: false
+    SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD: false
+    SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD: false
+    CODE_SIGN_STYLE: Automatic
+    LOCALIZATION_PREFERS_STRING_CATALOGS: true
+    SWIFT_EMIT_LOC_STRINGS: true
+    STRING_CATALOG_GENERATE_SYMBOLS: true
+    DEAD_CODE_STRIPPING: true
+  configs:
+    Debug:
+      SWIFT_ACTIVE_COMPILATION_CONDITIONS: DEBUG
+      ENABLE_TESTABILITY: true
+
+packages:
+  SwiftLintPlugins:
+    url: https://github.com/SimplyDanny/SwiftLintPlugins
+    exactVersion: 0.65.1
+
+targets:
+  BotgeKit:
+    type: framework
+    platform: iOS
+    sources:
+      - BotgeKit
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: $(BOTGE_BUNDLE_PREFIX).kit
+        PRODUCT_NAME: BotgeKit
+        GENERATE_INFOPLIST_FILE: true
+        APPLICATION_EXTENSION_API_ONLY: true
+        BUILD_LIBRARY_FOR_DISTRIBUTION: false
+        SKIP_INSTALL: true
+        DEFINES_MODULE: true
+    buildToolPlugins:
+      - plugin: SwiftLintBuildToolPlugin
+        package: SwiftLintPlugins
+
+  Botge:
+    type: application
+    platform: iOS
+    sources:
+      - Botge
+      - path: ../docs/TERMS.md
+        buildPhase: resources
+      - path: ../docs/PRIVACY.md
+        buildPhase: resources
+      - path: ../LICENSE.txt
+        buildPhase: resources
+    dependencies:
+      - target: BotgeKit
+      - target: BotgeLiveActivity
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: $(BOTGE_BUNDLE_PREFIX)
+        PRODUCT_NAME: Botge
+        INFOPLIST_FILE: Botge/Info.plist
+        GENERATE_INFOPLIST_FILE: true
+        INFOPLIST_KEY_CFBundleDisplayName: Botge
+        INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.social-networking
+        INFOPLIST_KEY_NSFaceIDUsageDescription:
+          Botge uses Face ID to unlock the app when App Lock is on.
+        INFOPLIST_KEY_NSSupportsLiveActivities: true
+        INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents: true
+        INFOPLIST_KEY_UIStatusBarStyle: UIStatusBarStyleDefault
+        INFOPLIST_KEY_NSHumanReadableCopyright: Botge contributors. MIT License.
+        INFOPLIST_KEY_UIRequiredDeviceCapabilities: arm64
+        ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS: false
+        INFOPLIST_KEY_UILaunchScreen_Generation: true
+        INFOPLIST_KEY_UISupportedInterfaceOrientations: UIInterfaceOrientationPortrait
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
+        SWIFT_DEFAULT_ACTOR_ISOLATION: MainActor
+        SWIFT_APPROACHABLE_CONCURRENCY: true
+    buildToolPlugins:
+      - plugin: SwiftLintBuildToolPlugin
+        package: SwiftLintPlugins
+
+  BotgeLiveActivity:
+    type: app-extension
+    platform: iOS
+    sources:
+      - BotgeLiveActivity
+    dependencies:
+      - target: BotgeKit
+        embed: false
+      - sdk: SwiftUI.framework
+      - sdk: WidgetKit.framework
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: $(BOTGE_BUNDLE_PREFIX).live-activity
+        PRODUCT_NAME: BotgeLiveActivity
+        INFOPLIST_FILE: BotgeLiveActivity/Info.plist
+        GENERATE_INFOPLIST_FILE: true
+        INFOPLIST_KEY_CFBundleDisplayName: Botge
+        SWIFT_DEFAULT_ACTOR_ISOLATION: MainActor
+        SWIFT_APPROACHABLE_CONCURRENCY: true
+        SKIP_INSTALL: true
+    buildToolPlugins:
+      - plugin: SwiftLintBuildToolPlugin
+        package: SwiftLintPlugins
+
+  BotgeKitTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources:
+      - BotgeKitTests
+    dependencies:
+      - target: BotgeKit
+      # Hosted in the app so Keychain tests have the app's entitlements.
+      - target: Botge
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: $(BOTGE_BUNDLE_PREFIX).kit-tests
+        GENERATE_INFOPLIST_FILE: true
+
+  BotgeUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    sources:
+      - BotgeUITests
+    dependencies:
+      - target: Botge
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: $(BOTGE_BUNDLE_PREFIX).ui-tests
+        GENERATE_INFOPLIST_FILE: true
+        TEST_TARGET_NAME: Botge
+
+schemes:
+  Botge:
+    build:
+      targets:
+        Botge: all
+    run:
+      config: Debug
+    test:
+      config: Debug
+      gatherCoverageData: true
+      coverageTargets:
+        - BotgeKit
+        - Botge
+      testPlans:
+        - path: TestPlans/Botge.xctestplan
+          defaultPlan: true
+        - path: TestPlans/Lockdown.xctestplan
+    archive:
+      config: Release

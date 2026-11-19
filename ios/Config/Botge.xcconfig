@@ -1,0 +1,17 @@
+// Shared build settings for every Botge iOS target.
+// Put deployment values in Botge.local.xcconfig (gitignored); see Botge.local.example.xcconfig.
+
+// Reverse-DNS prefix for bundle identifiers. A free Apple ID needs a prefix nobody else has used.
+BOTGE_BUNDLE_PREFIX = com.example.botge
+
+// Botge API base URL, including the API path prefix. xcconfig treats "//" as a comment, so write
+// the scheme separator as "/$()/", for example https:/$()/botge.example.com/botge-api/app/v1.
+BOTGE_API_BASE_URL =
+
+// The Discord application ID of the Botge deployment. Login stays disabled until it is set.
+DISCORD_APPLICATION_ID =
+
+// Apple development team used for signing; set it locally after adding your Apple ID in Xcode.
+DEVELOPMENT_TEAM =
+
+#include? "Botge.local.xcconfig"

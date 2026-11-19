@@ -17,3 +17,8 @@ indent_size = 4
 
 [*.py]
 indent_size = 4
+
+# SwiftFormat follows the repository's two-space, 100-column style; see ios/.swiftformat.
+[*.swift]
+indent_size = 2
+max_line_length = 100

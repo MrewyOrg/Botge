@@ -1,0 +1,115 @@
+# SwiftLint runs every rule with --strict, so warnings fail checks.
+# A rule is disabled only when it contradicts SwiftFormat, another enabled rule, or a platform
+# requirement; each exception is explained in .agents/references/swift/README.md#lint-exceptions.
+
+included:
+  - Botge
+  - BotgeKit
+  - BotgeKitTests
+  - BotgeLiveActivity
+  - BotgeUITests
+  - Tools/Package.swift
+excluded:
+  - Tools/.build
+  - DerivedData
+
+opt_in_rules:
+  - all
+
+analyzer_rules:
+  - capture_variable
+  - typesafe_array_init
+  - unused_declaration
+  - unused_import
+
+disabled_rules:
+  - contrasted_opening_brace
+  - explicit_acl
+  - explicit_enum_raw_value
+  - explicit_top_level_acl
+  - explicit_type_interface
+  - no_grouping_extension
+  - prefer_nimble
+  - prefixed_toplevel_constant
+
+strict: true
+
+attributes:
+  attributes_with_arguments_always_on_line_above: false
+# Mirrors Rust's denied missing_docs with Clippy's check-private-items: every declaration at every
+# access level is documented. Protocol witnesses such as `body` inherit their protocol's docs.
+missing_docs:
+  warning: [open, public, package, internal, fileprivate, private]
+  excludes_extensions: true
+  excludes_inherited_types: true
+  excludes_trivial_init: false
+opening_brace:
+  ignore_multiline_function_signatures: true
+sorted_imports:
+  grouping: attributes
+indentation_width:
+  indentation_width: 2
+line_length:
+  warning: 100
+  ignores_urls: true
+trailing_comma:
+  mandatory_comma: false
+file_name:
+  excluded:
+    - Package.swift
+type_contents_order:
+  order:
+    - case
+    - [type_alias, associated_type]
+    - subtype
+    - type_property
+    - instance_property
+    - ib_inspectable
+    - ib_outlet
+    - initializer
+    - deinitializer
+    - [type_method, view_life_cycle_method, ib_action, ib_segue_action, other_method]
+    - subscript
+
+custom_rules:
+  no_web_content:
+    name: No web content views
+    message: >-
+      WebKit and SafariServices are restricted in Lockdown Mode; render content natively instead.
+    regex: '^\s*(@preconcurrency\s+)?import\s+(WebKit|SafariServices)\b'
+    severity: error
+  missing_throws_doc:
+    name: Missing Throws documentation
+    message: >-
+      Document when a throwing declaration throws with a `- Throws:` line, like Rust's
+      missing_errors_doc.
+    regex:
+      '(?:^|\n)(?![ \t]*///)[^\n]*\n(?:[ \t]*///(?:(?!- Throws:)[^\n])*\n)+(?:[ \t]*@[^\n]*\n)*[
+      \t]*(?:(?:public|package|internal|fileprivate|private|static|class|final|override|mutating|nonisolated|convenience|required)[
+      \t]+)*(?:func|init)\b[^{}=]*?\b(?:re)?throws\b[^{()\n]*(?:\([^(){}\n]*\)[^{()\n]*)*(?:\{|\n)'
+    severity: error
+  missing_doc_comment:
+    name: Missing doc comment on throwing declaration
+    message: Throwing declarations need a `///` comment with a `- Throws:` line.
+    regex:
+      '(?:^|\n)(?![ \t]*///)(?![ \t]*@)[^\n]*\n(?:[ \t]*@[^\n]*\n)*[
+      \t]*(?:(?:public|package|internal|fileprivate|private|static|class|final|override|mutating|nonisolated|convenience|required)[
+      \t]+)*(?:func|init)\b[^{}=]*?\b(?:re)?throws\b[^{()\n]*(?:\([^(){}\n]*\)[^{()\n]*)*(?:\{|\n)'
+    excluded: '(BotgeKitTests|BotgeUITests)/'
+    severity: error
+  missing_wrapped_property_docs:
+    name: Missing docs on wrapped property
+    message: >-
+      Document property-wrapper state such as @State and @Environment; missing_docs skips it.
+    regex:
+      '(?:^|\n)(?![ \t]*///)[^\n]*\n[ \t]*@[A-Z]\w*(?:\([^\n]*\))?[
+      \t]+(?:(?:private|fileprivate|internal|package|public)(?:\(set\))?[ \t]+)*(?:var|let)\b'
+    excluded: '(BotgeKitTests|BotgeUITests)/'
+    severity: error
+  no_print:
+    name: No print
+    message: Use os.Logger with privacy annotations instead of print.
+    regex: '\b(print|debugPrint|dump)\('
+    match_kinds:
+      - identifier
+    severity: error

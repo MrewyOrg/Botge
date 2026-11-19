@@ -122,6 +122,9 @@ All project tooling and services must remain free to use without trial credits o
   cover the use; Docker Engine is an alternative.
 - Keep the repository public and use standard GitHub-hosted runners. Avoid larger runners and paid
   build services. Stay within included cache/artifact storage and verify account spending controls.
+  The iOS job uses the standard `macos-latest` runner, which is free for public repositories.
+- Build the iOS app with a free Apple ID: Xcode signs it for your own devices, and each install
+  expires after seven days. Do not depend on the paid Apple Developer Program.
 - Keep Docker Hub and the enabled Scout repository within their free entitlements. Retain rollback
   images without enabling paid registry features.
 - Keep the Activity on Cloudflare Workers Free. Accept quota failures rather than enabling paid

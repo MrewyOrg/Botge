@@ -168,6 +168,141 @@
       "revision": "237194b479a4442d559f469eebe5d351f66e1fab",
       "repository": "Azure/azure-sdk",
       "license": "MIT"
+    },
+    {
+      "file": "swift-api-design-guidelines.md",
+      "url": "https://raw.githubusercontent.com/swiftlang/swift-org-website/a821e2d485358ff5ed1b87eb9dc3a20177965ba3/documentation/api-design-guidelines/index.md",
+      "sha256": "71f3853c08ac1a8e9df4a071bd6e819aee70e4e8cc7f4ab5901d380154308389",
+      "revision": "a821e2d485358ff5ed1b87eb9dc3a20177965ba3",
+      "repository": "swiftlang/swift-org-website",
+      "license": "Apache-2.0"
+    },
+    {
+      "file": "SWIFT-ORG-LICENSE.txt",
+      "url": "https://raw.githubusercontent.com/swiftlang/swift-org-website/a821e2d485358ff5ed1b87eb9dc3a20177965ba3/LICENSE.txt",
+      "sha256": "167beb36f181bd163c93c6feb45c68e5f9462fe1af55b278f7bfd1df20e673a3",
+      "revision": "a821e2d485358ff5ed1b87eb9dc3a20177965ba3",
+      "repository": "swiftlang/swift-org-website",
+      "license": "Apache-2.0"
+    },
+    {
+      "file": "swift-google-style.md",
+      "url": "https://raw.githubusercontent.com/google/swift/79459b39f2ab0330ee05a90f20c3f716d8406b24/index.md",
+      "sha256": "e32766075933d82bc123b2942e77c8268dc46b42c037f98ad90c19c7f6bf4463",
+      "revision": "79459b39f2ab0330ee05a90f20c3f716d8406b24",
+      "repository": "google/swift",
+      "license": "Apache-2.0"
+    },
+    {
+      "file": "SWIFT-GOOGLE-LICENSE.txt",
+      "url": "https://raw.githubusercontent.com/google/swift/79459b39f2ab0330ee05a90f20c3f716d8406b24/LICENSE.txt",
+      "sha256": "167beb36f181bd163c93c6feb45c68e5f9462fe1af55b278f7bfd1df20e673a3",
+      "revision": "79459b39f2ab0330ee05a90f20c3f716d8406b24",
+      "repository": "google/swift",
+      "license": "Apache-2.0"
+    },
+    {
+      "file": "swift-concurrency-DataRaceSafety.md",
+      "url": "https://raw.githubusercontent.com/swiftlang/swift-migration-guide/949b5e1be201af4346f60b243e7955bd5849f3f6/Guide.docc/DataRaceSafety.md",
+      "sha256": "fbf62d2ce1efb4355580c3f14d498823d2576f1a1409f8f2742fbc565a1e67df",
+      "revision": "949b5e1be201af4346f60b243e7955bd5849f3f6",
+      "repository": "swiftlang/swift-migration-guide",
+      "license": "Apache-2.0"
+    },
+    {
+      "file": "swift-concurrency-CommonProblems.md",
+      "url": "https://raw.githubusercontent.com/swiftlang/swift-migration-guide/949b5e1be201af4346f60b243e7955bd5849f3f6/Guide.docc/CommonProblems.md",
+      "sha256": "4023e2fde7fb6f244c58f4cb2e42e71a12821ff517a435eafacef431bc3ef01e",
+      "revision": "949b5e1be201af4346f60b243e7955bd5849f3f6",
+      "repository": "swiftlang/swift-migration-guide",
+      "license": "Apache-2.0"
+    },
+    {
+      "file": "swift-concurrency-IncrementalAdoption.md",
+      "url": "https://raw.githubusercontent.com/swiftlang/swift-migration-guide/949b5e1be201af4346f60b243e7955bd5849f3f6/Guide.docc/IncrementalAdoption.md",
+      "sha256": "c36c3813b977f08cdfb1b87c1c65264be25153243e2e7f95692fcd4f4eef351b",
+      "revision": "949b5e1be201af4346f60b243e7955bd5849f3f6",
+      "repository": "swiftlang/swift-migration-guide",
+      "license": "Apache-2.0"
+    },
+    {
+      "file": "swift-concurrency-RuntimeBehavior.md",
+      "url": "https://raw.githubusercontent.com/swiftlang/swift-migration-guide/949b5e1be201af4346f60b243e7955bd5849f3f6/Guide.docc/RuntimeBehavior.md",
+      "sha256": "fcfda7f68407f347331f7f4b73ec9f9dbc8bf34ba23a88c2aa0bd2a8cd715fc8",
+      "revision": "949b5e1be201af4346f60b243e7955bd5849f3f6",
+      "repository": "swiftlang/swift-migration-guide",
+      "license": "Apache-2.0"
+    },
+    {
+      "file": "SWIFT-MIGRATION-GUIDE-LICENSE.txt",
+      "url": "https://raw.githubusercontent.com/swiftlang/swift-migration-guide/949b5e1be201af4346f60b243e7955bd5849f3f6/LICENSE.txt",
+      "sha256": "770af8291f708538d8ff885a0bbc4e045cd700531741c4f99528d435c14d7f55",
+      "revision": "949b5e1be201af4346f60b243e7955bd5849f3f6",
+      "repository": "swiftlang/swift-migration-guide",
+      "license": "Apache-2.0"
+    },
+    {
+      "file": "hig-tab-bars.json",
+      "url": "https://developer.apple.com/tutorials/data/design/human-interface-guidelines/tab-bars.json",
+      "sha256": "b2f48f79d3f8a5bd00f2e3b462a19debd0a557ea0113ed8e573907bb06513f07",
+      "text": "hig-tab-bars.txt",
+      "license": "Apple copyright; local cache only, never committed or redistributed"
+    },
+    {
+      "file": "hig-settings.json",
+      "url": "https://developer.apple.com/tutorials/data/design/human-interface-guidelines/settings.json",
+      "sha256": "c17e9a542a806d828ef5bef1df044cee2c2c135f96e8d0c591d873c2507449cc",
+      "text": "hig-settings.txt",
+      "license": "Apple copyright; local cache only, never committed or redistributed"
+    },
+    {
+      "file": "hig-managing-accounts.json",
+      "url": "https://developer.apple.com/tutorials/data/design/human-interface-guidelines/managing-accounts.json",
+      "sha256": "f7bdc4b8223dae5c4bfe34c89c78836d9d1effb4ddcd0bfdf87ccf44e716f597",
+      "text": "hig-managing-accounts.txt",
+      "license": "Apple copyright; local cache only, never committed or redistributed"
+    },
+    {
+      "file": "hig-playing-haptics.json",
+      "url": "https://developer.apple.com/tutorials/data/design/human-interface-guidelines/playing-haptics.json",
+      "sha256": "68bab380a07eff7aa471d589565891bd904d4615bea3629766d4b7a11ab5c5ba",
+      "text": "hig-playing-haptics.txt",
+      "license": "Apple copyright; local cache only, never committed or redistributed"
+    },
+    {
+      "file": "hig-dark-mode.json",
+      "url": "https://developer.apple.com/tutorials/data/design/human-interface-guidelines/dark-mode.json",
+      "sha256": "cf352a73655e616568441efefb295802ade3e7f34980f33c35f0ee778cf4f3e7",
+      "text": "hig-dark-mode.txt",
+      "license": "Apple copyright; local cache only, never committed or redistributed"
+    },
+    {
+      "file": "hig-accessibility.json",
+      "url": "https://developer.apple.com/tutorials/data/design/human-interface-guidelines/accessibility.json",
+      "sha256": "be49ec0b34397f356a1e3fd8c7ad323713198515523947097913cb9c57da699b",
+      "text": "hig-accessibility.txt",
+      "license": "Apple copyright; local cache only, never committed or redistributed"
+    },
+    {
+      "file": "hig-live-activities.json",
+      "url": "https://developer.apple.com/tutorials/data/design/human-interface-guidelines/live-activities.json",
+      "sha256": "2fb99c271c081b7a95178b18fbddd8b0ed9ae93aa6deb421be4048c9713f4f1c",
+      "text": "hig-live-activities.txt",
+      "license": "Apple copyright; local cache only, never committed or redistributed"
+    },
+    {
+      "file": "hig-app-shortcuts.json",
+      "url": "https://developer.apple.com/tutorials/data/design/human-interface-guidelines/app-shortcuts.json",
+      "sha256": "26ffd9677b5c4e62efcb480d40e5748180ebf18755fdf9ee26295b7981ecf3df",
+      "text": "hig-app-shortcuts.txt",
+      "license": "Apple copyright; local cache only, never committed or redistributed"
+    },
+    {
+      "file": "hig-privacy.json",
+      "url": "https://developer.apple.com/tutorials/data/design/human-interface-guidelines/privacy.json",
+      "sha256": "9c637c45ac3a1c5414a4b7b6f606dbcd69a642fc01bf252bbdee0644fc299dd3",
+      "text": "hig-privacy.txt",
+      "license": "Apple copyright; local cache only, never committed or redistributed"
     }
   ]
 }

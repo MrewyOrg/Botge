@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>BotgeAPIBaseURL</key>
+  <string>$(BOTGE_API_BASE_URL)</string>
+  <key>DiscordApplicationID</key>
+  <string>$(DISCORD_APPLICATION_ID)</string>
+  <key>CFBundleURLTypes</key>
+  <array>
+    <dict>
+      <key>CFBundleURLName</key>
+      <string>Discord OAuth callback</string>
+      <key>CFBundleURLSchemes</key>
+      <array>
+        <string>discord-$(DISCORD_APPLICATION_ID)</string>
+      </array>
+    </dict>
+  </array>
+  <key>UIApplicationSceneManifest</key>
+  <dict>
+    <key>UIApplicationSupportsMultipleScenes</key>
+    <false/>
+  </dict>
+  <key>ITSAppUsesNonExemptEncryption</key>
+  <false/>
+</dict>
+</plist>

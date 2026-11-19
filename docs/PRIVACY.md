@@ -1,6 +1,6 @@
 # Privacy Policy and deployment notice
 
-Last reviewed: 2026-11-17.
+Last reviewed: 2026-11-19.
 
 This describes Botge's optional features and known gaps; each host needs a deployment-specific
 privacy notice. The **operator** controls configuration, accounts, storage, hosting, logs, and
@@ -66,6 +66,25 @@ setting removes the saved channel ID. Botge stores the optional channel status a
 Botge writes operational and error logs. Logs can contain identifiers, image URLs, and diagnostics.
 nginx may record requested paths and network addresses. Discord and recipients can retain uploaded
 attachments. Removing a database record does not erase existing backups or third-party copies.
+
+## iOS app
+
+The operator can enable the iOS app API with `BOTGE_APP_API=true`. The app opens Discord's login
+page in the system sign-in sheet, which keeps the Discord password out of the app, and requests only
+the `identify` scope. It exchanges the code with Discord itself using PKCE and keeps the resulting
+access and refresh tokens in the device Keychain, available only on that device and excluded from
+backups and iCloud. Logging out revokes the access token when Discord is reachable and deletes both.
+
+The app sends the access token to the operator's Botge server with each request, as the Activity
+does, and the server applies the same membership checks and token handling described above. To list
+servers in the app, Botge checks the caller's membership in each server it has joined. App players
+in the guessing game share a room with other app players, not with a Discord Activity.
+
+App settings, including the chosen server, stay on the device. Face ID or the passcode is checked by
+iOS; Botge never receives biometric data. Emote images are downloaded from the providers' CDNs and
+cached on the device until the cache is cleared in Settings or iOS removes it. Optional 7TV
+discovery sends searches directly from the device to 7TV. The app contains no analytics,
+advertising, or tracking, and its privacy manifest declares no collected data.
 
 ## Data requests
 

@@ -1,0 +1,25 @@
+import SwiftUI
+
+/// Chooses between the configuration error, login, and the main tabs, behind App Lock.
+struct RootView: View {
+  /// App-wide state.
+  @Environment(AppModel.self) private var model
+
+  var body: some View {
+    Group {
+      switch model.phase {
+      case let .misconfigured(error):
+        ConfigurationErrorView(error: error)
+
+      case .signedOut:
+        LoginView()
+
+      case .signedIn:
+        MainTabView()
+      }
+    }
+    .appLock()
+    .task { await model.restore() }
+    .animation(.default, value: model.phase)
+  }
+}

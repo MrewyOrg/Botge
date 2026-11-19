@@ -1,0 +1,56 @@
+# SwiftFormat owns Swift layout. Options mirror prettier.config.ts where Swift allows:
+# two-space indent, 100 columns, LF, no trailing commas, no semicolons.
+# Opt-in rules are enabled unless listed in .agents/references/swift/README.md#formatter-exceptions.
+
+--swift-version 6.4
+--language-mode 6
+--exclude Tools/.build,**/*.xcodeproj,DerivedData
+
+# Layout
+--indent 2
+--indent-case false
+--ifdef no-indent
+--max-width 100
+--linebreaks lf
+--semicolons never
+--trailing-commas never
+--wrap-arguments before-first
+--wrap-parameters before-first
+--wrap-collections before-first
+--wrap-conditions after-first
+--wrap-return-type if-multiline
+--wrap-effects if-multiline
+--wrap-ternary before-operators
+--closing-paren balanced
+--call-site-paren balanced
+--else-position same-line
+--guard-else auto
+--empty-braces no-space
+--type-attributes prev-line
+--func-attributes prev-line
+--stored-var-attributes same-line
+--computed-var-attributes prev-line
+--complex-attributes prev-line
+
+# Style
+--self remove
+--extension-acl on-declarations
+--import-grouping access-control,testable-first
+--property-types infer-locals-only
+--doc-comments before-declarations
+--header ignore
+--mark-types never
+--hex-literal-case uppercase
+--decimal-grouping 3,4
+--blank-line-after-switch-case always
+--short-optionals always
+
+--enable acronyms,blankLineAfterSwitchCase,blankLinesAfterGuardStatements,blockComments
+--enable commonTypos,emptyExtensions,forWhere,ifExpressions,isEmpty,noExplicitOwnership
+--enable noGuardInTests,preferContains,preferCountWhere,preferFinalClasses,preferFirstWhere
+--enable preferFlatMap,preferMinOverSorted,preferStructSwiftTestingSuites,preferSwiftStringAPI
+--enable preferSwiftTesting,privateSwiftUIDynamicProperties,propertyTypes
+--enable redundantExtendedLifetime,redundantOverload,redundantSendable,singlePropertyPerLine
+--enable testSuiteAccessControl,unusedPrivateDeclarations,validateTestCases,wrapEnumCases
+--enable wrapMultilineConditionalAssignment,wrapMultilineFunctionChains
+--enable wrapCaseBodies,wrapGuardStatementBodies

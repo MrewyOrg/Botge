@@ -41,9 +41,12 @@ unrelated suites for documentation-only edits.
 - **Activity HTML, styles, or build configuration:** `npm run check:markup -w activity`, plus
   `npm run eslint` for HTML and `npm run stylelint` for SCSS
 - **Python tooling:** `.venv/bin/python scripts/check_python.py`
+- **iOS app (`ios/`):** `npm run check:ios` and `npm run test:ios` (macOS with Xcode 27; run
+  `npm run setup:ios` once); add `npm run test:ios:lockdown` for login, image or document changes
 - **Control scripts or tooling tests:** `npm test -- --run --project Tooling`; `npm run lint:shell`
   for shell changes
 - **GitHub Actions or composite actions:** `npm run lint:workflows`
+- **Swift references:** `python3 .agents/scripts/cache_references.py --check`
 - **Markdown or prose:** `npm run markdownlint` and `npm run cspell`, scoped to changed files when
   supported
 - **Other formatting or Rego policy:** repository Prettier configuration or Regal

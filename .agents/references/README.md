@@ -49,6 +49,14 @@ Start with the [compact Python baseline](python/README.md) and its [audit](pytho
 applicable Azure SDK guidance. Source snapshots and licenses use the same ignored cache and pinned
 manifest. Project exceptions and remaining verification gaps are explicit in that baseline.
 
+## Swift
+
+Start with the [compact Swift baseline](swift/README.md) and its [audit](swift/AUDIT.md): Swift API
+Design Guidelines, the Google Swift Style Guide, the Swift 6 concurrency migration guide and the iOS
+sections of Apple's Human Interface Guidelines. HIG pages are DocC JSON with generated text
+extracts; they stay in the local cache and are never committed. Lint and formatter exceptions are
+listed in that baseline.
+
 ## Workspace review (2026-11-15)
 
 All crates, including the executable, are siblings under `crates/`; the root is a virtual workspace.

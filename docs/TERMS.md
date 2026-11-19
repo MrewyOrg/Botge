@@ -1,6 +1,6 @@
 # Terms of Service and hosting guidance
 
-Last reviewed: 2026-11-17.
+Last reviewed: 2026-11-19.
 
 Botge is self-hosted software. The **operator** runs an instance and must review these use and
 integration requirements. These terms do not certify legal clearance for features, images, or
@@ -88,6 +88,15 @@ obligations. See [FFmpeg's legal guidance](https://www.ffmpeg.org/legal.html).
 
 `/clear-messages` deletes earlier unpinned messages in the selected channel after administrator
 confirmation. Copies held by Discord, recipients, or backups may remain.
+
+## iOS app
+
+The iOS app is part of the same MIT-licensed software and connects to one operator's deployment,
+chosen when the app is built. Using it is subject to the same Discord terms, acceptable use and
+operator terms as the Activity. Builds signed with a free Apple ID run only on the signer's devices
+and expire after seven days; distributing the app through Apple's stores requires the operator to
+accept Apple's own developer and store terms. The operator answers for the app they build and
+distribute, including its privacy notice.
 
 ## Operator responsibilities and service terms
 
