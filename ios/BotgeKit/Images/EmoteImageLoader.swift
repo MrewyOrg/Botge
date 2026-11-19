@@ -55,13 +55,15 @@ public actor EmoteImageLoader {
 
   /// Tries each candidate in order and returns the best result.
   ///
-  /// Runs on the concurrent executor so decoding never blocks the actor.
+  /// Runs on the concurrent executor so decoding never blocks the actor. Formats the device keeps
+  /// refusing are skipped unless no other candidate is left.
   ///
   /// - Parameters:
   ///   - candidates: URLs in preference order.
   ///   - animated: Whether to decode every frame.
   ///   - transport: Downloads image bytes.
   ///   - decoder: Decodes them.
+  ///   - formats: Records which formats decode, and says which to skip.
   /// - Returns: The first decodable image, or a placeholder.
   @concurrent
   static func load(
