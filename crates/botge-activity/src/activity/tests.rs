@@ -708,6 +708,51 @@ async fn every_catalog_route_rejects_unsigned_input_before_application_work() ->
 }
 
 #[tokio::test]
+async fn app_routes_reject_requests_without_a_bearer_token() -> anyhow::Result<()> {
+  let fixture = Fixture::new()?;
+  let emote = "01234567890123456789012345";
+  // Without the proxy layer, each handler's own validation is the first check on the app API.
+  for (path, body) in [
+    ("/app/v1/catalog", json!({"guildId":"1"})),
+    ("/app/v1/emotes", json!({"guildId":"1","emoteId":emote})),
+    (
+      "/app/v1/emotes/remove",
+      json!({"guildId":"1","emoteId":emote}),
+    ),
+    (
+      "/app/v1/emotes/batch",
+      json!({"guildId":"1","action":"remove","emoteIds":[emote]}),
+    ),
+    ("/app/v1/settings/emotes/read", json!({"guildId":"1"})),
+    (
+      "/app/v1/settings/emotes",
+      json!({"guildId":"1","emotes":{}}),
+    ),
+    ("/app/v1/settings/border/read", json!({"guildId":"1"})),
+    ("/app/v1/settings/border", json!({"guildId":"1","color":""})),
+  ] {
+    assert_eq!(
+      fixture.post_with_token(path, &body, false, None).await?.0,
+      StatusCode::BAD_REQUEST,
+      "{path}"
+    );
+  }
+  assert_eq!(fixture.membership_calls.load(Ordering::Relaxed), 0);
+  // A token Discord no longer accepts fails when the border read identifies its owner.
+  let (status, body) = fixture
+    .post_with_token(
+      "/app/v1/settings/border/read",
+      &json!({"guildId":"1"}),
+      false,
+      Some("Bearer expired"),
+    )
+    .await?;
+  assert_eq!(status, StatusCode::UNAUTHORIZED);
+  assert_eq!(body.get("code"), Some(&json!("oauth_expired")));
+  Ok(())
+}
+
+#[tokio::test]
 async fn app_routes_use_bearer_tokens_without_a_proxy_signature() -> anyhow::Result<()> {
   let fixture = Fixture::new()?;
   let voice = json!({"channelId":"42","statusEnabled":false,"statusEmoji":null});

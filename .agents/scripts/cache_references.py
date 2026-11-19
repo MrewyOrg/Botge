@@ -6,7 +6,7 @@ import json
 from dataclasses import dataclass
 from html.parser import HTMLParser
 from pathlib import Path
-from typing import TYPE_CHECKING, override
+from typing import TYPE_CHECKING, cast, override
 from urllib.parse import urlsplit
 from urllib.request import urlopen
 
@@ -88,8 +88,11 @@ class DocC:
                 parts.append(self.inline(node.get('inlineContent', [])))
             elif kind == 'reference':
                 target = self.references.get(text(node.get('identifier')))
-                if isinstance(target, dict) and isinstance(target.get('title'), str):
-                    parts.append(target['title'])
+                if isinstance(target, dict):
+                    # Re-check through record() so the title has a known type.
+                    title = record(cast('object', target)).get('title')
+                    if isinstance(title, str):
+                        parts.append(title)
         return ''.join(parts)
 
     def blocks(self, items: object, prefix: str = '') -> list[str]:

@@ -15,9 +15,9 @@ commit hashes that it cannot wrap, and merge commits never reuse PR titles.
 
 Its stages run as parallel jobs: documentation and TypeScript, Rust static checks (including the
 stable `rust-version` build), Rust tests and coverage, Miri, Rust feature and unused-dependency
-checks, and iOS lint, tests and coverage on a standard macOS runner with the newest Xcode 27. A
-final `BotgeQL` job passes only when every stage succeeded or was skipped and change detection
-succeeded, so rulesets keep requiring that one check name. The Rust jobs share the
+checks, and iOS lint, tests and coverage on the standard `xcode-27` macOS runner with the newest
+Xcode 27. A final `BotgeQL` job passes only when every stage succeeded or was skipped and change
+detection succeeded, so rulesets keep requiring that one check name. The Rust jobs share the
 [`rust-setup`](../actions/rust-setup/action.yml) composite action, referenced as `$/` so the actions
 lockfile pins this repository's copy. It installs the nightly with each job's components, restores a
 build cache named per job, and provides only the pinned test tools that job needs.

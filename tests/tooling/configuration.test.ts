@@ -26,9 +26,15 @@ test('staged Rust uses rustfmt without following unstaged child modules', () => 
   expect(staged).toMatchObject({
     '*.rs': ['rustfmt --config skip_children=true', 'cspell'],
     '*.ts': expect.arrayContaining(['prettier --write']) as unknown,
-    '!(*.ts|*.html|*.scss|*.md|*.rs|*.py|*.webp|*.png)': expect.arrayContaining([
+    '!(*.ts|*.html|*.scss|*.md|*.rs|*.py|*.swift|*.webp|*.png)': expect.arrayContaining([
       'prettier --write --ignore-unknown'
     ]) as unknown
+  });
+});
+
+test('staged Swift is formatted and linted with the pinned iOS tools', () => {
+  expect(staged).toMatchObject({
+    '*.swift': ['ios/Tools/bin/swiftformat', 'sh scripts/lint-swift.sh', 'cspell']
   });
 });
 

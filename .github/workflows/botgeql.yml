@@ -338,11 +338,13 @@ jobs:
 
   # Rulesets require this check name. It passes only when every stage succeeded or was skipped.
   # Standard macOS runners are free for public repositories; see docs/PRODUCTION.md#cost-policy.
+  # `xcode-27` is the standard-size preview image with Xcode 27 (`macos-latest` has only Xcode 26);
+  # never use its paid larger variant.
   ios:
     name: iOS lint, tests and coverage
     needs: changes
     if: always() && !cancelled() && needs.changes.outputs.ios == 'true'
-    runs-on: macos-latest
+    runs-on: xcode-27
     timeout-minutes: 60
     env:
       BOTGE_IOS_DESTINATION: platform=iOS Simulator,name=iPhone 17e,OS=latest
