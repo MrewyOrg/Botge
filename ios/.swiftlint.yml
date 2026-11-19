@@ -28,6 +28,7 @@ disabled_rules:
   - explicit_enum_raw_value
   - explicit_top_level_acl
   - explicit_type_interface
+  - extension_access_modifier
   - incompatible_concurrency_annotation
   - no_grouping_extension
   - prefer_nimble
@@ -101,10 +102,10 @@ custom_rules:
   missing_wrapped_property_docs:
     name: Missing docs on wrapped property
     message: >-
-      Document property-wrapper state such as @State and @Environment; missing_docs skips it.
-    regex:
-      '(?:^|\n)(?![ \t]*///)[^\n]*\n[ \t]*@[A-Z]\w*(?:\([^\n]*\))?[
-      \t]+(?:(?:private|fileprivate|internal|package|public)(?:\(set\))?[ \t]+)*(?:var|let)\b'
+      Document property-wrapper state such as @State and @Environment; missing_docs skips it. Local
+      `@Bindable var model = model` bindings are exempt.
+    # prettier-ignore
+    regex: '(?:^|\n)(?![ \t]*///)[^\n]*\n[ \t]*@(?!Bindable[ \t]+var[ \t]+(\w+)[ \t]*=[ \t]*\1\b)[A-Z]\w*(?:\([^\n]*\))?[ \t]+(?:(?:private|fileprivate|internal|package|public)(?:\(set\))?[ \t]+)*(?:var|let)\b'
     excluded: '(BotgeKitTests|BotgeUITests)/'
     severity: error
   no_print:

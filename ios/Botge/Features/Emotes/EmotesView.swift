@@ -1,28 +1,24 @@
 import BotgeKit
 import SwiftUI
 
-/// The Emotes tab for one server: search, filters, the grid, preview and composer.
+/// The Emotes tab for one server: source, search, filters, the grid, preview and composer.
 struct EmotesView: View {
+  /// How long typing pauses before discovery searches 7TV.
+  private static let searchDelay: Duration = .milliseconds(searchDelayMilliseconds)
+  /// ``searchDelay`` in milliseconds.
+  private static let searchDelayMilliseconds = 350
+
   /// The server's catalog state.
   @State private var model: EmotesModel
 
   var body: some View {
     EmotesContent(model: model)
+      .frame(maxWidth: .infinity, maxHeight: .infinity)
       .navigationTitle("Emotes")
       .searchable(text: $model.filter.query, prompt: "Search emotes")
-      .toolbar {
-        ToolbarItem(placement: .topBarLeading) {
-          EmoteFilterMenu(filter: $model.filter)
-        }
-        ToolbarItem(placement: .topBarLeading) {
-          Button {
-            model.sheet = .composer
-          } label: {
-            Label("Compose (\(model.composition.layers.count))", systemImage: "square.stack.3d.up")
-          }
-          .accessibilityIdentifier("emotes.compose")
-        }
-      }
+      .toolbar { EmotesToolbar(model: model) }
+      .safeAreaInset(edge: .top) { EmotesSourcePicker(model: model) }
+      .safeAreaInset(edge: .bottom) { SelectionBar(model: model) }
       .sheet(item: $model.sheet) { sheet in
         switch sheet {
         case .composer:
@@ -37,7 +33,24 @@ struct EmotesView: View {
       }
       .task { await model.load() }
       .task { await model.watch() }
-      .refreshable { await model.load() }
+      .task(id: DiscoveryRequest(source: model.source, filter: model.filter)) {
+        guard model.source != .server else {
+          return
+        }
+
+        try? await Task.sleep(for: Self.searchDelay)
+        guard !Task.isCancelled else {
+          return
+        }
+
+        await model.reloadDiscovery()
+      }
+      .refreshable {
+        await model.load()
+        if model.source != .server {
+          await model.reloadDiscovery()
+        }
+      }
   }
 
   /// Creates the tab for one server.

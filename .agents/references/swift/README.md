@@ -60,16 +60,17 @@ and image decoding that falls back to a first frame and then a placeholder.
 
 SwiftLint runs every opt-in rule with `--strict`. These are disabled in `ios/.swiftlint.yml`:
 
-| Rule                         | Reason                                                          |
-| ---------------------------- | --------------------------------------------------------------- |
-| `explicit_acl`               | Contradicts SwiftFormat's redundant-`internal` removal.         |
-| `explicit_top_level_acl`     | Same conflict for top-level declarations.                       |
-| `explicit_type_interface`    | Contradicts `redundant_type_annotation` and inferred locals.    |
-| `explicit_enum_raw_value`    | String raw values equal to case names are idiomatic.            |
-| `contrasted_opening_brace`   | Contradicts `opening_brace` and SwiftFormat's same-line braces. |
-| `no_grouping_extension`      | Protocol conformances in extensions are the Swift convention.   |
-| `prefixed_toplevel_constant` | Swift API guidelines name constants without a `k` prefix.       |
-| `prefer_nimble`              | Botge uses Swift Testing, not the Nimble library.               |
+- `explicit_acl`: Contradicts SwiftFormat's redundant-`internal` removal.
+- `explicit_top_level_acl`: Same conflict for top-level declarations.
+- `explicit_type_interface`: Contradicts `redundant_type_annotation` and inferred locals.
+- `explicit_enum_raw_value`: String raw values equal to case names are idiomatic.
+- `contrasted_opening_brace`: Contradicts `opening_brace` and SwiftFormat's same-line braces.
+- `no_grouping_extension`: Protocol conformances in extensions are the Swift convention.
+- `prefixed_toplevel_constant`: Swift API guidelines name constants without a `k` prefix.
+- `extension_access_modifier`: Contradicts SwiftFormat's `--extension-acl on-declarations` (Google).
+- `prefer_nimble`: Botge uses Swift Testing, not the Nimble library.
+- `incompatible_concurrency_annotation`: Every module builds in Swift 6 mode; there are no Swift 5
+  clients to keep compatible.
 
 Adjusted rules: `attributes` allows property wrappers with arguments on the same line, as
 SwiftFormat writes them; `opening_brace` accepts SwiftFormat's brace after a wrapped signature;

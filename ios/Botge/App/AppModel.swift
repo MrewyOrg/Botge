@@ -9,6 +9,8 @@ final class AppModel {
   enum Phase: Equatable {
     /// The build has no valid deployment values; login is impossible.
     case misconfigured(ConfigurationError)
+    /// Checking the Keychain for a saved login; nothing is shown yet.
+    case restoring
     /// Waiting for Discord login.
     case signedOut
     /// Tokens are available.
@@ -40,6 +42,8 @@ final class AppModel {
   let urlCache: URLCache
   /// Opens catalog and game WebSocket connections.
   let sockets: any SocketConnecting
+  /// Fetches public 7TV discovery pages.
+  let discovery: SevenTVDiscovery
 
   /// Creates a model from validated configuration and injected services.
   ///
@@ -58,6 +62,7 @@ final class AppModel {
   ) {
     self.urlCache = urlCache
     self.sockets = sockets
+    discovery = SevenTVDiscovery(transport: transport)
     imageLoader = EmoteImageLoader(transport: transport)
     switch configuration {
     case let .success(values):
@@ -66,7 +71,7 @@ final class AppModel {
       oauth = client
       session = tokens
       api = BotgeAPI(baseURL: values.apiBaseURL, session: tokens, transport: transport)
-      phase = .signedOut
+      phase = .restoring
 
     case let .failure(error):
       oauth = nil
@@ -109,11 +114,11 @@ final class AppModel {
 
   /// Restores a saved session at launch.
   func restore() async {
-    guard let session, await session.isSignedIn else {
+    guard phase == .restoring, let session else {
       return
     }
 
-    phase = .signedIn
+    phase = await session.isSignedIn ? .signedIn : .signedOut
   }
 
   /// Runs the Discord login sheet and exchanges the code.

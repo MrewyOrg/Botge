@@ -19,13 +19,25 @@ final class EmotesModel {
   var composition: Composition = .init()
   /// The open sheet, if any.
   var sheet: EmotesSheet?
+  /// Where the grid takes its emotes from.
+  var source: EmotesSource = .server
+  /// Loaded 7TV discovery results.
+  var discovery: DiscoveryState = .init()
+  /// Whether taps select emotes for a batch action instead of previewing them.
+  var isSelecting = false
+  /// IDs of the selected emotes.
+  var selection: Set<String> = []
 
-  /// The app-wide model, for the API and sign-out.
-  private let app: AppModel
+  /// The app-wide model, for the API, 7TV and sign-out.
+  let app: AppModel
 
-  /// The catalog emotes that pass the current filter.
+  /// The emotes the grid shows: the filtered catalog, or discovery results with server state.
   var visibleEmotes: [CatalogEmote] {
-    filter.matchingEmotes(in: catalog?.emotes ?? [])
+    guard source != .server else {
+      return filter.matchingEmotes(in: catalog?.emotes ?? [])
+    }
+
+    return discovery.emotes.map { catalog?.resolving($0) ?? $0 }
   }
 
   /// Creates a model for one server.

@@ -67,7 +67,7 @@ case "${scope}" in
     ;;
   lockdown)
     if ! xcrun simctl list devices | grep -q "${lockdown_device} ("; then
-      runtime=$(xcrun simctl list runtimes | sed -n 's/.* - \(com\.apple\.CoreSimulator\.SimRuntime\.iOS-27-[0-9-]*\).*/\1/p' | tail -n 1)
+      runtime=$(xcrun simctl list runtimes | sed -n 's/.* - \(com\.apple\.CoreSimulator\.SimRuntime\.iOS-27-[0-9-]*[0-9]\)$/\1/p' | tail -n 1)
       xcrun simctl create "${lockdown_device}" com.apple.CoreSimulator.SimDeviceType.iPhone-17e "${runtime}" > /dev/null
     fi
     xcrun simctl boot "${lockdown_device}" 2> /dev/null || true

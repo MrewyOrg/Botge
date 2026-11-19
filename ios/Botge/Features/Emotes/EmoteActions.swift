@@ -10,6 +10,11 @@ struct EmoteActions: View {
   let model: EmotesModel
 
   var body: some View {
+    if model.canAdd(emote) {
+      Button("Add to Server", systemImage: "plus.circle") {
+        Task { await model.add(emote) }
+      }
+    }
     Button("Add to Composition", systemImage: "plus.square.on.square") {
       model.compose(emote)
     }

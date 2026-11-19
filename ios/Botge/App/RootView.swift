@@ -11,6 +11,9 @@ struct RootView: View {
       case let .misconfigured(error):
         ConfigurationErrorView(error: error)
 
+      case .restoring:
+        Color.clear
+
       case .signedOut:
         LoginView()
 

@@ -10,6 +10,8 @@ struct EmoteTile: View {
 
   /// The emote shown.
   let emote: CatalogEmote
+  /// Whether the emote is selected for a batch action.
+  var isSelected = false
 
   var body: some View {
     VStack(spacing: Self.labelSpacing) {
@@ -21,10 +23,18 @@ struct EmoteTile: View {
         .truncationMode(.middle)
     }
     .frame(maxWidth: .infinity)
+    .overlay(alignment: .topTrailing) {
+      if isSelected {
+        Image(systemName: "checkmark.circle.fill")
+          .symbolRenderingMode(.multicolor)
+          .accessibilityHidden(true)
+      }
+    }
     .contentShape(.rect)
     .accessibilityElement(children: .ignore)
     .accessibilityLabel(emote.name)
     .accessibilityHint("Shows the emote preview")
+    .accessibilityAddTraits(isSelected ? .isSelected : [])
     .accessibilityIdentifier("emote.\(emote.name)")
   }
 }
