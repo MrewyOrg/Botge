@@ -9,7 +9,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from doctor import Command, Result, diagnose, ffmpeg_supported, run
+from doctor import Command, Result, diagnose, ffmpeg_supported, run, xcode_supported
 
 
 def prerequisites(root: Path) -> dict[Command, Result]:
@@ -120,6 +120,42 @@ class DoctorTests(unittest.TestCase):
             self.assertEqual(execute.call_args.kwargs['env']['RUSTUP_AUTO_INSTALL'], '0')
             self.assertEqual(execute.call_args.kwargs['timeout'], 20)
             self.assertNotIn('shell', execute.call_args.kwargs)
+
+    def test_optional_ios_probes_report_without_failing_required_checks(self) -> None:
+        """Old Xcode, a missing simulator and unlinked tools only print a hint."""
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            responses = prerequisites(root)
+            responses[('xcodebuild', '-version')] = Result(0, 'Xcode 26.4')
+            responses[('xcrun', 'simctl', 'list', 'runtimes')] = Result(0, 'iOS 26.4 (26.4)')
+            tool = (str(root / 'ios' / 'Tools' / 'bin' / 'swiftlint'), '--version')
+            responses[tool] = Result(127, 'missing')
+            output = io.StringIO()
+            with contextlib.redirect_stdout(output):
+                healthy = diagnose(
+                    root,
+                    lambda args: responses.get(args, Result(0, 'fixture')),
+                    docker=False,
+                    ios=True,
+                )
+            self.assertTrue(healthy)
+            self.assertIn('FAIL Optional Xcode 27+', output.getvalue())
+            self.assertIn('FAIL Optional iOS 27 simulator', output.getvalue())
+            self.assertIn('npm run setup:ios', output.getvalue())
+
+            responses[('xcodebuild', '-version')] = Result(0, 'Xcode 27.2\nBuild version 27B52')
+            responses[('xcrun', 'simctl', 'list', 'runtimes')] = Result(0, 'iOS 27.2 (27.2)')
+            responses[tool] = Result(0, '0.65.1')
+            output = io.StringIO()
+            with contextlib.redirect_stdout(output):
+                diagnose(
+                    root,
+                    lambda args: responses.get(args, Result(0, 'fixture')),
+                    docker=False,
+                    ios=True,
+                )
+            self.assertNotIn('FAIL', output.getvalue())
+            self.assertFalse(xcode_supported('unrecognized'))
 
 
 if __name__ == '__main__':

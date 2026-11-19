@@ -21,6 +21,90 @@ import doctor
 class HelperPaths(unittest.TestCase):
     """Cover operational boundaries without real downloads, builds or service startup."""
 
+    def test_docc_json_extract(self) -> None:
+        """Render DocC JSON headings, lists, asides, tables, code and references offline."""
+        page = {
+            'metadata': {'title': 'Tab bars'},
+            'abstract': [{'type': 'text', 'text': 'Navigate sections.'}],
+            'references': {'doc://toolbars': {'title': 'Toolbars'}},
+            'primaryContentSections': [
+                {
+                    'content': [
+                        {'type': 'heading', 'level': 2, 'text': 'Best', 'anchor': 'Best'},
+                        {
+                            'type': 'paragraph',
+                            'inlineContent': [
+                                {
+                                    'type': 'strong',
+                                    'inlineContent': [{'type': 'text', 'text': 'Use '}],
+                                },
+                                {'type': 'codeVoice', 'code': 'TabView'},
+                                {'type': 'text', 'text': ' or '},
+                                {'type': 'reference', 'identifier': 'doc://toolbars'},
+                                {'type': 'image', 'identifier': 'hidden.png'},
+                            ],
+                        },
+                        {'type': 'paragraph', 'inlineContent': [{'type': 'image'}]},
+                        {
+                            'type': 'unorderedList',
+                            'items': [
+                                {
+                                    'content': [
+                                        {
+                                            'type': 'paragraph',
+                                            'inlineContent': [{'type': 'text', 'text': 'One'}],
+                                        }
+                                    ]
+                                }
+                            ],
+                        },
+                        {
+                            'type': 'aside',
+                            'name': 'Tip',
+                            'content': [
+                                {
+                                    'type': 'paragraph',
+                                    'inlineContent': [{'type': 'text', 'text': 'Hi'}],
+                                }
+                            ],
+                        },
+                        {
+                            'type': 'table',
+                            'rows': [
+                                [
+                                    [
+                                        {
+                                            'type': 'paragraph',
+                                            'inlineContent': [{'type': 'text', 'text': 'A'}],
+                                        }
+                                    ],
+                                    [],
+                                ]
+                            ],
+                        },
+                        {'type': 'codeListing', 'code': ['let x = 1']},
+                        {'type': 'unknown'},
+                    ]
+                }
+            ],
+        }
+        rendered = cache.docc_text(json.dumps(page).encode())
+        self.assertEqual(
+            rendered,
+            '# Tab bars\nNavigate sections.\n\n## Best [Best]\nUse `TabView` or Toolbars\n'
+            '- One\nTip: Hi\n| A |  |\n    let x = 1',
+        )
+        data = json.dumps(page).encode()
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            source = cache.Source(
+                'page.json', 'https://example.invalid', hashlib.sha256(data).hexdigest(), 'page.txt'
+            )
+            with patch.object(cache, 'urlopen', return_value=io.BytesIO(data)):
+                source.verify(root, offline=False)
+            source.verify(root, offline=True)
+            self.assertIn('## Best [Best]', (root / 'page.txt').read_text())
+
     def test_cache_download_extract_and_validation(self) -> None:
         """Verify visible HTML extraction, pinned downloads and corrupt/missing output rejection."""
         data = (

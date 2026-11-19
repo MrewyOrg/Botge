@@ -17,7 +17,7 @@ type ActionOptions = {
   readonly catalogGuildId: string | undefined;
   readonly access: Pick<
     ReturnType<typeof createEmoteAccess>,
-    'setCatalog' | 'canChange' | 'isBusy' | 'setBusy'
+    'setCatalog' | 'known' | 'canChange' | 'isBusy' | 'setBusy' | 'setChanged'
   >;
   readonly results: Pick<ReturnType<typeof createEmoteResults>, 'mode' | 'setCatalog'>;
   readonly selection: Pick<
@@ -144,8 +144,11 @@ export function createEmoteActions(options: ActionOptions): {
       if (!isRecord(payload) || typeof payload['message'] !== 'string')
         throw new Error('Invalid add response.');
       if (payload['removed'] === true || payload['added'] === true) {
+        const changed = access.setChanged(emote, removing);
+        selection.refresh();
+        preview.refreshActions(changed);
         await refreshCatalog();
-        preview.refreshActions(emote);
+        preview.refreshActions(access.known(emote.sevenTVId) ?? changed);
       }
       feedback(payload['message']);
     } catch {
@@ -201,10 +204,13 @@ export function createEmoteActions(options: ActionOptions): {
           failure = result['message'];
       }
       // Keep failed items selected so the user can retry them without picking them again.
+      const changed = selection.entries().filter((emote) => succeeded.has(emote.sevenTVId ?? ''));
       selection.removeSucceeded([...succeeded]);
-      if (succeeded.size > 0) await refreshCatalog();
+      for (const emote of changed) access.setChanged(emote, removing);
       outcome =
         `${removing ? 'Removed' : 'Added'} ${succeeded.size} of ${ids.length}. ${failure}`.trim();
+      selection.refresh(outcome);
+      if (succeeded.size > 0) await refreshCatalog();
     } catch (error) {
       outcome = error instanceof Error ? error.message : 'Could not update selected emotes.';
     } finally {

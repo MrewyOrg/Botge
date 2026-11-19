@@ -47,8 +47,9 @@ export function createEmoteTiles(options: TileOptions): {
   /**
    * Builds one list item for an emote.
    * @param emote - Catalog or decorated discovery entry.
+   * @param showComposerShortcut - Whether to show the tile's composer shortcut.
    */
-  readonly make: (emote: BrowserEmote) => HTMLLIElement;
+  readonly make: (emote: BrowserEmote, showComposerShortcut?: boolean) => HTMLLIElement;
   /**
    * Enables the menu's add and remove actions.
    * @param change - Starts a server change for the chosen emote.
@@ -70,7 +71,7 @@ export function createEmoteTiles(options: TileOptions): {
     selection.refresh();
   }
 
-  function make(emote: BrowserEmote): HTMLLIElement {
+  function make(emote: BrowserEmote, showComposerShortcut = true): HTMLLIElement {
     const item = document.createElement('li');
     const button = document.createElement('button');
     button.type = 'button';
@@ -108,7 +109,7 @@ export function createEmoteTiles(options: TileOptions): {
     button.append(art, details);
     item.append(button);
 
-    if (emote.composeToken !== undefined) {
+    if (showComposerShortcut && emote.composeToken !== undefined) {
       // A sibling of the tile, because interactive content cannot nest inside a button.
       const shortcut = document.createElement('button');
       shortcut.type = 'button';

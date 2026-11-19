@@ -2,7 +2,7 @@
 
 The production image builds one [Rust binary](../crates/botge/Cargo.toml). Discord commands and the
 Activity API share the same emote catalog. The [Activity and Worker](../activity/README.md) are
-TypeScript.
+TypeScript, and the [iOS app](../ios/README.md) is SwiftUI.
 
 ## Diagram exports
 
@@ -67,10 +67,10 @@ The larger services separate their internal responsibilities into child modules:
 - [`game.rs`](../crates/botge-app/src/game.rs) keeps the guessing game's rooms, rounds, and scores
   in memory: it owns tickets, seats, and the emote pool, and
   [`game/`](../crates/botge-app/src/game/) holds one room's state and scoring, the match task, and
-  token generation. A room belongs to one Activity instance in one guild and closes with its last
-  connection. The Activity adapter issues a one-use ticket to a verified guild member, seats the
-  WebSocket that presents it, and serves each round's image under a random token so the emote's name
-  stays on the server until the reveal.
+  token generation. A room belongs to one Activity instance, or one `app-<code>` room of the iOS
+  app, in one guild and closes with its last connection. The Activity adapter issues a one-use
+  ticket to a verified guild member, seats the WebSocket that presents it, and serves each round's
+  image under a random token so the emote's name stays on the server until the reveal.
 - [`providers.rs`](../crates/botge-emotes/src/emotes/providers.rs) keeps networking and snapshots
   separate from [`normalization.rs`](../crates/botge-emotes/src/emotes/providers/normalization.rs)
   and [`events.rs`](../crates/botge-emotes/src/emotes/providers/events.rs).
@@ -167,6 +167,38 @@ check reconcile the saved channel. A call that is already connected only has its
 guilds that keep failing are retried with backoff up to an hour, and saving settings retries at
 once. Clearing it requests a disconnect. The optional voice status emoji stays saved when the toggle
 is off.
+
+## iOS app request flow
+
+With `BOTGE_APP_API=true`, the same handlers are also mounted under `/app/v1` with a bearer-token
+gate instead of the Discord proxy signature, plus `POST /app/v1/guilds` for the server picker. The
+app has no client secret: it exchanges its login code with Discord itself using PKCE and keeps the
+tokens in the Keychain. Membership, administrator, and personal-border checks are the same as for
+the Activity.
+
+```mermaid
+sequenceDiagram
+    participant App as iOS app
+    participant Discord as Discord OAuth
+    participant API as botge-activity (/app/v1)
+    participant Core as botge-app
+    App->>Discord: Authorize in the system sign-in sheet (PKCE, identify)
+    Discord-->>App: Code, exchanged by the app for access and refresh tokens
+    App->>API: POST guilds, catalog or settings with the bearer token
+    API->>Core: Same handler as the Activity route
+    Core->>Discord: Identify the caller and check membership or administrator access
+    alt Authorized
+        Core-->>API: Result
+        API-->>App: JSON response (no-store)
+    else Token expired
+        API-->>App: 401 oauth_expired
+        App->>Discord: Refresh the token once, then retry
+    end
+    App->>API: POST game/join for an app-<code> room
+    API-->>App: One-use ticket
+    App->>API: Open game/ws and present the ticket
+    API-->>App: Room states, then round images by random token
+```
 
 ## Emote catalog and rendering
 

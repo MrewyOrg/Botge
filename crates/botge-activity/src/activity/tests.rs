@@ -121,6 +121,22 @@ impl GuildAccess for TestAccess {
       _ => Err(botge_app::access::AccessError::UNAUTHORIZED),
     }
   }
+
+  async fn guilds(
+    &self,
+    credential: &Credential,
+  ) -> Result<Vec<SharedGuild>, botge_app::access::AccessError> {
+    let code = fixture_identity(credential);
+    match code {
+      "admin" | "member" => Ok(vec![SharedGuild {
+        id: "1".into(),
+        name: "Fixture".into(),
+        icon: None,
+        administrator: code == "admin",
+      }]),
+      _ => Err(botge_app::access::AccessError::UNAUTHORIZED),
+    }
+  }
 }
 
 /// Owns the router, signing key, and temporary database for a single test.
@@ -183,6 +199,7 @@ impl Fixture {
       Arc::clone(&changed),
       proxy,
       TestAccess(Arc::clone(&membership_calls)),
+      AppApi::Enabled,
     );
     Ok(Self {
       _directory: directory,
@@ -386,7 +403,6 @@ fn bounds_production_authentication_and_command_future_sizes() -> anyhow::Result
   // Creating these production-typed futures performs no Discord request; they are never polled.
   let authentication = authenticate(
     State(Arc::clone(&state)),
-    HeaderMap::new(),
     Json(Authorize {
       guild_id: "1".into(),
       code: "fixture".into(),
@@ -452,9 +468,10 @@ async fn maps_database_failures_and_bounds_concurrent_requests() -> anyhow::Resu
   assert_eq!(error.0, StatusCode::SERVICE_UNAVAILABLE);
   drop(permit);
   assert_matches!(state.validate(&headers, "1").map(|_| ()), Ok(()));
+  assert_matches!(state.verify_proxy(&headers), Ok(()));
   state.now = || Ok(200);
   let error = state
-    .validate(&headers, "1")
+    .verify_proxy(&headers)
     .err()
     .context("expired signature accepted")?;
   assert_eq!(error.0, StatusCode::UNAUTHORIZED);
@@ -464,7 +481,7 @@ async fn maps_database_failures_and_bounds_concurrent_requests() -> anyhow::Resu
       .map(|value| value.as_secs())
   };
   let error = state
-    .validate(&headers, "1")
+    .verify_proxy(&headers)
     .err()
     .context("clock failure accepted")?;
   assert_eq!(error.0, StatusCode::INTERNAL_SERVER_ERROR);
@@ -685,6 +702,170 @@ async fn every_catalog_route_rejects_unsigned_input_before_application_work() ->
       StatusCode::UNAUTHORIZED,
       "{path}"
     );
+  }
+  assert_eq!(fixture.membership_calls.load(Ordering::Relaxed), 0);
+  Ok(())
+}
+
+#[tokio::test]
+async fn app_routes_reject_requests_without_a_bearer_token() -> anyhow::Result<()> {
+  let fixture = Fixture::new()?;
+  let emote = "01234567890123456789012345";
+  // Without the proxy layer, each handler's own validation is the first check on the app API.
+  for (path, body) in [
+    ("/app/v1/catalog", json!({"guildId":"1"})),
+    ("/app/v1/emotes", json!({"guildId":"1","emoteId":emote})),
+    (
+      "/app/v1/emotes/remove",
+      json!({"guildId":"1","emoteId":emote}),
+    ),
+    (
+      "/app/v1/emotes/batch",
+      json!({"guildId":"1","action":"remove","emoteIds":[emote]}),
+    ),
+    ("/app/v1/settings/emotes/read", json!({"guildId":"1"})),
+    (
+      "/app/v1/settings/emotes",
+      json!({"guildId":"1","emotes":{}}),
+    ),
+    ("/app/v1/settings/border/read", json!({"guildId":"1"})),
+    ("/app/v1/settings/border", json!({"guildId":"1","color":""})),
+  ] {
+    assert_eq!(
+      fixture.post_with_token(path, &body, false, None).await?.0,
+      StatusCode::BAD_REQUEST,
+      "{path}"
+    );
+  }
+  assert_eq!(fixture.membership_calls.load(Ordering::Relaxed), 0);
+  // A token Discord no longer accepts fails when the border read identifies its owner.
+  let (status, body) = fixture
+    .post_with_token(
+      "/app/v1/settings/border/read",
+      &json!({"guildId":"1"}),
+      false,
+      Some("Bearer expired"),
+    )
+    .await?;
+  assert_eq!(status, StatusCode::UNAUTHORIZED);
+  assert_eq!(body.get("code"), Some(&json!("oauth_expired")));
+  Ok(())
+}
+
+#[tokio::test]
+async fn app_routes_use_bearer_tokens_without_a_proxy_signature() -> anyhow::Result<()> {
+  let fixture = Fixture::new()?;
+  let voice = json!({"channelId":"42","statusEnabled":false,"statusEmoji":null});
+  let change = json!({"guildId":"1","voice":voice});
+  // The app sends no Discord proxy signature; its bearer token is still checked per request.
+  for (token, status) in [
+    (Some("Bearer admin"), StatusCode::OK),
+    (Some("Bearer member"), StatusCode::FORBIDDEN),
+    (Some("Bearer expired"), StatusCode::UNAUTHORIZED),
+    (None, StatusCode::BAD_REQUEST),
+  ] {
+    let (actual, body) = fixture
+      .post_with_token("/app/v1/settings/voice", &change, false, token)
+      .await?;
+    assert_eq!(actual, status, "{token:?}");
+    assert_eq!(
+      body.get("code") == Some(&json!("oauth_expired")),
+      token == Some("Bearer expired")
+    );
+  }
+  assert_eq!(
+    fixture.store.voice_settings(NonZeroU64::MIN)?,
+    serde_json::from_value(voice)?
+  );
+  // The Activity routes still demand the signature, even with a valid token.
+  assert_eq!(
+    fixture
+      .post_with_token("/settings/voice", &change, false, Some("Bearer admin"))
+      .await?
+      .0,
+    StatusCode::UNAUTHORIZED
+  );
+  // The app exchanges its own code with Discord, so there is no app exchange route.
+  assert_eq!(
+    fixture
+      .post(
+        "/app/v1/auth",
+        &json!({"guildId":"1","code":"admin"}),
+        false
+      )
+      .await?
+      .0,
+    StatusCode::NOT_FOUND
+  );
+  // Round images load by their token alone on the app route.
+  assert_eq!(
+    fixture.get("/app/v1/game/image/unknown", false).await?.0,
+    StatusCode::NOT_FOUND
+  );
+  assert_eq!(
+    fixture.get("/game/image/unknown", false).await?.0,
+    StatusCode::UNAUTHORIZED
+  );
+  let metrics = fixture.application.render_metrics();
+  let series = "botge_activity_requests_total{route=\"/app/v1/settings/voice\",status=\"200\"} 1\n";
+  assert!(metrics.contains(series), "{series}");
+  Ok(())
+}
+
+#[tokio::test]
+async fn lists_shared_servers_for_the_app_server_picker() -> anyhow::Result<()> {
+  let fixture = Fixture::new()?;
+  let (status, body) = fixture
+    .post_with_token("/app/v1/guilds", &json!({}), false, Some("Bearer member"))
+    .await?;
+  assert_eq!(status, StatusCode::OK);
+  assert_eq!(
+    body,
+    json!({"guilds":[{"id":"1","name":"Fixture","icon":null,"administrator":false}]})
+  );
+  for (token, status) in [
+    (Some("Bearer expired"), StatusCode::UNAUTHORIZED),
+    (Some("Bearer a!"), StatusCode::BAD_REQUEST),
+    (None, StatusCode::BAD_REQUEST),
+  ] {
+    assert_eq!(
+      fixture
+        .post_with_token("/app/v1/guilds", &json!({}), false, token)
+        .await?
+        .0,
+      status
+    );
+  }
+  // The server list is an app route only.
+  assert_eq!(
+    fixture
+      .post_with_token("/guilds", &json!({}), true, Some("Bearer member"))
+      .await?
+      .0,
+    StatusCode::NOT_FOUND
+  );
+  Ok(())
+}
+
+#[tokio::test]
+async fn serves_no_app_routes_unless_the_operator_enables_them() -> anyhow::Result<()> {
+  let fixture = Fixture::new()?;
+  let router = router(
+    Arc::clone(&fixture.application),
+    Arc::clone(&fixture.changed),
+    ProxyAuthenticator::new(&hex::encode(fixture.key.verifying_key().as_bytes()))?,
+    TestAccess(Arc::clone(&fixture.membership_calls)),
+    AppApi::Disabled,
+  );
+  for path in ["/app/v1/guilds", "/app/v1/catalog"] {
+    let request = Request::builder()
+      .method(Method::POST)
+      .uri(path)
+      .header(header::CONTENT_TYPE, "application/json")
+      .header(header::AUTHORIZATION, "Bearer admin")
+      .body(Body::from(r#"{"guildId":"1"}"#))?;
+    let response = router.clone().oneshot(request).await?;
+    assert_eq!(response.status(), StatusCode::NOT_FOUND, "{path}");
   }
   assert_eq!(fixture.membership_calls.load(Ordering::Relaxed), 0);
   Ok(())

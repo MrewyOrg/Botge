@@ -1,6 +1,8 @@
 # Workflows use standard GitHub-hosted runners. The production environment supplies the Activity's
 # public key as a variable; everything else comes from secrets.
 self-hosted-runner:
-  labels: []
+  # Not self-hosted: GitHub's standard preview image with Xcode 27, which actionlint does not
+  # list yet. Remove it once actionlint knows the label.
+  labels: [xcode-27]
 config-variables:
   - DISCORD_ACTIVITY_PUBLIC_KEY

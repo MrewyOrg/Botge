@@ -1,4 +1,4 @@
-// cspell:words kohler
+// cspell:words kohler swiftlang
 
 {
   "recommendations": [
@@ -11,6 +11,7 @@
     "dotenv.dotenv-vscode",
     "redhat.vscode-yaml",
     "rust-lang.rust-analyzer",
+    "swiftlang.swift-vscode",
     "ms-python.python",
     "ms-python.vscode-pylance",
     "tamasfe.even-better-toml",
@@ -42,5 +43,11 @@
     // Appearance
     "vscode-icons-team.vscode-icons"
   ],
-  "unwantedRecommendations": ["christian-kohler.npm-intellisense"]
+  "unwantedRecommendations": [
+    "christian-kohler.npm-intellisense",
+    // Deprecated in the Marketplace; swiftlang.swift-vscode replaces them.
+    "sswg.swift-lang",
+    "vknabel.vscode-swiftformat",
+    "vknabel.vscode-swiftlint"
+  ]
 }

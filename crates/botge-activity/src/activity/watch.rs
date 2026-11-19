@@ -57,22 +57,20 @@ pub(super) async fn watch<A: GuildAccess>(
   ))
 }
 
-/// Upgrades a signed proxy request to a watch connection.
+/// Upgrades a request to a watch connection.
 ///
 /// The connection shares the socket slots with game connections. Its first message must
 /// present a ticket from [`watch`] within [`JOIN_DEADLINE`].
 ///
 /// # Errors
 ///
-/// Returns 401 for a failed proxy signature and 503 when every socket slot is in use.
+/// Returns 503 when every socket slot is in use.
 pub(super) async fn connect<A: GuildAccess>(
   State(state): State<Arc<Activity<A>>>,
-  headers: HeaderMap,
   upgrade: WebSocketUpgrade,
 ) -> Result<Response, ApiError> {
   socket::upgrade(
     &state,
-    &headers,
     upgrade,
     MAX_MESSAGE_BYTES,
     |socket, application| async move { session(socket, &application).await },

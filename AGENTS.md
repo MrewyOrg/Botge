@@ -76,6 +76,21 @@ ordinary comments. Attach TSDoc directly to declarations; include applicable par
 generic/remarks/example/reference tags. Use code spans for built-in exception names. No Better
 Comments markers; preserve Rust's native `//!` scope.
 
+## Swift conventions
+
+The iOS app lives in `ios/` ([guide](ios/README.md)). Follow the
+[compact Swift references](.agents/references/swift/README.md) and their audit. Edit
+`ios/project.yml`, not the generated Xcode project. SwiftFormat and strict SwiftLint (every opt-in
+rule, warnings fail) are pinned in `ios/Tools`. Swift 6 language mode with complete concurrency
+checking; app targets default to the main actor and services are actors.
+
+Document every declaration at every access level with `///`, starting with a summary sentence;
+throwing APIs list `- Throws:`. Tests are exempt. One type per file, no force unwraps, no `print`,
+no WebKit or Safari views (the app must work in Lockdown Mode). Validate external input at
+boundaries. Logic belongs in `BotgeKit`, tested with Swift Testing; views stay thin. Regenerate the
+project after adding files; build, lint and simulator pitfalls are in the guide's
+[troubleshooting](ios/README.md#troubleshooting).
+
 ## Validation
 
 The [test guide](tests/README.md) owns check commands, coverage gates, toolchains and prerequisites;
@@ -109,6 +124,8 @@ SHA for `BASE_SHA`; commit hooks check individual commits but not the PR title o
 - `crates/botge-test-support`: development-only loopback, media and log fixtures. Keep fixture
   features disabled on production dependencies. The [workspace guide](crates/README.md) owns the
   dependency policy; `crates/botge/tests/architecture.rs` enforces it.
+- `ios/`: SwiftUI iOS app ([guide](ios/README.md)); `BotgeKit` holds auth, API and image logic. It
+  calls the bearer-only `/app/v1` routes that `BOTGE_APP_API=true` enables.
 - `activity/`: browser/Worker [workspace guide](activity/README.md). Root Vitest runs Activity and
   tooling projects. Python helpers use the root setup and shared checks in `scripts/`.
 - `Dockerfile`: DHI Rust workspace image; `compose.yaml`: bot/nginx; `compose.build.yaml`: local

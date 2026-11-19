@@ -20,6 +20,19 @@ pub struct GuildRole {
   pub name: String,
 }
 
+/// A server that both the caller and Botge belong to, listed by the app's server picker.
+#[derive(Debug, Serialize)]
+pub struct SharedGuild {
+  /// Canonical Discord identifier.
+  pub id: String,
+  /// Discord display label.
+  pub name: String,
+  /// The server icon on Discord's CDN, absent when the server has none.
+  pub icon: Option<String>,
+  /// Whether the caller administers the server and may change its settings.
+  pub administrator: bool,
+}
+
 /// The caller's guild membership and the roles offered in the settings picker.
 #[derive(Debug)]
 pub struct Membership {
@@ -106,6 +119,19 @@ pub trait GuildAccess: Send + Sync + 'static {
     guild: NonZeroU64,
     credential: &Credential,
   ) -> impl Future<Output = Result<Vec<VoiceChannel>, AccessError>> + Send;
+
+  /// Lists the servers the caller shares with Botge, sorted by name.
+  ///
+  /// Servers whose membership cannot be confirmed are left out rather than failing the list.
+  ///
+  /// # Errors
+  ///
+  /// Returns an error if the credential cannot identify the caller, Botge has not finished
+  /// connecting to Discord, or Discord fails while checking a membership.
+  fn guilds(
+    &self,
+    credential: &Credential,
+  ) -> impl Future<Output = Result<Vec<SharedGuild>, AccessError>> + Send;
 }
 
 impl std::fmt::Debug for Credential {
@@ -218,6 +244,22 @@ pub async fn channels<A: GuildAccess>(
   tokio::time::timeout(
     std::time::Duration::from_secs(25),
     access.voice_channels(guild, credential),
+  )
+  .await
+  .map_err(AccessError::upstream)?
+}
+
+/// Lists the caller's shared servers within the application lookup deadline.
+///
+/// # Errors
+/// Propagates identity failures and maps lookup timeouts to an upstream failure.
+pub async fn guilds<A: GuildAccess>(
+  access: &A,
+  credential: &Credential,
+) -> Result<Vec<SharedGuild>, AccessError> {
+  tokio::time::timeout(
+    std::time::Duration::from_secs(25),
+    access.guilds(credential),
   )
   .await
   .map_err(AccessError::upstream)?

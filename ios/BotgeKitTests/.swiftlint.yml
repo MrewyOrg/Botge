@@ -1,0 +1,4 @@
+# Test functions are named as sentences and are not API, matching Rust, where missing_docs does not
+# apply to test functions. Suites' support types are still documented by convention.
+disabled_rules:
+  - missing_docs

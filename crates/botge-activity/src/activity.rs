@@ -1,11 +1,13 @@
 //! Activity HTTP handlers for Discord-authenticated settings and catalog operations.
 //!
-//! Requests carry Discord proxy signature headers and an OAuth bearer token. Only the auth route
-//! accepts a one-use code, which it exchanges for that token. The signature authenticates the
-//! proxy request. Discord identifies
-//! the token holder, whose guild membership and permissions are checked separately for operations
-//! scoped to a guild. Border preferences belong to the authenticated user across guilds.
-//! The health route only reports HTTP readiness.
+//! The Discord Activity's requests carry Discord proxy signature headers and an OAuth bearer
+//! token. A layer on those routes checks the signature before any handler runs. Only the auth
+//! route accepts a one-use code, which it exchanges for that token. When [`AppApi::Enabled`],
+//! the same handlers also answer under `/app/v1` for the Botge iOS app, which exchanges its code
+//! with Discord itself and sends only the bearer token; `/app/v1/guilds` lists the servers the
+//! caller shares with Botge. Discord identifies the token holder, whose guild membership and
+//! permissions are checked separately for operations scoped to a guild. Border preferences
+//! belong to the authenticated user across guilds. The health route only reports HTTP readiness.
 //!
 //! Shared authentication and request limits live here. [`voice`], [`catalog`], and [`border`]
 //! own their route payloads, authorization steps, and persistence operations. [`game`] owns the
@@ -46,7 +48,9 @@ use crate::proxy::ProxyAuthenticator;
 use botge_app::Application;
 use botge_domain::settings::discord_id;
 
-pub(crate) use botge_app::access::{AccessToken, Credential, GuildAccess, GuildRole, VoiceChannel};
+pub(crate) use botge_app::access::{
+  AccessToken, Credential, GuildAccess, GuildRole, SharedGuild, VoiceChannel,
+};
 
 /// Shared dependencies and the request limit for a single Activity API instance.
 ///
@@ -178,6 +182,18 @@ impl IntoResponse for ApiError {
   }
 }
 
+/// Whether the router also serves the bearer-only API used by the Botge iOS app.
+///
+/// The app API skips the Discord proxy signature, so OAuth identity and the same membership
+/// and permission checks are its only protection. Operators opt in with `BOTGE_APP_API`.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum AppApi {
+  /// Only the Discord Activity routes are served.
+  Disabled,
+  /// The Activity routes are also served under `/app/v1`, plus `/app/v1/guilds`.
+  Enabled,
+}
+
 /// Guild context for a read; the caller is identified by the bearer header.
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
@@ -197,18 +213,76 @@ struct Authorize {
 ///
 /// The Activity posts JSON even for reads. These responses carry
 /// `Cache-Control: no-store` because permissions and preferences depend on the current caller.
-/// The body limit and the per-handler concurrency limit bound separate parts of request work.
-/// Responses from matched routes are counted by route and status in the application metrics.
-/// Bodies over 1 KiB, such as large catalogs, are gzip-compressed for clients that accept it.
+/// The body limit and the per-handler concurrency limit bound separate parts of request work;
+/// the Activity and app routes share both limits. Responses from matched routes are counted by
+/// route and status in the application metrics. Bodies over 1 KiB, such as large catalogs, are
+/// gzip-compressed for clients that accept it.
 pub fn router<A: GuildAccess>(
   application: Arc<Application>,
   voice_changed: Arc<Notify>,
   proxy: ProxyAuthenticator,
   access: A,
+  app_api: AppApi,
 ) -> Router {
-  Router::new()
-    .route("/healthz", get(|| async { StatusCode::NO_CONTENT }))
+  let state = Arc::new(Activity {
+    access,
+    proxy,
+    application: Arc::clone(&application),
+    voice_changed,
+    slots: Semaphore::new(8),
+    sockets: Arc::new(Semaphore::new(GAME_SOCKETS)),
+    sessions: Sessions::default(),
+    now: unix_seconds,
+  });
+  let discord = shared_routes::<A>()
     .route("/auth", post(authenticate::<A>))
+    .route_layer(axum::middleware::from_fn_with_state(
+      Arc::clone(&state),
+      require_proxy::<A>,
+    ));
+  let mut routes = Router::new()
+    .route("/healthz", get(|| async { StatusCode::NO_CONTENT }))
+    .merge(discord);
+  if app_api == AppApi::Enabled {
+    routes = routes.nest(
+      "/app/v1",
+      shared_routes::<A>().route("/guilds", post(guilds::<A>)),
+    );
+  }
+  routes
+    .route_layer(axum::middleware::from_fn(
+      move |request: Request, next: Next| {
+        let application = Arc::clone(&application);
+        async move {
+          let route = request
+            .extensions()
+            .get::<MatchedPath>()
+            .map_or("unmatched", MatchedPath::as_str)
+            .to_owned();
+          let response = next.run(request).await;
+          let status = response.status().as_u16();
+          application.metrics().activity_request(&route, status);
+          response
+        }
+      },
+    ))
+    .layer(DefaultBodyLimit::max(4096))
+    .layer(CompressionLayer::new().compress_when(DefaultPredicate::new().and(SizeAbove::new(1024))))
+    .layer(axum::middleware::map_response(
+      |mut response: Response| async {
+        response.headers_mut().insert(
+          header::CACHE_CONTROL,
+          header::HeaderValue::from_static("no-store"),
+        );
+        response
+      },
+    ))
+    .with_state(state)
+}
+
+/// The routes served to both the Discord Activity and the app; only their gate differs.
+fn shared_routes<A: GuildAccess>() -> Router<Arc<Activity<A>>> {
+  Router::new()
     .route("/settings", post(voice::read_settings::<A>))
     .route("/settings/voice", post(voice::save_settings::<A>))
     .route("/catalog", post(catalog::read_catalog::<A>))
@@ -227,44 +301,19 @@ pub fn router<A: GuildAccess>(
     .route("/game/join", post(game::join::<A>))
     .route("/game/ws", get(game::connect::<A>))
     .route("/game/image/{token}", get(game::image::<A>))
-    .route_layer(axum::middleware::from_fn({
-      let application = Arc::clone(&application);
-      move |request: Request, next: Next| {
-        let application = Arc::clone(&application);
-        async move {
-          let route = request
-            .extensions()
-            .get::<MatchedPath>()
-            .map_or("unmatched", MatchedPath::as_str)
-            .to_owned();
-          let response = next.run(request).await;
-          let status = response.status().as_u16();
-          application.metrics().activity_request(&route, status);
-          response
-        }
-      }
-    }))
-    .layer(DefaultBodyLimit::max(4096))
-    .layer(CompressionLayer::new().compress_when(DefaultPredicate::new().and(SizeAbove::new(1024))))
-    .layer(axum::middleware::map_response(
-      |mut response: Response| async {
-        response.headers_mut().insert(
-          header::CACHE_CONTROL,
-          header::HeaderValue::from_static("no-store"),
-        );
-        response
-      },
-    ))
-    .with_state(Arc::new(Activity {
-      access,
-      proxy,
-      application,
-      voice_changed,
-      slots: Semaphore::new(8),
-      sockets: Arc::new(Semaphore::new(GAME_SOCKETS)),
-      sessions: Sessions::default(),
-      now: unix_seconds,
-    }))
+}
+
+/// Rejects a Discord Activity request whose proxy signature is missing, invalid, or expired
+/// before its body is read or any handler work starts.
+async fn require_proxy<A: GuildAccess>(
+  State(state): State<Arc<Activity<A>>>,
+  request: Request,
+  next: Next,
+) -> Response {
+  match state.verify_proxy(request.headers()) {
+    Ok(()) => next.run(request).await,
+    Err(error) => error.into_response(),
+  }
 }
 
 /// Reads the wall clock used to reject expired Discord proxy signatures.
@@ -298,24 +347,36 @@ impl<A: GuildAccess> Activity<A> {
     }
   }
 
-  /// Checks the proxy signature and request shape before reserving concurrency slots.
+  /// Checks the guild ID and bearer token before reserving concurrency slots.
   ///
-  /// Keep the returned admission alive for the rest of the handler. It holds one of the
+  /// The Discord router has already checked the proxy signature. Keep the returned admission
+  /// alive for the rest of the handler. It holds one of the
   /// credential's two slots and one of the eight shared slots while the handler contacts
   /// Discord, looks up emotes, or reads and writes preferences.
   ///
   /// # Errors
   ///
-  /// An invalid signature yields 401. A malformed guild ID or credential yields 400. A
-  /// credential that already has two requests in flight yields 429, and a full shared limit
-  /// yields 503. Both answer immediately, so a burst of requests cannot queue inside the API.
+  /// A malformed guild ID or credential yields 400. A credential that already has two requests
+  /// in flight yields 429, and a full shared limit yields 503. Both answer immediately, so a
+  /// burst of requests cannot queue inside the API.
   fn validate(
     &self,
     headers: &HeaderMap,
     guild: &str,
   ) -> Result<(NonZeroU64, Credential, Admission<'_>), ApiError> {
-    self.verify_proxy(headers)?;
     let guild = discord_id(guild).ok_or(ApiError::INVALID)?;
+    let (credential, admission) = self.authorize(headers)?;
+    Ok((guild, credential, admission))
+  }
+
+  /// Checks the bearer token's shape and reserves concurrency slots for a request without a
+  /// guild.
+  ///
+  /// # Errors
+  ///
+  /// A missing or malformed credential yields 400, and full limits yield 429 or 503 as in
+  /// [`Self::validate`].
+  fn authorize(&self, headers: &HeaderMap) -> Result<(Credential, Admission<'_>), ApiError> {
     let token = headers
       .get(header::AUTHORIZATION)
       .and_then(|value| value.to_str().ok())
@@ -330,7 +391,7 @@ impl<A: GuildAccess> Activity<A> {
       })
       .ok_or(ApiError::INVALID)?;
     let admission = self.admit(token)?;
-    Ok((guild, Credential::new(token.to_owned()), admission))
+    Ok((Credential::new(token.to_owned()), admission))
   }
 
   /// Reserves one of the secret's request slots and one shared slot.
@@ -358,18 +419,16 @@ impl<A: GuildAccess> Activity<A> {
 }
 
 /// Exchanges a code once; subsequent API calls carry the returned bearer token.
-/// Proxy authentication and the API concurrency limit apply before contacting Discord.
+/// The API concurrency limit applies before contacting Discord.
 ///
 /// # Errors
 ///
-/// Returns an error for failed proxy authentication, invalid guild or code input, a full
-/// request limit, a rejected exchange, or the 20-second exchange deadline. No token is persisted.
+/// Returns an error for invalid guild or code input, a full request limit, a rejected
+/// exchange, or the 20-second exchange deadline. No token is persisted.
 async fn authenticate<A: GuildAccess>(
   State(state): State<Arc<Activity<A>>>,
-  headers: HeaderMap,
   Json(request): Json<Authorize>,
 ) -> Result<Json<AccessToken>, ApiError> {
-  state.verify_proxy(&headers)?;
   discord_id(&request.guild_id).ok_or(ApiError::INVALID)?;
   let code = request.code;
   if code.is_empty()
@@ -385,6 +444,27 @@ async fn authenticate<A: GuildAccess>(
     .await
     .map_err(ApiError::upstream)??;
   Ok(Json(token))
+}
+
+/// The servers listed by the app's server picker.
+#[derive(serde::Serialize)]
+struct Guilds {
+  guilds: Vec<SharedGuild>,
+}
+
+/// Lists the servers the caller shares with Botge for the app's server picker.
+///
+/// # Errors
+///
+/// Returns 400 for a malformed credential, 401 for a rejected one, 429 or 503 for full limits,
+/// and 502 when Botge is still connecting or Discord fails.
+async fn guilds<A: GuildAccess>(
+  State(state): State<Arc<Activity<A>>>,
+  headers: HeaderMap,
+) -> Result<Json<Guilds>, ApiError> {
+  let (credential, _permit) = state.authorize(&headers)?;
+  let guilds = botge_app::access::guilds(&state.access, &credential).await?;
+  Ok(Json(Guilds { guilds }))
 }
 
 #[cfg(test)]

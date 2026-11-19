@@ -1,0 +1,37 @@
+{
+  "configurations": [
+    {
+      "id": "6F0A43C5-6A2B-4E7B-9C51-6D3B5E1B0A01",
+      "name": "Default",
+      "options": {}
+    }
+  ],
+  "defaultOptions": {
+    "codeCoverage": {
+      "targets": [
+        { "containerPath": "container:Botge.xcodeproj", "identifier": "BotgeKit", "name": "BotgeKit" },
+        { "containerPath": "container:Botge.xcodeproj", "identifier": "Botge", "name": "Botge" }
+      ]
+    },
+    "environmentVariableEntries": [{ "key": "BOTGE_UI_TEST", "value": "1" }],
+    "testTimeoutsEnabled": true
+  },
+  "testTargets": [
+    {
+      "parallelizable": true,
+      "target": {
+        "containerPath": "container:Botge.xcodeproj",
+        "identifier": "BotgeKitTests",
+        "name": "BotgeKitTests"
+      }
+    },
+    {
+      "target": {
+        "containerPath": "container:Botge.xcodeproj",
+        "identifier": "BotgeUITests",
+        "name": "BotgeUITests"
+      }
+    }
+  ],
+  "version": 1
+}

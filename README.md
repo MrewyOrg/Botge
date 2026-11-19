@@ -8,7 +8,8 @@
 
 Botge brings Twitch-style emotes to Discord. The Rust bot handles emote commands, voice, and the
 Activity API. The TypeScript Discord Activity lets members browse and compose emotes and lets
-authorized users manage server settings.
+authorized users manage server settings. The SwiftUI iOS app offers the same features, including the
+Guess game with a Lock Screen Live Activity, against one operator's deployment.
 
 Try the [Activity demo](https://botge-activity-demo.mrewy.workers.dev) in your browser. It is an
 unofficial preview with placeholder emotes and in-memory settings, so it needs no Discord account or
@@ -32,6 +33,7 @@ Implementation details stay versioned with the code.
   [workspace guide](crates/README.md).
 - [`activity/`](activity/) contains the browser, Worker, and their
   [workspace tooling](activity/README.md).
+- [`ios/`](ios/) contains the [iOS app and its setup guide](ios/README.md).
 - [`tests/`](tests/) documents the [test suites and coverage](tests/README.md).
 - [`botge_control/`](botge_control/) contains the
   [Debian installation and control scripts](botge_control/README.md).

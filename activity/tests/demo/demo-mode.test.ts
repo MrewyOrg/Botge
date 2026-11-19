@@ -12,6 +12,26 @@ test('runs every guild feature against the in-memory demo outside Discord', asyn
 
   await import('../../src/index.ts');
   await waitForText('#message', 'Showing 10 of 10');
+  input('#search').value = 'Wave';
+  click('#trending-mode');
+  expect(input('#search').value).toBe('');
+  input('#search').value = 'Think';
+  click('#top-mode');
+  expect(input('#search').value).toBe('');
+  click('#trending-mode');
+  expect(input('#search').value).toBe('Think');
+  click('#catalog-mode');
+  expect(input('#search').value).toBe('Wave');
+  input('#search').value = '';
+  input('#search').dispatchEvent(new Event('input', { bubbles: true }));
+  await waitForText('#message', 'Showing 10 of 10');
+  click('#trending-mode');
+  expect(input('#search').value).toBe('Think');
+  input('#search').value = '';
+  input('#search').dispatchEvent(new Event('input', { bubbles: true }));
+  await waitForText('#message', 'Showing 24 7TV emotes');
+  click('#catalog-mode');
+  await waitForText('#message', 'Showing 10 of 10');
   // The saved border loads at startup and frames the composer preview.
   click('#results .tile-compose');
   await vi.waitFor(() => {
@@ -28,6 +48,7 @@ test('runs every guild feature against the in-memory demo outside Discord', asyn
 
   click('#trending-mode');
   await waitForText('#message', 'Showing 24 7TV emotes');
+  expect(document.querySelector('#results .tile-compose')).toBeNull();
   const target = [...document.querySelectorAll<HTMLButtonElement>('#results .tile')].find(
     (tile: Readonly<Pick<HTMLButtonElement, 'textContent'>>) =>
       tile.textContent.startsWith('Think') && !tile.textContent.includes('Added')
@@ -39,6 +60,10 @@ test('runs every guild feature against the in-memory demo outside Discord', asyn
   await waitForText('#copy-message', 'Added Think to this server.');
   expect(element('#add').hidden).toBe(true);
   previewDialog().close();
+
+  click('#top-mode');
+  await waitForText('#message', 'Showing 24 7TV emotes');
+  expect(document.querySelector('#results .tile-compose')).toBeNull();
 
   click('#settings-link');
   const border = requireValue(

@@ -35,9 +35,14 @@ here instead of repeating them. Run commands from the repository root. The
 | `npm run lint:shell`                       | ShellCheck                                          |
 | `npm run lint:workflows`                   | actionlint, including composite actions             |
 | `.venv/bin/python scripts/check_python.py` | Python helpers (see the helper guide)               |
+| `npm run check:ios`                        | SwiftFormat lint and strict SwiftLint               |
+| `npm run test:ios`                         | iOS unit and UI tests, BotgeKit coverage gate       |
+| `npm run test:ios:lockdown`                | Lockdown test plan (simulator in Lockdown Mode)     |
+| `npm run test:ios:only -- EmoteLinkTests`  | Named iOS suites or tests, one result line per test |
 
 CI runs the same commands. Coverage commands already run their tests, so don't repeat a passing
-suite. For focused iteration, use a filtered `cargo test --locked` or Vitest run.
+suite. For focused iteration, use a filtered `cargo test --locked`, Vitest or
+`npm run test:ios:only` run.
 
 Run Activity builds and tests one at a time: Worker entry tests mock the generated HTML module, and
 a concurrent build can replace it.
@@ -52,11 +57,27 @@ exclude executable code to pass.
 | Rust       | 95% lines, branches, functions and regions | `coverage/rust/` (opt-in HTML) |
 | TypeScript | 90% statements, branches, functions, lines | `coverage/typescript/`         |
 | Python     | 90% lines and branches                     | `coverage/python/`             |
+| Swift      | 90% lines in BotgeKit                      | `ios/DerivedData/*.xcresult`   |
 
 For the Rust HTML report, add `--html --output-dir coverage/rust` to the coverage scope. TypeScript
 covers runtime files in repository tooling, the Activity and its Worker; declaration-only `.d.ts`
 files are excluded. `npm run test:coverage -w activity` writes an Activity-only report to
 `coverage/activity/`. Type checking validates `expectTypeOf` assertions; Vitest alone does not.
+
+The iOS checks need macOS, Xcode 27 and the pinned tools from `npm run setup:ios`; the doctor
+reports them as optional. SwiftUI views are covered by UI tests rather than the line gate.
+
+### Lockdown Mode
+
+The iOS app must work the same with Lockdown Mode on. `LockdownTests` simulates its restrictions in
+unit tests on every run. `npm run test:ios:lockdown` runs every iOS test on a dedicated "iPhone 17e
+Lockdown" simulator, created on first use. The iOS simulator has no Lockdown Mode switch, so the
+script sets the `LDMGlobalEnabled` default that Lockdown Mode sets; WebKit honours it, so Discord's
+sign-in sheet runs in Lockdown. `LockdownModeUITests` fails the plan if the setting is off.
+
+Other system restrictions apply only on a device. Before a release, turn Lockdown Mode on in
+Settings → Privacy & Security on an iPhone and repeat: log in, browse animated emotes, play a Guess
+round, check the Live Activity, run a Shortcut and open the legal screens.
 
 ## Test layout
 

@@ -3,6 +3,7 @@
 Run with the root virtual environment from any directory. Pins come from
 rust-toolchain.toml, .nvmrc, .python-version and pyproject.toml. Rust probes
 disable automatic toolchain installation; Docker probes are optional and read-only.
+iOS probes run when Xcode is installed and are optional: only the iOS app needs them.
 """
 
 import argparse
@@ -21,6 +22,8 @@ if TYPE_CHECKING:
 ROOT = Path(__file__).resolve().parents[1]
 # Render fixtures require FFmpeg's animated WebP support from this major release.
 MIN_FFMPEG_MAJOR = 9
+# The iOS app targets iOS 27, which needs this Xcode release or later.
+MIN_XCODE_MAJOR = 27
 type Command = tuple[str, ...]
 type Runner = Callable[[Command], Result]
 
@@ -72,13 +75,36 @@ def ffmpeg_supported(output: str) -> bool:
     return match is not None and int(match[1]) >= MIN_FFMPEG_MAJOR
 
 
-def diagnose(root: Path, runner: Runner, *, docker: bool) -> bool:
+def xcode_supported(output: str) -> bool:
+    """Require Xcode 27 or later, rejecting unknown version formats."""
+    match = re.match(r'Xcode (\d+)\.', output)
+    return match is not None and int(match[1]) >= MIN_XCODE_MAJOR
+
+
+def diagnose_ios(root: Path, runner: Runner) -> None:
+    """Print optional iOS results: Xcode, the iOS 27 simulator and the pinned Swift tools."""
+    version = runner(('xcodebuild', '-version'))
+    checks = [
+        report(f'Optional Xcode {MIN_XCODE_MAJOR}+', version, valid=xcode_supported(version.output))
+    ]
+    runtimes = runner(('xcrun', 'simctl', 'list', 'runtimes'))
+    simulator = re.search(rf'\biOS {MIN_XCODE_MAJOR}\.', runtimes.output) is not None
+    checks.append(report('Optional iOS 27 simulator', runtimes, valid=simulator))
+    for tool in ('xcodegen', 'swiftformat', 'swiftlint'):
+        command = (str(root / 'ios' / 'Tools' / 'bin' / tool), '--version')
+        checks.append(report(f'Optional {tool}', runner(command)))
+    if not all(checks):
+        print('Only the iOS app needs Xcode 27 and the tools from `npm run setup:ios`.')
+
+
+def diagnose(root: Path, runner: Runner, *, docker: bool, ios: bool = False) -> bool:
     """Print required prerequisite results and return whether all of them pass.
 
     Args:
         root: Repository containing version pins and the isolated environment.
         runner: Command capability; tests supply offline responses.
         docker: Include optional read-only Docker probes without affecting success.
+        ios: Include optional Xcode and Swift tool probes without affecting success.
 
     """
     try:
@@ -150,13 +176,21 @@ def diagnose(root: Path, runner: Runner, *, docker: bool) -> bool:
         for command in (('docker', 'context', 'show'), ('docker', 'compose', 'ls')):
             if not report('Optional Docker', runner(command)):
                 print('Docker is optional for local Rust, TypeScript and Python checks.')
+    if ios:
+        diagnose_ios(root, runner)
     return all(checks)
 
 
 def main() -> None:
     """Check the repository owning this file, regardless of the caller's directory."""
     argparse.ArgumentParser(description=__doc__).parse_args()
-    raise SystemExit(0 if diagnose(ROOT, run, docker=shutil.which('docker') is not None) else 1)
+    healthy = diagnose(
+        ROOT,
+        run,
+        docker=shutil.which('docker') is not None,
+        ios=shutil.which('xcodebuild') is not None,
+    )
+    raise SystemExit(0 if healthy else 1)
 
 
 if __name__ == '__main__':
