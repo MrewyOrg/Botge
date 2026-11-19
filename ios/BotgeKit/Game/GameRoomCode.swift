@@ -40,10 +40,10 @@ public struct GameRoomCode: Equatable, Hashable, Sendable {
       return nil
     }
 
-    code = typed
+    self.init(unchecked: typed)
   }
 
-  /// Wraps a code already known to be valid.
+  /// Wraps a code already known to be valid: parsed, or drawn from ``alphabet``.
   ///
   /// - Parameter code: A valid code.
   private init(unchecked code: String) {
@@ -58,7 +58,7 @@ public struct GameRoomCode: Equatable, Hashable, Sendable {
     let letters = String((0 ..< length).compactMap { _ in
       alphabet.randomElement(using: &generator)
     })
-    return Self(letters) ?? Self(unchecked: letters)
+    return Self(unchecked: letters)
   }
 
   /// Creates a new random room with the system generator.

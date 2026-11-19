@@ -38,6 +38,8 @@ strict: true
 
 attributes:
   attributes_with_arguments_always_on_line_above: false
+  # SwiftFormat's --complex-attributes puts App Intents parameters with labels on their own line.
+  always_on_line_above: ['@Parameter']
 # Mirrors Rust's denied missing_docs with Clippy's check-private-items: every declaration at every
 # access level is documented. Protocol witnesses such as `body` inherit their protocol's docs.
 missing_docs:

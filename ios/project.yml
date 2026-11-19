@@ -128,6 +128,7 @@ targets:
         INFOPLIST_FILE: BotgeLiveActivity/Info.plist
         GENERATE_INFOPLIST_FILE: true
         INFOPLIST_KEY_CFBundleDisplayName: Botge
+        ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
         SWIFT_DEFAULT_ACTOR_ISOLATION: MainActor
         SWIFT_APPROACHABLE_CONCURRENCY: true
         SKIP_INSTALL: true

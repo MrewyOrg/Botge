@@ -9,7 +9,8 @@ struct SearchEmotesIntent: AppIntent {
   static let supportedModes: IntentModes = .foreground
 
   /// The search text.
-  @Parameter var search: String
+  @Parameter(title: "Search", requestValueDialog: "Which emote are you looking for?")
+  var search: String
 
   /// The app model that switches tabs and applies the search.
   @Dependency private var model: AppModel

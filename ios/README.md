@@ -111,8 +111,8 @@ or let the commit hook format.
   - SwiftFormat rewrites `count == 0` to `isEmpty`, so custom collections need an `isEmpty`.
   - Write `public nonisolated`; SwiftLint's modifier order is configured to match SwiftFormat.
   - SwiftFormat moves a property attribute with labelled arguments to its own line, which
-    `attributes` rejects; drop the labels, as with the bare `@Parameter var search` whose title
-    comes from its name.
+    `attributes` rejects except for `@Parameter`, listed in its `always_on_line_above`. For others,
+    such as `@ScaledMetric(relativeTo:)`, use the attribute without labels.
   - A Sendable class that must be `nonisolated` clashes on `final nonisolated` order; make it an
     `actor` with `nonisolated` members instead, as `FixtureGameSocket` does.
   - SwiftFormat puts the brace of a multi-line `if`/`while` condition on its own line, which

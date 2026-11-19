@@ -1,7 +1,7 @@
 import BotgeKit
 import SwiftUI
 
-/// App settings: account, appearance, App Lock, haptics and motion, storage, and legal.
+/// App settings: account, appearance, App Lock, haptics and motion, shortcuts, storage, and legal.
 struct SettingsView: View {
   /// Performs logout.
   @Environment(AppModel.self) private var model
@@ -14,6 +14,7 @@ struct SettingsView: View {
         AppearanceSection()
         SecuritySection()
         MotionSection()
+        ShortcutsSection()
         LinksSection()
         Section {
           Button(role: .destructive) {

@@ -29,8 +29,17 @@ reviewer checks it; everything else fails `npm run check:ios`, the Xcode build o
 - **Concurrency: incremental adoption tools:** Not needed: the app started in Swift 6 mode.
 - **HIG: tab bar navigation, settings:** Review; `MainTabView`, `SettingsView`.
 - **HIG: sign-in with system sheet:** `ASWebAuthenticationSession`; review.
-- **HIG: dark mode, Dynamic Type, VoiceOver:** Review; UI tests use accessibility identifiers.
-- **HIG: haptics, Live Activities, Shortcuts:** Review when those features land.
+- **HIG: dark mode, Dynamic Type, VoiceOver:** Review (reviewed 2026-11-19 at the largest
+  accessibility size in both appearances: dense grids cap their growth, rows stack, and fixed sizes
+  use `@ScaledMetric`); UI tests use accessibility identifiers.
+- **HIG: haptics:** Review (reviewed 2026-11-19): system patterns by their documented meaning, short
+  and optional through Settings.
+- **HIG: Live Activities:** Review (reviewed 2026-11-19): 14-point Lock Screen margin, medium or
+  heavier text, accent tint, a live countdown in the minimal view, updates only on change, a tap
+  that opens the Guess tab, and no sensitive data beyond the server name, which `docs/PRIVACY.md`
+  discloses.
+- **HIG: App Shortcuts:** Review (reviewed 2026-11-19): two short phrases with the app name, a
+  follow-up question for a missing search, most useful first, and a `ShortcutsLink` in Settings.
 - **HIG: privacy:** `PrivacyInfo.xcprivacy`; `docs/PRIVACY.md` review.
 - **Lockdown Mode compatibility:** Custom `no_web_content`; `LockdownTests`; `Lockdown.xctestplan`.
 - **Logging without leaking data:** Custom `no_print`; review of `Logger` privacy annotations.

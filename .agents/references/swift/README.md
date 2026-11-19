@@ -51,8 +51,8 @@ and image decoding that falls back to a first frame and then a placeholder.
 - **Parameter and Returns tags.** Following Google, functions document parameters and results with
   `- Parameter(s):` and `- Returns:` unless the comment names the parameter in backticks or the
   summary starts with "Returns" or "Whether". `scripts/check_swift_docs.py` enforces this.
-- **`random()` factories.** `PKCE.random()` follows the standard library's `random(in:)` naming
-  rather than the `make` prefix; other factories start with `make`.
+- **`random()` factories.** `PKCE.random()` and `GameRoomCode.random()` follow the standard
+  library's `random(in:)` naming rather than the `make` prefix; other factories start with `make`.
 - **One type per file.** SwiftLint's `one_declaration_per_file` applies; small private helpers move
   to their own files.
 
@@ -73,8 +73,9 @@ SwiftLint runs every opt-in rule with `--strict`. These are disabled in `ios/.sw
   clients to keep compatible.
 
 Adjusted rules: `attributes` allows property wrappers with arguments on the same line, as
-SwiftFormat writes them; `opening_brace` accepts SwiftFormat's brace after a wrapped signature;
-`trailing_comma` forbids trailing commas; test targets disable `missing_docs`.
+SwiftFormat writes them, except `@Parameter`, which SwiftFormat puts on its own line;
+`opening_brace` accepts SwiftFormat's brace after a wrapped signature; `trailing_comma` forbids
+trailing commas; test targets disable `missing_docs`.
 
 ### Formatter exceptions
 
