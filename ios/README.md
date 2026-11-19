@@ -29,7 +29,9 @@ You need macOS with Xcode 27 (open it once to install the iOS 27 simulator).
    - `DISCORD_APPLICATION_ID`: your Discord application ID (`APP_ID` in `.env`).
    - `BOTGE_API_BASE_URL`: your Botge API plus `/app/v1`. Write `https:/$()/` instead of `https://`,
      because xcconfig treats `//` as a comment. For a bot on this Mac, use
-     `http:/$()/127.0.0.1:3080/app/v1`.
+     `http:/$()/127.0.0.1:3080/app/v1` in the simulator. A real iPhone needs the Mac's LAN address,
+     such as `http:/$()/192.168.0.12:3080/app/v1`, with `ACTIVITY_BIND_HOST` set to that address or
+     `0.0.0.0` in `.env`. Plain HTTP is allowed only to local network addresses.
    - `BOTGE_BUNDLE_PREFIX`: a reverse-DNS prefix only you use, such as `dev.yourname.botge`.
    - `DEVELOPMENT_TEAM`: your team ID, needed only for a real device (see below).
 3. Generate the project: `npm run generate:ios`. Repeat after adding or removing files.

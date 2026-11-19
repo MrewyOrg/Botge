@@ -15,21 +15,30 @@ struct AppConfigurationTests {
     #expect(configuration.discordApplicationID == Self.applicationID)
   }
 
-  @Test
-  func `accepts plain HTTP only for loopback hosts`() throws {
-    _ = try AppConfiguration(
-      apiBaseURL: "http://127.0.0.1:3080",
-      discordApplicationID: Self.applicationID
-    )
-    _ = try AppConfiguration(
-      apiBaseURL: "http://localhost:3080",
-      discordApplicationID: Self.applicationID
-    )
+  @Test(arguments: [
+    "http://127.0.0.1:3080",
+    "http://localhost:3080",
+    "http://192.168.0.12:3080/app/v1",
+    "http://10.0.0.5:3080",
+    "http://172.20.1.2:3080",
+    "http://169.254.3.4:3080",
+    "http://my-mac.local:3080"
+  ])
+  func `accepts plain HTTP for loopback and local network hosts`(url: String) throws {
+    _ = try AppConfiguration(apiBaseURL: url, discordApplicationID: Self.applicationID)
+  }
+
+  @Test(arguments: [
+    "http://botge.example.com",
+    "http://8.8.8.8:3080",
+    "http://172.32.0.1:3080",
+    "http://192.169.0.1:3080",
+    "http://192.168.0:3080",
+    "http://192.168.0.300:3080"
+  ])
+  func `rejects plain HTTP to public hosts`(url: String) {
     #expect(throws: ConfigurationError.invalidAPIBaseURL) {
-      try AppConfiguration(
-        apiBaseURL: "http://botge.example.com",
-        discordApplicationID: Self.applicationID
-      )
+      try AppConfiguration(apiBaseURL: url, discordApplicationID: Self.applicationID)
     }
   }
 

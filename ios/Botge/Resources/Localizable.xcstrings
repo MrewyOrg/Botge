@@ -1,7 +1,428 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
+    "%@ can't be composed or the composition is full." : {
 
+    },
+    "%@ is already on the server." : {
+
+    },
+    "%lld emotes" : {
+
+    },
+    "%lld of %lld failed: %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$lld of %2$lld failed: %3$@"
+          }
+        }
+      }
+    },
+    "7TV returned no emotes." : {
+
+    },
+    "About & Legal" : {
+
+    },
+    "Add %lld to Server" : {
+
+    },
+    "Add emotes from the grid or a preview." : {
+
+    },
+    "Add to Composition" : {
+
+    },
+    "Add to Server" : {
+
+    },
+    "Added %@ to the composition." : {
+
+    },
+    "Added by Server Only" : {
+
+    },
+    "Administrator" : {
+
+    },
+    "All Sources" : {
+
+    },
+    "Always" : {
+
+    },
+    "Animated" : {
+
+    },
+    "Animated and Still" : {
+
+    },
+    "Animated Emotes" : {
+
+    },
+    "App Lock" : {
+
+    },
+    "Appearance" : {
+
+    },
+    "Ask for %@ or your passcode when opening Botge." : {
+
+    },
+    "Botge" : {
+
+    },
+    "Botge could not be reached. Check your connection and try again." : {
+
+    },
+    "Botge could not complete the request." : {
+
+    },
+    "Botge forgets your Discord login on this device." : {
+
+    },
+    "Botge Is Locked" : {
+
+    },
+    "Botge Isn't Configured" : {
+
+    },
+    "Botge isn't in any server you belong to." : {
+
+    },
+    "Botge only asks Discord for your username and avatar." : {
+
+    },
+    "Botge sent an answer this version of the app does not understand." : {
+
+    },
+    "BOTGE_API_BASE_URL needs HTTPS, or HTTP to a local address. Write https:/$()/ in xcconfig." : {
+
+    },
+    "Browse, manage and play with your server's emotes." : {
+
+    },
+    "Cache & Storage" : {
+
+    },
+    "Cancel" : {
+
+    },
+    "Choose a Server" : {
+
+    },
+    "Clear" : {
+
+    },
+    "Clear All Emotes" : {
+
+    },
+    "Clear Filters" : {
+
+    },
+    "Clear Image Cache" : {
+
+    },
+    "Clear the composition?" : {
+
+    },
+    "Clear the image cache?" : {
+
+    },
+    "Coming Soon" : {
+
+    },
+    "Command Text" : {
+
+    },
+    "Composition" : {
+
+    },
+    "Continue with Discord" : {
+
+    },
+    "Copied %@." : {
+
+    },
+    "Copy" : {
+
+    },
+    "Copy Name" : {
+
+    },
+    "Dark" : {
+
+    },
+    "Discord could not be reached. Check your connection and try again." : {
+
+    },
+    "Discord did not allow the login (%@)." : {
+
+    },
+    "Discord rejected the login. Log in again." : {
+
+    },
+    "DISCORD_APPLICATION_ID must be the numeric Discord application ID." : {
+
+    },
+    "Discord's answer could not be verified. Try logging in again." : {
+
+    },
+    "Discord's login page did not finish loading. Check your connection and try again; with Lockdown Mode on, the page can take longer to load." : {
+
+    },
+    "Done" : {
+
+    },
+    "Emote images download again when needed." : {
+
+    },
+    "Emote images download again when needed. Your login and settings are kept." : {
+
+    },
+    "Emotes" : {
+
+    },
+    "Emotes Unavailable" : {
+
+    },
+    "Everyone in %@ loses these emotes." : {
+
+    },
+    "Everyone in %@ loses this emote." : {
+
+    },
+    "Face ID" : {
+
+    },
+    "Filters" : {
+
+    },
+    "Follow Reduce Motion" : {
+
+    },
+    "Guess" : {
+
+    },
+    "Haptics" : {
+
+    },
+    "Haptics & Motion" : {
+
+    },
+    "Image Cache" : {
+
+    },
+    "Layers (%lld/%lld)" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Layers (%1$lld/%2$lld)"
+          }
+        }
+      }
+    },
+    "Legal" : {
+
+    },
+    "License" : {
+
+    },
+    "Light" : {
+
+    },
+    "Loading Emotes" : {
+
+    },
+    "Loading Servers" : {
+
+    },
+    "Log Out" : {
+
+    },
+    "Log Out of Discord" : {
+
+    },
+    "Log out of Discord?" : {
+
+    },
+    "Login was cancelled." : {
+
+    },
+    "Motion" : {
+
+    },
+    "Never" : {
+
+    },
+    "No Emotes" : {
+
+    },
+    "No emotes match the filters." : {
+
+    },
+    "No Matches" : {
+
+    },
+    "No Shared Servers" : {
+
+    },
+    "Only emotes the server added can be removed." : {
+
+    },
+    "Optic ID" : {
+
+    },
+    "Overlay" : {
+
+    },
+    "Overlays" : {
+
+    },
+    "Overlays and Regular" : {
+
+    },
+    "Paste into the emotes option of /emote-compose. Overlays draw over the emote before them." : {
+
+    },
+    "Preview" : {
+
+    },
+    "Privacy Policy" : {
+
+    },
+    "Regular" : {
+
+    },
+    "Remove" : {
+
+    },
+    "Remove %@ from the server?" : {
+
+    },
+    "Remove %lld emotes from the server?" : {
+
+    },
+    "Remove %lld from Server" : {
+
+    },
+    "Remove from Server" : {
+
+    },
+    "Remove from the server?" : {
+
+    },
+    "Search 7TV" : {
+
+    },
+    "Search server emotes" : {
+
+    },
+    "Security" : {
+
+    },
+    "Select" : {
+
+    },
+    "Select at most %lld emotes at a time." : {
+
+    },
+    "Selected" : {
+
+    },
+    "Server" : {
+
+    },
+    "Servers Unavailable" : {
+
+    },
+    "Set a passcode in the Settings app to use App Lock." : {
+
+    },
+    "Set BOTGE_API_BASE_URL in ios/Config/Botge.local.xcconfig and rebuild." : {
+
+    },
+    "Set DISCORD_APPLICATION_ID in ios/Config/Botge.local.xcconfig and rebuild." : {
+
+    },
+    "Settings" : {
+
+    },
+    "Share Link" : {
+
+    },
+    "Shows the emote preview" : {
+
+    },
+    "Source" : {
+
+    },
+    "Source Code" : {
+
+    },
+    "Still" : {
+
+    },
+    "System" : {
+
+    },
+    "Tags" : {
+
+    },
+    "Terms of Service" : {
+
+    },
+    "The login sheet could not open. Try again." : {
+
+    },
+    "Theme" : {
+
+    },
+    "This part of Botge for %@ arrives in a later build." : {
+
+    },
+    "This removes every emote from the composition." : {
+
+    },
+    "This server has no emotes yet." : {
+
+    },
+    "Top" : {
+
+    },
+    "Touch ID" : {
+
+    },
+    "Trending" : {
+
+    },
+    "Try Again" : {
+
+    },
+    "Turn off App Lock" : {
+
+    },
+    "Turn on App Lock" : {
+
+    },
+    "Unlock" : {
+
+    },
+    "Unlock Botge" : {
+
+    },
+    "Updated %lld emotes." : {
+
+    },
+    "Version" : {
+
+    },
+    "Your Discord login expired. Log in again." : {
+
+    }
   },
   "version" : "1.0"
 }

@@ -19,7 +19,7 @@ struct ConfigurationErrorView: View {
       "Set BOTGE_API_BASE_URL in ios/Config/Botge.local.xcconfig and rebuild."
 
     case .invalidAPIBaseURL:
-      "BOTGE_API_BASE_URL must be an HTTPS URL. Write https:/$()/ in the xcconfig file."
+      "BOTGE_API_BASE_URL needs HTTPS, or HTTP to a local address. Write https:/$()/ in xcconfig."
 
     case .missingApplicationID:
       "Set DISCORD_APPLICATION_ID in ios/Config/Botge.local.xcconfig and rebuild."
