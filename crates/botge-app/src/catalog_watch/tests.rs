@@ -52,6 +52,12 @@ impl GuildAccess for Access {
   ) -> impl Future<Output = Result<Vec<VoiceChannel>, AccessError>> + Send {
     std::future::ready(Ok(vec![]))
   }
+  fn guilds(
+    &self,
+    _credential: &Credential,
+  ) -> impl Future<Output = Result<Vec<crate::access::SharedGuild>, AccessError>> + Send {
+    std::future::ready(Ok(vec![]))
+  }
 }
 
 /// An application over a fresh store, kept alive with its directory, allowing 7TV additions.

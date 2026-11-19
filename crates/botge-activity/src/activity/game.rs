@@ -80,15 +80,13 @@ pub(super) async fn join<A: GuildAccess>(
 ///
 /// # Errors
 ///
-/// Returns 401 for a failed proxy signature and 503 when every socket slot is in use.
+/// Returns 503 when every socket slot is in use.
 pub(super) async fn connect<A: GuildAccess>(
   State(state): State<Arc<Activity<A>>>,
-  headers: HeaderMap,
   upgrade: WebSocketUpgrade,
 ) -> Result<Response, ApiError> {
   socket::upgrade(
     &state,
-    &headers,
     upgrade,
     MAX_MESSAGE_BYTES,
     |socket, application| async move { session(socket, &application).await },
@@ -99,13 +97,12 @@ pub(super) async fn connect<A: GuildAccess>(
 ///
 /// # Errors
 ///
-/// Returns 401 for a failed proxy signature and 404 for an unknown or finished round.
+/// Returns 404 for an unknown or finished round. The unguessable token is the only credential,
+/// so the image loads in a plain image request.
 pub(super) async fn image<A: GuildAccess>(
   State(state): State<Arc<Activity<A>>>,
-  headers: HeaderMap,
   Path(token): Path<String>,
 ) -> Result<Response, ApiError> {
-  state.verify_proxy(&headers)?;
   let image = state
     .application
     .game_image(&token)

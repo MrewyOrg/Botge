@@ -65,6 +65,12 @@ impl GuildAccess for Members {
   ) -> impl Future<Output = Result<Vec<VoiceChannel>, AccessError>> + Send {
     std::future::ready(Err(AccessError::FORBIDDEN))
   }
+  fn guilds(
+    &self,
+    _credential: &Credential,
+  ) -> impl Future<Output = Result<Vec<crate::access::SharedGuild>, AccessError>> + Send {
+    std::future::ready(Ok(vec![]))
+  }
 }
 
 fn image() -> Image {

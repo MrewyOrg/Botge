@@ -760,6 +760,50 @@ async fn reads_guild_rules_and_channels_from_the_gateway_cache() -> anyhow::Resu
 }
 
 #[tokio::test]
+async fn lists_shared_servers_from_the_gateway_cache_and_skips_denied_ones() -> anyhow::Result<()> {
+  use std::sync::atomic::Ordering;
+  let rest_reads = Arc::new(std::sync::atomic::AtomicUsize::new(0));
+  let server = TestServer::start(gateway_rest_routes(&rest_reads)).await?;
+  let cache = Arc::new(Cache::new());
+  let (ready, waiting) = watch::channel(false);
+  let access = DiscordAccess::new(
+    OAuthClient {
+      application_id: NonZeroU64::MIN,
+      secret: "fixture".into(),
+    },
+    UserId::new(42),
+    Arc::new(http_for(&server)),
+    Gateway {
+      cache: Arc::clone(&cache),
+      ready: waiting,
+    },
+  )?;
+  let list = async |token: &str| {
+    access
+      .guilds(&Credential::new(token.into()))
+      .await
+      .map(|guilds| {
+        guilds
+          .into_iter()
+          .map(|guild| (guild.id, guild.administrator))
+          .collect::<Vec<_>>()
+      })
+  };
+
+  // Before the gateway is ready, the list would be incomplete, so Botge asks to retry.
+  assert_matches!(list("2").await, Err(ApiError(FailureKind::Upstream, _)));
+  ready.send_replace(true);
+  cache.update(&mut gateway_guild("2", &["2", "3", "42"])?);
+  assert_eq!(list("2").await.ok(), Some(vec![("1".into(), true)]));
+  assert_eq!(list("3").await.ok(), Some(vec![("1".into(), false)]));
+  assert_eq!(rest_reads.load(Ordering::Relaxed), 0);
+  // A user the cache lacks is checked over REST; the denial leaves the server out.
+  assert_eq!(list("5").await.ok(), Some(vec![]));
+  assert_eq!(rest_reads.load(Ordering::Relaxed), 1);
+  Ok(())
+}
+
+#[tokio::test]
 async fn answers_starting_until_the_gateway_delivers_a_guild() -> anyhow::Result<()> {
   let server = TestServer::start(fixture_routes()).await?;
   let cache = Arc::new(Cache::new());

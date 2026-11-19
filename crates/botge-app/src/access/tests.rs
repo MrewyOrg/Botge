@@ -35,6 +35,12 @@ impl GuildAccess for Pending {
   ) -> impl Future<Output = Result<Vec<VoiceChannel>, AccessError>> + Send {
     std::future::pending()
   }
+  fn guilds(
+    &self,
+    _credential: &Credential,
+  ) -> impl Future<Output = Result<Vec<SharedGuild>, AccessError>> + Send {
+    std::future::pending()
+  }
 }
 
 #[tokio::test(start_paused = true)]
@@ -56,6 +62,10 @@ async fn times_out_capabilities_without_polling_them_forever() {
   );
   assert_matches!(
     user_id(&Pending, &credential).await,
+    Err(AccessError(FailureKind::Upstream, _))
+  );
+  assert_matches!(
+    guilds(&Pending, &credential).await,
     Err(AccessError(FailureKind::Upstream, _))
   );
 }

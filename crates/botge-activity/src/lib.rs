@@ -1,7 +1,7 @@
 //! Activity HTTP routes and signed proxy request validation.
 mod activity;
 #[doc(inline)]
-pub use activity::router;
+pub use activity::{AppApi, router};
 pub mod proxy;
 
 #[cfg(test)]

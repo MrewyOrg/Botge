@@ -56,6 +56,12 @@ impl GuildAccess for Access {
       Err(ApiError::FORBIDDEN)
     })
   }
+  fn guilds(
+    &self,
+    _credential: &Credential,
+  ) -> impl Future<Output = Result<Vec<super::super::access::SharedGuild>, ApiError>> + Send {
+    std::future::ready(Err(ApiError::UNAUTHORIZED))
+  }
 }
 
 #[tokio::test]

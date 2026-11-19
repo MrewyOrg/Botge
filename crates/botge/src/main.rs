@@ -96,6 +96,8 @@ struct ActivityOptions {
   public_key: String,
   application_id: NonZeroU64,
   address: SocketAddr,
+  /// Whether the bearer-only API for the Botge iOS app is served under `/app/v1`.
+  app_api: activity::AppApi,
 }
 
 impl Options {
@@ -103,7 +105,8 @@ impl Options {
   ///
   /// The bot token is required. Supplying Activity credentials also requires an application
   /// ID and enables the Activity listener, which defaults to the loopback address on port 3080.
-  /// Command registration and the message prefix are enabled only by the literal value `true`.
+  /// Command registration, the message prefix, and the iOS app API are enabled only by the
+  /// literal value `true`.
   /// The lookup is borrowed so cold startup parsing shares one implementation across providers.
   ///
   /// # Errors
@@ -133,6 +136,11 @@ impl Options {
           public_key,
           application_id,
           address: SocketAddr::new(host, 3080),
+          app_api: if get("BOTGE_APP_API").as_deref() == Some("true") {
+            activity::AppApi::Enabled
+          } else {
+            activity::AppApi::Disabled
+          },
         })
       }
       _ => anyhow::bail!(
@@ -363,6 +371,7 @@ async fn activity_server(
   let Some(options) = options else {
     return Ok(None);
   };
+  let app_api = options.app_api;
   let proxy = ProxyAuthenticator::new(&options.public_key)?;
   let bot_user = http.get_current_user().await?.id;
   let access = DiscordAccess::new(
@@ -377,7 +386,7 @@ async fn activity_server(
   let listener = TcpListener::bind(options.address).await?;
   Ok(Some((
     listener,
-    activity::router(application, voice_changed, proxy, access),
+    activity::router(application, voice_changed, proxy, access, app_api),
   )))
 }
 

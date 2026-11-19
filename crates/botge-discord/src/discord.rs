@@ -36,8 +36,9 @@ use tokio::sync::{Notify, watch};
 
 use botge_app::access::{
   AccessError as ApiError, AccessToken, Credential, FailureKind, GuildAccess, GuildRole,
-  Membership, VoiceChannel,
+  Membership, SharedGuild, VoiceChannel,
 };
+use futures_util::{StreamExt as _, TryStreamExt as _};
 
 use crate::commands::{self, Commands};
 use botge_domain::settings::discord_id;
@@ -80,6 +81,10 @@ const STARTING: ApiError = ApiError(
 );
 /// Member records and token identities kept at once.
 const USER_CACHE_LIMIT: usize = 4096;
+/// Servers checked when listing the caller's shared servers; Botge rarely joins more.
+const MAX_LISTED_GUILDS: usize = 200;
+/// Membership lookups that may wait on Discord's REST API at once while listing servers.
+const GUILD_LOOKUPS: usize = 4;
 
 /// A bounded map whose entries expire a fixed time after they were stored.
 ///
@@ -180,6 +185,16 @@ fn membership_in(guild: &Guild, member: &Member) -> Membership {
         name: role.name.clone(),
       })
       .collect(),
+  }
+}
+
+/// Describes a cached server for the caller's server picker.
+fn shared_guild(guild: &Guild, member: &Member) -> SharedGuild {
+  SharedGuild {
+    id: guild.id.to_string(),
+    name: guild.name.clone(),
+    icon: guild.icon_url(),
+    administrator: guild.member_permissions(member).administrator(),
   }
 }
 
@@ -557,6 +572,49 @@ impl GuildAccess for DiscordAccess {
     let (member, bot) =
       tokio::try_join!(self.member(guild, user), self.member(guild, self.bot_user))?;
     self.read_guild(guild, |cached| voice_choices(cached, &member, &bot))?
+  }
+
+  /// Checks the caller's membership in each server the gateway has delivered.
+  ///
+  /// Cached members answer at once. Others are fetched over REST, four at a time,
+  /// and share the member and denial windows of [`Self::membership`]. At most
+  /// 200 servers are checked, in ID order.
+  ///
+  /// # Errors
+  ///
+  /// Returns credential errors, a starting error before the gateway is ready, and REST failures
+  /// other than a membership denial.
+  async fn guilds(&self, credential: &Credential) -> Result<Vec<SharedGuild>, ApiError> {
+    let user = self.identify(credential).await?;
+    if !*self.ready.borrow() {
+      return Err(STARTING);
+    }
+    let mut ids: Vec<_> = self
+      .gateway
+      .guilds()
+      .into_iter()
+      .filter(|id| self.gateway.guild(*id).is_some())
+      .collect();
+    ids.sort_unstable();
+    ids.truncate(MAX_LISTED_GUILDS);
+    let found: Vec<Option<SharedGuild>> = futures_util::stream::iter(ids)
+      .map(|id| async move {
+        match self.member(id, user).await {
+          Ok(member) => Ok(
+            self
+              .read_guild(id, |guild| shared_guild(guild, &member))
+              .ok(),
+          ),
+          Err(error) if error.0 == FailureKind::PermissionDenied => Ok(None),
+          Err(error) => Err(error),
+        }
+      })
+      .buffer_unordered(GUILD_LOOKUPS)
+      .try_collect()
+      .await?;
+    let mut guilds: Vec<_> = found.into_iter().flatten().collect();
+    guilds.sort_by_cached_key(|guild| (guild.name.to_lowercase(), guild.id.clone()));
+    Ok(guilds)
   }
 }
 

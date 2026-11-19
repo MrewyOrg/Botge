@@ -8,7 +8,7 @@ use std::{sync::Arc, time::Duration};
 
 use axum::{
   extract::ws::{Message, WebSocket, WebSocketUpgrade},
-  http::{HeaderMap, StatusCode},
+  http::StatusCode,
   response::Response,
 };
 use tokio::time::{Instant, Interval, MissedTickBehavior};
@@ -51,16 +51,18 @@ impl Connection for WebSocket {
   }
 }
 
-/// Upgrades a signed proxy request and runs `session` while holding one shared socket slot.
+/// Upgrades a request and runs `session` while holding one shared socket slot.
+///
+/// The Discord router has already checked the proxy signature; the app router relies on the
+/// ticket that the first message must present.
 ///
 /// Messages larger than `max_message_bytes` close the connection.
 ///
 /// # Errors
 ///
-/// Returns 401 for a failed proxy signature and 503 when every socket slot is in use.
+/// Returns 503 when every socket slot is in use.
 pub(super) fn upgrade<A, S, F>(
   state: &Activity<A>,
-  headers: &HeaderMap,
   upgrade: WebSocketUpgrade,
   max_message_bytes: usize,
   session: S,
@@ -70,7 +72,6 @@ where
   S: FnOnce(WebSocket, Arc<Application>) -> F + Send + 'static,
   F: Future<Output = ()> + Send + 'static,
 {
-  state.verify_proxy(headers)?;
   let permit = Arc::clone(&state.sockets)
     .try_acquire_owned()
     .map_err(|_error| {

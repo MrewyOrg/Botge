@@ -221,6 +221,7 @@ async fn rejects_activity_startup_when_identity_or_listener_is_unavailable() -> 
       public_key: hex::encode(key.verifying_key().as_bytes()),
       application_id: NonZeroU64::MIN,
       address: occupied.local_addr()?,
+      app_api: botge_activity::AppApi::Disabled,
     };
     let error = activity_server(
       Some(options),
@@ -354,8 +355,16 @@ fn loads_runtime_configuration_and_rejects_partial_activity_credentials() -> Res
   ]);
   let options = Options::read(&|key| env.get(key).map(ToString::to_string))?;
   assert_eq!(
-    options.activity.map(|api| api.address.to_string()),
-    Some("127.0.0.1:3080".into())
+    options
+      .activity
+      .map(|api| (api.address.to_string(), api.app_api)),
+    Some(("127.0.0.1:3080".into(), botge_activity::AppApi::Disabled))
+  );
+  env.insert("BOTGE_APP_API", "true");
+  let options = Options::read(&|key| env.get(key).map(ToString::to_string))?;
+  assert_eq!(
+    options.activity.map(|api| api.app_api),
+    Some(botge_activity::AppApi::Enabled)
   );
   assert!(options.twitch.is_some() && options.cache.is_some() && options.register_commands);
   assert!(options.prefix_compose);
@@ -481,6 +490,7 @@ async fn starts_gateway_and_http_reconciles_voice_and_handles_shutdown() -> Resu
       public_key: hex::encode(key.verifying_key().as_bytes()),
       application_id: NonZeroU64::MIN,
       address: activity_address,
+      app_api: botge_activity::AppApi::Disabled,
     }),
   };
   let (cancel, shutdown) = tokio::sync::oneshot::channel();
@@ -601,6 +611,7 @@ async fn keeps_disabled_activity_idle_and_rejects_invalid_api_configuration() ->
     public_key: "bad-key".into(),
     application_id: NonZeroU64::MIN,
     address: "127.0.0.1:0".parse()?,
+    app_api: botge_activity::AppApi::Disabled,
   };
   assert_matches!(
     activity_server(
@@ -700,6 +711,7 @@ async fn rejects_activity_configuration_and_discord_identity_before_gateway_star
         public_key: "invalid key".into(),
         application_id: NonZeroU64::MIN,
         address: "127.0.0.1:0".parse()?,
+        app_api: botge_activity::AppApi::Disabled,
       }),
     };
     let server = if stage == 0 { &invalid } else { &valid };
