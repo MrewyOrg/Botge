@@ -47,6 +47,21 @@ missing_docs:
   excludes_trivial_init: false
 opening_brace:
   ignore_multiline_function_signatures: true
+# SwiftFormat writes `public nonisolated`; keep isolation after access control.
+modifier_order:
+  preferred_modifier_order:
+    - override
+    - acl
+    - setterACL
+    - isolation
+    - dynamic
+    - mutators
+    - lazy
+    - final
+    - required
+    - convenience
+    - typeMethods
+    - owned
 sorted_imports:
   grouping: attributes
 indentation_width:

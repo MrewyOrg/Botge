@@ -36,17 +36,41 @@ struct EmoteImageLoaderTests {
   }
 
   @Test
-  func `memory keeps only the newest images`() async {
-    let replies = Array(
-      repeating: StubTransport.Reply.response(status: 200, body: ImageFixtures.png()),
-      count: EmoteImageLoader.memoryLimit + 2
-    )
-    let transport = StubTransport(replies)
+  func `concurrent requests share one download and are readable synchronously`() async {
+    let png = StubTransport.Reply.response(status: 200, body: ImageFixtures.png())
+    let transport = StubTransport([png])
     let loader = EmoteImageLoader(transport: transport)
-    for index in 0 ... EmoteImageLoader.memoryLimit {
-      _ = await loader.image(for: "\(Self.path)/\(index)", animated: false)
-    }
-    _ = await loader.image(for: "\(Self.path)/0", animated: false)
-    #expect(transport.requests.count == EmoteImageLoader.memoryLimit + 2)
+    #expect(loader.cachedImage(for: Self.path, animated: false) == nil)
+    async let first = loader.image(for: Self.path, animated: false)
+    async let second = loader.image(for: Self.path, animated: false)
+    _ = await (first, second)
+    #expect(transport.requests.count == 1)
+    #expect(loader.cachedImage(for: Self.path, animated: false) != nil)
+    #expect(loader.cachedImage(for: Self.path, animated: true) == nil)
+  }
+
+  @Test
+  func `the cache drops the least recently used images beyond its byte limit`() throws {
+    let frame = try #require(ImageFixtures.frame(red: 1))
+    let still = EmoteImage.still(frame)
+    let cost = EmoteImageCache.cost(of: still)
+    #expect(cost == ImageFixtures.size * ImageFixtures.size * 4)
+    #expect(EmoteImageCache.cost(of: .placeholder) == 0)
+    #expect(EmoteImageCache.cost(of: .animated(frames: [frame, frame], delays: [1, 1])) == cost * 2)
+
+    let cache = EmoteImageCache(costLimit: cost * 2)
+    cache.insert(still, forKey: "a")
+    cache.insert(still, forKey: "b")
+    #expect(cache.image(forKey: "a") != nil)
+    cache.insert(still, forKey: "c")
+    #expect(cache.image(forKey: "b") == nil)
+    #expect(cache.image(forKey: "a") != nil && cache.image(forKey: "c") != nil)
+    cache.insert(still, forKey: "c")
+    #expect(cache.count == 2)
+
+    cache.insert(.animated(frames: [frame, frame, frame], delays: [1, 1, 1]), forKey: "big")
+    #expect(cache.image(forKey: "big") == nil)
+    cache.removeAll()
+    #expect(cache.isEmpty)
   }
 }

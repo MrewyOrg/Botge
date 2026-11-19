@@ -7,22 +7,50 @@ struct EmotesContent: View {
   let model: EmotesModel
 
   var body: some View {
-    if let failure = currentFailure, model.visibleEmotes.isEmpty {
+    let emotes = model.visibleEmotes
+    if let failure = currentFailure, emotes.isEmpty {
       ContentUnavailableView {
         Label("Emotes Unavailable", systemImage: "wifi.exclamationmark")
       } description: {
         Text(failure.message)
       } actions: {
         Button("Try Again") {
-          Task { await retry() }
+          Task { await model.refresh() }
         }
       }
-    } else if isLoading, model.visibleEmotes.isEmpty {
+    } else if isLoading, emotes.isEmpty {
       ProgressView("Loading Emotes")
-    } else if model.visibleEmotes.isEmpty {
-      ContentUnavailableView.search(text: model.filter.query)
+    } else if emotes.isEmpty {
+      emptyState
     } else {
-      EmoteGrid(model: model)
+      EmoteGrid(model: model, emotes: emotes)
+        .id(model.source)
+    }
+  }
+
+  /// Explains an empty grid: no search results, no filter matches, or no emotes at all.
+  @ViewBuilder private var emptyState: some View {
+    let query = model.filter.query.trimmingCharacters(in: .whitespaces)
+    if !query.isEmpty {
+      ContentUnavailableView.search(text: query)
+    } else if model.filter.activeCount > 0 {
+      ContentUnavailableView {
+        Label("No Matches", systemImage: "line.3.horizontal.decrease.circle")
+      } description: {
+        Text("No emotes match the filters.")
+      } actions: {
+        Button("Clear Filters") {
+          model.filter = EmoteFilter()
+        }
+      }
+    } else {
+      ContentUnavailableView(
+        "No Emotes",
+        systemImage: "face.dashed",
+        description: model.source == .server
+          ? Text("This server has no emotes yet.")
+          : Text("7TV returned no emotes.")
+      )
     }
   }
 
@@ -41,15 +69,6 @@ struct EmotesContent: View {
       model.catalog == nil
     } else {
       model.discovery.page == 0
-    }
-  }
-
-  /// Reloads the current source.
-  private func retry() async {
-    if model.source == .server {
-      await model.load()
-    } else {
-      await model.reloadDiscovery()
     }
   }
 }

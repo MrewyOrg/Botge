@@ -36,8 +36,9 @@ public struct ImageIODecoder: ImageDecoding {
   public func decodeFrames(_ data: Data) throws(ImageDecodingError) -> EmoteImage {
     let source = try imageSource(data)
     let count = min(CGImageSourceGetCount(source), maxFrames)
+    let downsamples = needsDownsampling(source)
     guard count > 1 else {
-      return try .still(frame(source, at: 0))
+      return try .still(frame(source, at: 0, downsampling: downsamples))
     }
 
     var frames = [CGImage]()
@@ -45,7 +46,7 @@ public struct ImageIODecoder: ImageDecoding {
     frames.reserveCapacity(count)
     delays.reserveCapacity(count)
     for index in 0 ..< count {
-      try frames.append(frame(source, at: index))
+      try frames.append(frame(source, at: index, downsampling: downsamples))
       delays.append(delay(source, at: index))
     }
     return .animated(frames: frames, delays: delays)
@@ -58,7 +59,8 @@ public struct ImageIODecoder: ImageDecoding {
   /// - Throws: ``ImageDecodingError/unsupported`` for unreadable data and
   ///   ``ImageDecodingError/corruptFrame`` when the frame fails.
   public func decodeFirstFrame(_ data: Data) throws(ImageDecodingError) -> CGImage {
-    try frame(imageSource(data), at: 0)
+    let source = try imageSource(data)
+    return try frame(source, at: 0, downsampling: needsDownsampling(source))
   }
 
   /// Opens the data without caching decoded frames.
@@ -78,21 +80,52 @@ public struct ImageIODecoder: ImageDecoding {
     return source
   }
 
-  /// Decodes one frame, downsampled to ``maxPixelSize``.
+  /// Whether the first frame is larger than ``maxPixelSize`` or its size is unknown.
+  ///
+  /// - Parameter source: The image source.
+  /// - Returns: Whether frames go through the slower thumbnail path.
+  private func needsDownsampling(_ source: CGImageSource) -> Bool {
+    let properties = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [CFString: Any]
+    guard let width = properties?[kCGImagePropertyPixelWidth] as? Int,
+          let height = properties?[kCGImagePropertyPixelHeight] as? Int
+    else {
+      return true
+    }
+
+    return max(width, height) > maxPixelSize
+  }
+
+  /// Decodes one frame, downsampled to ``maxPixelSize`` when `downsampling` is set.
+  ///
+  /// Frames that already fit decode directly, which is faster than building a thumbnail.
   ///
   /// - Parameters:
   ///   - source: The image source.
   ///   - index: The frame index.
-  /// - Returns: The downsampled frame.
+  ///   - downsampling: Whether to scale the frame down to ``maxPixelSize``.
+  /// - Returns: The decoded frame.
   /// - Throws: ``ImageDecodingError/corruptFrame`` when the frame cannot be decoded.
-  private func frame(_ source: CGImageSource, at index: Int) throws(ImageDecodingError) -> CGImage {
-    let options = [
-      kCGImageSourceCreateThumbnailFromImageAlways: true,
-      kCGImageSourceCreateThumbnailWithTransform: true,
-      kCGImageSourceShouldCacheImmediately: true,
-      kCGImageSourceThumbnailMaxPixelSize: maxPixelSize
-    ] as CFDictionary
-    guard let image = CGImageSourceCreateThumbnailAtIndex(source, index, options) else {
+  private func frame(
+    _ source: CGImageSource,
+    at index: Int,
+    downsampling: Bool
+  )
+    throws(ImageDecodingError) -> CGImage
+  {
+    let image =
+      if downsampling {
+        CGImageSourceCreateThumbnailAtIndex(source, index, [
+          kCGImageSourceCreateThumbnailFromImageAlways: true,
+          kCGImageSourceCreateThumbnailWithTransform: true,
+          kCGImageSourceShouldCacheImmediately: true,
+          kCGImageSourceThumbnailMaxPixelSize: maxPixelSize
+        ] as CFDictionary)
+      } else {
+        CGImageSourceCreateImageAtIndex(source, index, [
+          kCGImageSourceShouldCacheImmediately: true
+        ] as CFDictionary)
+      }
+    guard let image else {
       throw .corruptFrame
     }
 

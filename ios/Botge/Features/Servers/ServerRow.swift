@@ -34,7 +34,7 @@ struct ServerRow: View {
       Spacer()
       if isSelected {
         Image(systemName: "checkmark")
-          .foregroundStyle(.tint)
+          .foregroundStyle(Color.accentColor)
           .accessibilityLabel("Selected")
       }
     }

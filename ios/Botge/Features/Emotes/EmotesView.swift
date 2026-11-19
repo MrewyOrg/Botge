@@ -2,12 +2,12 @@ import BotgeKit
 import SwiftUI
 
 /// The Emotes tab for one server: source, search, filters, the grid, preview and composer.
+///
+/// The title stays inline and the search field stays visible, so the navigation bar keeps one
+/// height and the source picker below it never drifts while the grid scrolls or bounces.
 struct EmotesView: View {
-  /// How long typing pauses before discovery searches 7TV.
-  private static let searchDelay: Duration = .milliseconds(searchDelayMilliseconds)
-  /// ``searchDelay`` in milliseconds.
-  private static let searchDelayMilliseconds = 350
-
+  /// Whether haptics play.
+  @AppStorage(PreferenceKey.haptics) private var haptics = true
   /// The server's catalog state.
   @State private var model: EmotesModel
 
@@ -15,9 +15,14 @@ struct EmotesView: View {
     EmotesContent(model: model)
       .frame(maxWidth: .infinity, maxHeight: .infinity)
       .navigationTitle("Emotes")
-      .searchable(text: $model.filter.query, prompt: "Search emotes")
+      .navigationBarTitleDisplayMode(.inline)
+      .searchable(
+        text: $model.filter.query,
+        placement: .navigationBarDrawer(displayMode: .always),
+        prompt: Text(searchPrompt)
+      )
       .toolbar { EmotesToolbar(model: model) }
-      .safeAreaInset(edge: .top) { EmotesSourcePicker(model: model) }
+      .safeAreaBar(edge: .top) { EmotesSourcePicker(model: model) }
       .safeAreaInset(edge: .bottom) { SelectionBar(model: model) }
       .sheet(item: $model.sheet) { sheet in
         switch sheet {
@@ -28,29 +33,63 @@ struct EmotesView: View {
           EmotePreviewView(emote: emote, model: model)
         }
       }
+      .confirmationDialog(
+        removalTitle,
+        isPresented: isConfirmingRemoval,
+        titleVisibility: .visible,
+        presenting: model.pendingRemoval
+      ) { removal in
+        Button("Remove", role: .destructive) {
+          Task { await model.confirm(removal) }
+        }
+      } message: { _ in
+        Text("Everyone in \(model.guild.name) loses these emotes.")
+      }
       .overlay(alignment: .bottom) {
         NoticeBanner(notice: $model.notice)
+      }
+      .sensoryFeedback(trigger: model.haptic) { _, event in
+        haptics ? event?.feedback : nil
       }
       .task { await model.load() }
       .task { await model.watch() }
       .task(id: DiscoveryRequest(source: model.source, filter: model.filter)) {
-        guard model.source != .server else {
-          return
-        }
-
-        try? await Task.sleep(for: Self.searchDelay)
-        guard !Task.isCancelled else {
-          return
-        }
-
-        await model.reloadDiscovery()
+        await model.syncDiscovery()
       }
-      .refreshable {
-        await model.load()
-        if model.source != .server {
-          await model.reloadDiscovery()
-        }
+  }
+
+  /// The search prompt for the current source.
+  private var searchPrompt: LocalizedStringResource {
+    if model.source == .server {
+      "Search server emotes"
+    } else {
+      "Search 7TV"
+    }
+  }
+
+  /// The removal confirmation's title.
+  private var removalTitle: LocalizedStringResource {
+    switch model.pendingRemoval {
+    case let .single(emote):
+      "Remove \(emote.name) from the server?"
+
+    case let .selection(count):
+      "Remove \(count) emotes from the server?"
+
+    case nil:
+      "Remove from the server?"
+    }
+  }
+
+  /// Shows the confirmation while a removal is pending; dismissing it cancels the removal.
+  private var isConfirmingRemoval: Binding<Bool> {
+    Binding {
+      model.pendingRemoval != nil
+    } set: { isPresented in
+      if !isPresented {
+        model.pendingRemoval = nil
       }
+    }
   }
 
   /// Creates the tab for one server.

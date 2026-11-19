@@ -4,7 +4,9 @@ import SwiftUI
 
 /// Covers the app with a lock screen until Face ID or the device passcode succeeds.
 ///
-/// Authentication happens entirely on the device; Botge never receives biometric data.
+/// While App Lock is on, the app is also covered whenever it is not active, so the app switcher
+/// snapshot never shows its content. Authentication happens entirely on the device; Botge never
+/// receives biometric data.
 private struct AppLockModifier: ViewModifier {
   /// When to ask again after backgrounding.
   private static let policy: AppLockPolicy = .init()
@@ -28,6 +30,17 @@ private struct AppLockModifier: ViewModifier {
             Task { await unlock() }
           }
           .transition(.opacity)
+        } else if isEnabled, scenePhase != .active {
+          Rectangle()
+            .fill(.background)
+            .ignoresSafeArea()
+            .accessibilityHidden(true)
+        }
+      }
+      .onChange(of: isEnabled) { _, enabled in
+        // Settings just authenticated the owner, so turning the lock on does not lock the app.
+        if enabled {
+          isLocked = false
         }
       }
       .onChange(of: scenePhase, initial: true) { _, phase in

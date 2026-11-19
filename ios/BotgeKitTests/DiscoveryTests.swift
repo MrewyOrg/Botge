@@ -167,6 +167,8 @@ struct DiscoveryTests {
       isAnimated: false
     )
     #expect(open.resolving(foreign) == foreign)
+    #expect(added.resolving([discovered, foreign]) == [added.resolving(discovered), foreign])
+    #expect(closed.resolving([discovered]).first?.composeToken == nil)
   }
 
   @Test

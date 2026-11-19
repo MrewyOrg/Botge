@@ -6,6 +6,8 @@ enum Metrics {
   static let spacing: CGFloat = 20
   /// Spacing between related items in a group.
   static let compactSpacing: CGFloat = 12
+  /// Spacing around compact bars.
+  static let tightSpacing: CGFloat = 6
   /// Login and lock screen logo size.
   static let logoSize: CGFloat = 112
   /// Corner radius matching the app icon at ``logoSize``.

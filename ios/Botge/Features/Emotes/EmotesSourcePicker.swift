@@ -15,7 +15,7 @@ struct EmotesSourcePicker: View {
     }
     .pickerStyle(.segmented)
     .padding(.horizontal)
-    .padding(.bottom, Metrics.compactSpacing)
+    .padding(.vertical, Metrics.tightSpacing)
     .onChange(of: model.source) {
       model.endSelection()
     }

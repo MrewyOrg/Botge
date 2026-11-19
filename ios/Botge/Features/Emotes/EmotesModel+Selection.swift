@@ -28,26 +28,39 @@ extension EmotesModel {
   /// - Parameter emote: A visible emote.
   func toggleSelection(_ emote: CatalogEmote) {
     if selection.remove(emote.id) != nil {
+      play(.selection)
       return
     }
     guard isSelectable(emote) else {
       notice = batchAction == .add
         ? String(localized: "\(emote.name) is already on the server.")
         : String(localized: "Only emotes the server added can be removed.")
+      play(.failure)
       return
     }
     guard selection.count < BotgeAPI.maxBatch else {
       notice = String(localized: "Select at most \(BotgeAPI.maxBatch) emotes at a time.")
+      play(.failure)
       return
     }
 
     selection.insert(emote.id)
+    play(.selection)
   }
 
   /// Leaves selection mode and clears the selection.
   func endSelection() {
     isSelecting = false
     selection.removeAll()
+  }
+
+  /// Applies ``batchAction`` to the selection, asking first when it removes emotes.
+  func requestBatch() async {
+    if batchAction == .remove {
+      pendingRemoval = .selection(count: selection.count)
+    } else {
+      await applyBatch()
+    }
   }
 
   /// Applies ``batchAction`` to the selected emotes and reports the outcome.
@@ -67,12 +80,14 @@ extension EmotesModel {
       notice = failed.isEmpty
         ? String(localized: "Updated \(results.count) emotes.")
         : String(localized: "\(failed.count) of \(results.count) failed: \(failed[0].message)")
+      play(failed.isEmpty ? .success : .warning)
       endSelection()
       await load()
     } catch .signedOut {
       await app.signOut()
     } catch {
       notice = error.message
+      play(.failure)
     }
   }
 }

@@ -9,7 +9,7 @@ struct SelectionBar: View {
   var body: some View {
     if model.isSelecting {
       Button {
-        Task { await model.applyBatch() }
+        Task { await model.requestBatch() }
       } label: {
         Text(title)
           .frame(maxWidth: .infinity)

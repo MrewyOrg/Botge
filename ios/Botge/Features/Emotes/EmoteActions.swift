@@ -8,6 +8,8 @@ struct EmoteActions: View {
   let emote: CatalogEmote
   /// The server's catalog state.
   let model: EmotesModel
+  /// Asks to confirm removing the emote from the server.
+  let requestRemoval: () -> Void
 
   var body: some View {
     if model.canAdd(emote) {
@@ -22,12 +24,15 @@ struct EmoteActions: View {
     Button("Copy Name", systemImage: "doc.on.doc") {
       UIPasteboard.general.string = emote.name
       model.notice = String(localized: "Copied \(emote.name).")
+      model.play(.success)
     }
-    ShareLink(item: emote.name)
-    if model.canRemove(emote) {
-      Button("Remove from Server", systemImage: "trash", role: .destructive) {
-        Task { await model.remove(emote) }
+    if let link = EmoteLink.url(for: emote) {
+      ShareLink(item: link, subject: Text(emote.name)) {
+        Label("Share Link", systemImage: "square.and.arrow.up")
       }
+    }
+    if model.canRemove(emote) {
+      Button("Remove from Server", systemImage: "trash", role: .destructive, action: requestRemoval)
     }
   }
 }

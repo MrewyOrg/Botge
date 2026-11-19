@@ -9,19 +9,21 @@ struct EmotesToolbar: ToolbarContent {
   var body: some ToolbarContent {
     @Bindable var model = model
     ToolbarItem(placement: .topBarLeading) {
-      EmoteFilterMenu(filter: $model.filter)
+      EmoteFilterMenu(filter: $model.filter, isServerCatalog: model.source == .server)
     }
     ToolbarItem(placement: .topBarLeading) {
       Button {
         model.sheet = .composer
       } label: {
-        Label("Compose (\(model.composition.layers.count))", systemImage: "square.stack.3d.up")
+        Label("Composition", systemImage: "square.stack.3d.up")
       }
+      .accessibilityValue(Text("\(model.composition.layers.count) emotes"))
+      .badge(model.composition.layers.count)
       .accessibilityIdentifier("emotes.compose")
     }
     if model.catalog?.canManageEmotes == true {
       ToolbarItem(placement: .topBarTrailing) {
-        Button(model.isSelecting ? "Done" : "Select") {
+        Button(model.isSelecting ? "Cancel" : "Select") {
           if model.isSelecting {
             model.endSelection()
           } else {

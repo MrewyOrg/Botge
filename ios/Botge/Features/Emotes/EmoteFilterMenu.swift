@@ -5,13 +5,18 @@ import SwiftUI
 struct EmoteFilterMenu: View {
   /// The filters being edited.
   @Binding var filter: EmoteFilter
+  /// Whether the filters apply to the server catalog; 7TV rankings have one source and no
+  /// added state.
+  let isServerCatalog: Bool
 
   var body: some View {
     Menu {
-      Picker("Source", selection: $filter.source) {
-        Text("All Sources").tag(EmoteSource?.none)
-        ForEach(EmoteSource.allCases, id: \.self) { source in
-          Text(source.rawValue).tag(EmoteSource?.some(source))
+      if isServerCatalog {
+        Picker("Source", selection: $filter.source) {
+          Text("All Sources").tag(EmoteSource?.none)
+          ForEach(EmoteSource.allCases, id: \.self) { source in
+            Text(source.rawValue).tag(EmoteSource?.some(source))
+          }
         }
       }
       Picker("Motion", selection: $filter.motion) {
@@ -24,9 +29,11 @@ struct EmoteFilterMenu: View {
         Text("Overlays").tag(OverlayFilter.overlaying)
         Text("Regular").tag(OverlayFilter.regular)
       }
-      Toggle("Added by Server Only", isOn: $filter.showsOnlyAdded)
+      if isServerCatalog {
+        Toggle("Added by Server Only", isOn: $filter.showsOnlyAdded)
+      }
       if filter.activeCount > 0 {
-        Button("Clear Filters", role: .destructive) {
+        Button("Clear Filters", systemImage: "arrow.counterclockwise") {
           let query = filter.query
           filter = EmoteFilter()
           filter.query = query

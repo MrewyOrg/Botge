@@ -22,7 +22,7 @@ final class EmotesUITests: XCTestCase {
     let add = app.buttons["Add to Composition"]
     XCTAssertTrue(add.waitForExistence(timeout: 5))
     add.tap()
-    app.buttons["Done"].firstMatch.tap()
+    app.buttons["preview.close"].tap()
     XCTAssertTrue(add.waitForNonExistence(timeout: 5))
 
     let compose = app.buttons["emotes.compose"]
@@ -31,6 +31,13 @@ final class EmotesUITests: XCTestCase {
     let text = app.staticTexts["composer.text"]
     XCTAssertTrue(text.waitForExistence(timeout: 5))
     XCTAssertEqual(text.label, "peepoHey")
+    app.buttons["composer.clear"].tap()
+    let confirm = app.buttons["Clear All Emotes"]
+    XCTAssertTrue(confirm.waitForExistence(timeout: 5))
+    XCTAssertEqual(text.label, "peepoHey")
+    confirm.tap()
+    XCTAssertTrue(app.buttons["composer.clear"].waitForExistence(timeout: 5))
+    XCTAssertFalse(app.buttons["composer.clear"].isEnabled)
     app.buttons["Done"].firstMatch.tap()
     XCTAssertTrue(text.waitForNonExistence(timeout: 5))
 

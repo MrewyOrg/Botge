@@ -17,6 +17,7 @@ struct ServerPickerView: View {
           } label: {
             ServerRow(guild: guild, isSelected: guild.id == selectedGuildID)
           }
+          .tint(.primary)
           .accessibilityIdentifier("server.\(guild.id)")
         }
       } else if model.hasLoadedGuilds {
