@@ -33,7 +33,7 @@ enum UITestSupport {
       transport: FixtureTransport(),
       store: store,
       urlCache: URLCache(memoryCapacity: 0, diskCapacity: 0),
-      sockets: URLSession(configuration: .ephemeral)
+      sockets: FixtureSockets()
     )
   }
 

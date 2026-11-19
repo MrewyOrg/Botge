@@ -1,11 +1,13 @@
 #if DEBUG
 import BotgeKit
 import Foundation
+import UIKit
 
 /// Answers UI-test requests from fixtures, so UI tests never reach the network.
 ///
 /// `POST /guilds` returns one fixture server, `POST /catalog` a small catalog, the settings
-/// routes fixture settings (saves echo what was sent) and 7TV's `gql` endpoint a page of
+/// routes fixture settings (saves echo what was sent), the Guess routes a ticket for
+/// ``FixtureGameSocket`` and a drawn round image, and 7TV's `gql` endpoint a page of
 /// discovery results, long enough to scroll; every other request, including images, fails as
 /// if offline.
 struct FixtureTransport: HTTPTransport {
@@ -23,6 +25,7 @@ struct FixtureTransport: HTTPTransport {
     "settings/emotes/read": #"{"sevenTvSet":null,"bttvTwitchId":null,"ffzChannel":null,"#
       + #""allowEveryone":false,"allowedRoles":[],"roles":\#(roles)}"#,
     "settings/border/read": #"{"color":""}"#,
+    "game/join": #"{"ticket":"fixture","userId":"\#(FixtureGameSocket.player)"}"#,
     "guilds": """
     {"guilds":[{"id":"100000000000000001","name":"Fixture Server","icon":null,\
     "administrator":true}]}
@@ -36,6 +39,8 @@ struct FixtureTransport: HTTPTransport {
     "tags":[],"added":false,"composeToken":"Kappa"}]}
     """
   ]
+  /// Side of the fixture round image in pixels.
+  private static let imageSide = 256.0
   /// HTTP 200.
   private static let okStatus = 200
   /// Discovery results after `catJAM`, so the grid scrolls.
@@ -62,6 +67,10 @@ struct FixtureTransport: HTTPTransport {
   /// - Returns: The fixture body and a 200 response.
   /// - Throws: `URLError(.notConnectedToInternet)` for every request without a fixture.
   func data(for request: URLRequest) throws -> (Data, URLResponse) {
+    if let url = request.url, url.path().contains("/game/image/") {
+      return try Self.roundImage(for: url)
+    }
+
     guard let url = request.url,
           let body = url.lastPathComponent == "gql"
           ? Self.discoveryBody
@@ -77,6 +86,29 @@ struct FixtureTransport: HTTPTransport {
     }
 
     return (Data(body.utf8), response)
+  }
+
+  /// A round image: a cat symbol drawn as a PNG.
+  ///
+  /// - Parameter url: The image URL.
+  /// - Returns: The PNG and a 200 response.
+  /// - Throws: `URLError(.cannotDecodeContentData)` when the image cannot be drawn.
+  private static func roundImage(for url: URL) throws -> (Data, URLResponse) {
+    let size = CGSize(width: imageSide, height: imageSide)
+    let symbol = UIImage(systemName: "cat.fill")?.withTintColor(.systemOrange)
+    let data = UIGraphicsImageRenderer(size: size).pngData { _ in
+      symbol?.draw(in: CGRect(origin: .zero, size: size))
+    }
+    guard let response = HTTPURLResponse(
+      url: url,
+      statusCode: okStatus,
+      httpVersion: nil,
+      headerFields: ["Content-Type": "image/png"]
+    ) else {
+      throw URLError(.cannotDecodeContentData)
+    }
+
+    return (data, response)
   }
 
   /// The app API route of `url`, such as `settings/emotes/read`.

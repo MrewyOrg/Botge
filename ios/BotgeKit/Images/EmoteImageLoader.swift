@@ -1,4 +1,4 @@
-import Foundation
+public import Foundation
 
 /// Downloads and decodes emote images, degrading instead of failing.
 ///
@@ -130,6 +130,16 @@ public actor EmoteImageLoader {
 
     memory.insert(image, forKey: key)
     return image
+  }
+
+  /// Loads a Guess round image from Botge, decoding every frame.
+  ///
+  /// Round images change every round, so they are not kept in ``memory``.
+  ///
+  /// - Parameter url: The round image URL from ``GameClient/imageURL(for:)``.
+  /// - Returns: The image, a still frame, or a placeholder.
+  public func roundImage(at url: URL) async -> EmoteImage {
+    await Self.load([url], animated: true, transport: transport, decoder: decoder)
   }
 
   /// Removes decoded images from memory; the disk cache is cleared through `URLCache`.

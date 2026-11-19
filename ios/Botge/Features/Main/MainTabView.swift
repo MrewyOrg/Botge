@@ -15,6 +15,10 @@ struct MainTabView: View {
   @Environment(AppModel.self) private var model
   /// The selected tab.
   @State private var selection: Section = .emotes
+  /// The saved server choice.
+  @AppStorage(PreferenceKey.defaultGuildID) private var selectedGuildID = ""
+  /// The selected server's Guess room, kept here so a match survives switching tabs.
+  @State private var guess: GuessModel?
 
   var body: some View {
     TabView(selection: $selection) {
@@ -23,10 +27,17 @@ struct MainTabView: View {
           EmotesView(guild: guild, app: model)
             .id(guild.id)
         }
+        .overlay {
+          if model.isPlayingGuess {
+            GuessLockView()
+          }
+        }
       }
       Tab("Guess", systemImage: "gamecontroller", value: .guess) {
         ServerScope { guild in
-          FeaturePlaceholderView(title: "Guess", systemImage: "gamecontroller", guild: guild)
+          if let guess, guess.guild.id == guild.id {
+            GuessView(model: guess)
+          }
         }
       }
       Tab("Server", systemImage: "server.rack", value: .server) {
@@ -40,5 +51,16 @@ struct MainTabView: View {
       }
     }
     .tabBarMinimizeBehavior(.onScrollDown)
+    .onChange(of: model.guilds.first { $0.id == selectedGuildID }?.id, initial: true) {
+      guess = model.guilds
+        .first { $0.id == selectedGuildID }
+        .map { GuessModel(guild: $0, app: model) }
+    }
+    .task {
+      await GuessActivityController.endLeftovers()
+    }
+    .task(id: guess?.taskID) {
+      await guess?.play()
+    }
   }
 }

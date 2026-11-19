@@ -29,6 +29,8 @@ final class AppModel {
   private(set) var hasLoadedGuilds = false
   /// Why the server list could not load, if it failed.
   private(set) var guildsFailure: APIError?
+  /// Whether a Guess match is running; the Emotes tab hides its emotes meanwhile.
+  var isPlayingGuess = false
 
   /// OAuth request builder, or `nil` when the build is misconfigured.
   let oauth: DiscordOAuth?
@@ -184,6 +186,13 @@ final class AppModel {
   /// - Returns: A watch that reconnects with backoff.
   func makeCatalogWatch() -> CatalogWatch? {
     api.map { CatalogWatch(api: $0, connector: sockets) }
+  }
+
+  /// Creates a Guess room client, or `nil` when the build is misconfigured.
+  ///
+  /// - Returns: The client.
+  func makeGameClient() -> GameClient? {
+    api.map { GameClient(api: $0, connector: sockets) }
   }
 
   /// Clears the downloaded and decoded image caches.
