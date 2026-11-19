@@ -11,13 +11,18 @@ public actor BotgeAPI {
   static let unauthorizedStatus = 401
 
   /// The app API base URL, such as `https://botge.example.com/botge-api/app/v1`.
-  private let baseURL: URL
+  let baseURL: URL
   /// Provides and renews the bearer token.
   private let session: AuthSession
   /// Sends requests.
   private let transport: any HTTPTransport
 
   /// Creates a client for one deployment.
+  ///
+  /// - Parameters:
+  ///   - baseURL: The app API base URL.
+  ///   - session: Provides and renews the bearer token.
+  ///   - transport: Sends requests.
   public init(baseURL: URL, session: AuthSession, transport: any HTTPTransport) {
     self.baseURL = baseURL
     self.session = session
@@ -26,6 +31,7 @@ public actor BotgeAPI {
 
   /// Lists the servers the user shares with Botge, sorted by name.
   ///
+  /// - Returns: The shared servers.
   /// - Throws: ``APIError`` for rejected, failed, or malformed requests.
   public func guilds() async throws(APIError) -> [SharedGuild] {
     let list: SharedGuildList = try await post("guilds", body: [String: String]())
@@ -34,6 +40,10 @@ public actor BotgeAPI {
 
   /// Posts `body` as JSON to `path` and decodes the answer.
   ///
+  /// - Parameters:
+  ///   - path: The route below the API base URL.
+  ///   - body: The JSON request body.
+  /// - Returns: The decoded response.
   /// - Throws: ``APIError/signedOut`` when the token cannot be renewed, and other ``APIError``
   ///   cases for failed, rejected, or malformed requests.
   func post<Response: Decodable>(_ path: String, body: some Encodable & Sendable)
@@ -49,6 +59,11 @@ public actor BotgeAPI {
 
   /// Sends one request, renewing the token and retrying once after `oauth_expired`.
   ///
+  /// - Parameters:
+  ///   - path: The route below the API base URL.
+  ///   - body: The JSON request body.
+  ///   - renewed: Whether the token was already renewed for this request.
+  /// - Returns: The successful response body.
   /// - Throws: ``APIError`` as described for ``post(_:body:)``.
   private func send(_ path: String, body: some Encodable & Sendable, renewed: Bool)
     async throws(APIError) -> Data
@@ -83,7 +98,7 @@ public actor BotgeAPI {
 
       return try await send(path, body: body, renewed: true)
     }
-    throw APIError.classify(status: status, message: failure?.message ?? "")
+    throw APIError(status: status, message: failure?.message ?? "")
   }
 
   /// Returns a current token, renewing it first when `renew` is set.

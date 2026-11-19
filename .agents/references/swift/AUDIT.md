@@ -4,8 +4,11 @@ Reviewed 2026-11-19. Each item names a rule area and how Botge enforces it. "Rev
 reviewer checks it; everything else fails `npm run check:ios`, the Xcode build or CI.
 
 - **API guidelines: clarity at the point of use:** Review; `identifier_name`, `type_name`.
-- **API guidelines: documentation comments:** `missing_docs` (all access levels), custom
-  `missing_throws_doc`, `missing_doc_comment`, `missing_wrapped_property_docs`.
+- **API guidelines: Boolean properties read as assertions, factories start with `make`,
+  side-effect-free methods read as noun phrases:** Review (reviewed 2026-11-19).
+- **API guidelines and Google: documentation comments and tags:** `missing_docs` (all access
+  levels), `scripts/check_swift_docs.py` (Parameter and Returns tags), custom `missing_throws_doc`,
+  `missing_doc_comment`, `missing_wrapped_property_docs`.
 - **API guidelines: naming by role, labels:** Review; `function_parameter_count`.
 - **API guidelines: conventions (case, acronyms):** SwiftFormat `acronyms`; `identifier_name`.
 - **Google: formatting, line length, braces:** SwiftFormat (`--indent 2`, `--max-width 100`);

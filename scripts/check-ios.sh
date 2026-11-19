@@ -2,7 +2,7 @@
 set -eu
 
 # Checks the iOS app with the tools pinned in ios/Tools (run scripts/setup-ios-tools.sh first).
-#   static    SwiftFormat lint and strict SwiftLint (default)
+#   static    SwiftFormat lint, strict SwiftLint and documentation tags (default)
 #   format    rewrite Swift files with SwiftFormat
 #   test      generate the project, run every test on a simulator, enforce 90% line coverage
 #   lockdown  run Lockdown.xctestplan on a simulator with Lockdown Mode turned on
@@ -43,6 +43,9 @@ case "${scope}" in
   static)
     "${tools}/swiftformat" --lint .
     "${tools}/swiftlint" lint --strict --quiet
+    python="${PWD%/ios}/.venv/bin/python"
+    if [ ! -x "${python}" ]; then python=python3; fi
+    "${python}" ../scripts/check_swift_docs.py
     ;;
   format)
     "${tools}/swiftformat" .

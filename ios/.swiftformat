@@ -29,7 +29,7 @@
 --type-attributes prev-line
 --func-attributes prev-line
 --stored-var-attributes same-line
---computed-var-attributes prev-line
+--computed-var-attributes same-line
 --complex-attributes prev-line
 
 # Style

@@ -18,6 +18,10 @@ public struct ImageIODecoder: ImageDecoding {
   private let maxFrames: Int
 
   /// Creates a decoder with explicit bounds.
+  ///
+  /// - Parameters:
+  ///   - maxPixelSize: Longest decoded edge in pixels.
+  ///   - maxFrames: Most frames decoded.
   public init(maxPixelSize: Int = 256, maxFrames: Int = 240) {
     self.maxPixelSize = maxPixelSize
     self.maxFrames = maxFrames
@@ -25,6 +29,8 @@ public struct ImageIODecoder: ImageDecoding {
 
   /// Decodes up to `maxFrames` frames.
   ///
+  /// - Parameter data: Image bytes.
+  /// - Returns: Every frame with delays, or a still image.
   /// - Throws: ``ImageDecodingError/unsupported`` for unreadable data and
   ///   ``ImageDecodingError/corruptFrame`` when any frame fails.
   public func decodeFrames(_ data: Data) throws(ImageDecodingError) -> EmoteImage {
@@ -47,6 +53,8 @@ public struct ImageIODecoder: ImageDecoding {
 
   /// Decodes the first frame only.
   ///
+  /// - Parameter data: Image bytes.
+  /// - Returns: The first frame.
   /// - Throws: ``ImageDecodingError/unsupported`` for unreadable data and
   ///   ``ImageDecodingError/corruptFrame`` when the frame fails.
   public func decodeFirstFrame(_ data: Data) throws(ImageDecodingError) -> CGImage {
@@ -55,6 +63,8 @@ public struct ImageIODecoder: ImageDecoding {
 
   /// Opens the data without caching decoded frames.
   ///
+  /// - Parameter data: Image bytes.
+  /// - Returns: An image source with at least one frame.
   /// - Throws: ``ImageDecodingError/unsupported`` when ImageIO cannot read the data.
   private func imageSource(_ data: Data) throws(ImageDecodingError) -> CGImageSource {
     let options = [kCGImageSourceShouldCache: false] as CFDictionary
@@ -70,6 +80,10 @@ public struct ImageIODecoder: ImageDecoding {
 
   /// Decodes one frame, downsampled to ``maxPixelSize``.
   ///
+  /// - Parameters:
+  ///   - source: The image source.
+  ///   - index: The frame index.
+  /// - Returns: The downsampled frame.
   /// - Throws: ``ImageDecodingError/corruptFrame`` when the frame cannot be decoded.
   private func frame(_ source: CGImageSource, at index: Int) throws(ImageDecodingError) -> CGImage {
     let options = [
@@ -86,6 +100,11 @@ public struct ImageIODecoder: ImageDecoding {
   }
 
   /// The frame delay from GIF, WebP or APNG metadata.
+  ///
+  /// - Parameters:
+  ///   - source: The image source.
+  ///   - index: The frame index.
+  /// - Returns: Seconds before the next frame.
   private func delay(_ source: CGImageSource, at index: Int) -> TimeInterval {
     let properties = CGImageSourceCopyPropertiesAtIndex(source, index, nil) as? [CFString: Any]
     for keys in FrameDelayKeys.all {

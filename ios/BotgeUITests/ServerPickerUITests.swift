@@ -13,7 +13,7 @@ final class ServerPickerUITests: XCTestCase {
     let server = app.buttons["server.100000000000000001"]
     XCTAssertTrue(server.waitForExistence(timeout: 5))
     server.tap()
-    XCTAssertTrue(app.staticTexts["Coming Soon"].waitForExistence(timeout: 5))
+    XCTAssertTrue(app.buttons["emote.Kappa"].waitForExistence(timeout: 5))
     XCTAssertTrue(app.buttons["servers.switch"].exists)
   }
 }

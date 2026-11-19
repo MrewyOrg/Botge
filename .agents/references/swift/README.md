@@ -48,6 +48,11 @@ and image decoding that falls back to a first frame and then a placeholder.
   usual trailing commas.
 - **Documentation at every access level.** Like Rust's denied `missing_docs` with private items
   checked, every declaration is documented. Test functions are exempt, as in Rust.
+- **Parameter and Returns tags.** Following Google, functions document parameters and results with
+  `- Parameter(s):` and `- Returns:` unless the comment names the parameter in backticks or the
+  summary starts with "Returns" or "Whether". `scripts/check_swift_docs.py` enforces this.
+- **`random()` factories.** `PKCE.random()` follows the standard library's `random(in:)` naming
+  rather than the `make` prefix; other factories start with `make`.
 - **One type per file.** SwiftLint's `one_declaration_per_file` applies; small private helpers move
   to their own files.
 

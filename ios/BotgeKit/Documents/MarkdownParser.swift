@@ -13,6 +13,9 @@ struct MarkdownParser {
   private var lines: [String] = []
 
   /// Parses an ATX heading line, or returns `nil`.
+  ///
+  /// - Parameter line: A trimmed line.
+  /// - Returns: The level and text, or `nil` for other lines.
   private static func heading(_ line: String) -> (level: Int, text: String)? {
     let level = line.prefix { $0 == "#" }.count
     guard headingLevels.contains(level), line.dropFirst(level).first == " " else {
@@ -23,6 +26,8 @@ struct MarkdownParser {
   }
 
   /// Adds one trimmed line.
+  ///
+  /// - Parameter line: The line without surrounding whitespace.
   mutating func consume(_ line: String) {
     if line.isEmpty {
       flush()
@@ -48,6 +53,10 @@ struct MarkdownParser {
   }
 
   /// Appends a block numbered by its position.
+  ///
+  /// - Parameters:
+  ///   - kind: The structural role.
+  ///   - text: The block text.
   private mutating func append(_ kind: MarkdownBlock.Kind, _ text: String) {
     blocks.append(MarkdownBlock(id: blocks.count, kind: kind, text: text))
   }

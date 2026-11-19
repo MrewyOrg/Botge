@@ -145,6 +145,8 @@ jobs:
               - 'docs/{TERMS,PRIVACY}.md'
               - 'LICENSE.txt'
               - 'scripts/{check,setup}-ios*.sh'
+              - 'scripts/lint-swift.sh'
+              - 'scripts/check_swift_docs.py'
               - '.github/workflows/botgeql.yml'
             workflows:
               - '.github/workflows/*.{yml,yaml}'
@@ -369,7 +371,12 @@ jobs:
       - name: Build pinned iOS tools
         run: sh scripts/setup-ios-tools.sh
 
-      - name: Check Swift formatting and lints
+      - name: Set up Python for the documentation check
+        uses: actions/setup-python@v7.1.0
+        with:
+          python-version-file: .python-version
+
+      - name: Check Swift formatting, lints and documentation tags
         run: sh scripts/check-ios.sh static
 
       - name: Run iOS tests and enforce coverage

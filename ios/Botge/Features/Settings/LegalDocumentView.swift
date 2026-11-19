@@ -29,7 +29,7 @@ struct LegalDocumentView: View {
     }
 
     return fileExtension == "md"
-      ? MarkdownBlock.parse(text)
+      ? MarkdownBlock.blocks(in: text)
       : [MarkdownBlock(id: 0, kind: .paragraph, text: text)]
   }
 }

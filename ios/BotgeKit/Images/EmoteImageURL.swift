@@ -9,7 +9,10 @@ public enum EmoteImageURL {
   private static let pathParts = 2
 
   /// Resolves a catalog path to its provider URL, or `nil` when the path is not allowlisted.
-  public static func resolve(_ path: String) -> URL? {
+  ///
+  /// - Parameter path: A catalog image path.
+  /// - Returns: The provider URL, or `nil`.
+  public static func url(for path: String) -> URL? {
     guard path.hasPrefix("/"), !path.contains("\\"), !path.contains("..") else {
       return nil
     }
@@ -29,8 +32,11 @@ public enum EmoteImageURL {
   /// 7TV publishes every scale in several formats, so its path is rewritten to each format in
   /// ``ImageFormat/preferred``. Other providers serve one URL, which is kept when its format is
   /// allowed. An unresolvable or disallowed path yields no candidates.
+  ///
+  /// - Parameter path: A catalog image path.
+  /// - Returns: URLs to try in order; empty when the path is refused.
   public static func candidates(for path: String) -> [URL] {
-    guard let url = resolve(path) else {
+    guard let url = url(for: path) else {
       return []
     }
     guard url.host() == EmoteSource.sevenTV.cdnHost else {

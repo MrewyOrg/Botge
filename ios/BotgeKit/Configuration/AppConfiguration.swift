@@ -23,6 +23,9 @@ public struct AppConfiguration: Equatable, Sendable {
   /// The API URL must use HTTPS, except for loopback hosts used during local development.
   /// The application ID must be a Discord snowflake: 17 to 20 decimal digits.
   ///
+  /// - Parameters:
+  ///   - apiBaseURL: The API base URL text.
+  ///   - discordApplicationID: The application ID text.
   /// - Throws: ``ConfigurationError`` when a value is missing or malformed.
   public init(apiBaseURL: String?, discordApplicationID: String?) throws(ConfigurationError) {
     let urlText = apiBaseURL?.trimmingCharacters(in: .whitespaces) ?? ""
@@ -52,6 +55,7 @@ public struct AppConfiguration: Equatable, Sendable {
 
   /// Reads the values that the build wrote into an Info.plist dictionary.
   ///
+  /// - Parameter infoDictionary: The app bundle's Info.plist values.
   /// - Throws: ``ConfigurationError`` when a value is missing or malformed.
   public init(infoDictionary: [String: Any]) throws(ConfigurationError) {
     try self.init(

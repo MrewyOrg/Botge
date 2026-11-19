@@ -15,7 +15,7 @@ struct MarkdownBlockTests {
     ###### Deep
     #NotAHeading
     """
-    let blocks = MarkdownBlock.parse(document)
+    let blocks = MarkdownBlock.blocks(in: document)
     #expect(blocks.map(\.kind) == [
       .heading(1),
       .paragraph,
@@ -34,7 +34,7 @@ struct MarkdownBlockTests {
     let root = URL(filePath: #filePath).deletingLastPathComponent().appending(path: "../../docs")
     for name in ["TERMS.md", "PRIVACY.md"] {
       let text = try String(contentsOf: root.appending(path: name), encoding: .utf8)
-      let blocks = MarkdownBlock.parse(text)
+      let blocks = MarkdownBlock.blocks(in: text)
       #expect(blocks.first?.kind == .heading(1))
       #expect(blocks.count > 10)
     }

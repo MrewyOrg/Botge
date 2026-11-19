@@ -20,6 +20,8 @@ public enum ImageFormat: String, CaseIterable, Sendable {
   }
 
   /// Infers the format from a path's extension.
+  ///
+  /// - Parameter path: A URL path or file name.
   public init(path: String) {
     let name = path.split(separator: "/").last ?? ""
     let fileExtension = name.split(separator: ".").dropFirst().last.map { $0.lowercased() } ?? ""

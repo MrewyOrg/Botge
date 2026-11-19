@@ -24,6 +24,11 @@ public struct MarkdownBlock: Equatable, Identifiable, Sendable {
   public let text: String
 
   /// Creates a block.
+  ///
+  /// - Parameters:
+  ///   - id: The position in the document.
+  ///   - kind: The structural role.
+  ///   - text: The Markdown text without block markers.
   public init(id: Int, kind: Kind, text: String) {
     self.id = id
     self.kind = kind
@@ -31,7 +36,10 @@ public struct MarkdownBlock: Equatable, Identifiable, Sendable {
   }
 
   /// Splits a document into blocks.
-  public static func parse(_ document: String) -> [Self] {
+  ///
+  /// - Parameter document: The Markdown text.
+  /// - Returns: The blocks in document order.
+  public static func blocks(in document: String) -> [Self] {
     var parser = MarkdownParser()
     for line in document.split(separator: "\n", omittingEmptySubsequences: false) {
       parser.consume(line.trimmingCharacters(in: .whitespaces))

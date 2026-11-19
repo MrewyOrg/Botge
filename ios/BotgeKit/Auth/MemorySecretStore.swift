@@ -15,16 +15,25 @@ public final class MemorySecretStore: SecretStore {
   }
 
   /// Returns the stored value.
+  ///
+  /// - Parameter key: The secret's name.
+  /// - Returns: The stored bytes, or `nil`.
   public func read(_ key: String) -> Data? {
     values.withLock { $0[key] }
   }
 
   /// Stores or replaces the value.
+  ///
+  /// - Parameters:
+  ///   - value: The bytes to store.
+  ///   - key: The secret's name.
   public func write(_ value: Data, for key: String) {
     values.withLock { $0[key] = value }
   }
 
   /// Removes the value.
+  ///
+  /// - Parameter key: The secret's name.
   public func delete(_ key: String) {
     _ = values.withLock { $0.removeValue(forKey: key) }
   }

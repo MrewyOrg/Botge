@@ -27,22 +27,27 @@ public enum APIError: Error, Equatable, Sendable {
   static let serviceUnavailableStatus = 503
 
   /// Classifies a non-success answer by status code and the server's message.
-  static func classify(status: Int, message: String) -> Self {
-    switch status {
-    case forbiddenStatus:
-      .permissionDenied(message)
+  ///
+  /// - Parameters:
+  ///   - status: The HTTP status code, outside 2xx and 401.
+  ///   - message: The explanation Botge sent.
+  init(status: Int, message: String) {
+    self =
+      switch status {
+      case Self.forbiddenStatus:
+        .permissionDenied(message)
 
-    case notFoundStatus:
-      .notFound(message)
+      case Self.notFoundStatus:
+        .notFound(message)
 
-    case tooManyRequestsStatus, serviceUnavailableStatus:
-      .busy(message)
+      case Self.tooManyRequestsStatus, Self.serviceUnavailableStatus:
+        .busy(message)
 
-    case HTTPStatus.clientError:
-      .rejected(message)
+      case HTTPStatus.clientError:
+        .rejected(message)
 
-    default:
-      .unavailable(message)
-    }
+      default:
+        .unavailable(message)
+      }
   }
 }

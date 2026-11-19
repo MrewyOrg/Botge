@@ -19,6 +19,10 @@ public actor EmoteImageLoader {
   private var order: [String] = []
 
   /// Creates a loader; responses are also cached on disk by the transport's `URLCache`.
+  ///
+  /// - Parameters:
+  ///   - transport: Downloads image bytes.
+  ///   - decoder: Decodes them.
   public init(transport: any HTTPTransport, decoder: any ImageDecoding = ImageIODecoder()) {
     self.transport = transport
     self.decoder = decoder
@@ -27,6 +31,11 @@ public actor EmoteImageLoader {
   /// Loads the image for a catalog path such as `/7tv-cdn/emote/ID/2x.webp`.
   ///
   /// Placeholders are not cached, so a later call retries the download.
+  ///
+  /// - Parameters:
+  ///   - path: The catalog image path.
+  ///   - animated: Whether to decode every frame.
+  /// - Returns: The image, a still frame, or a placeholder.
   public func image(for path: String, animated: Bool) async -> EmoteImage {
     let key = "\(animated ? "a" : "s")|\(path)"
     if let cached = memory[key] {
@@ -49,6 +58,11 @@ public actor EmoteImageLoader {
   }
 
   /// Tries each candidate in order and returns the best result.
+  ///
+  /// - Parameters:
+  ///   - candidates: URLs in preference order.
+  ///   - animated: Whether to decode every frame.
+  /// - Returns: The first decodable image, or a placeholder.
   func load(_ candidates: [URL], animated: Bool) async -> EmoteImage {
     for url in candidates {
       guard let (data, response) = try? await transport.data(for: URLRequest(url: url)),
@@ -66,6 +80,11 @@ public actor EmoteImageLoader {
   }
 
   /// Decodes all frames when animating, else or on failure the first frame.
+  ///
+  /// - Parameters:
+  ///   - data: Downloaded image bytes.
+  ///   - animated: Whether to decode every frame.
+  /// - Returns: The image, or `nil` when nothing decodes.
   private func decode(_ data: Data, animated: Bool) -> EmoteImage? {
     if animated, let image = try? decoder.decodeFrames(data) {
       return image
@@ -75,6 +94,10 @@ public actor EmoteImageLoader {
   }
 
   /// Caches an image and evicts the oldest beyond ``memoryLimit``.
+  ///
+  /// - Parameters:
+  ///   - image: The decoded image.
+  ///   - key: Its cache key.
   private func remember(_ image: EmoteImage, for key: String) {
     if memory.updateValue(image, forKey: key) == nil {
       order.append(key)

@@ -4,6 +4,8 @@ public struct SecretStoreError: Error, Equatable, Sendable {
   public let status: Int32
 
   /// Wraps a Security framework status code.
+  ///
+  /// - Parameter status: The `OSStatus` the Security framework returned.
   public init(status: Int32) {
     self.status = status
   }

@@ -38,15 +38,26 @@ final class AppModel {
   let imageLoader: EmoteImageLoader
   /// Disk and memory cache behind every image download.
   let urlCache: URLCache
+  /// Opens catalog and game WebSocket connections.
+  let sockets: any SocketConnecting
 
   /// Creates a model from validated configuration and injected services.
+  ///
+  /// - Parameters:
+  ///   - configuration: Validated deployment values, or why they are invalid.
+  ///   - transport: Sends Discord and Botge requests.
+  ///   - store: Keeps the Discord tokens.
+  ///   - urlCache: Caches downloaded images.
+  ///   - sockets: Opens WebSocket connections.
   init(
     configuration: Result<AppConfiguration, ConfigurationError>,
     transport: any HTTPTransport,
     store: any SecretStore,
-    urlCache: URLCache
+    urlCache: URLCache,
+    sockets: any SocketConnecting
   ) {
     self.urlCache = urlCache
+    self.sockets = sockets
     imageLoader = EmoteImageLoader(transport: transport)
     switch configuration {
     case let .success(values):
@@ -70,9 +81,11 @@ final class AppModel {
   }
 
   /// Builds the production model from the bundle's Info.plist and shared caches.
-  static func live() -> AppModel {
+  ///
+  /// - Returns: A model for this app run, or the UI-test fixture model in debug UI tests.
+  static func makeLive() -> AppModel {
     #if DEBUG
-    if let model = UITestSupport.model() {
+    if let model = UITestSupport.makeModel() {
       return model
     }
     #endif
@@ -84,11 +97,13 @@ final class AppModel {
     let result = Result { () throws(ConfigurationError) in
       try AppConfiguration(infoDictionary: Bundle.main.infoDictionary ?? [:])
     }
+    let urlSession = URLSession(configuration: sessionConfiguration)
     return AppModel(
       configuration: result,
-      transport: URLSession(configuration: sessionConfiguration),
+      transport: urlSession,
       store: KeychainStore(service: Bundle.main.bundleIdentifier ?? "Botge"),
-      urlCache: cache
+      urlCache: cache,
+      sockets: urlSession
     )
   }
 
@@ -114,7 +129,7 @@ final class AppModel {
     loginFailure = nil
     defer { isSigningIn = false }
     let pkce = PKCE.random()
-    let state = PKCE.randomToken()
+    let state = PKCE.makeToken()
     do {
       let callback = try await authenticate(
         oauth.authorizationURL(pkce: pkce, state: state),
@@ -157,6 +172,13 @@ final class AppModel {
     } catch {
       guildsFailure = error
     }
+  }
+
+  /// Creates the catalog watch for this deployment, or `nil` when the build is misconfigured.
+  ///
+  /// - Returns: A watch that reconnects with backoff.
+  func makeCatalogWatch() -> CatalogWatch? {
+    api.map { CatalogWatch(api: $0, connector: sockets) }
   }
 
   /// Clears the downloaded and decoded image caches.

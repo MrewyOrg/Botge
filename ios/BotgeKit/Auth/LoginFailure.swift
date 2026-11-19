@@ -47,6 +47,8 @@ public enum LoginFailure: Error, Equatable, Sendable {
   /// `ASWebAuthenticationSession` reports code 1 for cancellation and codes 2 and 3 for
   /// presentation problems. Any other failure while the page was open is treated as a page
   /// failure, which includes content that Lockdown Mode blocks.
+  ///
+  /// - Parameter error: The thrown error.
   public init(authenticationError error: any Error) {
     if let known = error as? Self {
       self = known

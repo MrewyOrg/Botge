@@ -5,7 +5,7 @@ import SwiftUI
 @main
 struct BotgeApp: App {
   /// App-wide state shared through the environment.
-  @State private var model: AppModel = .live()
+  @State private var model: AppModel = .makeLive()
   /// The appearance chosen in Settings.
   @AppStorage(PreferenceKey.appearance) private var appearance: AppearancePreference = .system
 

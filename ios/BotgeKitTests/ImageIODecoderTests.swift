@@ -19,6 +19,26 @@ struct ImageIODecoderTests {
   }
 
   @Test
+  func `animation frames loop by elapsed time`() throws {
+    let image = try ImageIODecoder().decodeFrames(ImageFixtures.gif(frames: 3, delay: 0.1))
+    guard case let .animated(frames, _) = image else {
+      Issue.record("Expected an animation")
+      return
+    }
+
+    #expect(image.frame(at: -1) === frames[0])
+    #expect(image.frame(at: 0.05) === frames[0])
+    #expect(image.frame(at: 0.15) === frames[1])
+    #expect(image.frame(at: 0.25) === frames[2])
+    #expect(image.frame(at: 0.35) === frames[0])
+    let still = try ImageIODecoder().decodeFrames(ImageFixtures.png())
+    #expect(still.frame(at: 5) === still.firstFrame)
+    #expect(EmoteImage.placeholder.frame(at: 1) == nil)
+    let silent = EmoteImage.animated(frames: frames, delays: [0, 0, 0])
+    #expect(silent.frame(at: 1) === frames[0])
+  }
+
+  @Test
   func `implausibly short delays use the browser default`() throws {
     let image = try ImageIODecoder().decodeFrames(ImageFixtures.gif(frames: 2, delay: 0))
     guard case let .animated(_, delays) = image else {

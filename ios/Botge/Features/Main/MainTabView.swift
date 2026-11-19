@@ -1,3 +1,4 @@
+import BotgeKit
 import SwiftUI
 
 /// The main menu after login: one tab per Botge feature.
@@ -10,6 +11,8 @@ struct MainTabView: View {
     case settings
   }
 
+  /// Provides the API for the feature tabs.
+  @Environment(AppModel.self) private var model
   /// The selected tab.
   @State private var selection: Section = .emotes
 
@@ -17,7 +20,8 @@ struct MainTabView: View {
     TabView(selection: $selection) {
       Tab("Emotes", systemImage: "face.smiling", value: .emotes) {
         ServerScope { guild in
-          FeaturePlaceholderView(title: "Emotes", systemImage: "face.smiling", guild: guild)
+          EmotesView(guild: guild, app: model)
+            .id(guild.id)
         }
       }
       Tab("Guess", systemImage: "gamecontroller", value: .guess) {

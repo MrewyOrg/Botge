@@ -27,11 +27,18 @@ public struct DiscordOAuth: Equatable, Sendable {
   }
 
   /// Creates a client for a Discord application.
+  ///
+  /// - Parameter applicationID: The Discord application ID.
   public init(applicationID: String) {
     self.applicationID = applicationID
   }
 
   /// The authorization page URL opened in the system login sheet.
+  ///
+  /// - Parameters:
+  ///   - pkce: The pair whose challenge the URL carries.
+  ///   - state: A random value the callback must echo.
+  /// - Returns: The URL to open in the login sheet.
   public func authorizationURL(pkce: PKCE, state: String) -> URL {
     var components = URLComponents()
     components.queryItems = [
@@ -49,6 +56,10 @@ public struct DiscordOAuth: Equatable, Sendable {
 
   /// Extracts the authorization code from Discord's redirect.
   ///
+  /// - Parameters:
+  ///   - callback: The URL Discord redirected to.
+  ///   - expectedState: The state sent with the request.
+  /// - Returns: The authorization code.
   /// - Throws: ``LoginFailure/stateMismatch`` when `state` differs from `expectedState`,
   ///   ``LoginFailure/denied(_:)`` for an OAuth error, and ``LoginFailure/malformedResponse``
   ///   when the callback is not this application's redirect or has no code.
@@ -80,6 +91,11 @@ public struct DiscordOAuth: Equatable, Sendable {
   }
 
   /// The request that exchanges an authorization code and PKCE verifier for tokens.
+  ///
+  /// - Parameters:
+  ///   - code: The authorization code.
+  ///   - pkce: The pair whose challenge started the login.
+  /// - Returns: A form-encoded `POST` to the token endpoint.
   public func tokenRequest(code: String, pkce: PKCE) -> URLRequest {
     formRequest(Self.tokenURL, [
       ("client_id", applicationID),
@@ -91,6 +107,9 @@ public struct DiscordOAuth: Equatable, Sendable {
   }
 
   /// The request that renews tokens with a refresh token.
+  ///
+  /// - Parameter refreshToken: The refresh token Discord issued.
+  /// - Returns: A form-encoded `POST` to the token endpoint.
   public func refreshRequest(refreshToken: String) -> URLRequest {
     formRequest(Self.tokenURL, [
       ("client_id", applicationID),
@@ -100,6 +119,9 @@ public struct DiscordOAuth: Equatable, Sendable {
   }
 
   /// The request that revokes a token at logout.
+  ///
+  /// - Parameter token: The access token to revoke.
+  /// - Returns: A form-encoded `POST` to the revoke endpoint.
   public func revokeRequest(token: String) -> URLRequest {
     formRequest(Self.revokeURL, [
       ("client_id", applicationID),
@@ -110,6 +132,11 @@ public struct DiscordOAuth: Equatable, Sendable {
 
   /// Decodes a token endpoint response.
   ///
+  /// - Parameters:
+  ///   - data: The response body.
+  ///   - response: The HTTP response.
+  ///   - now: The time the response arrived, for the expiry date.
+  /// - Returns: The issued tokens.
   /// - Throws: ``LoginFailure/rejected`` for a 4xx answer, ``LoginFailure/network`` for other
   ///   non-success statuses, and ``LoginFailure/malformedResponse`` when the body is invalid.
   public static func tokens(from data: Data, response: URLResponse, now: Date)

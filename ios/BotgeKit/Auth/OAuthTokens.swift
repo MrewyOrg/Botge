@@ -12,6 +12,12 @@ public struct OAuthTokens: Codable, Equatable, Sendable {
   public let scope: String
 
   /// Creates a token set.
+  ///
+  /// - Parameters:
+  ///   - accessToken: The bearer token.
+  ///   - refreshToken: The refresh token, if issued.
+  ///   - expiresAt: When the access token expires.
+  ///   - scope: Granted scopes, space-separated.
   public init(accessToken: String, refreshToken: String?, expiresAt: Date, scope: String) {
     self.accessToken = accessToken
     self.refreshToken = refreshToken

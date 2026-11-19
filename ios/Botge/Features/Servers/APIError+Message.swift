@@ -32,6 +32,9 @@ extension APIError {
   }
 
   /// The server's explanation, or a generic one when it sent none.
+  ///
+  /// - Parameter text: The message Botge sent, possibly empty.
+  /// - Returns: `text`, or a generic message when it is empty.
   private static func explained(_ text: String) -> String {
     if text.isEmpty {
       String(localized: "Botge could not complete the request.")

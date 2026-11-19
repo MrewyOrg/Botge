@@ -15,18 +15,22 @@ public struct PKCE: Equatable, Sendable {
   public let challenge: String
 
   /// Derives the challenge for a known verifier.
+  ///
+  /// - Parameter verifier: The secret verifier.
   public init(verifier: String) {
     self.verifier = verifier
     challenge = Data(SHA256.hash(data: Data(verifier.utf8))).base64URLEncodedString()
   }
 
   /// Creates a pair from 32 bytes of the system's cryptographically secure generator.
+  ///
+  /// - Returns: A new pair.
   public static func random() -> Self {
-    Self(verifier: randomToken())
+    Self(verifier: makeToken())
   }
 
   /// Returns 32 random bytes as unpadded base64url, also used for the OAuth `state`.
-  public static func randomToken() -> String {
+  public static func makeToken() -> String {
     var generator = SystemRandomNumberGenerator()
     let bytes = (0 ..< Self.byteCount)
       .map { _ in UInt8.random(in: .min ... .max, using: &generator) }
@@ -36,6 +40,8 @@ public struct PKCE: Equatable, Sendable {
 
 extension Data {
   /// Unpadded base64url encoding (RFC 4648 section 5).
+  ///
+  /// - Returns: The encoded text.
   func base64URLEncodedString() -> String {
     base64EncodedString()
       .replacing("+", with: "-")

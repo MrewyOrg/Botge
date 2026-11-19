@@ -25,7 +25,7 @@ struct ServerRow: View {
       VStack(alignment: .leading) {
         Text(guild.name)
           .foregroundStyle(.primary)
-        if guild.administrator {
+        if guild.isAdministrator {
           Text("Administrator")
             .font(.caption)
             .foregroundStyle(.secondary)

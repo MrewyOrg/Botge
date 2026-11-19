@@ -13,6 +13,7 @@ public struct KeychainStore: SecretStore {
 
   /// Reads the item for `key`.
   ///
+  /// - Returns: The stored bytes, or `nil` when there are none.
   /// - Throws: ``SecretStoreError`` for any status other than success or item-not-found.
   public func read(_ key: String) throws(SecretStoreError) -> Data? {
     var query = baseQuery(key)
@@ -34,6 +35,9 @@ public struct KeychainStore: SecretStore {
 
   /// Adds or updates the item for `key`.
   ///
+  /// - Parameters:
+  ///   - value: The bytes to store.
+  ///   - key: The account name.
   /// - Throws: ``SecretStoreError`` when the Keychain rejects the write.
   public func write(_ value: Data, for key: String) throws(SecretStoreError) {
     let attributes: [String: Any] = [

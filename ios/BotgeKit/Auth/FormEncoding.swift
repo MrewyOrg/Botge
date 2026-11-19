@@ -8,6 +8,9 @@ enum FormEncoding {
   )
 
   /// Encodes ordered fields as `name=value` pairs joined by `&`.
+  ///
+  /// - Parameter fields: Names and values, in order.
+  /// - Returns: The encoded body text.
   static func encode(_ fields: [(String, String)]) -> String {
     fields
       .map { "\(escape($0.0))=\(escape($0.1))" }
@@ -15,6 +18,9 @@ enum FormEncoding {
   }
 
   /// Percent-encodes everything except unreserved characters.
+  ///
+  /// - Parameter text: A field name or value.
+  /// - Returns: The percent-encoded text.
   private static func escape(_ text: String) -> String {
     text.addingPercentEncoding(withAllowedCharacters: unreserved) ?? ""
   }

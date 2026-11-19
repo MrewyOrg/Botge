@@ -27,7 +27,7 @@ struct BotgeAPITests {
   func `guilds are posted with the bearer token and decoded`() async throws {
     let transport = StubTransport([Self.guildList])
     let guilds = try await Self.signedIn(transport).guilds()
-    #expect(guilds == [SharedGuild(id: "1", name: "Botge", icon: nil, administrator: true)])
+    #expect(guilds == [SharedGuild(id: "1", name: "Botge", icon: nil, isAdministrator: true)])
     let request = try #require(transport.requests.first)
     #expect(request.url?.absoluteString == "https://botge.example.com/botge-api/app/v1/guilds")
     #expect(request.httpMethod == "POST")

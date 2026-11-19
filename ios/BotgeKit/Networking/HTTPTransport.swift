@@ -4,6 +4,7 @@ public import Foundation
 public protocol HTTPTransport: Sendable {
   /// Sends `request` and returns the body and response.
   ///
+  /// - Returns: The response body and metadata.
   /// - Throws: A `URLError` or other transport failure.
   func data(for request: URLRequest) async throws -> (Data, URLResponse)
 }
@@ -11,6 +12,7 @@ public protocol HTTPTransport: Sendable {
 extension URLSession: HTTPTransport {
   /// Sends `request` without a task delegate.
   ///
+  /// - Returns: The response body and metadata.
   /// - Throws: A `URLError` when the request fails before a response arrives.
   public func data(for request: URLRequest) async throws -> (Data, URLResponse) {
     try await data(for: request, delegate: nil)

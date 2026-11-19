@@ -16,6 +16,12 @@ public struct GuessActivityAttributes: ActivityAttributes {
     public var rank: Int
 
     /// Creates a state snapshot.
+    ///
+    /// - Parameters:
+    ///   - round: The current round, from 1.
+    ///   - roundEndsAt: When guessing ends.
+    ///   - score: The local player's score.
+    ///   - rank: The local player's rank, from 1.
     public init(round: Int, roundEndsAt: Date, score: Int, rank: Int) {
       self.round = round
       self.roundEndsAt = roundEndsAt
@@ -30,6 +36,10 @@ public struct GuessActivityAttributes: ActivityAttributes {
   public var rounds: Int
 
   /// Creates the fixed attributes for a match.
+  ///
+  /// - Parameters:
+  ///   - serverName: The server's display name.
+  ///   - rounds: Rounds in the match.
   public init(serverName: String, rounds: Int) {
     self.serverName = serverName
     self.rounds = rounds

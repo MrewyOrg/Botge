@@ -28,6 +28,7 @@ disabled_rules:
   - explicit_enum_raw_value
   - explicit_top_level_acl
   - explicit_type_interface
+  - incompatible_concurrency_annotation
   - no_grouping_extension
   - prefer_nimble
   - prefixed_toplevel_constant

@@ -13,7 +13,7 @@ struct EmoteImageURLTests {
     )
   ])
   func `allowlisted prefixes map to their provider CDN`(path: String, expected: String) {
-    #expect(EmoteImageURL.resolve(path)?.absoluteString == expected)
+    #expect(EmoteImageURL.url(for: path)?.absoluteString == expected)
   }
 
   @Test(arguments: [
@@ -25,7 +25,7 @@ struct EmoteImageURLTests {
     "https://cdn.7tv.app/x"
   ])
   func `other paths are refused`(path: String) {
-    #expect(EmoteImageURL.resolve(path) == nil)
+    #expect(EmoteImageURL.url(for: path) == nil)
     #expect(EmoteImageURL.candidates(for: path).isEmpty)
   }
 

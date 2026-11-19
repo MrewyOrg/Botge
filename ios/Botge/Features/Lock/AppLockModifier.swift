@@ -72,6 +72,8 @@ private struct AppLockModifier: ViewModifier {
 
 extension View {
   /// Requires Face ID or the passcode when App Lock is on in Settings.
+  ///
+  /// - Returns: The view, covered by the lock screen while locked.
   func appLock() -> some View {
     modifier(AppLockModifier())
   }
