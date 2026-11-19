@@ -6,6 +6,10 @@ set -eu
 #   format    rewrite Swift files with SwiftFormat
 #   test      generate the project, run every test on a simulator, enforce 90% line coverage
 #   lockdown  run Lockdown.xctestplan on the Lockdown simulator (created on first use)
+#   targeted  run only the named test suites or tests and print one result line per test, e.g.
+#             targeted EmoteLinkTests DiscoveryUITests BotgeUITests/EmotesUITests/testX
+#   run       build, install and launch the app on the simulator; --fixtures uses the UI-test
+#             fixtures (signed in, no network) instead of the configured bot
 #
 # The iOS simulator has no Lockdown Mode switch. The Lockdown simulator sets the global
 # LDMGlobalEnabled default that Lockdown Mode sets, which WebKit honours; check on a device too.
@@ -24,12 +28,15 @@ for tool in xcodegen swiftformat swiftlint; do
   fi
 done
 
+# Usage: run_tests PLAN [RESULT_NAME [xcodebuild arguments...]]
 run_tests() {
   plan=$1
-  result=DerivedData/${plan}.xcresult
+  result=DerivedData/${2:-${plan}}.xcresult
+  shift
+  if [ $# -gt 0 ]; then shift; fi
   "${tools}/xcodegen" --spec project.yml --quiet
   rm -rf "${result}"
-  xcodebuild test \
+  xcodebuild test "$@" \
     -project Botge.xcodeproj \
     -scheme Botge \
     -testPlan "${plan}" \
@@ -42,7 +49,14 @@ run_tests() {
     -quiet
 }
 
+# Prints "Passed|Failed|Skipped  name" for every test case in a result bundle.
+summarize() {
+  xcrun xcresulttool get test-results tests --path "$1" \
+    | jq -r '.. | objects | select(.nodeType == "Test Case") | "\(.result)  \(.name)"'
+}
+
 scope=${1:-static}
+if [ $# -gt 0 ]; then shift; fi
 case "${scope}" in
   static)
     "${tools}/swiftformat" --lint .
@@ -82,8 +96,56 @@ case "${scope}" in
     destination="platform=iOS Simulator,name=${lockdown_device}"
     run_tests Lockdown
     ;;
+  targeted)
+    if [ $# -eq 0 ]; then
+      printf '%s\n' 'Name at least one test suite or test, e.g. targeted EmoteLinkTests' >&2
+      exit 2
+    fi
+    count=$#
+    for name in "$@"; do
+      case "${name}" in
+        */*) filter=${name} ;;
+        *UITests) filter=BotgeUITests/${name} ;;
+        *) filter=BotgeKitTests/${name} ;;
+      esac
+      set -- "$@" "-only-testing:${filter}"
+    done
+    shift "${count}"
+    set +e
+    run_tests Botge Targeted "$@"
+    status=$?
+    summarize DerivedData/Targeted.xcresult
+    set -e
+    exit "${status}"
+    ;;
+  run)
+    "${tools}/xcodegen" --spec project.yml --quiet
+    xcodebuild build \
+      -project Botge.xcodeproj \
+      -scheme Botge \
+      -destination "${destination}" \
+      -derivedDataPath DerivedData \
+      -skipPackagePluginValidation \
+      -skipMacroValidation \
+      -quiet
+    app=DerivedData/Build/Products/Debug-iphonesimulator/Botge.app
+    device=${BOTGE_IOS_DEVICE:-iPhone 17e}
+    bundle=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "${app}/Info.plist")
+    # Parallel UI test runs shut the simulator down, so boot it whenever needed.
+    xcrun simctl boot "${device}" 2> /dev/null || true
+    xcrun simctl bootstatus "${device}" -b > /dev/null
+    xcrun simctl install "${device}" "${app}"
+    if [ "${1:-}" = --fixtures ]; then
+      SIMCTL_CHILD_BOTGE_UI_TEST=1 xcrun simctl launch --terminate-running-process "${device}" \
+        "${bundle}"
+    else
+      xcrun simctl launch --terminate-running-process "${device}" "${bundle}"
+    fi
+    ;;
   *)
-    printf '%s\n' 'Usage: sh scripts/check-ios.sh [static|format|test|lockdown]' >&2
+    printf '%s\n' \
+      'Usage: sh scripts/check-ios.sh [static|format|test|lockdown|targeted TEST...|run [--fixtures]]' \
+      >&2
     exit 2
     ;;
 esac

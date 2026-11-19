@@ -87,7 +87,9 @@ checking; app targets default to the main actor and services are actors.
 Document every declaration at every access level with `///`, starting with a summary sentence;
 throwing APIs list `- Throws:`. Tests are exempt. One type per file, no force unwraps, no `print`,
 no WebKit or Safari views (the app must work in Lockdown Mode). Validate external input at
-boundaries. Logic belongs in `BotgeKit`, tested with Swift Testing; views stay thin.
+boundaries. Logic belongs in `BotgeKit`, tested with Swift Testing; views stay thin. Regenerate the
+project after adding files; build, lint and simulator pitfalls are in the guide's
+[troubleshooting](ios/README.md#troubleshooting).
 
 ## Validation
 

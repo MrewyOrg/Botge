@@ -145,6 +145,7 @@ const cSpellSettings: Readonly<CSpellSettings> = defineConfig({
     'xccov',
     'xcodegen',
     'xcodeproj',
+    'xcresulttool',
     'xcprivacy',
     'xcresult',
     'xcrun',

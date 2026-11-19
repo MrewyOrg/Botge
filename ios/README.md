@@ -66,6 +66,10 @@ From the repository root:
   requires 90% line coverage in every BotgeKit file.
 - `npm run test:ios:lockdown` runs the Lockdown Mode plan; see the
   [test guide](../tests/README.md#lockdown-mode).
+- `npm run test:ios:only -- EmoteLinkTests DiscoveryUITests` runs only the named suites or tests
+  (`Target/Suite/test` also works) and prints one result line per test.
+- `npm run run:ios` builds, installs and launches the app on the iPhone 17e simulator;
+  `npm run run:ios -- --fixtures` signs in with the UI-test fixtures and never reaches the network.
 
 The commit hook formats and lints staged Swift files. Xcode also runs SwiftLint on every build.
 Conventions and exceptions are in the [Swift references](../.agents/references/swift/README.md).
@@ -76,6 +80,25 @@ Edit in Xcode: it understands the generated project fully. VS Code with the reco
 `swiftlang.swift-vscode` extension gives highlighting and partial completion. Format on save is off
 for Swift there, because that extension formats with Apple's swift-format; use `npm run format:ios`
 or let the commit hook format.
+
+## Troubleshooting
+
+- **A new Swift file is not found:** the Xcode project is generated. Run `npm run generate:ios` (the
+  check scripts do this for you) after adding, moving or deleting files.
+- **The simulator shut down:** parallel UI test runs boot clones and shut the original down.
+  `npm run run:ios` boots it again. The clones live in `~/Library/Developer/XCTestDevices`; remove
+  them with `xcrun simctl --set testing delete all` when disk space runs low.
+- **The simulator is signed out:** a changed `BOTGE_BUNDLE_PREFIX` installs a separate app with its
+  own Keychain, so log in again and delete the old app.
+- **SwiftFormat and SwiftLint disagree:**
+  - SwiftFormat rewrites `count == 0` to `isEmpty`, so custom collections need an `isEmpty`.
+  - Write `public nonisolated`; SwiftLint's modifier order is configured to match SwiftFormat.
+  - SwiftFormat puts the brace of a multi-line `if`/`while` condition on its own line, which
+    `opening_brace` rejects. Move the extra conditions into a `guard` inside the loop.
+- **"Not available due to missing import":** `MemberImportVisibility` is on, so import the module
+  that declares a member you use, such as `CoreGraphics` for `CGImage.width`.
+- **A modifier does not exist on `ToolbarItem`:** apply it to the item's content instead, as with
+  `.badge`.
 
 ## Lockdown Mode
 

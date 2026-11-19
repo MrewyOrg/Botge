@@ -43,6 +43,7 @@
     "lint:workflows": "sh scripts/lint-workflows.sh",
     "markdownlint": "markdownlint-cli2 \"**/*.md\" \"#node_modules\"",
     "prepare": "sh .husky/install.sh",
+    "run:ios": "sh scripts/check-ios.sh run",
     "setup:ios": "sh scripts/setup-ios-tools.sh",
     "start": "docker compose -f compose.yaml -f compose.build.yaml up --build",
     "stop": "docker compose stop",
@@ -51,6 +52,7 @@
     "test:coverage": "vitest run --coverage",
     "test:ios": "sh scripts/check-ios.sh test",
     "test:ios:lockdown": "sh scripts/check-ios.sh lockdown",
+    "test:ios:only": "sh scripts/check-ios.sh targeted",
     "typecheck": "tsc --build && npm run typecheck -w activity"
   },
   "allowScripts": {

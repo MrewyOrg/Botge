@@ -41,8 +41,11 @@ unrelated suites for documentation-only edits.
 - **Activity HTML, styles, or build configuration:** `npm run check:markup -w activity`, plus
   `npm run eslint` for HTML and `npm run stylelint` for SCSS
 - **Python tooling:** `.venv/bin/python scripts/check_python.py`
-- **iOS app (`ios/`):** `npm run check:ios` and `npm run test:ios` (macOS with Xcode 27; run
-  `npm run setup:ios` once); add `npm run test:ios:lockdown` for login, image or document changes
+- **iOS app (`ios/`):** `npm run check:ios`, then `npm run test:ios:only -- <suites>` naming the
+  `BotgeKitTests` suites and `*UITests` classes that cover the change (macOS with Xcode 27; run
+  `npm run setup:ios` once). Use `npm run test:ios` for the coverage gate when asked, and add
+  `npm run test:ios:lockdown` for login, image or document changes. `npm run run:ios -- --fixtures`
+  launches the app on the simulator with UI-test fixtures
 - **Control scripts or tooling tests:** `npm test -- --run --project Tooling`; `npm run lint:shell`
   for shell changes
 - **GitHub Actions or composite actions:** `npm run lint:workflows`

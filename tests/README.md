@@ -38,9 +38,11 @@ here instead of repeating them. Run commands from the repository root. The
 | `npm run check:ios`                        | SwiftFormat lint and strict SwiftLint               |
 | `npm run test:ios`                         | iOS unit and UI tests, BotgeKit coverage gate       |
 | `npm run test:ios:lockdown`                | Lockdown test plan (simulator in Lockdown Mode)     |
+| `npm run test:ios:only -- EmoteLinkTests`  | Named iOS suites or tests, one result line per test |
 
 CI runs the same commands. Coverage commands already run their tests, so don't repeat a passing
-suite. For focused iteration, use a filtered `cargo test --locked` or Vitest run.
+suite. For focused iteration, use a filtered `cargo test --locked`, Vitest or
+`npm run test:ios:only` run.
 
 Run Activity builds and tests one at a time: Worker entry tests mock the generated HTML module, and
 a concurrent build can replace it.
