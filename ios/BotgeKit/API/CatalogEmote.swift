@@ -1,5 +1,5 @@
 /// One emote in a server catalog, as `POST /catalog` serves it.
-public struct CatalogEmote: Decodable, Equatable, Hashable, Identifiable, Sendable {
+public struct CatalogEmote: Codable, Equatable, Hashable, Identifiable, Sendable {
   private enum CodingKeys: String, CodingKey {
     case composeToken
     case image

@@ -114,14 +114,24 @@ final class EmotesModel {
   }
 
   /// Loads or reloads the catalog; a rejected login returns to the login screen.
+  ///
+  /// On the first load the catalog saved last time shows at once while the fresh one loads.
   func load() async {
     guard let api = app.api else {
       return
     }
 
+    let key = "catalog-\(guild.id)"
+    if catalog == nil {
+      let saved = await app.snapshots.read(Catalog.self, key: key)
+      // A reload that finished meanwhile is newer than the snapshot.
+      catalog = catalog ?? saved
+    }
     do {
-      catalog = try await api.catalog(guild: guild.id)
+      let fresh = try await api.catalog(guild: guild.id)
+      catalog = fresh
       failure = nil
+      await app.snapshots.write(fresh, key: key)
     } catch .signedOut {
       await app.signOut()
     } catch {

@@ -35,7 +35,16 @@ extension EmotesModel {
   ///
   /// - Parameter mode: The ranking to reload.
   func reloadDiscovery(_ mode: DiscoveryMode) async {
-    discoveries[mode] = DiscoveryState(filter: filter)
+    var state = DiscoveryState(filter: filter)
+    // Without a search or filter, the first page saved last time shows while it reloads.
+    if filter == EmoteFilter(), let saved = await app.snapshots.read(
+      DiscoveryPage.self,
+      key: Self.snapshotKey(mode)
+    ) {
+      state.emotes = saved.emotes
+      state.pageCount = saved.pageCount
+    }
+    discoveries[mode] = state
     await loadMoreDiscovery(mode)
   }
 
@@ -44,6 +53,14 @@ extension EmotesModel {
     if case let .discovery(mode) = source {
       await loadMoreDiscovery(mode)
     }
+  }
+
+  /// The snapshot name of a ranking's first page.
+  ///
+  /// - Parameter mode: The ranking.
+  /// - Returns: The key.
+  static func snapshotKey(_ mode: DiscoveryMode) -> String {
+    "discovery-\(mode.rawValue)"
   }
 
   /// Whether `emote` can be added: the member manages emotes and the server lacks it.
@@ -104,8 +121,10 @@ extension EmotesModel {
     current.isLoading = false
     switch result {
     case let .success(page):
-      current.emotes += page.emotes
+      // The first page replaces a saved snapshot shown meanwhile; later pages append.
+      current.emotes = next == 1 ? page.emotes : current.emotes + page.emotes
       current.page = next
+
       current.pageCount = page.pageCount
       current.failure = nil
 
@@ -113,5 +132,8 @@ extension EmotesModel {
       current.failure = Task.isCancelled ? nil : error
     }
     discoveries[mode] = current
+    if case let .success(page) = result, next == 1, requested == EmoteFilter() {
+      await app.snapshots.write(page, key: Self.snapshotKey(mode))
+    }
   }
 }

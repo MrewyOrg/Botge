@@ -91,9 +91,11 @@ device.
 
 App settings, including the chosen server, stay on the device. Face ID or the passcode is checked by
 iOS; Botge never receives biometric data. Emote images are downloaded from the providers' CDNs and
-cached on the device until the cache is cleared in Settings or iOS removes it. Optional 7TV
-discovery sends searches directly from the device to 7TV. The app contains no analytics,
-advertising, or tracking, and its privacy manifest declares no collected data.
+cached on the device until the cache is cleared in Settings or iOS removes it. The last loaded
+server catalog and 7TV rankings are also kept in the device's cache, so they show at once on the
+next launch; clearing the cache or logging out deletes them. Optional 7TV discovery sends searches
+directly from the device to 7TV. The app contains no analytics, advertising, or tracking, and its
+privacy manifest declares no collected data.
 
 ## Data requests
 

@@ -48,6 +48,8 @@ final class AppModel {
   let imageLoader: EmoteImageLoader
   /// Disk and memory cache behind every image download.
   let urlCache: URLCache
+  /// The last emote lists, shown at once on the next launch.
+  let snapshots: SnapshotCache
   /// Opens catalog and game WebSocket connections.
   let sockets: any SocketConnecting
   /// Fetches public 7TV discovery pages.
@@ -61,14 +63,17 @@ final class AppModel {
   ///   - store: Keeps the Discord tokens.
   ///   - urlCache: Caches downloaded images.
   ///   - sockets: Opens WebSocket connections.
+  ///   - snapshots: Keeps the last emote lists for the next launch.
   init(
     configuration: Result<AppConfiguration, ConfigurationError>,
     transport: any HTTPTransport,
     store: any SecretStore,
     urlCache: URLCache,
-    sockets: any SocketConnecting
+    sockets: any SocketConnecting,
+    snapshots: SnapshotCache
   ) {
     self.urlCache = urlCache
+    self.snapshots = snapshots
     self.sockets = sockets
     discovery = SevenTVDiscovery(transport: transport)
     imageLoader = EmoteImageLoader(transport: transport)
@@ -116,7 +121,8 @@ final class AppModel {
       transport: urlSession,
       store: KeychainStore(service: Bundle.main.bundleIdentifier ?? "Botge"),
       urlCache: cache,
-      sockets: urlSession
+      sockets: urlSession,
+      snapshots: .standard()
     )
   }
 
@@ -161,6 +167,7 @@ final class AppModel {
   func signOut() async {
     try? await session?.signOut()
     await imageLoader.clearMemory()
+    await snapshots.removeAll()
     guilds = []
     hasLoadedGuilds = false
     guildsFailure = nil
@@ -209,9 +216,10 @@ final class AppModel {
     selectedTab = .emotes
   }
 
-  /// Clears the downloaded and decoded image caches.
+  /// Clears the downloaded and decoded image caches and the saved emote lists.
   func clearImageCache() async {
     urlCache.removeAllCachedResponses()
     await imageLoader.clearMemory()
+    await snapshots.removeAll()
   }
 }

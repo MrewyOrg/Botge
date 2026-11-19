@@ -5,7 +5,8 @@ import SwiftUI
 ///
 /// An image already in memory shows at once, so tiles scrolled back into view never reload. A
 /// new image shows its first frame as soon as it decodes, then starts animating once every frame
-/// is ready.
+/// is ready. With a fallback, such as the grid image behind a larger preview, the fallback keeps
+/// playing until the new image is fully ready, so opening a preview never looks like a reload.
 struct EmoteImageView: View {
   /// Corner radius of the loading placeholder.
   private static let placeholderRadius: CGFloat = 8
@@ -23,11 +24,15 @@ struct EmoteImageView: View {
   let path: String
   /// Whether the provider advertises an animation.
   let isAnimated: Bool
+  /// An image path to show until ``path`` is ready, such as the smaller grid image.
+  var fallbackPath: String?
+  /// How urgently to load: grid tiles load in the background, a preview the user opened first.
+  var priority: TaskPriority = .utility
 
   var body: some View {
     let animates = isAnimated && playback.animates(reduceMotion: reduceMotion)
     Group {
-      if let shown = image ?? cached(animated: animates) {
+      if let shown = shown(animated: animates) {
         AnimatedEmoteView(image: shown, animates: animates)
       } else {
         RoundedRectangle(cornerRadius: Self.placeholderRadius)
@@ -35,19 +40,43 @@ struct EmoteImageView: View {
           .accessibilityHidden(true)
       }
     }
-    .task(id: "\(path)|\(animates)") {
+    .task(id: "\(path)|\(animates)", priority: priority) {
       await load(animated: animates)
     }
   }
 
-  /// The best image already in memory: the animation when wanted, else the first frame.
+  /// The image to show now: the loaded one, else ``path`` or the fallback from memory.
   ///
   /// - Parameter animated: Whether the animation is wanted.
+  /// - Returns: An image, or `nil` to show the placeholder.
+  private func shown(animated: Bool) -> EmoteImage? {
+    image ?? cached(path, animated: animated)
+      ?? fallbackPath.flatMap { cached($0, animated: animated) }
+  }
+
+  /// The best image of `path` already in memory: the animation when wanted, else the first
+  /// frame.
+  ///
+  /// - Parameters:
+  ///   - path: A catalog image path.
+  ///   - animated: Whether the animation is wanted.
   /// - Returns: A cached image, or `nil`.
-  private func cached(animated: Bool) -> EmoteImage? {
+  private func cached(_ path: String, animated: Bool) -> EmoteImage? {
     let loader = model.imageLoader
     return (animated ? loader.cachedImage(for: path, animated: true) : nil)
       ?? loader.cachedImage(for: path, animated: false)
+  }
+
+  /// Whether `image` is the placeholder for a failed load.
+  ///
+  /// - Parameter image: A loaded image.
+  /// - Returns: Whether nothing decoded.
+  private static func isPlaceholder(_ image: EmoteImage) -> Bool {
+    if case .placeholder = image {
+      return true
+    }
+
+    return false
   }
 
   /// Loads the first frame, then the animation when wanted.
@@ -60,15 +89,19 @@ struct EmoteImageView: View {
       return
     }
 
+    // A playing fallback stays on screen instead of a still frame or a failed load.
+    let hasFallback = fallbackPath.flatMap { cached($0, animated: animated) } != nil
     let still = await loader.image(for: path, animated: false)
     guard !Task.isCancelled else {
       return
     }
 
-    image = still
+    if !hasFallback || (!animated && !Self.isPlaceholder(still)) {
+      image = still
+    }
     if animated, case .still = still {
       let full = await loader.image(for: path, animated: true)
-      if !Task.isCancelled {
+      if !Task.isCancelled, !Self.isPlaceholder(full) || !hasFallback {
         image = full
       }
     }

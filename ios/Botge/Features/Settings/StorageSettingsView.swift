@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// Shows the image cache size and clears it.
+/// Shows the image cache size and clears it with the saved emote lists.
 struct StorageSettingsView: View {
   /// Provides the caches to measure and clear.
   @Environment(AppModel.self) private var model
@@ -21,7 +21,9 @@ struct StorageSettingsView: View {
         }
         .accessibilityIdentifier("storage.clear")
       } footer: {
-        Text("Emote images download again when needed. Your login and settings are kept.")
+        Text(
+          "Images and saved emote lists download again when needed. Login and settings are kept."
+        )
       }
     }
     .navigationTitle("Cache & Storage")
@@ -33,7 +35,7 @@ struct StorageSettingsView: View {
         }
       }
     } message: {
-      Text("Emote images download again when needed.")
+      Text("Emote images and saved emote lists download again when needed.")
     }
     .task { diskUsage = model.urlCache.currentDiskUsage }
   }

@@ -33,7 +33,10 @@ enum UITestSupport {
       transport: FixtureTransport(),
       store: store,
       urlCache: URLCache(memoryCapacity: 0, diskCapacity: 0),
-      sockets: FixtureSockets()
+      sockets: FixtureSockets(),
+      snapshots: SnapshotCache(
+        directory: FileManager.default.temporaryDirectory.appending(path: UUID().uuidString)
+      )
     )
   }
 

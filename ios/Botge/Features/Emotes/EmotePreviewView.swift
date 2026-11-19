@@ -17,10 +17,15 @@ struct EmotePreviewView: View {
   /// Whether the removal confirmation is showing.
   @State private var isConfirmingRemoval = false
 
-  /// The emote shown.
-  let emote: CatalogEmote
+  /// The emote as the sheet opened.
+  let opened: CatalogEmote
   /// The server's catalog state.
   let model: EmotesModel
+
+  /// The emote with the server's current state, so adding or removing it updates the actions.
+  private var emote: CatalogEmote {
+    model.catalog?.resolving(opened) ?? opened
+  }
 
   var body: some View {
     NavigationStack {
@@ -52,16 +57,24 @@ struct EmotePreviewView: View {
       )
     }
     .presentationDetents([.medium, .large], selection: $detent)
+    // Scrolling the list, or a tap that drifts, scrolls it instead of growing the sheet; the
+    // grabber still drags it to full height.
+    .presentationContentInteraction(.scrolls)
   }
 
   /// The large preview, centred without a row background.
   private var image: some View {
-    EmoteImageView(path: emote.preview ?? emote.image, isAnimated: emote.isAnimated)
-      .frame(width: Self.imageSize, height: Self.imageSize)
-      .frame(maxWidth: .infinity)
-      .padding(.vertical, Self.imagePadding)
-      .listRowBackground(Color.clear)
-      .accessibilityLabel(emote.name)
+    EmoteImageView(
+      path: emote.preview ?? emote.image,
+      isAnimated: emote.isAnimated,
+      fallbackPath: emote.image,
+      priority: .userInitiated
+    )
+    .frame(width: Self.imageSize, height: Self.imageSize)
+    .frame(maxWidth: .infinity)
+    .padding(.vertical, Self.imagePadding)
+    .listRowBackground(Color.clear)
+    .accessibilityLabel(emote.name)
   }
 
   /// Whether to name the provider: discovery results always come from 7TV.

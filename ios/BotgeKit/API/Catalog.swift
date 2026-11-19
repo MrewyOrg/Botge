@@ -1,5 +1,5 @@
 /// A server's emote catalog and what the signed-in member may do with it.
-public struct Catalog: Decodable, Equatable, Sendable {
+public struct Catalog: Codable, Equatable, Sendable {
   private enum CodingKeys: String, CodingKey {
     case canComposeDiscovery
     case canManageEmotes

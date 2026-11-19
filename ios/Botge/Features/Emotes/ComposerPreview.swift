@@ -19,7 +19,11 @@ struct ComposerPreview: View {
           ForEach(Array(columns.enumerated()), id: \.offset) { _, column in
             ZStack {
               ForEach(Array(column.enumerated()), id: \.offset) { _, layer in
-                EmoteImageView(path: layer.image, isAnimated: layer.isAnimated)
+                EmoteImageView(
+                  path: layer.image,
+                  isAnimated: layer.isAnimated,
+                  priority: .userInitiated
+                )
               }
             }
             .frame(height: Self.height)

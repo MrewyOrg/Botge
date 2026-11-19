@@ -10,6 +10,9 @@ struct EmotesView: View {
   @AppStorage(PreferenceKey.haptics) private var haptics = true
   /// The server's catalog state.
   @State private var model: EmotesModel
+  /// Whether the search field has the keyboard; it is dismissed before a sheet opens, since a
+  /// visible keyboard makes the preview open at full height.
+  @FocusState private var isSearchFocused: Bool
 
   var body: some View {
     EmotesContent(model: model)
@@ -21,6 +24,12 @@ struct EmotesView: View {
         placement: .navigationBarDrawer(displayMode: .always),
         prompt: Text(searchPrompt)
       )
+      .searchFocused($isSearchFocused)
+      .onChange(of: model.sheet) { _, sheet in
+        if sheet != nil {
+          isSearchFocused = false
+        }
+      }
       .toolbar { EmotesToolbar(model: model) }
       .onChange(of: model.app.pendingSearch, initial: true) { _, query in
         guard let query else {
@@ -33,13 +42,13 @@ struct EmotesView: View {
       }
       .safeAreaBar(edge: .top) { EmotesSourcePicker(model: model) }
       .safeAreaInset(edge: .bottom) { SelectionBar(model: model) }
-      .sheet(item: $model.sheet) { sheet in
+      .sheet(item: presentedSheet) { sheet in
         switch sheet {
         case .composer:
           ComposerView(composition: $model.composition)
 
         case let .preview(emote):
-          EmotePreviewView(emote: emote, model: model)
+          EmotePreviewView(opened: emote, model: model)
         }
       }
       .confirmationDialog(
@@ -98,6 +107,15 @@ struct EmotesView: View {
       if !isPresented {
         model.pendingRemoval = nil
       }
+    }
+  }
+
+  /// The open sheet; opening one first dismisses the search keyboard.
+  private var presentedSheet: Binding<EmotesSheet?> {
+    Binding {
+      isSearchFocused ? nil : model.sheet
+    } set: { sheet in
+      model.sheet = sheet
     }
   }
 

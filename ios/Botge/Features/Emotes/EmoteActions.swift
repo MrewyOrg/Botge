@@ -12,11 +12,6 @@ struct EmoteActions: View {
   let requestRemoval: () -> Void
 
   var body: some View {
-    if model.canAdd(emote) {
-      Button("Add to Server", systemImage: "plus.circle") {
-        Task { await model.add(emote) }
-      }
-    }
     Button("Add to Composition", systemImage: "plus.square.on.square") {
       model.compose(emote)
     }
@@ -29,6 +24,12 @@ struct EmoteActions: View {
     if let link = EmoteLink.url(for: emote) {
       ShareLink(item: link, subject: Text(emote.name)) {
         Label("Share Link", systemImage: "square.and.arrow.up")
+      }
+    }
+    // Changing the server comes last, whether it adds or removes.
+    if model.canAdd(emote) {
+      Button("Add to Server", systemImage: "plus.circle") {
+        Task { await model.add(emote) }
       }
     }
     if model.canRemove(emote) {
