@@ -12,8 +12,6 @@ struct EmotePreviewView: View {
 
   /// Closes the sheet.
   @Environment(\.dismiss) private var dismiss
-  /// The sheet height.
-  @State private var detent: PresentationDetent = .medium
   /// Whether the removal confirmation is showing.
   @State private var isConfirmingRemoval = false
 
@@ -32,7 +30,7 @@ struct EmotePreviewView: View {
       List {
         image
         Section {
-          EmoteActions(emote: emote, model: model) {
+          EmoteActions(emote: emote, model: model) { _ in
             isConfirmingRemoval = true
           }
         }
@@ -56,7 +54,7 @@ struct EmotePreviewView: View {
         message: removalMessage
       )
     }
-    .presentationDetents([.medium, .large], selection: $detent)
+    .presentationDetents([.medium, .large])
     // Scrolling the list, or a tap that drifts, scrolls it instead of growing the sheet; the
     // grabber still drags it to full height.
     .presentationContentInteraction(.scrolls)
@@ -99,7 +97,7 @@ struct EmotePreviewView: View {
   /// Confirms the removal, closing the sheet first.
   ///
   /// - Returns: The destructive button.
-  private func removalActions() -> some View {
+  func removalActions() -> some View {
     Button("Remove", role: .destructive) {
       dismiss()
       Task { await model.remove(emote) }
@@ -109,7 +107,7 @@ struct EmotePreviewView: View {
   /// Explains who the removal affects.
   ///
   /// - Returns: The message text.
-  private func removalMessage() -> some View {
+  func removalMessage() -> some View {
     Text("Everyone in \(model.guild.name) loses this emote.")
   }
 }

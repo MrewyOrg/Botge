@@ -11,8 +11,8 @@ public import Foundation
 /// Downloads come from the disk cache when possible, and formats the device refuses to decode
 /// are skipped after a few attempts. Results go to ``memory``, which views read synchronously.
 public actor EmoteImageLoader {
-  /// Decoded bytes kept in memory by default: roughly 150 animated emotes at grid size.
-  public static let defaultCostLimit = 192 << 20
+  /// Decoded bytes kept in memory by default: roughly 75 animated emotes at grid size.
+  public static let defaultCostLimit = 96 << 20
 
   /// Decoded images, shared with views for synchronous reads.
   public nonisolated let memory: EmoteImageCache

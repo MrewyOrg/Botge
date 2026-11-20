@@ -39,4 +39,14 @@ struct MarkdownBlockTests {
       #expect(blocks.count > 10)
     }
   }
+
+  @Test
+  func `inline syntax renders as formatted text`() {
+    let block = MarkdownBlock(
+      id: 0,
+      kind: .paragraph,
+      text: "**Bold** and [link](https://botge.app)"
+    )
+    #expect(String(block.attributedText.characters) == "Bold and link")
+  }
 }

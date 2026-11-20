@@ -6,8 +6,6 @@ import SwiftUI
 /// The title stays inline and the search field stays visible, so the navigation bar keeps one
 /// height and the source picker below it never drifts while the grid scrolls or bounces.
 struct EmotesView: View {
-  /// Whether haptics play.
-  @AppStorage(PreferenceKey.haptics) private var haptics = true
   /// The server's catalog state.
   @State private var model: EmotesModel
   /// Whether the search field has the keyboard; it is dismissed before a sheet opens, since a
@@ -66,9 +64,7 @@ struct EmotesView: View {
       .overlay(alignment: .bottom) {
         NoticeBanner(notice: $model.notice)
       }
-      .sensoryFeedback(trigger: model.haptic) { _, event in
-        haptics ? event?.feedback : nil
-      }
+      .hapticFeedback(model.haptic)
       .task { await model.load() }
       .task { await model.watch() }
       .task(id: DiscoveryRequest(source: model.source, filter: model.filter)) {
@@ -125,6 +121,13 @@ struct EmotesView: View {
   ///   - guild: The server to show.
   ///   - app: The app-wide model.
   init(guild: SharedGuild, app: AppModel) {
-    _model = State(initialValue: EmotesModel(guild: guild, app: app))
+    self.init(model: EmotesModel(guild: guild, app: app))
+  }
+
+  /// Creates the tab for an existing model.
+  ///
+  /// - Parameter model: The server's catalog state.
+  init(model: EmotesModel) {
+    _model = State(initialValue: model)
   }
 }

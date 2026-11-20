@@ -8,7 +8,7 @@ public struct SevenTVDiscovery: Sendable {
   /// Results per page, matching the Activity.
   public static let pageSize = 24
   /// The 7TV GraphQL endpoint.
-  static let endpoint: URL? = URL(string: "https://7tv.io/v4/gql")
+  static let endpoint: URL = .init(literal: "https://7tv.io/v4/gql")
 
   /// Sends requests.
   private let transport: any HTTPTransport
@@ -35,13 +35,12 @@ public struct SevenTVDiscovery: Sendable {
   public func page(_ mode: DiscoveryMode, number page: Int, filter: EmoteFilter)
     async throws(APIError) -> DiscoveryPage
   {
-    guard let endpoint = Self.endpoint,
-          let body = try? JSONSerialization.data(withJSONObject: Self.request(mode, page, filter))
+    guard let body = try? JSONSerialization.data(withJSONObject: Self.request(mode, page, filter))
     else {
       throw .malformedResponse
     }
 
-    var request = URLRequest(url: endpoint)
+    var request = URLRequest(url: Self.endpoint)
     request.httpMethod = "POST"
     request.setValue("application/json", forHTTPHeaderField: "Content-Type")
     request.httpBody = body

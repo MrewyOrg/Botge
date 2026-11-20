@@ -1,6 +1,7 @@
 @testable import BotgeKit
 import CoreGraphics
 import Foundation
+import ImageIO
 import Testing
 
 struct ImageIODecoderTests {
@@ -82,5 +83,16 @@ struct ImageIODecoderTests {
     #expect(throws: ImageDecodingError.unsupported) {
       try ImageIODecoder().decodeFirstFrame(Data())
     }
+  }
+
+  @Test
+  func `frame delays fall back to the default without metadata`() throws {
+    let still = try #require(CGImageSourceCreateWithData(ImageFixtures.png() as CFData, nil))
+    #expect(ImageIODecoder.delay(still, at: 0) == ImageIODecoder.defaultDelay)
+    #expect(ImageIODecoder.delay(still, at: 9) == ImageIODecoder.defaultDelay)
+    let gif = try #require(
+      CGImageSourceCreateWithData(ImageFixtures.gif(frames: 2, delay: 0.5) as CFData, nil)
+    )
+    #expect(ImageIODecoder.delay(gif, at: 1) == 0.5)
   }
 }

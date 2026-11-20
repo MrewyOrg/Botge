@@ -77,6 +77,12 @@ SwiftFormat writes them, except `@Parameter`, which SwiftFormat puts on its own 
 `opening_brace` accepts SwiftFormat's brace after a wrapped signature; `trailing_comma` forbids
 trailing commas; test targets disable `missing_docs`.
 
+Analyzer rules run with `npm run check:ios:analyze` (and in CI). `unused_import` is left off: with
+`MemberImportVisibility` it reports imports the compiler needs (such as `WidgetKit` for `@main` and
+`Foundation` for `URL` members) and its autofix breaks the build. `unused_declaration` cannot see
+the App Intents runtime, so each intent's `description` carries a commented
+`swiftlint:disable:next`.
+
 ### Formatter exceptions
 
 SwiftFormat opt-in rules left off in `ios/.swiftformat`: `organizeDeclarations`, `markTypes` and

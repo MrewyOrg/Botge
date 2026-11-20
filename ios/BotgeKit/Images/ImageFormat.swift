@@ -1,3 +1,5 @@
+import Foundation
+
 /// Image container formats seen on provider CDNs, inferred from the file extension.
 public enum ImageFormat: String, CaseIterable, Sendable {
   case avif
@@ -23,9 +25,7 @@ public enum ImageFormat: String, CaseIterable, Sendable {
   ///
   /// - Parameter path: A URL path or file name.
   public init(path: String) {
-    let name = path.split(separator: "/").last ?? ""
-    let fileExtension = name.split(separator: ".").dropFirst().last.map { $0.lowercased() } ?? ""
-    switch fileExtension {
+    switch URL(filePath: path).pathExtension.lowercased() {
     case "avif":
       self = .avif
 

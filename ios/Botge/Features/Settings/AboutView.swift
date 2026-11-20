@@ -1,21 +1,19 @@
+import BotgeKit
 import SwiftUI
 
 /// Version, legal documents and the source link.
 struct AboutView: View {
-  private static let sourceURL: URL? = URL(string: "https://github.com/MrewyOrg/Botge")
-
-  private static var version: String {
-    let info = Bundle.main.infoDictionary
-    let marketing = info?["CFBundleShortVersionString"] as? String ?? "?"
-    let build = info?["CFBundleVersion"] as? String ?? "?"
-    return "\(marketing) (\(build))"
-  }
+  /// Botge's source repository.
+  private static let sourceURL: URL = .init(literal: "https://github.com/MrewyOrg/Botge")
 
   var body: some View {
     Form {
       Section {
-        LabeledContent("Version", value: Self.version)
-          .accessibilityIdentifier("about.version")
+        LabeledContent(
+          "Version",
+          value: Self.version(from: Bundle.main.object(forInfoDictionaryKey:))
+        )
+        .accessibilityIdentifier("about.version")
       }
       Section("Legal") {
         NavigationLink("Terms of Service") {
@@ -28,14 +26,22 @@ struct AboutView: View {
           LegalDocumentView(title: "License", resource: "LICENSE", fileExtension: "txt")
         }
       }
-      if let url = Self.sourceURL {
-        Section {
-          Link(destination: url) {
-            Label("Source Code", systemImage: "chevron.left.forwardslash.chevron.right")
-          }
+      Section {
+        Link(destination: Self.sourceURL) {
+          Label("Source Code", systemImage: "chevron.left.forwardslash.chevron.right")
         }
       }
     }
     .navigationTitle("About & Legal")
+  }
+
+  /// The version and build, such as `6.0.0 (1)`.
+  ///
+  /// - Parameter value: Looks up an Info.plist value by key.
+  /// - Returns: The version text, with `?` for a missing value.
+  static func version(from value: (String) -> Any?) -> String {
+    let marketing = value("CFBundleShortVersionString") as? String ?? "?"
+    let build = value("CFBundleVersion") as? String ?? "?"
+    return "\(marketing) (\(build))"
   }
 }

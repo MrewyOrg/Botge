@@ -33,4 +33,11 @@ struct ServerScope<Content: View>: View {
       }
     }
   }
+
+  /// Creates the scope.
+  ///
+  /// - Parameter content: Builds the feature for the selected server.
+  init(@ViewBuilder content: @escaping (SharedGuild) -> Content) {
+    self.content = content
+  }
 }

@@ -6,8 +6,6 @@ import SwiftUI
 ///
 /// Edits are drafts until Save; Discard restores the saved values after a confirmation.
 struct ServerView: View {
-  /// Whether haptics play.
-  @AppStorage(PreferenceKey.haptics) private var haptics = true
   /// The server's settings state.
   @State private var model: ServerModel
   /// Whether the discard confirmation is showing.
@@ -21,9 +19,7 @@ struct ServerView: View {
         NoticeBanner(notice: $model.notice)
       }
       .animation(.default, value: model.notice)
-      .sensoryFeedback(trigger: model.haptic) { _, event in
-        haptics ? event?.feedback : nil
-      }
+      .hapticFeedback(model.haptic)
       .confirmationDialog("Discard your changes?", isPresented: $isConfirmingDiscard) {
         Button("Discard Changes", role: .destructive) {
           model.discardChanges()
@@ -104,6 +100,13 @@ struct ServerView: View {
   ///   - guild: The server to show.
   ///   - app: The app-wide model.
   init(guild: SharedGuild, app: AppModel) {
-    _model = State(initialValue: ServerModel(guild: guild, app: app))
+    self.init(model: ServerModel(guild: guild, app: app))
+  }
+
+  /// Creates the tab for an existing model.
+  ///
+  /// - Parameter model: The server's settings state.
+  init(model: ServerModel) {
+    _model = State(initialValue: model)
   }
 }

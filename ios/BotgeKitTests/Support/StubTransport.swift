@@ -8,6 +8,8 @@ final class StubTransport: HTTPTransport {
   enum Reply {
     case failure(URLError.Code)
     case response(status: Int, body: Data)
+    /// A response without HTTP metadata.
+    case plain
   }
 
   private let state: Mutex<(replies: [Reply], requests: [URLRequest])>
@@ -48,6 +50,9 @@ final class StubTransport: HTTPTransport {
         headerFields: nil
       )
       return (body, response ?? URLResponse())
+
+    case .plain:
+      return (Data(), URLResponse())
 
     case nil:
       throw URLError(.resourceUnavailable)

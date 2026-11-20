@@ -5,7 +5,8 @@ import UIKit
 
 /// Answers UI-test requests from fixtures, so UI tests never reach the network.
 ///
-/// `POST /guilds` returns one fixture server, `POST /catalog` a small catalog, the settings
+/// `POST /guilds` returns two fixture servers, `POST /catalog` a small catalog and
+/// `POST /catalog/watch` a ticket for a watch that cannot connect offline, the settings
 /// routes fixture settings (saves echo what was sent), the Guess routes a ticket for
 /// ``FixtureGameSocket`` and a drawn round image, and 7TV's `gql` endpoint a page of
 /// discovery results, long enough to scroll; every other request, including images, fails as
@@ -26,9 +27,11 @@ struct FixtureTransport: HTTPTransport {
       + #""allowEveryone":false,"allowedRoles":[],"roles":\#(roles)}"#,
     "settings/border/read": #"{"color":""}"#,
     "game/join": #"{"ticket":"fixture","userId":"\#(FixtureGameSocket.player)"}"#,
+    "catalog/watch": #"{"ticket":"fixture"}"#,
     "guilds": """
     {"guilds":[{"id":"100000000000000001","name":"Fixture Server","icon":null,\
-    "administrator":true}]}
+    "administrator":true},{"id":"100000000000000003","name":"Second Server","icon":null,\
+    "administrator":false}]}
     """,
     "catalog": """
     {"message":"Server emotes loaded.","canManageEmotes":true,"canComposeDiscovery":false,\

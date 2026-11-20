@@ -28,6 +28,14 @@ public enum AppLink: String, CaseIterable, Sendable {
     self = link
   }
 
+  /// This build's URL scheme from a bundle's Info.plist.
+  ///
+  /// - Parameter bundle: The app or extension bundle.
+  /// - Returns: The scheme, or an empty string when the bundle has none.
+  public static func scheme(in bundle: Bundle) -> String {
+    bundle.object(forInfoDictionaryKey: schemeKey) as? String ?? ""
+  }
+
   /// The URL that opens this part of the app.
   ///
   /// - Parameter scheme: This build's URL scheme.

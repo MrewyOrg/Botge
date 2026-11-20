@@ -85,6 +85,18 @@ struct GuessStageView: View {
       .accessibilityHidden(true)
   }
 
+  /// Creates the stage.
+  ///
+  /// - Parameters:
+  ///   - state: The room state.
+  ///   - image: The round image, once loaded.
+  ///   - received: When the state arrived.
+  init(state: GameState, image: EmoteImage?, received: Date) {
+    self.state = state
+    self.image = image
+    self.received = received
+  }
+
   /// Draws the round image scaled to fit.
   ///
   /// - Parameter image: The decoded image.

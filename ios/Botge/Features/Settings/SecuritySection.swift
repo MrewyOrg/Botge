@@ -1,4 +1,3 @@
-import LocalAuthentication
 import SwiftUI
 
 /// The App Lock toggle, named after the device's biometric method.
@@ -6,27 +5,10 @@ import SwiftUI
 /// Turning App Lock on or off asks for Face ID or the passcode first, so the setting only changes
 /// for the device owner and is never turned on where it cannot unlock.
 struct SecuritySection: View {
-  /// The device's biometric method, or a generic name without one.
-  private static var lockTitle: LocalizedStringResource {
-    let context = LAContext()
-    _ = context.canEvaluatePolicy(.deviceOwnerAuthenticationWithBiometrics, error: nil)
-    return switch context.biometryType {
-    case .faceID:
-      "Face ID"
-
-    case .touchID:
-      "Touch ID"
-
-    case .opticID:
-      "Optic ID"
-
-    default:
-      "App Lock"
-    }
-  }
-
   /// Whether App Lock is on.
   @AppStorage(PreferenceKey.appLock) private var appLock = false
+  /// Checks for the device owner.
+  @Environment(\.ownerAuthentication) private var owner
   /// Whether the authentication prompt is showing.
   @State private var isAuthenticating = false
   /// Why the last change failed, if it did.
@@ -35,7 +17,7 @@ struct SecuritySection: View {
   var body: some View {
     Section {
       Toggle(isOn: lockBinding) {
-        Label(Self.lockTitle, systemImage: "lock")
+        Label(owner.lockTitle, systemImage: "lock")
       }
       .disabled(isAuthenticating)
       .accessibilityIdentifier("settings.appLock")
@@ -45,7 +27,7 @@ struct SecuritySection: View {
       if let failure {
         Text(failure)
       } else {
-        Text("Ask for \(Self.lockTitle) or your passcode when opening Botge.")
+        Text("Ask for \(owner.lockTitle) or your passcode when opening Botge.")
       }
     }
   }
@@ -69,9 +51,7 @@ struct SecuritySection: View {
 
     isAuthenticating = true
     defer { isAuthenticating = false }
-    let context = LAContext()
-    var error: NSError?
-    guard context.canEvaluatePolicy(.deviceOwnerAuthentication, error: &error) else {
+    guard owner.isAvailable() else {
       failure = String(localized: "Set a passcode in the Settings app to use App Lock.")
       return
     }
@@ -79,11 +59,7 @@ struct SecuritySection: View {
     let reason = enabled
       ? String(localized: "Turn on App Lock")
       : String(localized: "Turn off App Lock")
-    let approved = await (try? context.evaluatePolicy(
-      .deviceOwnerAuthentication,
-      localizedReason: reason
-    )) ?? false
-    if approved {
+    if await owner.authenticate(reason) {
       failure = nil
       appLock = enabled
     }

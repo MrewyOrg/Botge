@@ -88,4 +88,11 @@ struct ComposerView: View {
       .accessibilityIdentifier("composer.copy")
     }
   }
+
+  /// Creates the editor.
+  ///
+  /// - Parameter composition: The composition being edited.
+  init(composition: Binding<Composition>) {
+    _composition = composition
+  }
 }

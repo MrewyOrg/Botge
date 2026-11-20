@@ -1,4 +1,4 @@
-import Foundation
+public import Foundation
 
 /// One block of a bundled Markdown document, rendered natively instead of in a web view.
 ///
@@ -22,6 +22,11 @@ public struct MarkdownBlock: Equatable, Identifiable, Sendable {
   public let kind: Kind
   /// The block's Markdown text with block markers removed.
   public let text: String
+
+  /// The text with its inline syntax, such as emphasis and links, rendered.
+  public var attributedText: AttributedString {
+    MarkdownParser.inline(text)
+  }
 
   /// Creates a block.
   ///

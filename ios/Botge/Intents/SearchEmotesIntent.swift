@@ -3,6 +3,8 @@ import AppIntents
 /// Opens Botge and searches the selected server's emotes, from Siri, Spotlight or Shortcuts.
 struct SearchEmotesIntent: AppIntent {
   static let title: LocalizedStringResource = "Search Botge Emotes"
+  // The App Intents runtime reads the description; nothing in the app does.
+  // swiftlint:disable:next unused_declaration
   static let description: IntentDescription = .init(
     "Opens Botge and searches the emotes of the server you picked in the app."
   )
@@ -13,7 +15,7 @@ struct SearchEmotesIntent: AppIntent {
   var search: String
 
   /// The app model that switches tabs and applies the search.
-  @Dependency private var model: AppModel
+  @Dependency var model: AppModel
 
   /// Opens the Emotes tab with the search applied.
   ///

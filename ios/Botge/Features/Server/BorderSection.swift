@@ -29,9 +29,7 @@ struct BorderSection: View {
     Binding {
       model.borderPick.color
     } set: { color in
-      if let picked = BorderColor(color) {
-        model.borderPick = picked
-      }
+      model.borderPick = BorderColor(color)
     }
   }
 

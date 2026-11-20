@@ -9,7 +9,7 @@ struct EmoteActions: View {
   /// The server's catalog state.
   let model: EmotesModel
   /// Asks to confirm removing the emote from the server.
-  let requestRemoval: () -> Void
+  let requestRemoval: (CatalogEmote) -> Void
 
   var body: some View {
     Button("Add to Composition", systemImage: "plus.square.on.square") {
@@ -33,7 +33,9 @@ struct EmoteActions: View {
       }
     }
     if model.canRemove(emote) {
-      Button("Remove from Server", systemImage: "trash", role: .destructive, action: requestRemoval)
+      Button("Remove from Server", systemImage: "trash", role: .destructive) {
+        requestRemoval(emote)
+      }
     }
   }
 }

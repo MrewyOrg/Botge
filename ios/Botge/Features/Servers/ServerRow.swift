@@ -53,4 +53,14 @@ struct ServerRow: View {
       }
     }
   }
+
+  /// Creates a row.
+  ///
+  /// - Parameters:
+  ///   - guild: The server shown.
+  ///   - isSelected: Whether this is the server the feature tabs show.
+  init(guild: SharedGuild, isSelected: Bool) {
+    self.guild = guild
+    self.isSelected = isSelected
+  }
 }

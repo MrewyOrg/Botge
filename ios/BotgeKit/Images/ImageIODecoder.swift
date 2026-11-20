@@ -47,7 +47,7 @@ public struct ImageIODecoder: ImageDecoding {
     delays.reserveCapacity(count)
     for index in 0 ..< count {
       try frames.append(frame(source, at: index, downsampling: downsamples))
-      delays.append(delay(source, at: index))
+      delays.append(Self.delay(source, at: index))
     }
     return .animated(frames: frames, delays: delays)
   }
@@ -132,22 +132,27 @@ public struct ImageIODecoder: ImageDecoding {
     return image
   }
 
-  /// The frame delay from GIF, WebP or APNG metadata.
+  /// The frame delay from GIF, WebP or APNG metadata, preferring the unclamped value.
   ///
   /// - Parameters:
   ///   - source: The image source.
   ///   - index: The frame index.
-  /// - Returns: Seconds before the next frame.
-  private func delay(_ source: CGImageSource, at index: Int) -> TimeInterval {
+  /// - Returns: The declared delay, or ``defaultDelay`` when it is missing or shorter than
+  ///   ``minimumDelay``.
+  static func delay(_ source: CGImageSource, at index: Int) -> TimeInterval {
     let properties = CGImageSourceCopyPropertiesAtIndex(source, index, nil) as? [CFString: Any]
     for keys in FrameDelayKeys.all {
       guard let values = properties?[keys.container] as? [CFString: Any] else {
         continue
       }
 
-      let value = (values[keys.unclamped] as? Double) ?? (values[keys.clamped] as? Double) ?? 0
-      return value >= Self.minimumDelay ? value : Self.defaultDelay
+      let declared = [keys.unclamped, keys.clamped].lazy.compactMap { values[$0] as? Double }.first
+      guard let declared, declared >= minimumDelay else {
+        return defaultDelay
+      }
+
+      return declared
     }
-    return Self.defaultDelay
+    return defaultDelay
   }
 }

@@ -4,7 +4,10 @@ set -eu
 # Checks the iOS app with the tools pinned in ios/Tools (run scripts/setup-ios-tools.sh first).
 #   static    SwiftFormat lint, strict SwiftLint and documentation tags (default)
 #   format    rewrite Swift files with SwiftFormat
-#   test      generate the project, run every test on a simulator, enforce 90% line coverage
+#   analyze   clean-build every target and run SwiftLint's analyzer rules (unused declarations and
+#             imports), which need the compiler's arguments
+#   test      generate the project, run every test on a simulator, enforce 90% line, region and
+#             function coverage in every Swift file
 #   lockdown  run Lockdown.xctestplan on the Lockdown simulator (created on first use)
 #   targeted  run only the named test suites or tests and print one result line per test, e.g.
 #             targeted EmoteLinkTests DiscoveryUITests BotgeUITests/EmotesUITests/testX
@@ -46,7 +49,47 @@ run_tests() {
     -skipPackagePluginValidation \
     -skipMacroValidation \
     -enableCodeCoverage YES \
+    -parallel-testing-enabled NO \
     -quiet
+}
+
+# Fails unless every Swift file with executable code reaches the minimum line, region and function
+# coverage, counted across the app, BotgeKit and the widget extension, so a file built into two
+# targets counts once. Swift has no branch coverage; regions cover each branch arm and closure.
+#
+# Exempt: the widget extension's entry point and its ActivityKit wiring, which only the system
+# runs; tests render every view they show (BotgeLiveActivity/GuessActivityViews.swift).
+check_coverage() {
+  profile=$(ls -t DerivedData/Build/ProfileData/*/Coverage.profdata | head -n 1)
+  products=DerivedData/Build/Products/Debug-iphonesimulator
+  kit=${products}/BotgeKit.framework/BotgeKit
+  app=${products}/Botge.app/Botge.debug.dylib
+  widget=${products}/Botge.app/PlugIns/BotgeLiveActivity.appex/BotgeLiveActivity.debug.dylib
+  for binary in "${kit}" "${app}" "${widget}"; do
+    if [ ! -f "${binary}" ]; then
+      printf '%s\n' "Missing ${binary}; run the tests first." >&2
+      return 1
+    fi
+  done
+  below=$(
+    xcrun llvm-cov export -summary-only -instr-profile "${profile}" "${kit}" \
+      -object "${app}" -object "${widget}" \
+      | jq -r --argjson minimum "${minimum_coverage}" '
+        ["BotgeLiveActivity/BotgeLiveActivityBundle.swift",
+          "BotgeLiveActivity/GuessLiveActivity.swift"] as $exempt
+        | .data[].files[]
+        | (.filename | sub(".*/ios/"; "")) as $file
+        | select($exempt | index($file) | not)
+        | .summary | to_entries[]
+        | select(.key == "lines" or .key == "regions" or .key == "functions")
+        | select(.value.count > 0 and .value.percent < $minimum)
+        | "\($file): \(.key) \(.value.percent | floor)%"
+      '
+  )
+  if [ -n "${below}" ]; then
+    printf '%s\n' "Below ${minimum_coverage}% coverage:" "${below}" >&2
+    return 1
+  fi
 }
 
 # Prints "Passed|Failed|Skipped  name" for every test case in a result bundle.
@@ -68,16 +111,23 @@ case "${scope}" in
   format)
     "${tools}/swiftformat" .
     ;;
+  analyze)
+    "${tools}/xcodegen" --spec project.yml --quiet
+    log=DerivedData/analyze.log
+    # A clean build logs every compiler invocation the analyzer needs.
+    xcodebuild clean build-for-testing \
+      -project Botge.xcodeproj \
+      -scheme Botge \
+      -testPlan Botge \
+      -destination "${destination}" \
+      -derivedDataPath DerivedData/Analyze \
+      -skipPackagePluginValidation \
+      -skipMacroValidation > "${log}"
+    "${tools}/swiftlint" analyze --strict --quiet --compiler-log-path "${log}"
+    ;;
   test)
     run_tests Botge
-    # Every BotgeKit source file must reach the gate; SwiftUI views are covered by UI tests.
-    xcrun xccov view --report --json DerivedData/Botge.xcresult \
-      | jq -e --argjson minimum "${minimum_coverage}" '
-        [.targets[] | select(.name | startswith("BotgeKit.framework")) | .files[]
-          | select(.lineCoverage * 100 < $minimum)
-          | "\(.name): \(.lineCoverage * 100 | floor)%"]
-        | if length == 0 then true else (.[] | stderr) and false end
-      ' > /dev/null
+    check_coverage
     ;;
   lockdown)
     if ! xcrun simctl list devices | grep -q "${lockdown_device} ("; then
@@ -106,7 +156,13 @@ case "${scope}" in
       case "${name}" in
         */*) filter=${name} ;;
         *UITests) filter=BotgeUITests/${name} ;;
-        *) filter=BotgeKitTests/${name} ;;
+        *)
+          if grep -qs "^struct ${name} " BotgeTests/*.swift; then
+            filter=BotgeTests/${name}
+          else
+            filter=BotgeKitTests/${name}
+          fi
+          ;;
       esac
       set -- "$@" "-only-testing:${filter}"
     done
@@ -144,7 +200,8 @@ case "${scope}" in
     ;;
   *)
     printf '%s\n' \
-      'Usage: sh scripts/check-ios.sh [static|format|test|lockdown|targeted TEST...|run [--fixtures]]' \
+      'Usage: sh scripts/check-ios.sh SCOPE' \
+      'Scopes: static, format, analyze, test, lockdown, targeted TEST..., run [--fixtures]' \
       >&2
     exit 2
     ;;

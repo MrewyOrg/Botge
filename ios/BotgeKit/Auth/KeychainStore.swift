@@ -5,10 +5,23 @@ import Security
 /// unlock and never synced to iCloud or included in backups.
 public struct KeychainStore: SecretStore {
   private let service: String
+  private let calls: KeychainCalls
 
   /// Creates a store whose items share the `service` attribute.
+  ///
+  /// - Parameter service: The `service` attribute of every item.
   public init(service: String) {
+    self.init(service: service, calls: .system)
+  }
+
+  /// Creates a store that makes `calls` instead of the system's Keychain calls.
+  ///
+  /// - Parameters:
+  ///   - service: The `service` attribute of every item.
+  ///   - calls: The Keychain calls to make.
+  init(service: String, calls: KeychainCalls) {
     self.service = service
+    self.calls = calls
   }
 
   /// Reads the item for `key`.
@@ -20,7 +33,7 @@ public struct KeychainStore: SecretStore {
     query[kSecReturnData as String] = true
     query[kSecMatchLimit as String] = kSecMatchLimitOne
     var result: CFTypeRef?
-    let status = SecItemCopyMatching(query as CFDictionary, &result)
+    let status = calls.copyMatching(query as CFDictionary, &result)
     switch status {
     case errSecSuccess:
       return result as? Data
@@ -44,10 +57,13 @@ public struct KeychainStore: SecretStore {
       kSecValueData as String: value,
       kSecAttrAccessible as String: kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
     ]
-    let status = SecItemUpdate(baseQuery(key) as CFDictionary, attributes as CFDictionary)
+    let status = calls.update(baseQuery(key) as CFDictionary, attributes as CFDictionary)
     if status == errSecItemNotFound {
-      let added = baseQuery(key).merging(attributes) { _, new in new }
-      let addStatus = SecItemAdd(added as CFDictionary, nil)
+      var added = baseQuery(key)
+      for (name, attribute) in attributes {
+        added[name] = attribute
+      }
+      let addStatus = calls.add(added as CFDictionary, nil)
       guard addStatus == errSecSuccess else {
         throw SecretStoreError(status: addStatus)
       }
@@ -60,7 +76,7 @@ public struct KeychainStore: SecretStore {
   ///
   /// - Throws: ``SecretStoreError`` for any status other than success or item-not-found.
   public func delete(_ key: String) throws(SecretStoreError) {
-    let status = SecItemDelete(baseQuery(key) as CFDictionary)
+    let status = calls.delete(baseQuery(key) as CFDictionary)
     guard status == errSecSuccess || status == errSecItemNotFound else {
       throw SecretStoreError(status: status)
     }

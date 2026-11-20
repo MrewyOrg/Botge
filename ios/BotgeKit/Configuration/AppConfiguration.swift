@@ -28,22 +28,30 @@ public struct AppConfiguration: Equatable, Sendable {
 
   /// Validates deployment values.
   ///
-  /// The API URL must use HTTPS, except for loopback and local network hosts used during local
-  /// development.
+  /// The API URL must use HTTPS. Development builds may also use plain HTTP to loopback and local
+  /// network hosts; release builds never do, since the URL carries the user's Discord token.
   /// The application ID must be a Discord snowflake: 17 to 20 decimal digits.
   ///
   /// - Parameters:
   ///   - apiBaseURL: The API base URL text.
   ///   - discordApplicationID: The application ID text.
+  ///   - allowsLocalHTTP: Whether plain HTTP to a local network host is accepted.
   /// - Throws: ``ConfigurationError`` when a value is missing or malformed.
-  public init(apiBaseURL: String?, discordApplicationID: String?) throws(ConfigurationError) {
+  public init(
+    apiBaseURL: String?,
+    discordApplicationID: String?,
+    allowsLocalHTTP: Bool
+  )
+    throws(ConfigurationError)
+  {
     let urlText = apiBaseURL?.trimmingCharacters(in: .whitespaces) ?? ""
     guard !urlText.isEmpty else {
       throw .missingAPIBaseURL
     }
     guard let url = URL(string: urlText),
           let host = url.host(),
-          url.scheme == "https" || (url.scheme == "http" && Self.isLocalNetwork(host)),
+          url.scheme == "https"
+          || (allowsLocalHTTP && url.scheme == "http" && Self.isLocalNetwork(host)),
           url.query() == nil,
           url.fragment() == nil
     else {
@@ -62,14 +70,17 @@ public struct AppConfiguration: Equatable, Sendable {
     self.discordApplicationID = identifier
   }
 
-  /// Reads the values that the build wrote into an Info.plist dictionary.
+  /// Reads the values that the build wrote into a bundle's Info.plist.
   ///
-  /// - Parameter infoDictionary: The app bundle's Info.plist values.
+  /// - Parameters:
+  ///   - bundle: The app bundle.
+  ///   - allowsLocalHTTP: Whether plain HTTP to a local network host is accepted.
   /// - Throws: ``ConfigurationError`` when a value is missing or malformed.
-  public init(infoDictionary: [String: Any]) throws(ConfigurationError) {
+  public init(bundle: Bundle, allowsLocalHTTP: Bool) throws(ConfigurationError) {
     try self.init(
-      apiBaseURL: infoDictionary[Self.apiBaseURLKey] as? String,
-      discordApplicationID: infoDictionary[Self.applicationIDKey] as? String
+      apiBaseURL: bundle.object(forInfoDictionaryKey: Self.apiBaseURLKey) as? String,
+      discordApplicationID: bundle.object(forInfoDictionaryKey: Self.applicationIDKey) as? String,
+      allowsLocalHTTP: allowsLocalHTTP
     )
   }
 

@@ -179,4 +179,16 @@ struct DiscoveryTests {
     #expect(!SevenTVID.isValid("short"))
     #expect(!SevenTVID.isValid("0123456789012345678901234!"))
   }
+
+  @Test
+  func `missing tags and overlay flags default to none`() throws {
+    var item = Self.item()
+    item["tags"] = nil
+    var flags = try #require(item["flags"] as? [String: Any])
+    flags["defaultZeroWidth"] = nil
+    item["flags"] = flags
+    let emote = try #require(DiscoveryParser.page(from: Self.page([item])).emotes.first)
+    #expect(emote.tags.isEmpty)
+    #expect(!emote.isOverlay)
+  }
 }

@@ -254,6 +254,6 @@ final class ServerModel {
   ///
   /// - Parameter kind: What happened.
   private func play(_ kind: HapticEvent.Kind) {
-    haptic = HapticEvent(kind: kind, serial: (haptic?.serial ?? 0) + 1)
+    haptic = HapticEvent(kind, after: haptic)
   }
 }

@@ -24,4 +24,11 @@ struct URLSessionSocketTests {
     let catalog = Catalog(emotes: [], canManageEmotes: true, canComposeDiscovery: false)
     #expect(catalog.emotes.isEmpty && catalog.canManageEmotes && !catalog.canComposeDiscovery)
   }
+
+  @Test
+  func `frames read as text and invalid UTF-8 as nothing`() {
+    #expect(URLSessionSocket.text(of: .string("hi")) == "hi")
+    #expect(URLSessionSocket.text(of: .data(Data("hé".utf8))) == "hé")
+    #expect(URLSessionSocket.text(of: .data(Data([0x61, 0xFF]))).isEmpty)
+  }
 }

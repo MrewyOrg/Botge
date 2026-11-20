@@ -18,8 +18,29 @@ enum UITestSupport {
 
     // Each UI test starts without a saved server choice.
     UserDefaults.standard.removeObject(forKey: PreferenceKey.defaultGuildID)
+    return fixtureModel(
+      signedIn: environment["BOTGE_UI_TEST_SIGNED_OUT"] != "1",
+      transport: FixtureTransport(),
+      sockets: FixtureSockets()
+    )
+  }
+
+  /// A model that answers from fixtures and never reaches the network.
+  ///
+  /// - Parameters:
+  ///   - signedIn: Whether fixture tokens are stored, so the model restores a login.
+  ///   - transport: Answers requests.
+  ///   - sockets: Opens WebSocket connections.
+  /// - Returns: A fixture model in the ``AppModel/Phase/restoring`` phase.
+  static func fixtureModel(
+    signedIn: Bool,
+    transport: any HTTPTransport,
+    sockets: any SocketConnecting
+  )
+    -> AppModel
+  {
     let store = MemorySecretStore()
-    if environment["BOTGE_UI_TEST_SIGNED_OUT"] != "1" {
+    if signedIn {
       let tokens = OAuthTokens(
         accessToken: "fixture",
         refreshToken: "fixture",
@@ -30,10 +51,10 @@ enum UITestSupport {
     }
     return AppModel(
       configuration: Result(catching: fixtureConfiguration),
-      transport: FixtureTransport(),
+      transport: transport,
       store: store,
       urlCache: URLCache(memoryCapacity: 0, diskCapacity: 0),
-      sockets: FixtureSockets(),
+      sockets: sockets,
       snapshots: SnapshotCache(
         directory: FileManager.default.temporaryDirectory.appending(path: UUID().uuidString)
       )
@@ -47,7 +68,8 @@ enum UITestSupport {
   private static func fixtureConfiguration() throws(ConfigurationError) -> AppConfiguration {
     try AppConfiguration(
       apiBaseURL: "http://127.0.0.1:9/app/v1",
-      discordApplicationID: "100000000000000001"
+      discordApplicationID: "100000000000000001",
+      allowsLocalHTTP: true
     )
   }
 }

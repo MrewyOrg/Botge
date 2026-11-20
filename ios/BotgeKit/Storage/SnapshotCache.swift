@@ -20,9 +20,7 @@ public struct SnapshotCache: Sendable {
   ///
   /// - Returns: A cache under `Caches/Snapshots`.
   public static func standard() -> Self {
-    let caches = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first
-      ?? FileManager.default.temporaryDirectory
-    return Self(directory: caches.appending(path: "Snapshots", directoryHint: .isDirectory))
+    Self(directory: .cachesDirectory.appending(path: "Snapshots", directoryHint: .isDirectory))
   }
 
   /// Reads the snapshot stored under `key`.

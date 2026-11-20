@@ -70,4 +70,11 @@ struct ServerSwitcher: View {
       String(localized: "Your unsaved changes to \(selection.name) are discarded.")
     }
   }
+
+  /// Creates the menu.
+  ///
+  /// - Parameter selection: The server shown now.
+  init(selection: SharedGuild) {
+    self.selection = selection
+  }
 }

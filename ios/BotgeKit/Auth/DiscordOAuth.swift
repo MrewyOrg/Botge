@@ -8,10 +8,16 @@ public struct DiscordOAuth: Equatable, Sendable {
   /// The only scope Botge requests.
   public static let scope = "identify"
 
-  private static let authorizeURL: URL? = URL(string: "https://discord.com/oauth2/authorize")
-  private static let tokenURL: URL? = URL(string: "https://discord.com/api/v10/oauth2/token")
-  private static let revokeURL: URL? =
-    URL(string: "https://discord.com/api/v10/oauth2/token/revoke")
+  /// The authorization page opened in the login sheet.
+  static let authorizeURL: URL = .init(literal: "https://discord.com/oauth2/authorize")
+  /// The code exchange and refresh endpoint.
+  static let tokenURL: URL = .init(literal: "https://discord.com/api/v10/oauth2/token")
+  /// The token revocation endpoint.
+  static let revokeURL: URL = .init(literal: "https://discord.com/api/v10/oauth2/token/revoke")
+  /// RFC 3986 unreserved characters, the only ones a form body leaves unescaped.
+  private static let unreserved: CharacterSet = .init(
+    charactersIn: "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~"
+  )
 
   /// The Discord application (client) ID.
   public let applicationID: String
@@ -40,8 +46,7 @@ public struct DiscordOAuth: Equatable, Sendable {
   ///   - state: A random value the callback must echo.
   /// - Returns: The URL to open in the login sheet.
   public func authorizationURL(pkce: PKCE, state: String) -> URL {
-    var components = URLComponents()
-    components.queryItems = [
+    Self.authorizeURL.appending(queryItems: [
       URLQueryItem(name: "response_type", value: "code"),
       URLQueryItem(name: "client_id", value: applicationID),
       URLQueryItem(name: "scope", value: Self.scope),
@@ -49,9 +54,7 @@ public struct DiscordOAuth: Equatable, Sendable {
       URLQueryItem(name: "code_challenge", value: pkce.challenge),
       URLQueryItem(name: "code_challenge_method", value: "S256"),
       URLQueryItem(name: "state", value: state)
-    ]
-    let base = Self.authorizeURL ?? URL(filePath: "/")
-    return base.appending(queryItems: components.queryItems ?? [])
+    ])
   }
 
   /// Extracts the authorization code from Discord's redirect.
@@ -172,12 +175,31 @@ public struct DiscordOAuth: Equatable, Sendable {
     )
   }
 
-  private func formRequest(_ url: URL?, _ fields: [(String, String)]) -> URLRequest {
-    var request = URLRequest(url: url ?? URL(filePath: "/"))
+  private func formRequest(_ url: URL, _ fields: [(String, String)]) -> URLRequest {
+    var request = URLRequest(url: url)
     request.httpMethod = "POST"
     request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
     request.setValue("application/json", forHTTPHeaderField: "Accept")
-    request.httpBody = Data(FormEncoding.encode(fields).utf8)
+    request.httpBody = Data(Self.formBody(fields).utf8)
     return request
+  }
+
+  /// Encodes ordered fields as an `application/x-www-form-urlencoded` body.
+  ///
+  /// - Parameter fields: Names and values, in order.
+  /// - Returns: `name=value` pairs joined by `&`, with everything but unreserved characters
+  ///   percent-encoded.
+  static func formBody(_ fields: [(String, String)]) -> String {
+    fields
+      .map { name, value in "\(escape(name))=\(escape(value))" }
+      .joined(separator: "&")
+  }
+
+  /// Percent-encodes everything except unreserved characters.
+  ///
+  /// - Parameter text: A field name or value.
+  /// - Returns: The encoded text; text Foundation cannot encode is sent unchanged.
+  private static func escape(_ text: String) -> String {
+    text.addingPercentEncoding(withAllowedCharacters: unreserved) ?? text
   }
 }

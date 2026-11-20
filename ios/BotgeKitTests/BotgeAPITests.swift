@@ -3,24 +3,16 @@ import Foundation
 import Testing
 
 struct BotgeAPITests {
-  private static let base: URL? = URL(string: "https://botge.example.com/botge-api/app/v1")
-  private static let oauth: DiscordOAuth = .init(applicationID: "123456789012345678")
   private static let guildList = StubTransport.Reply.response(
     status: 200,
     body: Data(#"{"guilds":[{"id":"1","name":"Botge","icon":null,"administrator":true}]}"#.utf8)
   )
 
+  /// A client holding an access token and a refresh token, so renewals can be tested.
+  ///
+  /// - Throws: An encoding or Keychain error when the tokens cannot be stored.
   private static func signedIn(_ transport: StubTransport) throws -> BotgeAPI {
-    let store = MemorySecretStore()
-    let tokens = OAuthTokens(
-      accessToken: "first",
-      refreshToken: "refresh",
-      expiresAt: .distantFuture,
-      scope: "identify"
-    )
-    try store.write(JSONEncoder().encode(tokens), for: AuthSession.tokenKey)
-    let session = AuthSession(oauth: oauth, transport: transport, store: store)
-    return try BotgeAPI(baseURL: #require(base), session: session, transport: transport)
+    try TestAPI.signedIn(transport, accessToken: "first", refreshToken: "refresh")
   }
 
   @Test
@@ -116,11 +108,30 @@ struct BotgeAPITests {
   @Test
   func `signed-out sessions do not send requests`() async throws {
     let transport = StubTransport([])
-    let session = AuthSession(oauth: Self.oauth, transport: transport, store: MemorySecretStore())
-    let api = try BotgeAPI(baseURL: #require(Self.base), session: session, transport: transport)
+    let session = AuthSession(
+      oauth: TestAPI.oauth,
+      transport: transport,
+      store: MemorySecretStore()
+    )
+    let api = BotgeAPI(baseURL: TestAPI.baseURL, session: session, transport: transport)
     await #expect(throws: APIError.signedOut) {
       try await api.guilds()
     }
     #expect(transport.requests.isEmpty)
+  }
+
+  @Test
+  func `answers without HTTP metadata are malformed`() async throws {
+    await #expect(throws: APIError.malformedResponse) {
+      try await Self.signedIn(StubTransport([.plain])).guilds()
+    }
+  }
+
+  @Test
+  func `error statuses without an explanation keep an empty message`() async throws {
+    let transport = StubTransport([.response(status: 404, body: Data())])
+    await #expect(throws: APIError.notFound("")) {
+      try await Self.signedIn(transport).guilds()
+    }
   }
 }

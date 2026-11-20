@@ -3,22 +3,6 @@ import Foundation
 import Testing
 
 struct ServerSettingsAPITests {
-  private static let base: URL? = URL(string: "https://botge.example.com/botge-api/app/v1")
-
-  private static func api(_ transport: StubTransport) throws -> BotgeAPI {
-    let store = MemorySecretStore()
-    let tokens = OAuthTokens(
-      accessToken: "t",
-      refreshToken: nil,
-      expiresAt: .distantFuture,
-      scope: "identify"
-    )
-    try store.write(JSONEncoder().encode(tokens), for: AuthSession.tokenKey)
-    let oauth = DiscordOAuth(applicationID: "123456789012345678")
-    let session = AuthSession(oauth: oauth, transport: transport, store: store)
-    return try BotgeAPI(baseURL: #require(base), session: session, transport: transport)
-  }
-
   private static func body(_ request: URLRequest) throws -> [String: Any] {
     let data = try #require(request.httpBody)
     return try #require(JSONSerialization.jsonObject(with: data) as? [String: Any])
@@ -33,7 +17,7 @@ struct ServerSettingsAPITests {
     let voice = #"{"voice":{"channelId":"5","statusEnabled":true,"statusEmoji":"🌴"},"#
       + #""channels":[{"id":"5","name":"Lounge"}]}"#
     let transport = StubTransport([Self.reply(voice), Self.reply(voice)])
-    let api = try Self.api(transport)
+    let api = try TestAPI.signedIn(transport)
     let loaded = try await api.voiceOptions(guild: "1")
     #expect(loaded.settings.status == "🌴")
     #expect(loaded.channels == [VoiceChannel(id: "5", name: "Lounge")])
@@ -56,7 +40,7 @@ struct ServerSettingsAPITests {
     let policy = #"{"sevenTvSet":null,"bttvTwitchId":null,"ffzChannel":"chan","#
       + #""allowEveryone":false,"allowedRoles":["7"],"roles":[{"id":"7","name":"Mods"}]}"#
     let transport = StubTransport([Self.reply(policy), Self.reply(policy)])
-    let api = try Self.api(transport)
+    let api = try TestAPI.signedIn(transport)
     let loaded = try await api.emotePolicy(guild: "1")
     #expect(loaded.policy.allowedRoleIDs == ["7"])
 
@@ -84,7 +68,7 @@ struct ServerSettingsAPITests {
       StubTransport.json(200, ["color": "nope"]),
       StubTransport.json(403, ["message": "Not a member."])
     ])
-    let api = try Self.api(transport)
+    let api = try TestAPI.signedIn(transport)
     #expect(try await api.borderColor(guild: "1") == BorderColor(hex: "00FF7F"))
     let color = BorderColor(red: 16, green: 32, blue: 48)
     #expect(try await api.saveBorderColor(color, guild: "1") == color)

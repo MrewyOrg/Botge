@@ -4,27 +4,6 @@ import Synchronization
 import Testing
 
 struct CatalogWatchTests {
-  private static func api(_ transport: StubTransport) throws -> BotgeAPI {
-    let store = MemorySecretStore()
-    let tokens = OAuthTokens(
-      accessToken: "t",
-      refreshToken: nil,
-      expiresAt: .distantFuture,
-      scope: "identify"
-    )
-    try store.write(JSONEncoder().encode(tokens), for: AuthSession.tokenKey)
-    let session = AuthSession(
-      oauth: DiscordOAuth(applicationID: "123456789012345678"),
-      transport: transport,
-      store: store
-    )
-    return try BotgeAPI(
-      baseURL: #require(URL(string: "https://botge.example.com/app/v1")),
-      session: session,
-      transport: transport
-    )
-  }
-
   /// A pause that records each delay and stops the watch after `limit` pauses.
   private static func pauses(limit: Int) -> (CatalogWatch.Pause, @Sendable () -> [Duration]) {
     let recorded = Mutex<[Duration]>([])
@@ -53,14 +32,19 @@ struct CatalogWatchTests {
     let connector = ScriptedConnector([first, refused])
     let (pause, delays) = Self.pauses(limit: 3)
     let changes = Mutex(0)
-    let watch = try CatalogWatch(api: Self.api(transport), connector: connector, pause: pause)
+    let watch = try CatalogWatch(
+      api: TestAPI.signedIn(transport),
+      connector: connector,
+      pause: pause
+    )
     try await watch.run(guild: "1") {
       changes.withLock { $0 += 1 }
     }
     #expect(changes.withLock { $0 } == 2)
     #expect(first.sent == [#"{"type":"watch","ticket":"abc"}"#])
     #expect(first.isClosed && refused.isClosed)
-    #expect(connector.urls.first?.absoluteString == "wss://botge.example.com/app/v1/catalog/ws")
+    #expect(connector.urls.first?
+      .absoluteString == "wss://botge.example.com/botge-api/app/v1/catalog/ws")
     #expect(delays() == [.seconds(1), .seconds(2), .seconds(4)])
   }
 
@@ -69,7 +53,7 @@ struct CatalogWatchTests {
     let transport = StubTransport(Array(repeating: .failure(.timedOut), count: 8))
     let (pause, delays) = Self.pauses(limit: 7)
     let watch = try CatalogWatch(
-      api: Self.api(transport),
+      api: TestAPI.signedIn(transport),
       connector: ScriptedConnector([]),
       pause: pause
     )
@@ -84,7 +68,7 @@ struct CatalogWatchTests {
     let transport = StubTransport([StubTransport.json(401, ["message": "no"])])
     let (pause, _) = Self.pauses(limit: 1)
     let watch = try CatalogWatch(
-      api: Self.api(transport),
+      api: TestAPI.signedIn(transport),
       connector: ScriptedConnector([]),
       pause: pause
     )
@@ -104,5 +88,46 @@ struct CatalogWatchTests {
     await #expect(throws: CancellationError.self) {
       try await task.value
     }
+  }
+
+  @Test
+  func `cancelling a watch closes its connection`() async throws {
+    let transport = StubTransport([StubTransport.json(200, ["ticket": "abc"])])
+    let socket = HangingSocket()
+    let watch = try CatalogWatch(
+      api: TestAPI.signedIn(transport),
+      connector: ScriptedConnector([socket])
+    )
+    let task = Task {
+      try await watch.run(guild: "1") {
+        // No change arrives.
+      }
+    }
+    await socket.waitForSend()
+    task.cancel()
+    _ = try? await task.value
+    #expect(socket.isClosed)
+  }
+
+  @Test
+  func `the default pause returns after a short wait`() async throws {
+    try await CatalogWatch.sleep(.milliseconds(1))
+  }
+
+  @Test
+  func `a watch cancelled during its pause stops`() async throws {
+    let transport = StubTransport([.failure(.timedOut)])
+    let pause: CatalogWatch.Pause = { _ in
+      withUnsafeCurrentTask { $0?.cancel() }
+    }
+    let watch = try CatalogWatch(
+      api: TestAPI.signedIn(transport),
+      connector: ScriptedConnector([]),
+      pause: pause
+    )
+    try await watch.run(guild: "1") {
+      // No connection succeeds.
+    }
+    #expect(transport.requests.count == 1)
   }
 }

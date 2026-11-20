@@ -33,6 +33,7 @@
   "scripts": {
     "check": "npm run check:static && npm test -- --run",
     "check:ios": "sh scripts/check-ios.sh static",
+    "check:ios:analyze": "sh scripts/check-ios.sh analyze",
     "check:static": "npm run typecheck && npm run eslint && npm run stylelint && npm run knip",
     "cspell": "cspell . --verbose",
     "eslint": "eslint \"**/*.ts\" \"activity/*.html\" --flag unstable_native_nodejs_ts_config --concurrency=auto",

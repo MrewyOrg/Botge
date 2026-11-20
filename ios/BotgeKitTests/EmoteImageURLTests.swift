@@ -48,4 +48,10 @@ struct EmoteImageURLTests {
     let data = try JSONEncoder().encode(EmoteSource.allCases)
     #expect(String(bytes: data, encoding: .utf8) == #"["BTTV","FFZ","7TV","Twitch"]"#)
   }
+
+  @Test
+  func `paths without a file name have an unknown format`() {
+    #expect(ImageFormat(path: "") == .unknown)
+    #expect(ImageFormat(path: "/") == .unknown)
+  }
 }

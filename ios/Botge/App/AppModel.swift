@@ -17,6 +17,15 @@ final class AppModel {
     case signedIn
   }
 
+  #if DEBUG
+  /// Whether the API may use plain HTTP to a local network host: yes in development builds.
+  static let allowsLocalHTTP = true
+  #else
+  /// Whether the API may use plain HTTP to a local network host: never in release builds,
+  /// since requests carry the user's Discord token.
+  static let allowsLocalHTTP = false
+  #endif
+
   /// The current step of the sign-in flow.
   private(set) var phase: Phase
   /// The last login failure to show, cleared when a new attempt starts.
@@ -113,17 +122,34 @@ final class AppModel {
     sessionConfiguration.requestCachePolicy = .useProtocolCachePolicy
     sessionConfiguration.waitsForConnectivity = false
     let result = Result { () throws(ConfigurationError) in
-      try AppConfiguration(infoDictionary: Bundle.main.infoDictionary ?? [:])
+      try AppConfiguration(bundle: .main, allowsLocalHTTP: allowsLocalHTTP)
     }
     let urlSession = URLSession(configuration: sessionConfiguration)
     return AppModel(
       configuration: result,
       transport: urlSession,
-      store: KeychainStore(service: Bundle.main.bundleIdentifier ?? "Botge"),
+      store: KeychainStore(service: keychainService(in: .main)),
       urlCache: cache,
       sockets: urlSession,
       snapshots: .standard()
     )
+  }
+
+  /// The Keychain service that holds the Discord tokens: the bundle identifier.
+  ///
+  /// - Parameter bundle: The app bundle.
+  /// - Returns: The bundle identifier, or `Botge` for a bundle without one.
+  static func keychainService(in bundle: Bundle) -> String {
+    bundle.bundleIdentifier ?? "Botge"
+  }
+
+  /// The model for App Intents' dependency manager, with the saved login restored first, so
+  /// an intent that launches the app sees the signed-in state.
+  ///
+  /// - Returns: This model.
+  func intentDependency() async -> AppModel {
+    await restore()
+    return self
   }
 
   /// Restores a saved session at launch.
@@ -206,6 +232,31 @@ final class AppModel {
   /// - Returns: The client.
   func makeGameClient() -> GameClient? {
     api.map { GameClient(api: $0, connector: sockets) }
+  }
+
+  /// Opens the tab an app link for this build names, such as the Live Activity's Guess link.
+  ///
+  /// - Parameter url: The opened URL.
+  func openAppLink(_ url: URL) {
+    open(url, scheme: AppLink.scheme(in: .main))
+  }
+
+  /// Opens the tab an app link names; links for another scheme or an unknown tab do nothing.
+  ///
+  /// - Parameters:
+  ///   - url: The opened URL, such as the Live Activity's Guess link.
+  ///   - scheme: This build's URL scheme.
+  func open(_ url: URL, scheme: String) {
+    switch AppLink(url: url, scheme: scheme) {
+    case .emotes:
+      selectedTab = .emotes
+
+    case .guess:
+      selectedTab = .guess
+
+    case nil:
+      break
+    }
   }
 
   /// Opens the Emotes tab and searches the selected server's emotes, for App Intents.

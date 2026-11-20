@@ -36,6 +36,10 @@ final class EmotesModel {
   private var filters: [EmotesSource: EmoteFilter] = [:]
   /// The emote at the top of each source's grid, to restore its scroll position.
   private var scrollAnchors: [EmotesSource: String] = [:]
+  /// The reload that change notices started, while it runs.
+  private var reload: Task<Void, Never>?
+  /// Whether a change notice arrived since the running reload started.
+  private var isReloadPending = false
 
   /// The app-wide model, for the API, 7TV and sign-out.
   let app: AppModel
@@ -102,7 +106,7 @@ final class EmotesModel {
   ///
   /// - Parameter kind: What happened.
   func play(_ kind: HapticEvent.Kind) {
-    haptic = HapticEvent(kind: kind, serial: (haptic?.serial ?? 0) + 1)
+    haptic = HapticEvent(kind, after: haptic)
   }
 
   /// Whether `emote` can be removed: the member manages emotes and the server added it.
@@ -151,6 +155,9 @@ final class EmotesModel {
   }
 
   /// Reloads the catalog whenever the server reports a change, until the task is cancelled.
+  ///
+  /// Notices that arrive while a reload runs are combined into one more reload, so a batch of
+  /// changes costs at most two catalog requests.
   func watch() async {
     guard let watch = app.makeCatalogWatch() else {
       return
@@ -158,10 +165,27 @@ final class EmotesModel {
 
     do {
       try await watch.run(guild: guild.id) { [weak self] in
-        await self?.load()
+        await self?.catalogChanged()
       }
     } catch {
       await app.signOut()
+    }
+    reload?.cancel()
+  }
+
+  /// Starts a reload for a change notice, or marks one pending while a reload runs.
+  func catalogChanged() {
+    isReloadPending = true
+    guard reload == nil else {
+      return
+    }
+
+    reload = Task { [weak self] in
+      while let self, isReloadPending, !Task.isCancelled {
+        isReloadPending = false
+        await load()
+      }
+      self?.reload = nil
     }
   }
 
@@ -183,6 +207,13 @@ final class EmotesModel {
       notice = error.message
       play(.failure)
     }
+  }
+
+  /// Asks the user to confirm removing `emote` from the server.
+  ///
+  /// - Parameter emote: An emote for which ``canRemove(_:)`` is true.
+  func requestRemoval(of emote: CatalogEmote) {
+    pendingRemoval = .single(emote)
   }
 
   /// Carries out a confirmed removal.

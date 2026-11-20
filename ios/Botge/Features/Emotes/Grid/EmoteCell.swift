@@ -24,9 +24,7 @@ struct EmoteCell: View {
     }
     .buttonStyle(.plain)
     .contextMenu {
-      EmoteActions(emote: emote, model: model) {
-        model.pendingRemoval = .single(emote)
-      }
+      EmoteActions(emote: emote, model: model, requestRemoval: model.requestRemoval(of:))
     }
   }
 }

@@ -5,15 +5,12 @@ import Observation
 /// One server's Guess room: the connection, the room state, the round image and the guess.
 ///
 /// The tab view runs ``play()`` for each ``taskID``, so a match keeps going on other tabs. After a
-/// dropped connection it joins again after 1, 2
-/// and 4 seconds, like the Activity, then offers to try again.
+/// dropped connection it joins again after 1, 2 and 4 seconds, like the Activity, then offers to
+/// try again.
 @Observable
 final class GuessModel {
   /// Automatic reconnects before the tab offers to try again.
   private static let reconnectAttempts = 3
-  /// Waits before each automatic reconnect: 1, 2 and 4 seconds.
-  private static let reconnectDelays: [Duration] = (0 ..< reconnectAttempts)
-    .map { .seconds(1 << $0) }
 
   /// The server shown.
   let guild: SharedGuild
@@ -53,6 +50,8 @@ final class GuessModel {
   private var imageToken: String?
   /// Shows the match on the Lock Screen and in the Dynamic Island.
   private let liveActivity: GuessActivityController = .init()
+  /// Waits before each automatic reconnect, doubling each time.
+  private let reconnectDelays: [Duration]
 
   /// Identifies one run of ``play()``: a new room or a retry restarts it.
   var taskID: String {
@@ -69,9 +68,21 @@ final class GuessModel {
   /// - Parameters:
   ///   - guild: The server to play in.
   ///   - app: The app-wide model.
-  init(guild: SharedGuild, app: AppModel) {
+  convenience init(guild: SharedGuild, app: AppModel) {
+    self.init(guild: guild, app: app, firstReconnectDelay: .seconds(1))
+  }
+
+  /// Creates a model whose automatic reconnects wait `firstReconnectDelay`, then twice and four
+  /// times as long.
+  ///
+  /// - Parameters:
+  ///   - guild: The server to play in.
+  ///   - app: The app-wide model.
+  ///   - firstReconnectDelay: The wait before the first reconnect.
+  init(guild: SharedGuild, app: AppModel, firstReconnectDelay: Duration) {
     self.guild = guild
     self.app = app
+    reconnectDelays = (0 ..< Self.reconnectAttempts).map { firstReconnectDelay * (1 << $0) }
   }
 
   deinit {
@@ -150,13 +161,13 @@ final class GuessModel {
         if case .failed = connection {
           break
         }
-        guard failures < Self.reconnectDelays.count else {
+        guard failures < reconnectDelays.count else {
           connection = .failed(error.message)
           break
         }
 
         connection = .reconnecting
-        try? await Task.sleep(for: Self.reconnectDelays[failures])
+        try? await Task.sleep(for: reconnectDelays[failures])
         failures += 1
       }
     }
@@ -258,6 +269,6 @@ final class GuessModel {
   ///
   /// - Parameter kind: What happened.
   private func play(_ kind: HapticEvent.Kind) {
-    haptic = HapticEvent(kind: kind, serial: (haptic?.serial ?? 0) + 1)
+    haptic = HapticEvent(kind, after: haptic)
   }
 }

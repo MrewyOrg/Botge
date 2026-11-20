@@ -7,6 +7,7 @@ struct ServerSettingsTests {
   func `voice status is trimmed, blank text is dropped and long text is rejected`() {
     #expect(VoiceSettings(status: "  🌴 ").normalized.status == "🌴")
     #expect(VoiceSettings(status: "   ").normalized.status == nil)
+    #expect(VoiceSettings(status: nil).normalized.status == nil)
     #expect(VoiceSettings(status: "   ").isStatusValid)
     #expect(VoiceSettings(status: String(repeating: "a", count: 128)).isStatusValid)
     #expect(!VoiceSettings(status: String(repeating: "a", count: 129)).isStatusValid)

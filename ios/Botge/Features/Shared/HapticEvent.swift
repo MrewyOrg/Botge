@@ -40,4 +40,15 @@ struct HapticEvent: Equatable {
       .warning
     }
   }
+
+  /// Creates the event after `previous`, with the next serial so it plays even when the kind
+  /// repeats.
+  ///
+  /// - Parameters:
+  ///   - kind: What happened.
+  ///   - previous: The last event, or `nil` for the first.
+  init(_ kind: Kind, after previous: Self?) {
+    self.kind = kind
+    serial = (previous?.serial ?? 0) + 1
+  }
 }

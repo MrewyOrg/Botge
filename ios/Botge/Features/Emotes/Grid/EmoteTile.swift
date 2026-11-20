@@ -12,14 +12,19 @@ struct EmoteTile: View {
   /// The emote shown.
   let emote: CatalogEmote
   /// Whether the emote is selected for a batch action.
-  var isSelected = false
+  let isSelected: Bool
   /// Whether a tap selects the emote instead of previewing it.
-  var isSelecting = false
+  let isSelecting: Bool
 
   var body: some View {
     VStack(spacing: Self.labelSpacing) {
-      EmoteImageView(path: emote.image, isAnimated: emote.isAnimated)
-        .frame(width: imageSize, height: imageSize)
+      EmoteImageView(
+        path: emote.image,
+        isAnimated: emote.isAnimated,
+        fallbackPath: nil,
+        priority: .utility
+      )
+      .frame(width: imageSize, height: imageSize)
       Text(emote.name)
         .font(.caption)
         .lineLimit(1)
@@ -39,5 +44,17 @@ struct EmoteTile: View {
     .accessibilityHint(isSelecting ? "Selects or deselects the emote" : "Shows the emote preview")
     .accessibilityAddTraits(isSelected ? .isSelected : [])
     .accessibilityIdentifier("emote.\(emote.name)")
+  }
+
+  /// Creates a tile.
+  ///
+  /// - Parameters:
+  ///   - emote: The emote shown.
+  ///   - isSelected: Whether the emote is selected for a batch action.
+  ///   - isSelecting: Whether a tap selects the emote instead of previewing it.
+  init(emote: CatalogEmote, isSelected: Bool, isSelecting: Bool) {
+    self.emote = emote
+    self.isSelected = isSelected
+    self.isSelecting = isSelecting
   }
 }

@@ -113,4 +113,34 @@ struct DiscordOAuthTests {
       try DiscordOAuth.tokens(from: mac, response: response(200), now: now)
     }
   }
+
+  @Test
+  func `callbacks without a query do not match the state`() throws {
+    let bare = try #require(URL(string: "discord-123456789012345678:/authorize/callback"))
+    #expect(throws: LoginFailure.stateMismatch) {
+      try oauth.authorizationCode(from: bare, expectedState: "abc")
+    }
+  }
+
+  @Test
+  func `the Discord and 7TV endpoints are fixed HTTPS URLs`() {
+    let urls = [DiscordOAuth.authorizeURL, DiscordOAuth.tokenURL, DiscordOAuth.revokeURL]
+    #expect(urls.map(\.absoluteString) == [
+      "https://discord.com/oauth2/authorize",
+      "https://discord.com/api/v10/oauth2/token",
+      "https://discord.com/api/v10/oauth2/token/revoke"
+    ])
+    #expect(SevenTVDiscovery.endpoint.absoluteString == "https://7tv.io/v4/gql")
+  }
+
+  @Test
+  func `invalid URL literals fall back to the root file URL`() {
+    #expect(URL(literal: "") == URL(filePath: "/"))
+  }
+
+  @Test
+  func `form fields percent-encode every reserved and non-ASCII byte`() {
+    #expect(DiscordOAuth.formBody([("a b", "x/y?é~"), ("k", "-._")])
+      == "a%20b=x%2Fy%3F%C3%A9~&k=-._")
+  }
 }

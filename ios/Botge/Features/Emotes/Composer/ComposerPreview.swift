@@ -22,6 +22,7 @@ struct ComposerPreview: View {
                 EmoteImageView(
                   path: layer.image,
                   isAnimated: layer.isAnimated,
+                  fallbackPath: nil,
                   priority: .userInitiated
                 )
               }

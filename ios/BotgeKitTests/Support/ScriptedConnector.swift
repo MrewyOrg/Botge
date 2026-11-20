@@ -2,15 +2,15 @@
 import Foundation
 import Synchronization
 
-/// Hands out scripted sockets in order and records the URLs connected to.
+/// Hands out sockets in order and records the URLs connected to.
 final class ScriptedConnector: SocketConnecting {
-  private let state: Mutex<(sockets: [ScriptedSocket], urls: [URL])>
+  private let state: Mutex<(sockets: [any MessageSocket], urls: [URL])>
 
   var urls: [URL] {
     state.withLock { $0.urls }
   }
 
-  init(_ sockets: [ScriptedSocket]) {
+  init(_ sockets: [any MessageSocket]) {
     state = Mutex((sockets, []))
   }
 

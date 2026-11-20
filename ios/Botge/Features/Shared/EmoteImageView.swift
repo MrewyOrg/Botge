@@ -25,9 +25,9 @@ struct EmoteImageView: View {
   /// Whether the provider advertises an animation.
   let isAnimated: Bool
   /// An image path to show until ``path`` is ready, such as the smaller grid image.
-  var fallbackPath: String?
+  let fallbackPath: String?
   /// How urgently to load: grid tiles load in the background, a preview the user opened first.
-  var priority: TaskPriority = .utility
+  let priority: TaskPriority
 
   var body: some View {
     let animates = isAnimated && playback.animates(reduceMotion: reduceMotion)
@@ -43,6 +43,20 @@ struct EmoteImageView: View {
     .task(id: "\(path)|\(animates)", priority: priority) {
       await load(animated: animates)
     }
+  }
+
+  /// Creates an image view.
+  ///
+  /// - Parameters:
+  ///   - path: The catalog image path.
+  ///   - isAnimated: Whether the provider advertises an animation.
+  ///   - fallbackPath: An image path to show until `path` is ready, or `nil`.
+  ///   - priority: How urgently to load.
+  init(path: String, isAnimated: Bool, fallbackPath: String?, priority: TaskPriority) {
+    self.path = path
+    self.isAnimated = isAnimated
+    self.fallbackPath = fallbackPath
+    self.priority = priority
   }
 
   /// The image to show now: the loaded one, else ``path`` or the fallback from memory.

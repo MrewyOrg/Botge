@@ -49,6 +49,10 @@ packages:
   SwiftLintPlugins:
     url: https://github.com/SimplyDanny/SwiftLintPlugins
     exactVersion: 0.65.1
+  # Test-only: drives SwiftUI views in app unit tests.
+  ViewInspector:
+    url: https://github.com/nalexn/ViewInspector
+    exactVersion: 0.10.5
 
 targets:
   BotgeKit:
@@ -74,6 +78,8 @@ targets:
     platform: iOS
     sources:
       - Botge
+      # Compiled here too, so app tests render the Live Activity views.
+      - path: BotgeLiveActivity/GuessActivityViews.swift
       - path: ../docs/TERMS.md
         buildPhase: resources
       - path: ../docs/PRIVACY.md
@@ -149,6 +155,22 @@ targets:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: $(BOTGE_BUNDLE_PREFIX).kit-tests
         GENERATE_INFOPLIST_FILE: true
+
+  BotgeTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources:
+      - BotgeTests
+    dependencies:
+      - target: Botge
+      - package: ViewInspector
+      - sdk: WidgetKit.framework
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: $(BOTGE_BUNDLE_PREFIX).app-tests
+        GENERATE_INFOPLIST_FILE: true
+        SWIFT_DEFAULT_ACTOR_ISOLATION: MainActor
+        SWIFT_APPROACHABLE_CONCURRENCY: true
 
   BotgeUITests:
     type: bundle.ui-testing
