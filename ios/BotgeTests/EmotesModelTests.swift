@@ -50,7 +50,7 @@ struct EmotesModelTests {
     await model.watch()
     await model.remove(Fixtures.added)
     await model.add(Fixtures.discovered)
-    #expect(model.catalog == nil && model.notice == nil)
+    #expect(model.catalog == nil && model.actionFailure == nil)
   }
 
   @Test
@@ -65,10 +65,10 @@ struct EmotesModelTests {
     #expect(model.canRemove(Fixtures.added))
     #expect(!model.canRemove(Fixtures.discovered))
     await model.confirm(.single(Fixtures.added))
-    #expect(model.notice == "Removed.")
+    #expect(model.actionFailure == nil)
     #expect(model.haptic?.kind == .success)
     await model.remove(Fixtures.added)
-    #expect(model.notice == "Not a manager.")
+    #expect(model.actionFailure == "Not a manager.")
     #expect(model.haptic?.kind == .failure)
     await model.remove(Fixtures.added)
     #expect(model.app.phase == .signedOut)
@@ -86,9 +86,9 @@ struct EmotesModelTests {
     #expect(model.canAdd(Fixtures.discovered))
     #expect(!model.canAdd(Fixtures.added))
     await model.add(Fixtures.discovered)
-    #expect(model.notice == "Added.")
+    #expect(model.actionFailure == nil && model.haptic?.kind == .success)
     await model.add(Fixtures.discovered)
-    #expect(model.haptic?.kind == .failure)
+    #expect(model.haptic?.kind == .failure && model.actionFailure != nil)
     await model.add(Fixtures.discovered)
     #expect(model.app.phase == .signedOut)
   }
@@ -100,16 +100,12 @@ struct EmotesModelTests {
     #expect(model.haptic?.kind == .impact)
     #expect(!model.compose(Fixtures.discovered))
     #expect(model.haptic?.kind == .failure)
-    #expect(model.notice?.contains("catJAM") == true)
+    #expect(model.composition.layers.count == 1)
   }
 
   @Test
-  func `scroll anchors and filters are kept per source`() async {
+  func `filters are kept per source`() async {
     let model = await Self.loaded()
-    model.setScrollAnchor("a", for: .server)
-    model.setScrollAnchor(nil, for: .server)
-    #expect(model.scrollAnchor(for: .server) == "a")
-    #expect(model.scrollAnchor(for: .discovery(.top)) == nil)
     model.filter.query = "pee"
     #expect(model.visibleEmotes.map(\.name) == ["peepoHey"])
     model.source = .discovery(.top)

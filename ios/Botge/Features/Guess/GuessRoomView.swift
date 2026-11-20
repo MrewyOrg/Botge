@@ -16,14 +16,7 @@ struct GuessRoomView: View {
       .navigationBarTitleDisplayMode(.inline)
       .toolbar {
         ToolbarItem(placement: .cancellationAction) {
-          Button("Leave") {
-            if model.state?.phase.isPlaying == true {
-              isConfirmingLeave = true
-            } else {
-              model.leave()
-            }
-          }
-          .accessibilityIdentifier("guess.leave")
+          leaveButton
         }
         ToolbarItem(placement: .principal) {
           Text("Room \(room.code)")
@@ -41,13 +34,25 @@ struct GuessRoomView: View {
           }
         }
       }
-      .confirmationDialog("Leave the match?", isPresented: $isConfirmingLeave) {
-        Button("Leave Match", role: .destructive) {
-          model.leave()
-        }
-      } message: {
-        Text("Your score stays in this match, but you can't keep playing it.")
+  }
+
+  /// Leaves the room, asking first while a match is being played.
+  private var leaveButton: some View {
+    Button("Leave") {
+      if model.state?.phase.isPlaying == true {
+        isConfirmingLeave = true
+      } else {
+        model.leave()
       }
+    }
+    .accessibilityIdentifier("guess.leave")
+    .confirmationDialog("Leave the match?", isPresented: $isConfirmingLeave) {
+      Button("Leave Match", role: .destructive) {
+        model.leave()
+      }
+    } message: {
+      Text("Your score stays in this match, but you can't keep playing it.")
+    }
   }
 
   /// The room, or the joining or failure state.

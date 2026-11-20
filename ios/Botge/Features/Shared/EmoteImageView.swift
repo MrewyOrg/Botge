@@ -13,14 +13,12 @@ struct EmoteImageView: View {
 
   /// Provides the shared image loader.
   @Environment(AppModel.self) private var model
-  /// Whether the system asks to reduce motion.
-  @Environment(\.accessibilityReduceMotion) private var reduceMotion
-  /// When animated emotes play.
-  @AppStorage(PreferenceKey.emotePlayback) private var playback: EmotePlayback = .followReduceMotion
+  /// Whether the system Auto-Play Animated Images setting is on.
+  @Environment(\.accessibilityPlayAnimatedImages) private var playsAnimatedImages
   /// The decoded image once loaded.
   @State private var image: EmoteImage?
 
-  /// The catalog image path.
+  /// The image path to load, in the format ``EmoteImageURL/loadPath(for:isAnimated:)`` picks.
   let path: String
   /// Whether the provider advertises an animation.
   let isAnimated: Bool
@@ -30,7 +28,7 @@ struct EmoteImageView: View {
   let priority: TaskPriority
 
   var body: some View {
-    let animates = isAnimated && playback.animates(reduceMotion: reduceMotion)
+    let animates = isAnimated && playsAnimatedImages
     Group {
       if let shown = shown(animated: animates) {
         AnimatedEmoteView(image: shown, animates: animates)
@@ -53,9 +51,9 @@ struct EmoteImageView: View {
   ///   - fallbackPath: An image path to show until `path` is ready, or `nil`.
   ///   - priority: How urgently to load.
   init(path: String, isAnimated: Bool, fallbackPath: String?, priority: TaskPriority) {
-    self.path = path
+    self.path = EmoteImageURL.loadPath(for: path, isAnimated: isAnimated)
     self.isAnimated = isAnimated
-    self.fallbackPath = fallbackPath
+    self.fallbackPath = fallbackPath.map { EmoteImageURL.loadPath(for: $0, isAnimated: isAnimated) }
     self.priority = priority
   }
 

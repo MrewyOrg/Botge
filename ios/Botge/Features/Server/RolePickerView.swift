@@ -29,6 +29,11 @@ struct RolePickerView: View {
             }
             .contentShape(.rect)
           }
+          // At the limit, unchosen roles are dimmed until one is removed.
+          .disabled(
+            !model.policyDraft.allowedRoleIDs.contains(role.id)
+              && model.policyDraft.allowedRoleIDs.count >= EmotePolicy.maxRoles
+          )
           .accessibilityAddTraits(
             model.policyDraft.allowedRoleIDs.contains(role.id) ? .isSelected : []
           )

@@ -7,7 +7,8 @@ import ViewInspector
 struct LiveActivityViewTests {
   private static let attributes: GuessActivityAttributes = .init(
     serverName: "Fixture Server",
-    rounds: 5
+    rounds: 5,
+    isPrivate: false
   )
   private static let state = GuessActivityAttributes.ContentState(
     round: 2,
@@ -22,6 +23,16 @@ struct LiveActivityViewTests {
     #expect(throws: Never.self) { try banner.inspect().find(text: "Round 2 of 5") }
     #expect(throws: Never.self) { try banner.inspect().find(text: "7 pts · #1") }
     await Hosting.show(banner, model: Fixtures.misconfigured())
+  }
+
+  @Test
+  func `with App Lock on the activity hides the server and score`() throws {
+    let locked = GuessActivityAttributes(serverName: "Fixture Server", rounds: 5, isPrivate: true)
+    #expect(locked.serverName.isEmpty)
+    let banner = GuessActivityViews.lockScreen(attributes: locked, state: Self.state)
+    #expect(throws: Never.self) { try banner.inspect().find(text: "Guess") }
+    #expect(throws: (any Error).self) { try banner.inspect().find(text: "7 pts · #1") }
+    _ = GuessActivityViews.island(attributes: locked, state: Self.state)
   }
 
   @Test

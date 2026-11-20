@@ -34,14 +34,18 @@ public struct GuessActivityAttributes: ActivityAttributes {
   public var serverName: String
   /// Rounds in the match.
   public var rounds: Int
+  /// Whether App Lock is on: the activity then shows neither the server nor the score.
+  public var isPrivate: Bool
 
   /// Creates the fixed attributes for a match.
   ///
   /// - Parameters:
   ///   - serverName: The server's display name.
   ///   - rounds: Rounds in the match.
-  public init(serverName: String, rounds: Int) {
-    self.serverName = serverName
+  ///   - isPrivate: Whether App Lock is on; the server name is then not stored.
+  public init(serverName: String, rounds: Int, isPrivate: Bool) {
+    self.serverName = isPrivate ? "" : serverName
     self.rounds = rounds
+    self.isPrivate = isPrivate
   }
 }

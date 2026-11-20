@@ -9,17 +9,18 @@ import ViewInspector
 struct SettingsViewTests {
   init() {
     UserDefaults.standard.removeObject(forKey: PreferenceKey.appLock)
+    UserDefaults.standard.removeObject(forKey: PreferenceKey.appLockTimeout)
   }
 
   /// An owner check that always succeeds or fails.
   private static func owner(
     _ approves: Bool,
-    biometry: LABiometryType = .faceID
+    method: UnlockMethod? = UnlockMethod(name: "Face ID", symbol: "faceid")
   )
     -> OwnerAuthentication
   {
     OwnerAuthentication(
-      biometry: { biometry },
+      method: { method },
       isAvailable: { true },
       authenticate: { _ in approves }
     )
@@ -32,7 +33,6 @@ struct SettingsViewTests {
     #expect(throws: Never.self) { try settings.inspect().find(AppearanceSection.self) }
     try settings.inspect().find(button: "Log Out of Discord").tap()
     #expect(throws: Never.self) { try settings.inspect().find(ShortcutsSection.self) }
-    #expect(throws: Never.self) { try settings.inspect().find(MotionSection.self) }
     await Hosting.show(settings, model: app)
   }
 
@@ -42,6 +42,8 @@ struct SettingsViewTests {
     try approving.inspect().find(ViewType.Toggle.self).tap()
     await Fixtures.wait { UserDefaults.standard.bool(forKey: PreferenceKey.appLock) }
     #expect(UserDefaults.standard.bool(forKey: PreferenceKey.appLock))
+    try approving.inspect().find(ViewType.Picker.self).select(value: AppLockTimeout.oneHour)
+    #expect(UserDefaults.standard.integer(forKey: PreferenceKey.appLockTimeout) == 3_600)
     try approving.inspect().find(ViewType.Toggle.self).tap()
     await Fixtures.wait { !UserDefaults.standard.bool(forKey: PreferenceKey.appLock) }
 
@@ -51,7 +53,7 @@ struct SettingsViewTests {
     #expect(!UserDefaults.standard.bool(forKey: PreferenceKey.appLock))
 
     let unavailable = OwnerAuthentication(
-      biometry: { .none },
+      method: { nil },
       isAvailable: { false },
       authenticate: { _ in true }
     )
@@ -63,13 +65,14 @@ struct SettingsViewTests {
   }
 
   @Test
-  func `the lock is named after the device's biometrics`() async {
-    let titles = [LABiometryType.faceID, .touchID, .opticID, .none]
-      .map { String(localized: Self.owner(true, biometry: $0).lockTitle) }
-    #expect(titles == ["Face ID", "Touch ID", "Optic ID", "App Lock"])
+  func `the lock uses the system's name and symbol for the unlock method`() async {
+    let faceID = Self.owner(true)
+    #expect(faceID.lockTitle == "Face ID" && faceID.lockSymbol == "faceid")
+    let none = Self.owner(true, method: nil)
+    #expect(none.lockTitle == "App Lock" && none.lockSymbol == "lock")
     // The simulator has no passcode, so the device check refuses without a prompt.
-    _ = OwnerAuthentication.device.biometry()
-    _ = OwnerAuthentication.device.isAvailable()
+    _ = OwnerAuthentication.device.method()
+    #expect(!OwnerAuthentication.device.isAvailable())
     #expect(await !OwnerAuthentication.device.authenticate("Test"))
   }
 

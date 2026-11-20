@@ -18,7 +18,6 @@ struct EmoteActions: View {
     .disabled(emote.composeToken == nil || model.composition.isFull)
     Button("Copy Name", systemImage: "doc.on.doc") {
       UIPasteboard.general.string = emote.name
-      model.notice = String(localized: "Copied \(emote.name).")
       model.play(.success)
     }
     if let link = EmoteLink.url(for: emote) {

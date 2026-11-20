@@ -31,7 +31,7 @@ struct DiscoveryTests {
     ]
   }
 
-  private static func page(_ items: [[String: Any]], pageCount: Int = 3) throws -> Data {
+  private static func page(_ items: [Any], pageCount: Int = 3) throws -> Data {
     try JSONSerialization.data(withJSONObject: [
       "data": ["emotes": ["search": ["pageCount": pageCount, "items": items]]]
     ])
@@ -51,7 +51,8 @@ struct DiscoveryTests {
 
   @Test
   func `unsafe or malformed entries are dropped`() throws {
-    let rejected: [[String: Any]] = [
+    let rejected: [Any] = [
+      "not an object",
       Self.item(id: "nope"),
       Self.item(name: "  "),
       Self.item(name: String(repeating: "a", count: 81)),
@@ -60,13 +61,13 @@ struct DiscoveryTests {
       Self.item(flags: ["private": true]),
       Self.item(flags: ["publicListed": false]),
       Self.item(flags: ["animated": "yes"]),
+      Self.item(flags: ["nsfw": NSNull()]),
       Self.item(images: ["9x.webp"]),
       ["id": Self.id]
     ]
     let page = try DiscoveryParser.page(from: Self.page(rejected + [Self.item(images: ["1x.gif"])]))
     #expect(page.emotes.map(\.image) == ["/7tv-cdn/emote/\(Self.id)/1x.gif"])
     #expect(page.emotes.first?.preview == nil)
-    #expect(DiscoveryParser.emote("not an object") == nil)
   }
 
   @Test
@@ -75,7 +76,10 @@ struct DiscoveryTests {
       Data("nope".utf8),
       JSONSerialization.data(withJSONObject: ["errors": [["message": "x"]]]),
       Self.page([], pageCount: -1),
-      JSONSerialization.data(withJSONObject: ["data": ["emotes": [:]]])
+      JSONSerialization.data(withJSONObject: ["data": ["emotes": [:]]]),
+      JSONSerialization.data(withJSONObject: [
+        "data": ["emotes": ["search": ["pageCount": 1, "items": "none"]]]
+      ])
     ]
     for data in invalid {
       #expect(throws: APIError.malformedResponse) {
@@ -90,6 +94,13 @@ struct DiscoveryTests {
     #expect(tags.count == DiscoveryParser.maxTags && tags.first == "t0")
   }
 
+  private static func body(_ mode: DiscoveryMode, _ page: Int, _ filter: EmoteFilter) throws
+    -> [String: Any]
+  {
+    let data = try JSONEncoder().encode(SevenTVSearchRequest(mode, page: page, filter: filter))
+    return try #require(JSONSerialization.jsonObject(with: data) as? [String: Any])
+  }
+
   @Test
   func `requests carry the ranking, page and server-side filters`() throws {
     var filter = EmoteFilter()
@@ -97,18 +108,21 @@ struct DiscoveryTests {
     filter.motion = .still
     filter.overlay = .overlaying
     filter.tags = "Cute, meme"
-    let body = SevenTVDiscovery.request(.trending, 2, filter)
+    let body = try Self.body(.trending, 2, filter)
+    #expect(body["query"] as? String == DiscoveryParser.query)
     let variables = try #require(body["variables"] as? [String: Any])
     #expect(variables["query"] as? String == "cat")
     #expect(variables["page"] as? Int == 2)
     #expect(variables["perPage"] as? Int == SevenTVDiscovery.pageSize)
-    #expect((variables["sort"] as? [String: String])?["sortBy"] == "TRENDING_WEEKLY")
+    let sort = variables["sort"] as? [String: String]
+    #expect(sort == ["sortBy": "TRENDING_WEEKLY", "order": "DESCENDING"])
     let filters = try #require(variables["filters"] as? [String: Bool])
     #expect(filters == ["nsfw": false, "animated": false, "defaultZeroWidth": true])
-    #expect((variables["tags"] as? [String: Any])?["tags"] as? [String] == ["cute", "meme"])
+    let tags = variables["tags"] as? [String: Any]
+    #expect(tags?["tags"] as? [String] == ["cute", "meme"] && tags?["match"] as? String == "ALL")
 
-    let plain = SevenTVDiscovery.request(.top, 1, EmoteFilter())
-    let plainVariables = try #require(plain["variables"] as? [String: Any])
+    let plainVariables = try #require(Self
+      .body(.top, 1, EmoteFilter())["variables"] as? [String: Any])
     #expect((plainVariables["sort"] as? [String: String])?["sortBy"] == "TOP_ALL_TIME")
     #expect(plainVariables["tags"] == nil)
     #expect(plainVariables["filters"] as? [String: Bool] == ["nsfw": false])
@@ -190,5 +204,19 @@ struct DiscoveryTests {
     let emote = try #require(DiscoveryParser.page(from: Self.page([item])).emotes.first)
     #expect(emote.tags.isEmpty)
     #expect(!emote.isOverlay)
+  }
+
+  @Test
+  func `malformed optional fields and image entries are skipped`() throws {
+    var item = Self.item(flags: ["defaultZeroWidth": "yes"], tags: [])
+    item["tags"] = "wave"
+    item["images"] = [
+      "not an object",
+      ["url": 4],
+      ["url": "https://cdn.7tv.app/emote/\(Self.id)/2x.webp"]
+    ]
+    let emote = try #require(DiscoveryParser.page(from: Self.page([item])).emotes.first)
+    #expect(emote.tags.isEmpty && !emote.isOverlay)
+    #expect(emote.image == "/7tv-cdn/emote/\(Self.id)/2x.webp" && emote.preview == nil)
   }
 }

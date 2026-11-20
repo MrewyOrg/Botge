@@ -60,20 +60,22 @@ You need macOS with Xcode 27 (open it once to install the iOS 27 simulator).
 
 ## Features
 
-- **Emotes:** the server catalog and 7TV Trending and Top, with search, filters, the composer and,
-  for emote managers, adding and removing emotes one at a time or in batches.
+- **Emotes:** the server catalog and 7TV Trending and Top as swipeable pages, with search, filters,
+  the composer and, for emote managers, adding and removing emotes one at a time or in batches.
+  Animated emotes follow the system Auto-Play Animated Images setting.
 - **Guess:** create a room and share its code, or join one by code. App rooms (`app-<code>`) are
   separate from Discord Activity rooms. The Emotes tab is hidden during a match, and a Live Activity
-  shows the round on the Lock Screen.
+  shows the round on the Lock Screen; with App Lock on, it hides the server and score.
 - **Server:** voice settings, emote sources and emote managers for administrators, and everyone's
   personal emote border.
-- **Settings:** appearance, App Lock, haptics and animation, image cache, legal documents and
-  logout.
+- **Settings:** appearance, App Lock with a timeout, image cache, legal documents and logout.
+  Haptics follow the system setting.
 - **Siri, Spotlight and Shortcuts:** "Search emotes in Botge" asks for a search and opens the Emotes
   tab; "Play Guess in Botge" opens the Guess tab. Both can be assigned to the Action button.
 
 With `npm run run:ios -- --fixtures`, the app uses offline fixture data: one administrator server, a
-small catalog, and a scripted one-round Guess room whose answer is `catJAM`.
+small catalog, five pages of 7TV results, and a scripted one-round Guess room whose answer is
+`catJAM`.
 
 ## Checks
 
@@ -130,5 +132,7 @@ or let the commit hook format.
 ## Lockdown Mode
 
 The app avoids everything Lockdown Mode restricts: it has no web views, renders legal documents
-natively, decodes images with ImageIO and falls back to a still frame or a placeholder. Discord's
-login page in the system sheet is the only web content and can load more slowly in Lockdown Mode.
+natively, decodes images with ImageIO and falls back to a still frame or a placeholder. Animated 7TV
+emotes load as GIF and still ones as PNG: in Lockdown Mode ImageIO decodes WebP about twenty times
+slower than GIF. AVIF is never requested. Discord's login page in the system sheet is the only web
+content and can load more slowly in Lockdown Mode.

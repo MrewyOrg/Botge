@@ -15,7 +15,7 @@ struct TransportAndActivityTests {
 
   @Test
   func `the Guess Live Activity state round trips through Codable`() throws {
-    let attributes = GuessActivityAttributes(serverName: "Botge", rounds: 10)
+    let attributes = GuessActivityAttributes(serverName: "Botge", rounds: 10, isPrivate: false)
     let state = GuessActivityAttributes.ContentState(
       round: 2,
       roundEndsAt: Date(timeIntervalSince1970: 1_000),

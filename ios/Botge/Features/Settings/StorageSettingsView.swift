@@ -20,6 +20,16 @@ struct StorageSettingsView: View {
           isConfirmingClear = true
         }
         .accessibilityIdentifier("storage.clear")
+        .confirmationDialog("Clear the image cache?", isPresented: $isConfirmingClear) {
+          Button("Clear Image Cache", role: .destructive) {
+            Task {
+              await model.clearImageCache()
+              diskUsage = model.urlCache.currentDiskUsage
+            }
+          }
+        } message: {
+          Text("Emote images and saved emote lists download again when needed.")
+        }
       } footer: {
         Text(
           "Images and saved emote lists download again when needed. Login and settings are kept."
@@ -27,16 +37,6 @@ struct StorageSettingsView: View {
       }
     }
     .navigationTitle("Cache & Storage")
-    .confirmationDialog("Clear the image cache?", isPresented: $isConfirmingClear) {
-      Button("Clear Image Cache", role: .destructive) {
-        Task {
-          await model.clearImageCache()
-          diskUsage = model.urlCache.currentDiskUsage
-        }
-      }
-    } message: {
-      Text("Emote images and saved emote lists download again when needed.")
-    }
     .task { diskUsage = model.urlCache.currentDiskUsage }
   }
 }

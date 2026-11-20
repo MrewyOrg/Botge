@@ -67,7 +67,7 @@ struct ServerModelTests {
   }
 
   @Test
-  func `every changed draft saves and voice changes say they apply shortly`() async {
+  func `every changed draft saves`() async {
     let model = await Self.model()
     model.voiceDraft.channelID = Self.channel
     model.toggle(Self.role)
@@ -75,7 +75,7 @@ struct ServerModelTests {
     #expect(model.isVoiceChanged && model.isPolicyChanged && model.isBorderChanged)
     #expect(model.canSave)
     await model.save()
-    #expect(model.notice?.contains("shortly") == true)
+    #expect(model.saveFailure == nil)
     #expect(model.haptic?.kind == .success)
     #expect(model.voice?.settings.channelID == Self.channel)
     #expect(model.policy?.policy.allowedRoleIDs == [Self.role.id])
@@ -84,7 +84,7 @@ struct ServerModelTests {
 
     model.toggle(Self.role)
     await model.save()
-    #expect(model.notice == "Saved.")
+    #expect(model.saveFailure == nil && !model.hasChanges)
   }
 
   @Test
@@ -92,7 +92,7 @@ struct ServerModelTests {
     let model = await Self.model(["settings/border": [.failure(.timedOut), Self.signedOutReply]])
     model.isBorderEnabled = true
     await model.save()
-    #expect(model.notice == APIError.network.message)
+    #expect(model.saveFailure == APIError.network.message)
     #expect(model.haptic?.kind == .failure)
     await model.save()
     #expect(model.app.phase == .signedOut)

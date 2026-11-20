@@ -5,46 +5,42 @@ import SwiftUI
 ///
 /// Views read it from the environment, so tests can stand in for the system prompt.
 struct OwnerAuthentication {
-  /// The device's own biometrics and passcode.
+  /// The device's own biometrics and passcode, through `LARight` and `LAEnvironment`.
   static let device: Self = .init(
-    biometry: {
-      let context = LAContext()
-      _ = context.canEvaluatePolicy(.deviceOwnerAuthenticationWithBiometrics, error: nil)
-      return context.biometryType
+    method: {
+      // Biometry when it is enrolled, else the passcode; a mechanism is usable once set up.
+      let state = LAEnvironment.currentUser.state
+      let mechanisms: [LAEnvironment.Mechanism?] = [state.biometry, state.userPassword]
+      guard let mechanism = mechanisms.compactMap(\.self).first(where: \.isUsable) else {
+        return nil
+      }
+
+      return UnlockMethod(name: mechanism.localizedName, symbol: mechanism.iconSystemName)
     },
     isAvailable: {
-      LAContext().canEvaluatePolicy(.deviceOwnerAuthentication, error: nil)
+      LAEnvironment.currentUser.state.userPassword?.isSet == true
     },
     authenticate: { reason in
-      await (try? LAContext().evaluatePolicy(
-        .deviceOwnerAuthentication,
-        localizedReason: reason
-      )) ?? false
+      // The default requirement accepts biometry and falls back to the passcode.
+      await (try? LARight().authorize(localizedReason: reason)) != nil
     }
   )
 
-  /// The biometric method the device offers, or `.none`.
-  let biometry: @Sendable () -> LABiometryType
+  /// The device's preferred unlock method, or `nil` when it has none.
+  let method: @Sendable () -> UnlockMethod?
   /// Whether the device has a passcode, so authentication can succeed.
   let isAvailable: @Sendable () -> Bool
   /// Shows the system prompt with a reason and returns whether the owner authenticated.
   let authenticate: @Sendable (String) async -> Bool
 
-  /// The name of the device's lock method for the App Lock setting.
-  var lockTitle: LocalizedStringResource {
-    switch biometry() {
-    case .faceID:
-      "Face ID"
+  /// The App Lock setting's name: the system's name for the unlock method, such as Face ID.
+  var lockTitle: String {
+    method()?.name ?? String(localized: "App Lock")
+  }
 
-    case .touchID:
-      "Touch ID"
-
-    case .opticID:
-      "Optic ID"
-
-    default:
-      "App Lock"
-    }
+  /// The unlock method's SF Symbol, such as `faceid`.
+  var lockSymbol: String {
+    method()?.symbol ?? "lock"
   }
 }
 

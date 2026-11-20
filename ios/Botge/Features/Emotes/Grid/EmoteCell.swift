@@ -7,6 +7,8 @@ struct EmoteCell: View {
   let emote: CatalogEmote
   /// The server's catalog state.
   let model: EmotesModel
+  /// The source page the cell is on.
+  let source: EmotesSource
 
   var body: some View {
     Button {
@@ -23,8 +25,11 @@ struct EmoteCell: View {
       )
     }
     .buttonStyle(.plain)
+    // While selecting, emotes the batch action cannot use are dimmed and ignore taps.
+    .disabled(model.isSelecting && !model.canSelect(emote))
     .contextMenu {
       EmoteActions(emote: emote, model: model, requestRemoval: model.requestRemoval(of:))
     }
+    .confirmsRemoval(of: emote, on: source, model: model)
   }
 }

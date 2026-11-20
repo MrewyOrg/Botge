@@ -8,7 +8,7 @@ import Testing
 /// Lockdown Mode cannot be toggled from a test, so these tests inject the failures it causes:
 /// login pages that do not finish, and image formats that refuse to decode.
 struct LockdownTests {
-  private static let path = "/7tv-cdn/emote/01ABC/2x.avif"
+  private static let path = "/7tv-cdn/emote/01ABC/2x.gif"
 
   private static func ok(_ data: Data) -> StubTransport.Reply {
     .response(status: 200, body: data)
@@ -31,31 +31,25 @@ struct LockdownTests {
   }
 
   @Test
-  func `7TV images never request AVIF and prefer WebP, GIF, then PNG`() {
-    let urls = EmoteImageURL.candidates(for: Self.path).map(\.absoluteString)
-    #expect(urls == [
-      "https://cdn.7tv.app/emote/01ABC/2x.webp",
-      "https://cdn.7tv.app/emote/01ABC/2x.gif",
-      "https://cdn.7tv.app/emote/01ABC/2x.png"
-    ])
-    #expect(!ImageFormat.avif.isAllowed)
-    #expect(EmoteImageURL.candidates(for: "/bttv-cdn/emote/1/2x.avif").isEmpty)
+  func `7TV emotes load as GIF or PNG and AVIF is never requested`() {
+    let catalogPath = "/7tv-cdn/emote/01ABC/2x.webp"
+    #expect(EmoteImageURL.loadPath(for: catalogPath, isAnimated: true) == Self.path)
+    #expect(EmoteImageURL.loadPath(for: "/7tv-cdn/emote/01ABC/2x.avif", isAnimated: false) ==
+      "/7tv-cdn/emote/01ABC/2x.png")
+    #expect(EmoteImageURL.requestURL(for: "/7tv-cdn/emote/01ABC/2x.avif") == nil)
+    #expect(EmoteImageURL.requestURL(for: "/bttv-cdn/emote/1/2x.AVIF") == nil)
   }
 
   @Test
-  func `a format that refuses to decode falls through to the next candidate`() async {
-    let transport = StubTransport([
-      Self.ok(Data("undecodable".utf8)),
-      Self.ok(ImageFixtures.gif(frames: 3, delay: 0.05))
-    ])
+  func `an image the device refuses to decode shows a placeholder`() async {
+    let transport = StubTransport([Self.ok(Data("undecodable".utf8))])
     let image = await EmoteImageLoader(transport: transport).image(for: Self.path, animated: true)
-    guard case let .animated(frames, _) = image else {
-      Issue.record("Expected the GIF candidate to animate")
+    guard case .placeholder = image else {
+      Issue.record("Expected a placeholder")
       return
     }
 
-    #expect(frames.count == 3)
-    #expect(transport.requests.map { $0.url?.pathExtension } == ["webp", "gif"])
+    #expect(transport.requests.map { $0.url?.pathExtension } == ["gif"])
   }
 
   @Test
@@ -70,11 +64,10 @@ struct LockdownTests {
   }
 
   @Test
-  func `when every candidate fails the grid gets a placeholder and retries later`() async {
+  func `when a download fails the grid gets a placeholder and retries later`() async {
     let transport = StubTransport([
       .failure(.notConnectedToInternet),
-      .response(status: 404, body: Data()),
-      Self.ok(Data())
+      .response(status: 404, body: Data())
     ])
     let loader = EmoteImageLoader(transport: transport)
     guard case .placeholder = await loader.image(for: Self.path, animated: true) else {
@@ -83,6 +76,6 @@ struct LockdownTests {
     }
 
     _ = await loader.image(for: Self.path, animated: true)
-    #expect(transport.requests.count == 6)
+    #expect(transport.requests.count == 2)
   }
 }

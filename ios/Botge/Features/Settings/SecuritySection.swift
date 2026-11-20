@@ -1,3 +1,4 @@
+import BotgeKit
 import SwiftUI
 
 /// The App Lock toggle, named after the device's biometric method.
@@ -7,6 +8,8 @@ import SwiftUI
 struct SecuritySection: View {
   /// Whether App Lock is on.
   @AppStorage(PreferenceKey.appLock) private var appLock = false
+  /// How long Botge may stay in the background before App Lock asks again.
+  @AppStorage(PreferenceKey.appLockTimeout) private var timeout: AppLockTimeout = .immediately
   /// Checks for the device owner.
   @Environment(\.ownerAuthentication) private var owner
   /// Whether the authentication prompt is showing.
@@ -17,17 +20,31 @@ struct SecuritySection: View {
   var body: some View {
     Section {
       Toggle(isOn: lockBinding) {
-        Label(owner.lockTitle, systemImage: "lock")
+        Label(owner.lockTitle, systemImage: owner.lockSymbol)
       }
       .disabled(isAuthenticating)
       .accessibilityIdentifier("settings.appLock")
+      if appLock {
+        Picker("Require \(owner.lockTitle)", selection: $timeout) {
+          Text("Immediately").tag(AppLockTimeout.immediately)
+          Text("After 1 Minute").tag(AppLockTimeout.oneMinute)
+          Text("After 15 Minutes").tag(AppLockTimeout.fifteenMinutes)
+          Text("After 1 Hour").tag(AppLockTimeout.oneHour)
+        }
+        .accessibilityIdentifier("settings.appLockTimeout")
+      }
     } header: {
       Text("Security")
     } footer: {
       if let failure {
         Text(failure)
       } else {
-        Text("Ask for \(owner.lockTitle) or your passcode when opening Botge.")
+        Text(
+          """
+          Ask for \(owner.lockTitle) or your passcode when opening Botge. While it is on, the \
+          Guess Live Activity hides your server and score.
+          """
+        )
       }
     }
   }

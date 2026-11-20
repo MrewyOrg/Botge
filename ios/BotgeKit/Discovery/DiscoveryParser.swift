@@ -1,6 +1,9 @@
 import Foundation
 
 /// Validates 7TV discovery responses, mirroring the Activity's `parseDiscoveryPage`.
+///
+/// ``DiscoveryResponse`` and ``DiscoveryItem`` decode the JSON; this namespace holds the query and
+/// the shared acceptance rules.
 enum DiscoveryParser {
   /// The GraphQL search query the Activity sends.
   static let query = """
@@ -26,55 +29,11 @@ enum DiscoveryParser {
   /// - Returns: The accepted emotes and the page count.
   /// - Throws: ``APIError/malformedResponse`` when GraphQL reports errors or the page is invalid.
   static func page(from data: Data) throws(APIError) -> DiscoveryPage {
-    guard let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-          root["errors"] == nil,
-          let search = ((root["data"] as? [String: Any])?["emotes"] as? [String: Any])?["search"]
-          as? [String: Any],
-          let items = search["items"] as? [Any],
-          let pageCount = search["pageCount"] as? Int,
-          pageCount >= 0
-    else {
+    guard let response = try? JSONDecoder().decode(DiscoveryResponse.self, from: data) else {
       throw .malformedResponse
     }
 
-    return DiscoveryPage(emotes: items.compactMap(emote), pageCount: pageCount)
-  }
-
-  /// Converts one search item, or returns `nil` when it is unsafe or malformed.
-  ///
-  /// - Parameter value: One untrusted search item.
-  /// - Returns: A catalog entry without server state.
-  static func emote(_ value: Any) -> CatalogEmote? {
-    guard let item = value as? [String: Any],
-          let id = item["id"] as? String, SevenTVID.isValid(id),
-          let name = item["defaultName"] as? String, isAcceptable(name),
-          let flags = item["flags"] as? [String: Any],
-          flags["nsfw"] as? Bool == false,
-          flags["private"] as? Bool == false,
-          flags["publicListed"] as? Bool == true,
-          let isAnimated = flags["animated"] as? Bool,
-          let images = item["images"] as? [Any]
-    else {
-      return nil
-    }
-
-    let urls = Set(images.compactMap { ($0 as? [String: Any])?["url"] as? String })
-    guard let tile = imagePath(urls, id, tileSizes) else {
-      return nil
-    }
-
-    let preview = imagePath(urls, id, previewSizes)
-    let tags = tags(item["tags"] as? [Any] ?? [])
-    return CatalogEmote(
-      name: name,
-      source: .sevenTV,
-      image: tile,
-      isAnimated: isAnimated,
-      isOverlay: flags["defaultZeroWidth"] as? Bool ?? false,
-      tags: tags,
-      sevenTVID: id,
-      preview: preview == tile ? nil : preview
-    )
+    return response.page
   }
 
   /// Whether a provider name is non-empty, short and free of control characters.
@@ -110,9 +69,9 @@ enum DiscoveryParser {
   ///
   /// - Parameter values: Untrusted tag values.
   /// - Returns: The tags in their original order.
-  static func tags(_ values: [Any]) -> [String] {
+  static func tags(_ values: [String]) -> [String] {
     var tags = [String]()
-    for case let value as String in values {
+    for value in values {
       let tag = value.trimmingCharacters(in: .whitespaces)
       if !tag.isEmpty, !tags.contains(tag), tags.count < maxTags {
         tags.append(tag)

@@ -7,10 +7,10 @@ struct LockAndLoginViewTests {
   @Test
   func `the lock screen unlocks from its button unless authenticating`() throws {
     var unlocks = 0
-    let screen = AppLockScreen(isAuthenticating: false) { unlocks += 1 }
+    let screen = AppLockScreen(symbol: "faceid", isAuthenticating: false) { unlocks += 1 }
     try screen.inspect().find(button: "Unlock").tap()
     #expect(unlocks == 1)
-    let busy = AppLockScreen(isAuthenticating: true) { unlocks += 1 }
+    let busy = AppLockScreen(symbol: "faceid", isAuthenticating: true) { unlocks += 1 }
     #expect(try busy.inspect().find(button: "Unlock").isDisabled())
   }
 

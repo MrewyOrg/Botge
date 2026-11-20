@@ -32,25 +32,24 @@ public enum EmoteImage: Sendable {
     return 0
   }
 
-  /// The frame to show `elapsed` seconds after the animation started, looping forever.
+  /// When each frame starts, as fractions of ``duration``, followed by `1`.
   ///
-  /// Still images and animations without a positive duration show their first frame.
-  ///
-  /// - Parameter elapsed: Seconds since the animation started; negative values count as zero.
-  /// - Returns: The frame, or `nil` for a placeholder.
-  public func frame(at elapsed: TimeInterval) -> CGImage? {
-    guard case let .animated(frames, delays) = self, duration > 0 else {
-      return firstFrame
+  /// The values suit a discrete `CAKeyframeAnimation` over the frames, which needs one more key
+  /// time than frames. Still images, placeholders and animations without a positive duration have
+  /// none.
+  public var keyTimes: [Double] {
+    guard case let .animated(_, delays) = self, duration > 0 else {
+      return []
     }
 
-    var remaining = max(elapsed, 0).truncatingRemainder(dividingBy: duration)
-    for (frame, delay) in zip(frames, delays) {
-      if remaining < delay {
-        return frame
-      }
-
-      remaining -= delay
+    var start = 0.0
+    var times = [Double]()
+    times.reserveCapacity(delays.count + 1)
+    for delay in delays {
+      times.append(start / duration)
+      start += delay
     }
-    return frames.last
+    times.append(1)
+    return times
   }
 }

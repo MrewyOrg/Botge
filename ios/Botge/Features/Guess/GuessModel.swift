@@ -216,7 +216,13 @@ final class GuessModel {
       received = .now
       app.isPlayingGuess = next.phase.isPlaying
       loadImage(for: next.image)
-      await liveActivity.show(next, player: player, received: received, serverName: guild.name)
+      await liveActivity.show(
+        next,
+        player: player,
+        received: received,
+        serverName: guild.name,
+        isPrivate: UserDefaults.standard.bool(forKey: PreferenceKey.appLock)
+      )
 
     case .wrong:
       wrongGuesses += 1

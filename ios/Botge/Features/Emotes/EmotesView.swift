@@ -4,7 +4,8 @@ import SwiftUI
 /// The Emotes tab for one server: source, search, filters, the grid, preview and composer.
 ///
 /// The title stays inline and the search field stays visible, so the navigation bar keeps one
-/// height and the source picker below it never drifts while the grid scrolls or bounces.
+/// height and the source picker below it never drifts while the grid scrolls or bounces. The
+/// sources are pages: swiping sideways moves between Server, Trending and Top like the picker.
 struct EmotesView: View {
   /// The server's catalog state.
   @State private var model: EmotesModel
@@ -13,63 +14,63 @@ struct EmotesView: View {
   @FocusState private var isSearchFocused: Bool
 
   var body: some View {
-    EmotesContent(model: model)
-      .frame(maxWidth: .infinity, maxHeight: .infinity)
-      .navigationTitle("Emotes")
-      .navigationBarTitleDisplayMode(.inline)
-      .searchable(
-        text: $model.filter.query,
-        placement: .navigationBarDrawer(displayMode: .always),
-        prompt: Text(searchPrompt)
-      )
-      .searchFocused($isSearchFocused)
-      .onChange(of: model.sheet) { _, sheet in
-        if sheet != nil {
-          isSearchFocused = false
+    // A paging scroll view keeps every page alive, so each grid keeps its own scroll position.
+    ScrollView(.horizontal) {
+      HStack(spacing: 0) {
+        ForEach(EmotesSource.choices, id: \.self) { source in
+          EmotesContent(model: model, source: source)
+            .containerRelativeFrame(.horizontal)
+            // Only the page in view is readable; VoiceOver switches pages with the picker.
+            .accessibilityHidden(source != model.source)
+            .task(id: DiscoveryRequest(source: source, filter: model.filter(for: source))) {
+              await model.syncDiscovery(for: source)
+            }
         }
       }
-      .toolbar { EmotesToolbar(model: model) }
-      .onChange(of: model.app.pendingSearch, initial: true) { _, query in
-        guard let query else {
-          return
-        }
+      .scrollTargetLayout()
+    }
+    .scrollTargetBehavior(.paging)
+    .scrollPosition(id: page)
+    .scrollIndicators(.hidden)
+    .scrollEdgeEffectStyle(.soft, for: .vertical)
+    .navigationTitle("Emotes")
+    .navigationBarTitleDisplayMode(.inline)
+    .searchable(
+      text: $model.filter.query,
+      placement: .navigationBarDrawer(displayMode: .always),
+      prompt: Text(searchPrompt)
+    )
+    .searchFocused($isSearchFocused)
+    .onChange(of: model.sheet) { _, sheet in
+      if sheet != nil {
+        isSearchFocused = false
+      }
+    }
+    .toolbar { EmotesToolbar(model: model) }
+    .onChange(of: model.app.pendingSearch, initial: true) { _, query in
+      guard let query else {
+        return
+      }
 
-        model.source = .server
-        model.filter.query = query
-        model.app.pendingSearch = nil
-      }
-      .safeAreaBar(edge: .top) { EmotesSourcePicker(model: model) }
-      .safeAreaInset(edge: .bottom) { SelectionBar(model: model) }
-      .sheet(item: presentedSheet) { sheet in
-        switch sheet {
-        case .composer:
-          ComposerView(composition: $model.composition)
+      model.source = .server
+      model.filter.query = query
+      model.app.pendingSearch = nil
+    }
+    .safeAreaBar(edge: .top) { EmotesSourcePicker(model: model) }
+    .safeAreaInset(edge: .bottom) { SelectionBar(model: model) }
+    .sheet(item: presentedSheet) { sheet in
+      switch sheet {
+      case .composer:
+        ComposerView(composition: $model.composition)
 
-        case let .preview(emote):
-          EmotePreviewView(opened: emote, model: model)
-        }
+      case let .preview(emote):
+        EmotePreviewView(opened: emote, model: model)
       }
-      .confirmationDialog(
-        removalTitle,
-        isPresented: isConfirmingRemoval,
-        titleVisibility: .visible,
-        presenting: model.pendingRemoval
-      ) { removal in
-        Button("Remove", role: .destructive) {
-          Task { await model.confirm(removal) }
-        }
-      } message: { _ in
-        Text("Everyone in \(model.guild.name) loses these emotes.")
-      }
-      .overlay(alignment: .bottom) {
-        NoticeBanner(notice: $model.notice)
-      }
-      .hapticFeedback(model.haptic)
-      .task { await model.load() }
-      .task { await model.watch() }
-      .task(id: DiscoveryRequest(source: model.source, filter: model.filter)) {
-        await model.syncDiscovery()
-      }
+    }
+    .failureAlert($model.actionFailure)
+    .hapticFeedback(model.haptic)
+    .task { await model.load() }
+    .task { await model.watch() }
   }
 
   /// The search prompt for the current source.
@@ -81,27 +82,13 @@ struct EmotesView: View {
     }
   }
 
-  /// The removal confirmation's title.
-  private var removalTitle: LocalizedStringResource {
-    switch model.pendingRemoval {
-    case let .single(emote):
-      "Remove \(emote.name) from the server?"
-
-    case let .selection(count):
-      "Remove \(count) emotes from the server?"
-
-    case nil:
-      "Remove from the server?"
-    }
-  }
-
-  /// Shows the confirmation while a removal is pending; dismissing it cancels the removal.
-  private var isConfirmingRemoval: Binding<Bool> {
+  /// The page in view, following the source picker both ways.
+  private var page: Binding<EmotesSource?> {
     Binding {
-      model.pendingRemoval != nil
-    } set: { isPresented in
-      if !isPresented {
-        model.pendingRemoval = nil
+      model.source
+    } set: { source in
+      if let source {
+        model.source = source
       }
     }
   }

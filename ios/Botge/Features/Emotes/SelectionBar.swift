@@ -19,6 +19,7 @@ struct SelectionBar: View {
       .disabled(model.selection.isEmpty)
       .padding()
       .accessibilityIdentifier("emotes.batch")
+      .confirmsBatchRemoval(model: model)
     }
   }
 

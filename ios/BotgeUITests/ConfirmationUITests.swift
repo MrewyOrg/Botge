@@ -101,7 +101,8 @@ final class ConfirmationUITests: XCTestCase {
     login.tap()
     let springboard = XCUIApplication(bundleIdentifier: "com.apple.springboard")
     let cancel = springboard.buttons["Cancel"]
-    if cancel.waitForExistence(timeout: 5) {
+    // The system sign-in prompt can take several seconds in Lockdown Mode.
+    if cancel.waitForExistence(timeout: 15) {
       cancel.tap()
     } else {
       app.buttons["Cancel"].firstMatch.tap()

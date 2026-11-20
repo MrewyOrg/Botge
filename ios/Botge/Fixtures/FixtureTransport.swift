@@ -46,13 +46,24 @@ struct FixtureTransport: HTTPTransport {
   private static let imageSide = 256.0
   /// HTTP 200.
   private static let okStatus = 200
-  /// Discovery results after `catJAM`, so the grid scrolls.
-  private static let extraDiscoveryCount = 59
+  /// Results per discovery page, so the grid scrolls.
+  private static let discoveryPageSize = 60
+  /// Discovery pages, so scrolling loads more.
+  private static let discoveryPageCount = 5
 
-  /// One discovery page: `catJAM`, then numbered fixtures.
-  private static var discoveryBody: String {
-    let names = ["catJAM"] + (1 ... extraDiscoveryCount).map { "fixture\($0)" }
-    let items = names.enumerated().map { index, name in
+  /// One discovery page: `catJAM` first on page 1, then numbered fixtures.
+  ///
+  /// - Parameter request: The GraphQL request, whose variables name the page.
+  /// - Returns: The page's JSON.
+  private static func discoveryBody(for request: URLRequest) -> String {
+    let variables = request.httpBody
+      .flatMap { try? JSONSerialization.jsonObject(with: $0) as? [String: Any] }?["variables"]
+      as? [String: Any]
+    let page = variables?["page"] as? Int ?? 1
+    let first = (page - 1) * discoveryPageSize
+    let indexes = first ..< first + discoveryPageSize
+    let names = indexes.map { $0 == 0 ? "catJAM" : "fixture\($0)" }
+    let items = zip(indexes, names).map { index, name in
       let id = "0123456789012345678901" + String(format: "%04d", index)
       return """
       {"id":"\(id)","defaultName":"\(name)","tags":["cat"],"flags":{"animated":true,\
@@ -60,7 +71,7 @@ struct FixtureTransport: HTTPTransport {
       "images":[{"url":"https://cdn.7tv.app/emote/\(id)/2x.webp"}]}
       """
     }
-    return #"{"data":{"emotes":{"search":{"pageCount":1,"items":["#
+    return #"{"data":{"emotes":{"search":{"pageCount":"# + "\(discoveryPageCount)" + #","items":["#
       + items.joined(separator: ",") + "]}}}}"
   }
 
@@ -76,7 +87,7 @@ struct FixtureTransport: HTTPTransport {
 
     guard let url = request.url,
           let body = url.lastPathComponent == "gql"
-          ? Self.discoveryBody
+          ? Self.discoveryBody(for: request)
           : Self.body(route: Self.route(of: url), request: request),
           let response = HTTPURLResponse(
             url: url,

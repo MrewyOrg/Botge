@@ -46,8 +46,6 @@ struct ServerViewTests {
   @Test
   func `edits mark the server as changed and save from the toolbar`() async {
     let model = await Self.model()
-    UserDefaults.standard.set(false, forKey: PreferenceKey.haptics)
-    defer { UserDefaults.standard.removeObject(forKey: PreferenceKey.haptics) }
     await Hosting.show(NavigationStack { ServerView(model: model) }, model: model.app) {
       model.voiceDraft.isStatusEnabled = true
       try? await Task.sleep(for: .milliseconds(200))

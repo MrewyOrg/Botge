@@ -35,19 +35,19 @@ public struct SevenTVDiscovery: Sendable {
   public func page(_ mode: DiscoveryMode, number page: Int, filter: EmoteFilter)
     async throws(APIError) -> DiscoveryPage
   {
-    guard let body = try? JSONSerialization.data(withJSONObject: Self.request(mode, page, filter))
-    else {
+    let request = SevenTVSearchRequest(mode, page: page, filter: filter)
+    guard let body = try? JSONEncoder().encode(request) else {
       throw .malformedResponse
     }
 
-    var request = URLRequest(url: Self.endpoint)
-    request.httpMethod = "POST"
-    request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-    request.httpBody = body
+    var urlRequest = URLRequest(url: Self.endpoint)
+    urlRequest.httpMethod = "POST"
+    urlRequest.setValue("application/json", forHTTPHeaderField: "Content-Type")
+    urlRequest.httpBody = body
     let data: Data
     let response: URLResponse
     do {
-      (data, response) = try await transport.data(for: request)
+      (data, response) = try await transport.data(for: urlRequest)
     } catch {
       throw .network
     }
@@ -58,35 +58,5 @@ public struct SevenTVDiscovery: Sendable {
     }
 
     return try DiscoveryParser.page(from: data)
-  }
-
-  /// The GraphQL request body for one page.
-  ///
-  /// - Parameters:
-  ///   - mode: The ranking.
-  ///   - page: The one-based page number.
-  ///   - filter: The search and filter settings.
-  /// - Returns: A JSON object with the query and its variables.
-  static func request(_ mode: DiscoveryMode, _ page: Int, _ filter: EmoteFilter)
-    -> [String: Any]
-  {
-    var filters: [String: Any] = ["nsfw": false]
-    if filter.motion != .any {
-      filters["animated"] = filter.motion == .animated
-    }
-    if filter.overlay != .any {
-      filters["defaultZeroWidth"] = filter.overlay == .overlaying
-    }
-    var variables: [String: Any] = [
-      "query": filter.query.trimmingCharacters(in: .whitespaces),
-      "page": page,
-      "perPage": pageSize,
-      "sort": ["sortBy": mode.sortKey, "order": "DESCENDING"],
-      "filters": filters
-    ]
-    if !filter.tagTerms.isEmpty {
-      variables["tags"] = ["match": "ALL", "tags": filter.tagTerms]
-    }
-    return ["query": DiscoveryParser.query, "variables": variables]
   }
 }

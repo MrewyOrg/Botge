@@ -15,18 +15,8 @@ struct ServerView: View {
     content
       .navigationTitle("Server")
       .toolbar { toolbar }
-      .overlay(alignment: .bottom) {
-        NoticeBanner(notice: $model.notice)
-      }
-      .animation(.default, value: model.notice)
+      .failureAlert($model.saveFailure)
       .hapticFeedback(model.haptic)
-      .confirmationDialog("Discard your changes?", isPresented: $isConfirmingDiscard) {
-        Button("Discard Changes", role: .destructive) {
-          model.discardChanges()
-        }
-      } message: {
-        Text("The saved settings stay as they are.")
-      }
       .task { await model.load() }
       .onChange(of: model.hasChanges, initial: true) { _, changed in
         model.app.hasUnsavedServerChanges = changed
@@ -79,6 +69,13 @@ struct ServerView: View {
         }
         .disabled(model.isSaving)
         .accessibilityIdentifier("server.discard")
+        .confirmationDialog("Discard your changes?", isPresented: $isConfirmingDiscard) {
+          Button("Discard Changes", role: .destructive) {
+            model.discardChanges()
+          }
+        } message: {
+          Text("The saved settings stay as they are.")
+        }
       }
     }
     ToolbarItem(placement: .confirmationAction) {

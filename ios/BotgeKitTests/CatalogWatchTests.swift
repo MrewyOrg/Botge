@@ -49,6 +49,26 @@ struct CatalogWatchTests {
   }
 
   @Test
+  func `a reconnect reports a change to catch up on missed ones`() async throws {
+    let ticket = StubTransport.json(200, ["ticket": "abc"])
+    let transport = StubTransport([ticket, ticket])
+    let first = ScriptedSocket([#"{"type":"watching"}"#])
+    let second = ScriptedSocket([#"{"type":"watching"}"#])
+    let (pause, _) = Self.pauses(limit: 2)
+    let changes = Mutex(0)
+    let watch = try CatalogWatch(
+      api: TestAPI.signedIn(transport),
+      connector: ScriptedConnector([first, second]),
+      pause: pause
+    )
+    try await watch.run(guild: "1") {
+      changes.withLock { $0 += 1 }
+    }
+    // The first session needs no catch-up; the reconnect reloads once.
+    #expect(changes.withLock { $0 } == 1)
+  }
+
+  @Test
   func `delays stop growing at the maximum`() async throws {
     let transport = StubTransport(Array(repeating: .failure(.timedOut), count: 8))
     let (pause, delays) = Self.pauses(limit: 7)

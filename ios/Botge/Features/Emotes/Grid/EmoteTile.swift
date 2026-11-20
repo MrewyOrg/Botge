@@ -22,7 +22,7 @@ struct EmoteTile: View {
         path: emote.image,
         isAnimated: emote.isAnimated,
         fallbackPath: nil,
-        priority: .utility
+        priority: .userInitiated
       )
       .frame(width: imageSize, height: imageSize)
       Text(emote.name)

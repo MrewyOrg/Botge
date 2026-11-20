@@ -38,7 +38,7 @@ enum GuessActivityViews {
   {
     HStack {
       VStack(alignment: .leading) {
-        Text("Guess · \(attributes.serverName)")
+        Text(attributes.isPrivate ? "Guess" : "Guess · \(attributes.serverName)")
           .font(.headline)
           .lineLimit(1)
         Text("Round \(state.round) of \(attributes.rounds)")
@@ -52,8 +52,10 @@ enum GuessActivityViews {
           .foregroundStyle(accent)
           .multilineTextAlignment(.trailing)
           .frame(maxWidth: lockScreenTimerWidth, alignment: .trailing)
-        Text("\(state.score) pts · #\(state.rank)")
-          .font(.subheadline.weight(.semibold))
+        if !attributes.isPrivate {
+          Text("\(state.score) pts · #\(state.rank)")
+            .font(.subheadline.weight(.semibold))
+        }
       }
     }
     .padding(lockScreenMargin)
@@ -78,8 +80,10 @@ enum GuessActivityViews {
           .font(.headline)
       }
       DynamicIslandExpandedRegion(.trailing) {
-        Text("\(state.score) pts · #\(state.rank)")
-          .font(.headline)
+        if !attributes.isPrivate {
+          Text("\(state.score) pts · #\(state.rank)")
+            .font(.headline)
+        }
       }
       DynamicIslandExpandedRegion(.bottom) {
         countdown(to: state.roundEndsAt)

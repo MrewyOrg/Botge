@@ -12,8 +12,6 @@ struct ComposerView: View {
 
   /// Closes the sheet.
   @Environment(\.dismiss) private var dismiss
-  /// Whether haptics play.
-  @AppStorage(PreferenceKey.haptics) private var haptics = true
   /// Counts copies, so each copy triggers feedback.
   @State private var copies = 0
   /// Whether the clear confirmation is showing.
@@ -39,14 +37,7 @@ struct ComposerView: View {
       .navigationTitle("Composition")
       .navigationBarTitleDisplayMode(.inline)
       .toolbar { toolbar }
-      .sensoryFeedback(.success, trigger: copies) { _, _ in haptics }
-      .confirmationDialog("Clear the composition?", isPresented: $isConfirmingClear) {
-        Button("Clear All Emotes", role: .destructive) {
-          composition.clear()
-        }
-      } message: {
-        Text("This removes every emote from the composition.")
-      }
+      .sensoryFeedback(.success, trigger: copies)
     }
   }
 
@@ -79,6 +70,13 @@ struct ComposerView: View {
       Button("Clear", systemImage: "trash", role: .destructive) { isConfirmingClear = true }
         .disabled(composition.layers.isEmpty)
         .accessibilityIdentifier("composer.clear")
+        .confirmationDialog("Clear the composition?", isPresented: $isConfirmingClear) {
+          Button("Clear All Emotes", role: .destructive) {
+            composition.clear()
+          }
+        } message: {
+          Text("This removes every emote from the composition.")
+        }
       Spacer()
       Button("Copy", systemImage: "doc.on.doc") {
         UIPasteboard.general.string = composition.commandText

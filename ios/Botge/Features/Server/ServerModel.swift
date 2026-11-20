@@ -30,8 +30,8 @@ final class ServerModel {
   private(set) var isSaving = false
   /// The last haptic to play.
   private(set) var haptic: HapticEvent?
-  /// A short message about the last save, shown as a banner.
-  var notice: String?
+  /// Why the last save failed, shown in an alert.
+  var saveFailure: String?
 
   /// The voice settings being edited.
   var voiceDraft: VoiceSettings = .init()
@@ -138,7 +138,6 @@ final class ServerModel {
 
     isSaving = true
     defer { isSaving = false }
-    let savesVoice = isVoiceChanged
     do {
       if isVoiceChanged {
         try await apply(voice: api.saveVoice(voiceDraft, guild: guild.id), replacingDraft: true)
@@ -155,14 +154,11 @@ final class ServerModel {
           replacingDraft: true
         )
       }
-      notice = savesVoice
-        ? String(localized: "Saved. Botge applies voice changes shortly.")
-        : String(localized: "Saved.")
       play(.success)
     } catch .signedOut {
       await app.signOut()
     } catch {
-      notice = error.message
+      saveFailure = error.message
       play(.failure)
     }
   }
@@ -185,7 +181,7 @@ final class ServerModel {
     } else if policyDraft.allowedRoleIDs.count < EmotePolicy.maxRoles {
       policyDraft.allowedRoleIDs.append(role.id)
     } else {
-      notice = String(localized: "Choose up to \(EmotePolicy.maxRoles) roles.")
+      // The picker disables further roles at the limit, so this only confirms it.
       play(.failure)
       return
     }

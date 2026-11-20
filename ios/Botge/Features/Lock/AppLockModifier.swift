@@ -12,6 +12,8 @@ struct AppLockModifier: ViewModifier {
 
   /// Whether App Lock is on.
   @AppStorage(PreferenceKey.appLock) private var isEnabled = false
+  /// How long Botge may stay in the background before asking again.
+  @AppStorage(PreferenceKey.appLockTimeout) private var timeout: AppLockTimeout = .immediately
   /// Foreground and background transitions.
   @Environment(\.scenePhase) private var scenePhase
   /// Checks for the device owner.
@@ -26,13 +28,16 @@ struct AppLockModifier: ViewModifier {
       .accessibilityHidden(isHidden)
       .overlay {
         if isEnabled, lock.isLocked {
-          AppLockScreen(isAuthenticating: lock.isAuthenticating) {
+          AppLockScreen(symbol: owner.lockSymbol, isAuthenticating: lock.isAuthenticating) {
             Task { await lock.unlock(enabled: isEnabled, owner: owner) }
           }
           .transition(.opacity)
         }
       }
       .animation(.default, value: lock.isLocked)
+      .onChange(of: timeout, initial: true) { _, timeout in
+        lock.policy = AppLockPolicy(gracePeriod: timeout.interval)
+      }
       .onChange(of: isEnabled) { _, enabled in
         lock.enabledChanged(to: enabled)
       }

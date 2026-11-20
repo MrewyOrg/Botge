@@ -16,7 +16,7 @@ final class AppLockState {
   private(set) var isAuthenticating = false
 
   /// When to ask again after backgrounding.
-  private let policy: AppLockPolicy
+  var policy: AppLockPolicy
   /// When the app last went to the background, or `nil` while it has not since becoming active.
   private var backgroundedAt: Date?
   /// Whether the app has not been active yet in this run.

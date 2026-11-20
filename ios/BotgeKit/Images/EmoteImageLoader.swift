@@ -2,14 +2,14 @@ public import Foundation
 
 /// Downloads and decodes emote images, degrading instead of failing.
 ///
-/// For each candidate URL (Lockdown-safe formats first) the loader tries a full decode, then the
-/// first frame only, then the next candidate. When every candidate fails it returns
-/// ``EmoteImage/placeholder`` so the grid never shows a broken or blank tile.
+/// The loader downloads ``EmoteImageURL/requestURL(for:)`` and tries a full decode, then the first
+/// frame only. When both fail it returns ``EmoteImage/placeholder`` so the grid never shows a
+/// broken or blank tile.
 ///
 /// Downloads and decodes run in parallel off the actor at the caller's priority, and concurrent
 /// requests for the same image share one load, which is cancelled once nobody waits for it.
-/// Downloads come from the disk cache when possible, and formats the device refuses to decode
-/// are skipped after a few attempts. Results go to ``memory``, which views read synchronously.
+/// Downloads come from the disk cache when possible. Results go to ``memory``, which views read
+/// synchronously.
 public actor EmoteImageLoader {
   /// Decoded bytes kept in memory by default: roughly 75 animated emotes at grid size.
   public static let defaultCostLimit = 96 << 20
@@ -24,8 +24,6 @@ public actor EmoteImageLoader {
   private var inFlight: [String: Task<EmoteImage, Never>] = [:]
   /// Requests waiting on each load, and how many of them were cancelled.
   private var waiters: [String: (total: Int, cancelled: Int)] = [:]
-  /// Formats this device refuses to decode, skipped by later loads.
-  private let formats: FormatHealth = .init()
 
   /// Creates a loader; responses are also cached on disk by the transport's `URLCache`.
   ///
@@ -53,58 +51,41 @@ public actor EmoteImageLoader {
     "\(animated ? "a" : "s")|\(path)"
   }
 
-  /// Tries each candidate in order and returns the best result.
+  /// Downloads and decodes one image.
   ///
-  /// Runs on the concurrent executor so decoding never blocks the actor. Formats the device keeps
-  /// refusing are skipped unless no other candidate is left.
+  /// Runs on the concurrent executor so decoding never blocks the actor.
   ///
   /// - Parameters:
-  ///   - candidates: URLs in preference order.
+  ///   - url: The image URL, or `nil` when the path was refused.
   ///   - animated: Whether to decode every frame.
   ///   - transport: Downloads image bytes.
   ///   - decoder: Decodes them.
-  ///   - formats: Records which formats decode, and says which to skip.
-  /// - Returns: The first decodable image, or a placeholder.
+  /// - Returns: The image, its first frame, or a placeholder.
   @concurrent
   static func load(
-    _ candidates: [URL],
+    _ url: URL?,
     animated: Bool,
     transport: any HTTPTransport,
-    decoder: any ImageDecoding,
-    formats: FormatHealth
+    decoder: any ImageDecoding
   )
     async -> EmoteImage
   {
-    let usable = candidates.filter { !formats.isSkipped(ImageFormat(path: $0.path())) }
-    for url in usable.isEmpty ? candidates : usable {
-      guard !Task.isCancelled,
-            let (data, response) = try? await transport.data(
-              // Image URLs never change content; Botge's round images are never stored.
-              for: URLRequest(url: url, cachePolicy: .returnCacheDataElseLoad)
-            ),
-            let status = (response as? HTTPURLResponse)?.statusCode,
-            HTTPStatus.success.contains(status)
-      else {
-        continue
-      }
-
-      let format = ImageFormat(path: url.path())
-
-      if animated, let image = try? decoder.decodeFrames(data) {
-        formats.record(format, decoded: true)
-        return image
-      }
-      do {
-        let frame = try decoder.decodeFirstFrame(data)
-        formats.record(format, decoded: true)
-        return .still(frame)
-      } catch .unsupported {
-        formats.record(format, decoded: false)
-      } catch {
-        // A corrupt file says nothing about its format; the next candidate may still work.
-      }
+    guard let url, !Task.isCancelled,
+          let (data, response) = try? await transport.data(
+            // Image URLs never change content; Botge's round images are never stored.
+            for: URLRequest(url: url, cachePolicy: .returnCacheDataElseLoad)
+          ),
+          let status = (response as? HTTPURLResponse)?.statusCode,
+          HTTPStatus.success.contains(status)
+    else {
+      return .placeholder
     }
-    return .placeholder
+
+    if animated, let image = try? decoder.decodeFrames(data) {
+      return image
+    }
+
+    return (try? decoder.decodeFirstFrame(data)).map(EmoteImage.still) ?? .placeholder
   }
 
   /// The decoded image for `path` if it is already in memory.
@@ -117,7 +98,7 @@ public actor EmoteImageLoader {
     memory.image(forKey: Self.key(for: path, animated: animated))
   }
 
-  /// Loads the image for a catalog path such as `/7tv-cdn/emote/ID/2x.webp`.
+  /// Loads the image for a load path such as `/7tv-cdn/emote/ID/2x.gif`.
   ///
   /// A still load decodes only the first frame, which is much faster than a full animation, so
   /// views load it first and then the animation. Placeholders are not cached, so a later call
@@ -159,13 +140,12 @@ public actor EmoteImageLoader {
   ///   - key: The cache key.
   /// - Returns: The running load.
   private func start(path: String, animated: Bool, key: String) -> Task<EmoteImage, Never> {
-    let task = Task { [transport, decoder, formats] in
+    let task = Task { [transport, decoder] in
       await Self.load(
-        EmoteImageURL.candidates(for: path),
+        EmoteImageURL.requestURL(for: path),
         animated: animated,
         transport: transport,
-        decoder: decoder,
-        formats: formats
+        decoder: decoder
       )
     }
     inFlight[key] = task
@@ -219,13 +199,7 @@ public actor EmoteImageLoader {
   /// - Parameter url: The round image URL from ``GameClient/imageURL(for:)``.
   /// - Returns: The image, a still frame, or a placeholder.
   public func roundImage(at url: URL) async -> EmoteImage {
-    await Self.load(
-      [url],
-      animated: true,
-      transport: transport,
-      decoder: decoder,
-      formats: formats
-    )
+    await Self.load(url, animated: true, transport: transport, decoder: decoder)
   }
 
   /// Removes decoded images from memory; the disk cache is cleared through `URLCache`.

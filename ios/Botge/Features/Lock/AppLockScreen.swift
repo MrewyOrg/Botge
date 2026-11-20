@@ -2,7 +2,11 @@ import SwiftUI
 
 /// The opaque screen shown while Botge is locked.
 struct AppLockScreen: View {
+  /// The unlock method's SF Symbol, such as `faceid`.
+  let symbol: String
+  /// Whether the system prompt is showing.
   let isAuthenticating: Bool
+  /// Asks the owner to authenticate.
   let unlock: () -> Void
 
   var body: some View {
@@ -16,7 +20,7 @@ struct AppLockScreen: View {
           .accessibilityHidden(true)
         Text("Botge Is Locked")
           .font(.title2.bold())
-        Button("Unlock", systemImage: "faceid", action: unlock)
+        Button("Unlock", systemImage: symbol, action: unlock)
           .buttonStyle(.glassProminent)
           .disabled(isAuthenticating)
           .accessibilityIdentifier("lock.unlock")

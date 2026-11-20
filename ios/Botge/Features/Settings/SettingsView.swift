@@ -1,7 +1,7 @@
 import BotgeKit
 import SwiftUI
 
-/// App settings: account, appearance, App Lock, haptics and motion, shortcuts, storage, and legal.
+/// App settings: account, appearance, App Lock, shortcuts, storage, and legal.
 struct SettingsView: View {
   /// Performs logout.
   @Environment(AppModel.self) private var model
@@ -13,7 +13,6 @@ struct SettingsView: View {
       Form {
         AppearanceSection()
         SecuritySection()
-        MotionSection()
         ShortcutsSection()
         LinksSection()
         Section {
@@ -23,16 +22,16 @@ struct SettingsView: View {
             Label("Log Out of Discord", systemImage: "rectangle.portrait.and.arrow.right")
           }
           .accessibilityIdentifier("settings.logout")
+          .confirmationDialog("Log out of Discord?", isPresented: $isConfirmingSignOut) {
+            Button("Log Out", role: .destructive) {
+              Task { await model.signOut() }
+            }
+          } message: {
+            Text("Botge forgets your Discord login on this device.")
+          }
         }
       }
       .navigationTitle("Settings")
-      .confirmationDialog("Log out of Discord?", isPresented: $isConfirmingSignOut) {
-        Button("Log Out", role: .destructive) {
-          Task { await model.signOut() }
-        }
-      } message: {
-        Text("Botge forgets your Discord login on this device.")
-      }
     }
   }
 }

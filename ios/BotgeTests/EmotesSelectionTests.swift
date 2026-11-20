@@ -22,13 +22,13 @@ struct EmotesSelectionTests {
   }
 
   @Test
-  func `server emotes select for removal and explain refusals`() async {
+  func `server emotes select for removal and refuse the rest`() async {
     let model = await Self.model()
     let kappa = model.visibleEmotes[1]
     #expect(model.batchAction == .remove)
     model.toggleSelection(kappa)
-    #expect(model.selection.isEmpty)
-    #expect(model.notice?.isEmpty == false)
+    #expect(model.selection.isEmpty && !model.canSelect(kappa))
+    #expect(model.haptic?.kind == .failure)
     model.toggleSelection(Fixtures.added)
     #expect(model.selection == [Fixtures.added.id])
     model.toggleSelection(Fixtures.added)
@@ -84,7 +84,7 @@ struct EmotesSelectionTests {
       await model.applyBatch()
       #expect(model.haptic?.kind == kind)
     }
-    #expect(model.notice == APIError.network.message)
+    #expect(model.actionFailure == APIError.network.message)
     await model.applyBatch()
     #expect(model.app.phase == .signedOut)
   }
@@ -100,6 +100,6 @@ struct EmotesSelectionTests {
     await model.requestBatch()
     #expect(model.pendingRemoval == nil)
     #expect(model.selection.isEmpty)
-    #expect(model.notice?.contains("1") == true)
+    #expect(model.actionFailure == nil && model.haptic?.kind == .success)
   }
 }

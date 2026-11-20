@@ -45,8 +45,6 @@ struct GuessViewTests {
     #expect(model.room != nil)
     try GuessStartView(model: model).inspect().find(ViewType.TextField.self).callOnSubmit()
     #expect(throws: Never.self) { try view.inspect().find(GuessRoomView.self) }
-    UserDefaults.standard.set(false, forKey: PreferenceKey.haptics)
-    defer { UserDefaults.standard.removeObject(forKey: PreferenceKey.haptics) }
     await Hosting.show(NavigationStack { view }, model: model.app) {
       model.retry()
       try? model.open(#require(GameRoomCode("AB")))

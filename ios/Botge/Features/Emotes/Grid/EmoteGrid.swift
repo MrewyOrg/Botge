@@ -3,7 +3,7 @@ import SwiftUI
 
 /// A scrolling grid of emotes that previews or selects them and pages discovery.
 ///
-/// Each source gets its own grid, which reopens at the emote that was at its top.
+/// Each source gets its own grid, kept alive as a page, so it keeps its scroll position.
 struct EmoteGrid: View {
   /// Smallest tile width, growing with the text size; columns adapt to the screen.
   @ScaledMetric private var tileWidth: CGFloat = 76
@@ -22,43 +22,35 @@ struct EmoteGrid: View {
         spacing: Metrics.compactSpacing
       ) {
         ForEach(emotes) { emote in
-          EmoteCell(emote: emote, model: model)
+          EmoteCell(emote: emote, model: model, source: source)
             .onAppear {
               if emote.id == lastID, source != .server {
-                Task { await model.loadMoreDiscovery() }
+                Task { await model.loadMoreDiscovery(for: source) }
               }
             }
         }
       }
-      .scrollTargetLayout()
       .padding()
-      if model.discovery.isLoading, source != .server {
+      if model.discovery(for: source).isLoading, source != .server {
         ProgressView()
           .padding()
       }
     }
-    .scrollPosition(id: anchor, anchor: .top)
-    .refreshable { await model.refresh() }
+    // Rows slide under the glass bars instead of stopping at the pager's edge.
+    .scrollClipDisabled()
+    .refreshable { await model.refresh(source) }
     .accessibilityIdentifier("emotes.grid")
   }
 
-  /// The emote at the top of the grid, saved per source.
-  private var anchor: Binding<String?> {
-    Binding { [source] in
-      model.scrollAnchor(for: source)
-    } set: { [source] id in
-      model.setScrollAnchor(id, for: source)
-    }
-  }
-
-  /// Creates the grid for the model's current source.
+  /// Creates the grid for one source.
   ///
   /// - Parameters:
   ///   - model: The server's catalog state.
   ///   - emotes: The emotes to show.
-  init(model: EmotesModel, emotes: [CatalogEmote]) {
+  ///   - source: The source the emotes come from.
+  init(model: EmotesModel, emotes: [CatalogEmote], source: EmotesSource) {
     self.model = model
     self.emotes = emotes
-    source = model.source
+    self.source = source
   }
 }

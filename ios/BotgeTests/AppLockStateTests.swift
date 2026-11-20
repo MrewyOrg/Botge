@@ -10,7 +10,7 @@ struct AppLockStateTests {
   /// An owner check that answers `approves` and counts its prompts.
   private static func owner(_ approves: Bool, prompts: Counter) -> OwnerAuthentication {
     OwnerAuthentication(
-      biometry: { .faceID },
+      method: { UnlockMethod(name: "Face ID", symbol: "faceid") },
       isAvailable: { true },
       authenticate: { _ in
         await prompts.increment()
@@ -46,7 +46,7 @@ struct AppLockStateTests {
     let lock = AppLockState(policy: AppLockPolicy(gracePeriod: 30))
     let release = AsyncStream<Void>.makeStream()
     let slow = OwnerAuthentication(
-      biometry: { .faceID },
+      method: { UnlockMethod(name: "Face ID", symbol: "faceid") },
       isAvailable: { true },
       authenticate: { _ in
         for await _ in release.stream {

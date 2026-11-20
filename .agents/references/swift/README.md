@@ -81,7 +81,8 @@ Analyzer rules run with `npm run check:ios:analyze` (and in CI). `unused_import`
 `MemberImportVisibility` it reports imports the compiler needs (such as `WidgetKit` for `@main` and
 `Foundation` for `URL` members) and its autofix breaks the build. `unused_declaration` cannot see
 the App Intents runtime, so each intent's `description` carries a commented
-`swiftlint:disable:next`.
+`swiftlint:disable:next`. `legacy_objc_type` has one commented `swiftlint:disable:next` where
+`CAKeyframeAnimation.keyTimes` only accepts `NSNumber`.
 
 ### Formatter exceptions
 

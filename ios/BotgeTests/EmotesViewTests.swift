@@ -52,7 +52,8 @@ struct EmotesViewTests {
   @Test
   func `cells preview or select their emote`() async throws {
     let model = await Self.model()
-    let cell = EmoteCell(emote: Fixtures.added, model: model).environment(model.app)
+    let cell = EmoteCell(emote: Fixtures.added, model: model, source: .server)
+      .environment(model.app)
     try cell.inspect().find(ViewType.Button.self).tap()
     #expect(model.sheet == .preview(Fixtures.added))
     model.isSelecting = true
@@ -89,8 +90,8 @@ struct EmotesViewTests {
       // Discovered emotes cannot be removed.
     }
     try adding.inspect().find(button: "Add to Server").tap()
-    await Fixtures.wait { model.notice == "Added." }
-    #expect(model.notice == "Added.")
+    await Fixtures.wait { model.haptic?.kind == .success }
+    #expect(model.haptic?.kind == .success)
   }
 
   @Test
@@ -165,14 +166,14 @@ struct EmotesViewTests {
   }
 
   @Test
-  func `notices hide after a few seconds`() async throws {
-    var notice: String? = "Saved."
-    let binding = Binding { notice } set: { notice = $0 }
-    try await NoticeBanner(notice: binding)
-      .inspect()
-      .find(ViewType.Text.self)
-      .callTask(id: "Saved.")
-    #expect(notice == nil)
+  func `failures show in an alert that clears when dismissed`() throws {
+    var failure: String? = "Not a manager."
+    let binding = Binding { failure } set: { failure = $0 }
+    let alert = try Text("Emotes").failureAlert(binding).inspect().text().alert()
+    #expect(try alert.title().string() == "Not a manager.")
+    try alert.actions().button(0).tap()
+    try alert.dismiss()
+    #expect(failure == nil)
   }
 
   @Test
@@ -189,7 +190,7 @@ struct EmotesViewTests {
     #expect(throws: (any Error).self) { try plain.inspect().find(text: "Source") }
     #expect(throws: Never.self) { try preview.removalMessage().inspect().text() }
     try preview.removalActions().inspect().button().tap()
-    await Fixtures.wait { model.notice != nil }
+    await Fixtures.wait { model.haptic != nil }
     let unloaded = await Self.model(loaded: false)
     #expect(throws: Never.self) {
       try EmotePreviewView(opened: Fixtures.added, model: unloaded)
@@ -205,7 +206,8 @@ struct EmotesViewTests {
     let model = await Self.model()
     model.source = .discovery(.top)
     await model.syncDiscovery()
-    let grid = EmoteGrid(model: model, emotes: model.visibleEmotes).environment(model.app)
+    let grid = EmoteGrid(model: model, emotes: model.visibleEmotes, source: model.source)
+      .environment(model.app)
     let last = try #require(model.visibleEmotes.last)
     try grid.inspect()
       .find(EmoteCell.self) { try $0.actualView().emote == last }
@@ -217,15 +219,28 @@ struct EmotesViewTests {
   }
 
   @Test
-  func `removals ask for confirmation in the tab`() async throws {
+  func `removals ask for confirmation at the tile or the selection bar`() async throws {
     let model = await Self.model()
-    let view = EmotesView(model: model).environment(model.app)
+    let cell = EmoteCell(emote: Fixtures.added, model: model, source: .server)
+      .environment(model.app)
     model.pendingRemoval = .single(Fixtures.added)
-    #expect(throws: Never.self) { try view.inspect().find(EmotesContent.self).confirmationDialog() }
+    let single = try cell.inspect()
+      .find(EmoteCell.self)
+      .button()
+      .modifier(RemovalConfirmation.self)
+      .viewModifierContent()
+      .confirmationDialog()
+    try single.find(button: "Remove").tap()
+    model.isSelecting = true
     model.pendingRemoval = .selection(count: 1)
-    let dialog = try view.inspect().find(EmotesContent.self).confirmationDialog()
-    try dialog.find(button: "Remove").tap()
-    try dialog.dismiss()
+    let bar = SelectionBar(model: model).environment(model.app)
+    let batch = try bar.inspect()
+      .find(SelectionBar.self)
+      .button()
+      .modifier(RemovalConfirmation.self)
+      .viewModifierContent()
+      .confirmationDialog()
+    try batch.dismiss()
     #expect(model.pendingRemoval == nil)
   }
 
@@ -233,8 +248,6 @@ struct EmotesViewTests {
   func `the tab loads, applies searches and presents sheets`() async {
     let app = await Fixtures.signedIn()
     app.pendingSearch = "pee"
-    UserDefaults.standard.set(false, forKey: PreferenceKey.haptics)
-    defer { UserDefaults.standard.removeObject(forKey: PreferenceKey.haptics) }
     let model = EmotesModel(guild: Fixtures.guild, app: app)
     let view = NavigationStack { EmotesView(model: model) }
     await Hosting.show(view, model: app, settle: .milliseconds(600)) {
@@ -275,6 +288,9 @@ extension EmotesModel {
   ///
   /// - Throws: An inspection error when the content cannot be found.
   func inspectContent() throws -> InspectableView<ViewType.View<EmotesContent>> {
-    try EmotesContent(model: self).environment(app).inspect().find(EmotesContent.self)
+    try EmotesContent(model: self, source: source)
+      .environment(app)
+      .inspect()
+      .find(EmotesContent.self)
   }
 }

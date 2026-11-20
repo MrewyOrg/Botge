@@ -14,7 +14,7 @@ struct LockAndRootTests {
   @Test
   func `the lock screen covers the app only while App Lock is on`() async throws {
     let approving = OwnerAuthentication(
-      biometry: { .faceID },
+      method: { UnlockMethod(name: "Face ID", symbol: "faceid") },
       isAvailable: { true },
       authenticate: { _ in true }
     )
