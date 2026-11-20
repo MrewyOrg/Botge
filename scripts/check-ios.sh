@@ -60,7 +60,9 @@ run_tests() {
 # Exempt: the widget extension's entry point and its ActivityKit wiring, which only the system
 # runs; tests render every view they show (BotgeLiveActivity/GuessActivityViews.swift).
 check_coverage() {
-  profile=$(ls -t DerivedData/Build/ProfileData/*/Coverage.profdata | head -n 1)
+  # The newest profile, from the last test run; earlier runs leave theirs behind.
+  profile=$(find DerivedData/Build/ProfileData -name Coverage.profdata -type f \
+    -exec stat -f '%m %N' {} + | sort -rn | head -n 1 | cut -d ' ' -f 2-)
   products=DerivedData/Build/Products/Debug-iphonesimulator
   kit=${products}/BotgeKit.framework/BotgeKit
   app=${products}/Botge.app/Botge.debug.dylib
@@ -113,6 +115,8 @@ case "${scope}" in
     ;;
   analyze)
     "${tools}/xcodegen" --spec project.yml --quiet
+    # A fresh checkout, as on CI, has no DerivedData folder yet.
+    mkdir -p DerivedData
     log=DerivedData/analyze.log
     # A clean build logs every compiler invocation the analyzer needs.
     xcodebuild clean build-for-testing \
