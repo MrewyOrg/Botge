@@ -1,8 +1,8 @@
 # Tests and checks
 
-This guide owns check commands, coverage gates, toolchains and prerequisites. Other documents link
-here instead of repeating them. Run commands from the repository root. The
-[validation skill](../.agents/skills/botge-validation/SKILL.md) chooses checks for a given change.
+This guide owns check commands, coverage gates, toolchains and prerequisites, and which checks a
+change needs. Other documents link here instead of repeating them. Run commands from the repository
+root.
 
 ## Setup
 
@@ -16,6 +16,8 @@ here instead of repeating them. Run commands from the repository root. The
   `cargo install --locked --version VERSION TOOL`.
 - **Node:** the `.nvmrc` version, then `npm ci`.
 - **Python:** follow the [helper guide](../scripts/README.md), which owns Python setup and checks.
+- **iOS:** macOS with Xcode 27, then `npm run setup:ios` once for the pinned XcodeGen, SwiftFormat
+  and SwiftLint. The [iOS guide](../ios/README.md) covers signing and troubleshooting.
 
 `.venv/bin/python scripts/doctor.py` reports missing prerequisites without installing anything.
 
@@ -47,6 +49,38 @@ suite. For focused iteration, use a filtered `cargo test --locked`, Vitest or
 
 Run Activity builds and tests one at a time: Worker entry tests mock the generated HTML module, and
 a concurrent build can replace it.
+
+## Choosing checks
+
+Start with the tests closest to the changed behavior, and include callers and shared contracts when
+a change crosses boundaries. Skip unrelated suites for documentation-only edits. Run whole suites
+and coverage gates when asked; CI runs them on every PR.
+
+- **Rust source or toolchain:** `sh scripts/check-rust.sh static`; add `dependencies` for manifests,
+  features or dependencies, `coverage` for behavior or tests, and `miri` for pure logic it covers.
+- **Activity, Worker or TypeScript tooling:** `npm run check:static` and `npm run test:coverage`;
+  add `npm run check:markup -w activity` for HTML, styles or build configuration.
+- **iOS app:** `npm run check:ios` and `npm run test:ios:only` naming the `BotgeKitTests` and
+  `BotgeTests` suites and UI test classes; add `npm run check:ios:analyze` when declarations change
+  and `npm run test:ios:lockdown` for login, image or document changes.
+- **Python helpers:** `.venv/bin/python scripts/check_python.py`.
+- **Control scripts or tooling tests:** `npm test -- --run --project Tooling`, and
+  `npm run lint:shell` for shell scripts.
+- **Workflows or composite actions:** `npm run lint:workflows`.
+- **Reference snapshots:** `python3 .agents/scripts/cache_references.py --check`.
+- **Markdown or prose:** `npm run markdownlint`, `npm run cspell` and Prettier.
+- **Rego policy:** Regal.
+- **Docker, Compose or deployment settings:** read the [control guide](../botge_control/README.md)
+  and [production guide](../docs/PRODUCTION.md); use static validation and fixtures only.
+
+`npm run run:ios -- --fixtures` launches the app on the simulator with offline fixtures. Measure iOS
+performance changes on an iPhone with Lockdown Mode on, and Rust ones with the benchmarks below.
+
+Routine checks never run setup, teardown, data import, deployment, pruning or live bot startup;
+`npm start` builds and starts the stack and is not a check. Report the commands run, their results
+and any checks not run with the reason, and keep static checks, fixture tests and live tests apart.
+Fix failures within the task and rerun the affected checks; never lower a gate, skip a test, or
+commit, push or deploy just to get a green result.
 
 ## Coverage gates
 

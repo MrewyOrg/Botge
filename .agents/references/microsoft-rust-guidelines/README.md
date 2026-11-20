@@ -17,8 +17,9 @@ SHA-256 of `all.txt`:
 e69533b0541a5d185ad9d8304f5eb5cf4b033135b7046f89c499b6126dced3b6
 ```
 
-Use this local snapshot during Rust work. Its relative upstream links are not local documentation
-paths; consult the [official site](https://microsoft.github.io/rust-guidelines/) for linked pages.
+Consult this snapshot when a review needs a specific guideline; Clippy's lint policy already encodes
+most of them. Its relative upstream links are not local documentation paths; consult the
+[official site](https://microsoft.github.io/rust-guidelines/) for linked pages.
 
 Refresh manually when requested or when adopting a newer guideline version. Download the official
 agent reference and upstream license, review their changes, update this metadata and checksum, and

@@ -48,6 +48,26 @@ Python validation enforces the [Python coverage gate](../tests/README.md#coverag
 helper file. It includes Python subprocesses and normalizes copied fixtures. Tests and generated
 files are outside the measured helper source set.
 
+## Python guideline checklist
+
+Ruff (`ALL`) and strict Pyright enforce most of PEP 8 and the Google guide. These need judgment;
+each names its source in the cached guides listed in the
+[Python reference index](../.agents/references/python/README.md), so read that one section when a
+case is unclear.
+
+- **Boundaries:** validate external JSON before narrowing types; reject Booleans where numbers are
+  expected and non-finite numbers (Google 2.4, typing best practices).
+- **Types:** accept abstract read-only inputs, return concrete results, and keep precise unions
+  instead of `Any` (typing best practices, modern typing).
+- **State:** no mutable globals; parser and runtime state belongs to instances. Prefer plain fields
+  and frozen dataclasses to properties and getters (Google 2.5, 2.13, 3.15).
+- **Resources:** context-managed files and processes, shell-free subprocesses, and bounded work
+  (Google 3.11, Microsoft review).
+- **Entry points:** guard `main`, and handle help and argument errors before any probe or side
+  effect (Google 3.17).
+- **Docstrings:** describe observable behavior, side effects, meaningful arguments and actual
+  failure conditions; keep obvious helpers brief (PEP 257, Google 3.8).
+
 ## Rust coverage validation
 
 `check-rust-coverage.sh` keeps its short jq filter: it checks four coverage categories per file and
