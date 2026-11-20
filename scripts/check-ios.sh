@@ -50,7 +50,13 @@ run_tests() {
     -skipMacroValidation \
     -enableCodeCoverage YES \
     -parallel-testing-enabled NO \
-    -quiet
+    -quiet || {
+    status=$?
+    # -quiet hides why a run failed; the result bundle names failed tests and runner crashes.
+    printf '%s\n' "Test results (${result}):" >&2
+    xcrun xcresulttool get test-results summary --path "${result}" --compact >&2 || true
+    return "${status}"
+  }
 }
 
 # Fails unless every Swift file with executable code reaches the minimum line, region and function
