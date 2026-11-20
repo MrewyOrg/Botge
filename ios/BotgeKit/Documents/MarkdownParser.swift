@@ -1,3 +1,5 @@
+import Foundation
+
 /// Accumulates wrapped Markdown lines into ``MarkdownBlock`` values.
 struct MarkdownParser {
   /// ATX heading levels.
@@ -23,6 +25,21 @@ struct MarkdownParser {
     }
 
     return (level, String(line.dropFirst(level + 1)))
+  }
+
+  /// Renders a block's inline syntax, such as emphasis and links, keeping its whitespace.
+  ///
+  /// - Parameter text: A block's Markdown text.
+  /// - Returns: The formatted text, or the plain text if the inline syntax cannot be read.
+  static func inline(_ text: String) -> AttributedString {
+    let options = AttributedString.MarkdownParsingOptions(
+      interpretedSyntax: .inlineOnlyPreservingWhitespace
+    )
+    do {
+      return try AttributedString(markdown: text, options: options)
+    } catch {
+      return AttributedString(text)
+    }
   }
 
   /// Adds one trimmed line.

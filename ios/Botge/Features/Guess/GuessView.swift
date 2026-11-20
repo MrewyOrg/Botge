@@ -3,8 +3,6 @@ import SwiftUI
 
 /// The Guess tab: choose a room, then play in it.
 struct GuessView: View {
-  /// Whether haptics play.
-  @AppStorage(PreferenceKey.haptics) private var haptics = true
   /// The server's game state, owned by the tab view so a match survives tab switches.
   let model: GuessModel
 
@@ -16,8 +14,13 @@ struct GuessView: View {
         GuessStartView(model: model)
       }
     }
-    .sensoryFeedback(trigger: model.haptic) { _, event in
-      haptics ? event?.feedback : nil
-    }
+    .hapticFeedback(model.haptic)
+  }
+
+  /// Creates the tab.
+  ///
+  /// - Parameter model: The server's game state.
+  init(model: GuessModel) {
+    self.model = model
   }
 }

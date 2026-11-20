@@ -6,8 +6,6 @@ import SwiftUI
 ///
 /// Edits are drafts until Save; Discard restores the saved values after a confirmation.
 struct ServerView: View {
-  /// Whether haptics play.
-  @AppStorage(PreferenceKey.haptics) private var haptics = true
   /// The server's settings state.
   @State private var model: ServerModel
   /// Whether the discard confirmation is showing.
@@ -17,20 +15,8 @@ struct ServerView: View {
     content
       .navigationTitle("Server")
       .toolbar { toolbar }
-      .overlay(alignment: .bottom) {
-        NoticeBanner(notice: $model.notice)
-      }
-      .animation(.default, value: model.notice)
-      .sensoryFeedback(trigger: model.haptic) { _, event in
-        haptics ? event?.feedback : nil
-      }
-      .confirmationDialog("Discard your changes?", isPresented: $isConfirmingDiscard) {
-        Button("Discard Changes", role: .destructive) {
-          model.discardChanges()
-        }
-      } message: {
-        Text("The saved settings stay as they are.")
-      }
+      .failureAlert($model.saveFailure)
+      .hapticFeedback(model.haptic)
       .task { await model.load() }
       .onChange(of: model.hasChanges, initial: true) { _, changed in
         model.app.hasUnsavedServerChanges = changed
@@ -83,6 +69,13 @@ struct ServerView: View {
         }
         .disabled(model.isSaving)
         .accessibilityIdentifier("server.discard")
+        .confirmationDialog("Discard your changes?", isPresented: $isConfirmingDiscard) {
+          Button("Discard Changes", role: .destructive) {
+            model.discardChanges()
+          }
+        } message: {
+          Text("The saved settings stay as they are.")
+        }
       }
     }
     ToolbarItem(placement: .confirmationAction) {
@@ -104,6 +97,13 @@ struct ServerView: View {
   ///   - guild: The server to show.
   ///   - app: The app-wide model.
   init(guild: SharedGuild, app: AppModel) {
-    _model = State(initialValue: ServerModel(guild: guild, app: app))
+    self.init(model: ServerModel(guild: guild, app: app))
+  }
+
+  /// Creates the tab for an existing model.
+  ///
+  /// - Parameter model: The server's settings state.
+  init(model: ServerModel) {
+    _model = State(initialValue: model)
   }
 }

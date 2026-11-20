@@ -28,11 +28,8 @@ struct MarkdownBlockView: View {
     }
   }
 
+  /// The block text with inline formatting.
   private var attributed: AttributedString {
-    let options = AttributedString.MarkdownParsingOptions(
-      interpretedSyntax: .inlineOnlyPreservingWhitespace
-    )
-    return (try? AttributedString(markdown: block.text, options: options))
-      ?? AttributedString(block.text)
+    block.attributedText
   }
 }

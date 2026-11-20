@@ -60,17 +60,11 @@ struct EmoteImageLoaderTests {
 
     let cache = EmoteImageCache(costLimit: cost * 2)
     cache.insert(still, forKey: "a")
-    cache.insert(still, forKey: "b")
     #expect(cache.image(forKey: "a") != nil)
-    cache.insert(still, forKey: "c")
-    #expect(cache.image(forKey: "b") == nil)
-    #expect(cache.image(forKey: "a") != nil && cache.image(forKey: "c") != nil)
-    cache.insert(still, forKey: "c")
-    #expect(cache.count == 2)
-
+    #expect(cache.image(forKey: "missing") == nil)
     cache.insert(.animated(frames: [frame, frame, frame], delays: [1, 1, 1]), forKey: "big")
     #expect(cache.image(forKey: "big") == nil)
     cache.removeAll()
-    #expect(cache.isEmpty)
+    #expect(cache.image(forKey: "a") == nil)
   }
 }

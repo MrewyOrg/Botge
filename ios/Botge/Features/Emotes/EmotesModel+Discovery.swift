@@ -7,16 +7,23 @@ extension EmotesModel {
   /// ``searchDelay`` in milliseconds.
   private static let searchDelayMilliseconds = 350
 
-  /// Loads the current ranking when it has nothing for the current search yet.
+  /// Loads the current source's ranking when it has nothing for its search yet.
+  func syncDiscovery() async {
+    await syncDiscovery(for: source)
+  }
+
+  /// Loads `source`'s ranking when it has nothing for its search yet.
   ///
   /// Results already loaded for the same search are kept, so switching sources does not reload
   /// them. A changed search waits for typing to pause first; cancelling the task cancels it.
-  func syncDiscovery() async {
+  ///
+  /// - Parameter source: A grid source; the server catalog needs no sync.
+  func syncDiscovery(for source: EmotesSource) async {
     guard case let .discovery(mode) = source else {
       return
     }
 
-    let wanted = filter
+    let wanted = filter(for: source)
     let state = discoveries[mode]
     if state?.isCurrent(for: wanted) == true {
       return
@@ -35,9 +42,10 @@ extension EmotesModel {
   ///
   /// - Parameter mode: The ranking to reload.
   func reloadDiscovery(_ mode: DiscoveryMode) async {
-    var state = DiscoveryState(filter: filter)
+    let wanted = filter(for: .discovery(mode))
+    var state = DiscoveryState(filter: wanted)
     // Without a search or filter, the first page saved last time shows while it reloads.
-    if filter == EmoteFilter(), let saved = await app.snapshots.read(
+    if wanted == EmoteFilter(), let saved = await app.snapshots.read(
       DiscoveryPage.self,
       key: Self.snapshotKey(mode)
     ) {
@@ -50,6 +58,13 @@ extension EmotesModel {
 
   /// Loads the next page of the current ranking, if any, and appends it.
   func loadMoreDiscovery() async {
+    await loadMoreDiscovery(for: source)
+  }
+
+  /// Loads the next page of `source`'s ranking, if any, and appends it.
+  ///
+  /// - Parameter source: A grid source; the server catalog has no pages.
+  func loadMoreDiscovery(for source: EmotesSource) async {
     if case let .discovery(mode) = source {
       await loadMoreDiscovery(mode)
     }
@@ -80,13 +95,13 @@ extension EmotesModel {
     }
 
     do {
-      notice = try await api.addEmote(guild: guild.id, sevenTVID: id)
+      _ = try await api.addEmote(guild: guild.id, sevenTVID: id)
       play(.success)
       await load()
     } catch .signedOut {
       await app.signOut()
     } catch {
-      notice = error.message
+      actionFailure = error.message
       play(.failure)
     }
   }

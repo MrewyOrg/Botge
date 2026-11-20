@@ -14,6 +14,7 @@ one Botge deployment through the bearer-only app API (`/app/v1`).
 | `BotgeKit/`          | Framework: Discord login, API client, images, preferences      |
 | `BotgeLiveActivity/` | Widget extension for the Guess Live Activity                   |
 | `BotgeKitTests/`     | Swift Testing unit tests, including `LockdownTests`            |
+| `BotgeTests/`        | App unit tests: models, intents and views (ViewInspector)      |
 | `BotgeUITests/`      | XCUITest flows against fixture data                            |
 | `TestPlans/`         | Default and Lockdown Mode test plans                           |
 | `Tools/`             | Pinned XcodeGen, SwiftFormat and SwiftLint                     |
@@ -31,7 +32,8 @@ You need macOS with Xcode 27 (open it once to install the iOS 27 simulator).
      because xcconfig treats `//` as a comment. For a bot on this Mac, use
      `http:/$()/127.0.0.1:3080/app/v1` in the simulator. A real iPhone needs the Mac's LAN address,
      such as `http:/$()/192.168.0.12:3080/app/v1`, with `ACTIVITY_BIND_HOST` set to that address or
-     `0.0.0.0` in `.env`. Plain HTTP is allowed only to local network addresses.
+     `0.0.0.0` in `.env`. Plain HTTP is allowed only to local network addresses, and only in Debug
+     builds; Release builds require HTTPS.
    - `BOTGE_BUNDLE_PREFIX`: a reverse-DNS prefix only you use, such as `dev.yourname.botge`.
    - `DEVELOPMENT_TEAM`: your team ID, needed only for a real device (see below).
 3. Generate the project: `npm run generate:ios`. Repeat after adding or removing files.
@@ -58,20 +60,22 @@ You need macOS with Xcode 27 (open it once to install the iOS 27 simulator).
 
 ## Features
 
-- **Emotes:** the server catalog and 7TV Trending and Top, with search, filters, the composer and,
-  for emote managers, adding and removing emotes one at a time or in batches.
+- **Emotes:** the server catalog and 7TV Trending and Top as swipeable pages, with search, filters,
+  the composer and, for emote managers, adding and removing emotes one at a time or in batches.
+  Animated emotes follow the system Auto-Play Animated Images setting.
 - **Guess:** create a room and share its code, or join one by code. App rooms (`app-<code>`) are
   separate from Discord Activity rooms. The Emotes tab is hidden during a match, and a Live Activity
-  shows the round on the Lock Screen.
+  shows the round on the Lock Screen; with App Lock on, it hides the server and score.
 - **Server:** voice settings, emote sources and emote managers for administrators, and everyone's
   personal emote border.
-- **Settings:** appearance, App Lock, haptics and animation, image cache, legal documents and
-  logout.
+- **Settings:** appearance, App Lock with a timeout, image cache, legal documents and logout.
+  Haptics follow the system setting.
 - **Siri, Spotlight and Shortcuts:** "Search emotes in Botge" asks for a search and opens the Emotes
   tab; "Play Guess in Botge" opens the Guess tab. Both can be assigned to the Action button.
 
 With `npm run run:ios -- --fixtures`, the app uses offline fixture data: one administrator server, a
-small catalog, and a scripted one-round Guess room whose answer is `catJAM`.
+small catalog, five pages of 7TV results, and a scripted one-round Guess room whose answer is
+`catJAM`.
 
 ## Checks
 
@@ -79,8 +83,11 @@ From the repository root:
 
 - `npm run format:ios` formats Swift with SwiftFormat.
 - `npm run check:ios` runs SwiftFormat in lint mode and SwiftLint with every rule and `--strict`.
+- `npm run check:ios:analyze` clean-builds every target and runs SwiftLint's analyzer rules, which
+  find unused declarations and imports.
 - `npm run test:ios` regenerates the project, runs unit and UI tests on the iPhone 17e simulator and
-  requires 90% line coverage in every BotgeKit file.
+  requires 90% line, region and function coverage in every Swift file; see the
+  [coverage gates](../tests/README.md#coverage-gates).
 - `npm run test:ios:lockdown` runs the Lockdown Mode plan; see the
   [test guide](../tests/README.md#lockdown-mode).
 - `npm run test:ios:only -- EmoteLinkTests DiscoveryUITests` runs only the named suites or tests
@@ -125,5 +132,7 @@ or let the commit hook format.
 ## Lockdown Mode
 
 The app avoids everything Lockdown Mode restricts: it has no web views, renders legal documents
-natively, decodes images with ImageIO and falls back to a still frame or a placeholder. Discord's
-login page in the system sheet is the only web content and can load more slowly in Lockdown Mode.
+natively, decodes images with ImageIO and falls back to a still frame or a placeholder. Animated 7TV
+emotes load as GIF and still ones as PNG: in Lockdown Mode ImageIO decodes WebP about twenty times
+slower than GIF. AVIF is never requested. Discord's login page in the system sheet is the only web
+content and can load more slowly in Lockdown Mode.

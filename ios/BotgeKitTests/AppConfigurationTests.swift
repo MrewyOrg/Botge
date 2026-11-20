@@ -9,7 +9,8 @@ struct AppConfigurationTests {
   func `accepts an HTTPS base URL and a snowflake ID`() throws {
     let configuration = try AppConfiguration(
       apiBaseURL: " https://botge.example.com/botge-api/app/v1 ",
-      discordApplicationID: Self.applicationID
+      discordApplicationID: Self.applicationID,
+      allowsLocalHTTP: false
     )
     #expect(configuration.apiBaseURL.absoluteString == "https://botge.example.com/botge-api/app/v1")
     #expect(configuration.discordApplicationID == Self.applicationID)
@@ -24,8 +25,23 @@ struct AppConfigurationTests {
     "http://169.254.3.4:3080",
     "http://my-mac.local:3080"
   ])
-  func `accepts plain HTTP for loopback and local network hosts`(url: String) throws {
-    _ = try AppConfiguration(apiBaseURL: url, discordApplicationID: Self.applicationID)
+  func `development builds accept plain HTTP to local hosts and release builds never do`(
+    url: String
+  )
+    throws
+  {
+    _ = try AppConfiguration(
+      apiBaseURL: url,
+      discordApplicationID: Self.applicationID,
+      allowsLocalHTTP: true
+    )
+    #expect(throws: ConfigurationError.invalidAPIBaseURL) {
+      try AppConfiguration(
+        apiBaseURL: url,
+        discordApplicationID: Self.applicationID,
+        allowsLocalHTTP: false
+      )
+    }
   }
 
   @Test(arguments: [
@@ -38,7 +54,11 @@ struct AppConfigurationTests {
   ])
   func `rejects plain HTTP to public hosts`(url: String) {
     #expect(throws: ConfigurationError.invalidAPIBaseURL) {
-      try AppConfiguration(apiBaseURL: url, discordApplicationID: Self.applicationID)
+      try AppConfiguration(
+        apiBaseURL: url,
+        discordApplicationID: Self.applicationID,
+        allowsLocalHTTP: true
+      )
     }
   }
 
@@ -50,17 +70,25 @@ struct AppConfigurationTests {
   ])
   func `rejects malformed base URLs`(url: String) {
     #expect(throws: ConfigurationError.invalidAPIBaseURL) {
-      try AppConfiguration(apiBaseURL: url, discordApplicationID: Self.applicationID)
+      try AppConfiguration(
+        apiBaseURL: url,
+        discordApplicationID: Self.applicationID,
+        allowsLocalHTTP: true
+      )
     }
   }
 
   @Test
   func `reports missing values before invalid ones`() {
     #expect(throws: ConfigurationError.missingAPIBaseURL) {
-      try AppConfiguration(apiBaseURL: "", discordApplicationID: "x")
+      try AppConfiguration(apiBaseURL: "", discordApplicationID: "x", allowsLocalHTTP: true)
     }
     #expect(throws: ConfigurationError.missingApplicationID) {
-      try AppConfiguration(apiBaseURL: "https://botge.example.com", discordApplicationID: nil)
+      try AppConfiguration(
+        apiBaseURL: "https://botge.example.com",
+        discordApplicationID: nil,
+        allowsLocalHTTP: true
+      )
     }
   }
 
@@ -69,20 +97,27 @@ struct AppConfigurationTests {
     #expect(throws: ConfigurationError.invalidApplicationID) {
       try AppConfiguration(
         apiBaseURL: "https://botge.example.com",
-        discordApplicationID: identifier
+        discordApplicationID: identifier,
+        allowsLocalHTTP: true
       )
     }
   }
 
   @Test
   func `reads the Info.plist keys written by the build`() throws {
-    let configuration = try AppConfiguration(infoDictionary: [
+    let directory = FileManager.default.temporaryDirectory.appending(path: UUID().uuidString)
+    try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+    let info = [
       AppConfiguration.apiBaseURLKey: "https://botge.example.com",
       AppConfiguration.applicationIDKey: Self.applicationID
-    ])
+    ]
+    try PropertyListSerialization.data(fromPropertyList: info, format: .xml, options: 0)
+      .write(to: directory.appending(path: "Info.plist"))
+    let bundle = try #require(Bundle(url: directory))
+    let configuration = try AppConfiguration(bundle: bundle, allowsLocalHTTP: false)
     #expect(configuration.discordApplicationID == Self.applicationID)
     #expect(throws: ConfigurationError.missingAPIBaseURL) {
-      try AppConfiguration(infoDictionary: [:])
+      try AppConfiguration(bundle: Bundle(for: ScriptedConnector.self), allowsLocalHTTP: true)
     }
   }
 

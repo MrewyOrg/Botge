@@ -26,21 +26,23 @@ struct EmoteImageURLTests {
   ])
   func `other paths are refused`(path: String) {
     #expect(EmoteImageURL.url(for: path) == nil)
-    #expect(EmoteImageURL.candidates(for: path).isEmpty)
+    #expect(EmoteImageURL.requestURL(for: path) == nil)
   }
 
   @Test
-  func `7TV candidates keep the query`() {
-    let urls = EmoteImageURL.candidates(for: "/7tv-cdn/emote/1/2x.webp?quality=high")
-    #expect(urls.first?.absoluteString == "https://cdn.7tv.app/emote/1/2x.webp?quality=high")
-  }
-
-  @Test
-  func `formats are inferred from the last path component`() {
-    #expect(ImageFormat(path: "/a/b.JPG") == .jpeg)
-    #expect(ImageFormat(path: "/a.b/c") == .unknown)
-    #expect(ImageFormat(path: "/a/b.png") == .png)
-    #expect(ImageFormat.allCases.filter(\.isAllowed) == [.gif, .jpeg, .png, .webp])
+  func `load paths pick the 7TV format and keep the query`() {
+    let still = EmoteImageURL.loadPath(
+      for: "/7tv-cdn/emote/1/2x.webp?quality=high",
+      isAnimated: false
+    )
+    #expect(still == "/7tv-cdn/emote/1/2x.png?quality=high")
+    let bare = EmoteImageURL.loadPath(for: "/7tv-cdn/emote/1.0/2x", isAnimated: true)
+    #expect(bare == "/7tv-cdn/emote/1.0/2x.gif")
+    let twitch = "/twitch-cdn/emoticons/v2/1/default/dark/2.0"
+    #expect(EmoteImageURL.loadPath(for: twitch, isAnimated: true) == twitch)
+    let url = EmoteImageURL.requestURL(for: still)
+    #expect(url?.absoluteString == "https://cdn.7tv.app/emote/1/2x.png?quality=high")
+    #expect(EmoteImageURL.requestURL(for: "/ffz-cdn/emote/1/2.png")?.lastPathComponent == "2.png")
   }
 
   @Test

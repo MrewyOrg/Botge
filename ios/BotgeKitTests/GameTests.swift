@@ -90,6 +90,7 @@ struct GameTests {
     #expect(room.code.count == GameRoomCode.length)
     #expect(room.code.allSatisfy(GameRoomCode.alphabet.contains))
     #expect(room.instanceID == "app-\(room.code)")
+    #expect(GameRoomCode.random().code.count == GameRoomCode.length)
     #expect(GameRoomCode(" app-k7qf2m ")?.code == "K7QF2M")
     #expect(GameRoomCode("APP-AB12")?.instanceID == "app-AB12")
     for bad in ["", "app-", "has space", "café", String(repeating: "A", count: 33)] {
@@ -131,5 +132,19 @@ struct GameTests {
         received: received
       ) == nil)
     }
+  }
+
+  @Test
+  func `live activity content tolerates missing timing`() throws {
+    let received = Date(timeIntervalSince1970: 1_000)
+    let ready = GameState(phase: .ready, round: 0, roundMilliseconds: 20_000)
+    let early = try #require(
+      GuessActivityAttributes.ContentState(state: ready, player: "1", received: received)
+    )
+    #expect(early.roundEndsAt == received.addingTimeInterval(20))
+    #expect(early.round == 1)
+    let noTimer = GameState(phase: .round, round: 2)
+    #expect(GuessActivityAttributes.ContentState(state: noTimer, player: "1", received: received)?
+      .roundEndsAt == received)
   }
 }

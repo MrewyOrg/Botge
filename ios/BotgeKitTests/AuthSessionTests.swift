@@ -68,6 +68,46 @@ struct AuthSessionTests {
   }
 
   @Test
+  func `a sign-out during a refresh is not undone when the refresh finishes`() async throws {
+    let replies = StubTransport([
+      Self.tokenReply("a"),
+      Self.tokenReply("b"),
+      .response(status: 200, body: Data())
+    ])
+    let transport = GatedTransport(replies, holding: 2)
+    let session = AuthSession(oauth: Self.oauth, transport: transport, store: MemorySecretStore()) {
+      Self.start
+    }
+    try await session.signIn(code: "c", pkce: .random())
+    let renewal = Task { try await session.renew() }
+    await transport.waitForHeldRequest()
+    try await session.signOut()
+    transport.open()
+    await #expect(throws: AuthSessionError.signedOut) { try await renewal.value }
+    #expect(await !session.isSignedIn)
+  }
+
+  @Test
+  func `callers waiting on a rejected refresh are signed out too`() async throws {
+    let replies = StubTransport([
+      Self.tokenReply("a"),
+      StubTransport.json(400, ["error": "invalid_grant"])
+    ])
+    let transport = GatedTransport(replies, holding: 2)
+    let session = AuthSession(oauth: Self.oauth, transport: transport, store: MemorySecretStore()) {
+      Self.start
+    }
+    try await session.signIn(code: "c", pkce: .random())
+    let first = Task { try await session.renew() }
+    await transport.waitForHeldRequest()
+    let second = Task { try await session.renew() }
+    try await Task.sleep(for: .milliseconds(50))
+    transport.open()
+    await #expect(throws: AuthSessionError.signedOut) { try await first.value }
+    await #expect(throws: AuthSessionError.signedOut) { try await second.value }
+  }
+
+  @Test
   func `network failures during renewal keep the session`() async throws {
     let transport = StubTransport([Self.tokenReply("a"), .failure(.notConnectedToInternet)])
     let session = Self.session(transport)

@@ -14,8 +14,8 @@ final class EmotesModel {
   private(set) var catalog: Catalog?
   /// Why the last load failed, if it did.
   private(set) var failure: APIError?
-  /// A short message about the last action, shown as a banner.
-  var notice: String?
+  /// Why the last action failed, shown in an alert.
+  var actionFailure: String?
   /// The emotes collected for `/emote-compose`.
   var composition: Composition = .init()
   /// The open sheet, if any.
@@ -34,8 +34,10 @@ final class EmotesModel {
   private(set) var haptic: HapticEvent?
   /// The search and filter settings by source.
   private var filters: [EmotesSource: EmoteFilter] = [:]
-  /// The emote at the top of each source's grid, to restore its scroll position.
-  private var scrollAnchors: [EmotesSource: String] = [:]
+  /// The reload that change notices started, while it runs.
+  private var reload: Task<Void, Never>?
+  /// Whether a change notice arrived since the running reload started.
+  private var isReloadPending = false
 
   /// The app-wide model, for the API, 7TV and sign-out.
   let app: AppModel
@@ -48,21 +50,12 @@ final class EmotesModel {
 
   /// The discovery results of the current source; empty for the server catalog.
   var discovery: DiscoveryState {
-    guard case let .discovery(mode) = source else {
-      return DiscoveryState()
-    }
-
-    return discoveries[mode] ?? DiscoveryState()
+    discovery(for: source)
   }
 
-  /// The emotes the grid shows: the filtered catalog, or discovery results with server state.
+  /// The emotes the current source's grid shows.
   var visibleEmotes: [CatalogEmote] {
-    guard source != .server else {
-      return filter.matchingEmotes(in: catalog?.emotes ?? [])
-    }
-
-    let found = discovery.emotes
-    return catalog?.resolving(found) ?? found
+    visibleEmotes(for: source)
   }
 
   /// Creates a model for one server.
@@ -79,30 +72,45 @@ final class EmotesModel {
     // Tasks that use the model are owned by the view and end with it.
   }
 
-  /// The emote at the top of `source`'s grid when it was last shown.
+  /// The search and filter settings of `source`.
   ///
   /// - Parameter source: A grid source.
-  /// - Returns: The emote ID, or `nil` to start at the top.
-  func scrollAnchor(for source: EmotesSource) -> String? {
-    scrollAnchors[source]
+  /// - Returns: Its filter.
+  func filter(for source: EmotesSource) -> EmoteFilter {
+    filters[source] ?? EmoteFilter()
   }
 
-  /// Remembers the emote at the top of `source`'s grid.
+  /// The discovery results of `source`; empty for the server catalog.
   ///
-  /// - Parameters:
-  ///   - id: The emote ID; `nil` keeps the previous anchor.
-  ///   - source: The grid source.
-  func setScrollAnchor(_ id: String?, for source: EmotesSource) {
-    if let id, scrollAnchors[source] != id {
-      scrollAnchors[source] = id
+  /// - Parameter source: A grid source.
+  /// - Returns: Its loaded results and paging.
+  func discovery(for source: EmotesSource) -> DiscoveryState {
+    guard case let .discovery(mode) = source else {
+      return DiscoveryState()
     }
+
+    return discoveries[mode] ?? DiscoveryState()
+  }
+
+  /// The emotes `source`'s grid shows: the filtered catalog, or discovery results with server
+  /// state.
+  ///
+  /// - Parameter source: A grid source.
+  /// - Returns: The emotes in display order.
+  func visibleEmotes(for source: EmotesSource) -> [CatalogEmote] {
+    guard source != .server else {
+      return filter(for: source).matchingEmotes(in: catalog?.emotes ?? [])
+    }
+
+    let found = discovery(for: source).emotes
+    return catalog?.resolving(found) ?? found
   }
 
   /// Plays a haptic when the user allows them.
   ///
   /// - Parameter kind: What happened.
   func play(_ kind: HapticEvent.Kind) {
-    haptic = HapticEvent(kind: kind, serial: (haptic?.serial ?? 0) + 1)
+    haptic = HapticEvent(kind, after: haptic)
   }
 
   /// Whether `emote` can be removed: the member manages emotes and the server added it.
@@ -141,8 +149,15 @@ final class EmotesModel {
     }
   }
 
-  /// Reloads what the current source shows, for pull to refresh.
+  /// Reloads what the current source shows.
   func refresh() async {
+    await refresh(source)
+  }
+
+  /// Reloads what `source` shows, for pull to refresh.
+  ///
+  /// - Parameter source: The grid source.
+  func refresh(_ source: EmotesSource) async {
     if case let .discovery(mode) = source {
       await reloadDiscovery(mode)
     } else {
@@ -151,6 +166,9 @@ final class EmotesModel {
   }
 
   /// Reloads the catalog whenever the server reports a change, until the task is cancelled.
+  ///
+  /// Notices that arrive while a reload runs are combined into one more reload, so a batch of
+  /// changes costs at most two catalog requests.
   func watch() async {
     guard let watch = app.makeCatalogWatch() else {
       return
@@ -158,10 +176,27 @@ final class EmotesModel {
 
     do {
       try await watch.run(guild: guild.id) { [weak self] in
-        await self?.load()
+        await self?.catalogChanged()
       }
     } catch {
       await app.signOut()
+    }
+    reload?.cancel()
+  }
+
+  /// Starts a reload for a change notice, or marks one pending while a reload runs.
+  func catalogChanged() {
+    isReloadPending = true
+    guard reload == nil else {
+      return
+    }
+
+    reload = Task { [weak self] in
+      while let self, isReloadPending, !Task.isCancelled {
+        isReloadPending = false
+        await load()
+      }
+      self?.reload = nil
     }
   }
 
@@ -174,15 +209,22 @@ final class EmotesModel {
     }
 
     do {
-      notice = try await api.removeEmote(guild: guild.id, sevenTVID: id)
+      _ = try await api.removeEmote(guild: guild.id, sevenTVID: id)
       play(.success)
       await load()
     } catch .signedOut {
       await app.signOut()
     } catch {
-      notice = error.message
+      actionFailure = error.message
       play(.failure)
     }
+  }
+
+  /// Asks the user to confirm removing `emote` from the server.
+  ///
+  /// - Parameter emote: An emote for which ``canRemove(_:)`` is true.
+  func requestRemoval(of emote: CatalogEmote) {
+    pendingRemoval = .single(emote)
   }
 
   /// Carries out a confirmed removal.
@@ -198,16 +240,13 @@ final class EmotesModel {
     }
   }
 
-  /// Adds `emote` to the composition, or explains why it cannot be added.
+  /// Adds `emote` to the composition; the composition badge shows the new count.
   ///
   /// - Parameter emote: A catalog emote.
   /// - Returns: Whether it was added.
   @discardableResult
   func compose(_ emote: CatalogEmote) -> Bool {
     let added = composition.add(emote)
-    notice = added
-      ? String(localized: "Added \(emote.name) to the composition.")
-      : String(localized: "\(emote.name) can't be composed or the composition is full.")
     play(added ? .impact : .failure)
     return added
   }

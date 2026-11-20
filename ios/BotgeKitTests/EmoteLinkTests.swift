@@ -35,4 +35,9 @@ struct EmoteLinkTests {
     #expect(EmoteLink.url(for: oddID)?.host() == "cdn.betterttv.net")
     #expect(EmoteLink.url(for: Self.emote(.betterTTV, "/elsewhere/x")) == nil)
   }
+
+  @Test
+  func `bundles without a URL scheme have none`() {
+    #expect(AppLink.scheme(in: Bundle(for: ScriptedConnector.self)).isEmpty)
+  }
 }

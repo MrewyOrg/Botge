@@ -22,6 +22,6 @@ struct BotgeApp: App {
   init() {
     let live = AppModel.makeLive()
     _model = State(initialValue: live)
-    AppDependencyManager.shared.add(dependency: live)
+    AppDependencyManager.shared.add(dependency: live.intentDependency)
   }
 }

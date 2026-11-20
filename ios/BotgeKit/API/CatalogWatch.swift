@@ -61,9 +61,14 @@ public struct CatalogWatch: Sendable {
     async throws(APIError)
   {
     var delay = Self.initialDelay
+    var isReconnecting = false
     while !Task.isCancelled {
       do {
-        let accepted = try await session(guild: guild, onChange: onChange)
+        let accepted = try await session(
+          guild: guild,
+          catchesUp: isReconnecting,
+          onChange: onChange
+        )
         if accepted {
           delay = Self.initialDelay
         }
@@ -72,6 +77,8 @@ public struct CatalogWatch: Sendable {
       } catch {
         // Failed tickets and connections are retried after the delay.
       }
+      // Changes made while disconnected are missed, so every later session catches up.
+      isReconnecting = true
       guard await (try? pause(delay)) != nil else {
         return
       }
@@ -84,10 +91,16 @@ public struct CatalogWatch: Sendable {
   ///
   /// - Parameters:
   ///   - guild: The Discord server ID.
+  ///   - catchesUp: Whether to report a change once the server accepts the ticket, because
+  ///     changes made since the last connection were missed.
   ///   - onChange: Called after each change notice.
   /// - Returns: Whether the server accepted the ticket before the connection ended.
   /// - Throws: ``APIError`` when no ticket could be issued.
-  private func session(guild: String, onChange: @Sendable () async -> Void)
+  private func session(
+    guild: String,
+    catchesUp: Bool,
+    onChange: @Sendable () async -> Void
+  )
     async throws(APIError) -> Bool
   {
     let ticket = try await api.watchTicket(guild: guild)
@@ -107,6 +120,9 @@ public struct CatalogWatch: Sendable {
           switch message.type {
           case "watching":
             accepted = true
+            if catchesUp {
+              await onChange()
+            }
 
           case "changed":
             await onChange()

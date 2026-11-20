@@ -7,6 +7,7 @@ included:
   - BotgeKit
   - BotgeKitTests
   - BotgeLiveActivity
+  - BotgeTests
   - BotgeUITests
   - Tools/Package.swift
 excluded:
@@ -20,7 +21,6 @@ analyzer_rules:
   - capture_variable
   - typesafe_array_init
   - unused_declaration
-  - unused_import
 
 disabled_rules:
   - contrasted_opening_brace
@@ -114,7 +114,7 @@ custom_rules:
       '(?:^|\n)(?![ \t]*///)(?![ \t]*@)[^\n]*\n(?:[ \t]*@[^\n]*\n)*[
       \t]*(?:(?:public|package|internal|fileprivate|private|static|class|final|override|mutating|nonisolated|convenience|required)[
       \t]+)*(?:func|init)\b[^{}=]*?\b(?:re)?throws\b[^{()\n]*(?:\([^(){}\n]*\)[^{()\n]*)*(?:\{|\n)'
-    excluded: '(BotgeKitTests|BotgeUITests)/'
+    excluded: '(BotgeKitTests|BotgeTests|BotgeUITests)/'
     severity: error
   missing_wrapped_property_docs:
     name: Missing docs on wrapped property
@@ -123,7 +123,7 @@ custom_rules:
       `@Bindable var model = model` bindings are exempt.
     # prettier-ignore
     regex: '(?:^|\n)(?![ \t]*///)[^\n]*\n[ \t]*@(?!Bindable[ \t]+var[ \t]+(\w+)[ \t]*=[ \t]*\1\b)[A-Z]\w*(?:\([^\n]*\))?[ \t]+(?:(?:private|fileprivate|internal|package|public)(?:\(set\))?[ \t]+)*(?:var|let)\b'
-    excluded: '(BotgeKitTests|BotgeUITests)/'
+    excluded: '(BotgeKitTests|BotgeTests|BotgeUITests)/'
     severity: error
   no_print:
     name: No print

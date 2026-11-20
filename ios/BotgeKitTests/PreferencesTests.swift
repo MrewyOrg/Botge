@@ -4,16 +4,14 @@ import Testing
 
 struct PreferencesTests {
   @Test
-  func `emote playback follows Reduce Motion only when asked`() {
-    #expect(EmotePlayback.always.animates(reduceMotion: true))
-    #expect(!EmotePlayback.followReduceMotion.animates(reduceMotion: true))
-    #expect(EmotePlayback.followReduceMotion.animates(reduceMotion: false))
-    #expect(!EmotePlayback.never.animates(reduceMotion: false))
+  func `appearance options are shown system first`() {
+    #expect(AppearancePreference.displayOrder == [.system, .light, .dark])
   }
 
   @Test
-  func `appearance options are shown system first`() {
-    #expect(AppearancePreference.displayOrder == [.system, .light, .dark])
+  func `app lock timeouts are whole seconds`() {
+    let timeouts: [AppLockTimeout] = [.immediately, .oneMinute, .fifteenMinutes, .oneHour]
+    #expect(timeouts.map(\.interval) == [0, 60, 900, 3_600])
   }
 
   @Test

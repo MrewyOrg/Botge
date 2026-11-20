@@ -64,8 +64,9 @@ public actor AuthSession {
 
   /// Returns an access token that is valid for at least 30 more seconds, renewing it if needed.
   ///
-  /// - Throws: ``AuthSessionError/signedOut`` without tokens, and ``LoginFailure`` when renewal
-  ///   fails. A rejected refresh token signs the user out.
+  /// - Throws: ``AuthSessionError/signedOut`` without tokens, after a sign-out during the
+  ///   refresh, or when the refresh token is rejected, which signs the user out; otherwise
+  ///   ``LoginFailure`` when renewal fails.
   public func accessToken() async throws -> String {
     guard let current = tokens else {
       throw AuthSessionError.signedOut
@@ -80,12 +81,18 @@ public actor AuthSession {
   /// Renews the tokens even if they look valid, after the API reported an expired token.
   ///
   /// - Returns: The renewed tokens.
-  /// - Throws: ``AuthSessionError/signedOut`` without tokens, and ``LoginFailure`` when renewal
-  ///   fails. A rejected refresh token signs the user out.
+  /// - Throws: ``AuthSessionError/signedOut`` without tokens, after a sign-out during the
+  ///   refresh, or when the refresh token is rejected, which signs the user out; otherwise
+  ///   ``LoginFailure`` when renewal fails.
   @discardableResult
   public func renew() async throws -> OAuthTokens {
     if let renewal {
-      return try await renewal.value
+      do {
+        return try await renewal.value
+      } catch LoginFailure.rejected {
+        // The request that started the renewal signs out; waiters see the same outcome.
+        throw AuthSessionError.signedOut
+      }
     }
     guard let refreshToken = tokens?.refreshToken else {
       try signOutLocally()
@@ -98,6 +105,11 @@ public actor AuthSession {
     defer { renewal = nil }
     do {
       let renewed = try await task.value
+      // A sign-out while the refresh ran wins; its tokens must not be stored again.
+      guard tokens?.refreshToken == refreshToken else {
+        throw AuthSessionError.signedOut
+      }
+
       try save(renewed)
       return renewed
     } catch LoginFailure.rejected {

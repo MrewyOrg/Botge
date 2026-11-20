@@ -36,7 +36,8 @@ here instead of repeating them. Run commands from the repository root. The
 | `npm run lint:workflows`                   | actionlint, including composite actions             |
 | `.venv/bin/python scripts/check_python.py` | Python helpers (see the helper guide)               |
 | `npm run check:ios`                        | SwiftFormat lint and strict SwiftLint               |
-| `npm run test:ios`                         | iOS unit and UI tests, BotgeKit coverage gate       |
+| `npm run check:ios:analyze`                | SwiftLint analyzer: unused declarations and imports |
+| `npm run test:ios`                         | iOS unit and UI tests, Swift coverage gate          |
 | `npm run test:ios:lockdown`                | Lockdown test plan (simulator in Lockdown Mode)     |
 | `npm run test:ios:only -- EmoteLinkTests`  | Named iOS suites or tests, one result line per test |
 
@@ -57,7 +58,12 @@ exclude executable code to pass.
 | Rust       | 95% lines, branches, functions and regions | `coverage/rust/` (opt-in HTML) |
 | TypeScript | 90% statements, branches, functions, lines | `coverage/typescript/`         |
 | Python     | 90% lines and branches                     | `coverage/python/`             |
-| Swift      | 90% lines in BotgeKit                      | `ios/DerivedData/*.xcresult`   |
+| Swift      | 90% lines, functions and regions           | `ios/DerivedData/*.xcresult`   |
+
+Swift has no branch coverage; regions count every branch arm and closure instead. Swift coverage is
+counted across the app, BotgeKit and the widget extension, and tests run serially so every test's
+counts are kept. The widget extension's entry point and ActivityKit wiring are the only exemptions:
+only the system runs them, and app tests render every view they show.
 
 For the Rust HTML report, add `--html --output-dir coverage/rust` to the coverage scope. TypeScript
 covers runtime files in repository tooling, the Activity and its Worker; declaration-only `.d.ts`

@@ -4,10 +4,8 @@ enum PreferenceKey {
   static let appearance = "appearance"
   /// Whether App Lock asks for Face ID or the passcode.
   static let appLock = "appLock"
-  /// Whether haptic feedback plays.
-  static let haptics = "haptics"
-  /// The ``EmotePlayback`` raw value.
-  static let emotePlayback = "emotePlayback"
+  /// The ``AppLockTimeout`` raw value: how long Botge may stay in the background unlocked.
+  static let appLockTimeout = "appLockTimeout"
   /// The Discord server opened on launch, if any.
   static let defaultGuildID = "defaultGuildID"
 }

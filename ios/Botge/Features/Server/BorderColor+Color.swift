@@ -1,6 +1,5 @@
 import BotgeKit
 import SwiftUI
-import UIKit
 
 extension BorderColor {
   /// Largest value of one 8-bit channel.
@@ -16,22 +15,23 @@ extension BorderColor {
     )
   }
 
-  /// Converts a picked color to sRGB, ignoring opacity.
+  /// Converts a picked color to sRGB, ignoring opacity; channels outside sRGB are clamped.
   ///
   /// - Parameter color: The picked color.
-  init?(_ color: Color) {
-    var red: CGFloat = 0
-    var green: CGFloat = 0
-    var blue: CGFloat = 0
-    var alpha: CGFloat = 0
-    guard UIColor(color).getRed(&red, green: &green, blue: &blue, alpha: &alpha) else {
-      return nil
-    }
-
+  init(_ color: Color) {
+    let resolved = color.resolve(in: EnvironmentValues())
     self.init(
-      red: Int((red * Self.channelScale).rounded()),
-      green: Int((green * Self.channelScale).rounded()),
-      blue: Int((blue * Self.channelScale).rounded())
+      red: Self.channel(resolved.red),
+      green: Self.channel(resolved.green),
+      blue: Self.channel(resolved.blue)
     )
+  }
+
+  /// An 8-bit channel value from a resolved color component.
+  ///
+  /// - Parameter component: The component, from 0 to 1 inside sRGB.
+  /// - Returns: The rounded channel value; ``init(red:green:blue:)`` clamps it.
+  private static func channel(_ component: Float) -> Int {
+    Int((Double(component) * channelScale).rounded())
   }
 }

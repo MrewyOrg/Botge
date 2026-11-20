@@ -15,6 +15,8 @@ final class GuessActivityController {
   private var activityID: String?
   /// The last content sent, so unchanged states cause no update.
   private var content: GuessActivityAttributes.ContentState?
+  /// Whether the running activity started private; its fixed attributes cannot change.
+  private var isRunningPrivate = false
 
   deinit {
     // The view ends the activity before the controller goes away.
@@ -27,8 +29,18 @@ final class GuessActivityController {
   ///   - player: The local player's Discord account ID.
   ///   - received: When the state arrived.
   ///   - serverName: The server's name for the activity's title.
-  func show(_ state: GameState, player: String, received: Date, serverName: String) async {
-    guard let next = GuessActivityAttributes.ContentState(
+  ///   - isPrivate: Whether App Lock is on; the server name and score then stay in the app. A
+  ///     running activity keeps the setting it started with until the match ends.
+  func show(
+    _ state: GameState,
+    player: String,
+    received: Date,
+    serverName: String,
+    isPrivate: Bool
+  )
+    async
+  {
+    guard var next = GuessActivityAttributes.ContentState(
       state: state,
       player: player,
       received: received
@@ -38,6 +50,14 @@ final class GuessActivityController {
       }
       return
     }
+
+    if activityID == nil {
+      isRunningPrivate = isPrivate
+    }
+    if isRunningPrivate {
+      next.score = 0
+      next.rank = 0
+    }
     guard next != content else {
       return
     }
@@ -46,7 +66,11 @@ final class GuessActivityController {
     if let activityID {
       await Self.update(activityID, to: next)
     } else if ActivityAuthorizationInfo().areActivitiesEnabled {
-      let attributes = GuessActivityAttributes(serverName: serverName, rounds: state.rounds)
+      let attributes = GuessActivityAttributes(
+        serverName: serverName,
+        rounds: state.rounds,
+        isPrivate: isRunningPrivate
+      )
       let initial = ActivityContent(state: next, staleDate: Self.staleDate(for: next))
       activityID = try? Activity.request(attributes: attributes, content: initial, pushType: nil).id
     }

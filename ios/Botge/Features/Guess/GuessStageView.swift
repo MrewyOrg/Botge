@@ -9,13 +9,15 @@ struct GuessStageView: View {
   private static let symbolFraction: CGFloat = 2
   /// Corner radius of the image area.
   private static let cornerRadius: CGFloat = 24
+  /// The shortest time between blur updates.
+  private static let blurInterval: TimeInterval = 1 / blurUpdatesPerSecond
+  /// Blur updates per second at most; the blur changes slowly, so this looks smooth.
+  private static let blurUpdatesPerSecond: TimeInterval = 30
 
   /// Size of the lobby and trophy symbols, growing with the text size.
   @ScaledMetric private var symbolSize: CGFloat = 64
-  /// When animated round images play.
-  @AppStorage(PreferenceKey.emotePlayback) private var playback: EmotePlayback = .followReduceMotion
-  /// Whether the system asks for less motion.
-  @Environment(\.accessibilityReduceMotion) private var reduceMotion
+  /// Whether the system Auto-Play Animated Images setting is on.
+  @Environment(\.accessibilityPlayAnimatedImages) private var playsAnimatedImages
 
   /// The room state.
   let state: GameState
@@ -49,7 +51,7 @@ struct GuessStageView: View {
     switch state.phase {
     case .round:
       if let image, let deadline = state.deadline(from: received) {
-        TimelineView(.animation) { context in
+        TimelineView(.animation(minimumInterval: Self.blurInterval)) { context in
           frame(image)
             .blur(radius: GameState.blur(
               remaining: deadline.timeIntervalSince(context.date),
@@ -85,12 +87,26 @@ struct GuessStageView: View {
       .accessibilityHidden(true)
   }
 
+  /// Creates the stage.
+  ///
+  /// - Parameters:
+  ///   - state: The room state.
+  ///   - image: The round image, once loaded.
+  ///   - received: When the state arrived.
+  init(state: GameState, image: EmoteImage?, received: Date) {
+    self.state = state
+    self.image = image
+    self.received = received
+  }
+
   /// Draws the round image scaled to fit.
   ///
   /// - Parameter image: The decoded image.
   /// - Returns: The image view.
   private func frame(_ image: EmoteImage) -> some View {
-    AnimatedEmoteView(image: image, animates: playback.animates(reduceMotion: reduceMotion))
+    AnimatedEmoteView(image: image, animates: playsAnimatedImages)
       .padding(Metrics.compactSpacing)
+      .accessibilityElement(children: .ignore)
+      .accessibilityAddTraits(.isImage)
   }
 }

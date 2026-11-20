@@ -3,22 +3,6 @@ import Foundation
 import Testing
 
 struct CatalogAPITests {
-  private static let base: URL? = URL(string: "https://botge.example.com/botge-api/app/v1")
-
-  private static func api(_ transport: StubTransport) throws -> BotgeAPI {
-    let store = MemorySecretStore()
-    let tokens = OAuthTokens(
-      accessToken: "t",
-      refreshToken: nil,
-      expiresAt: .distantFuture,
-      scope: "identify"
-    )
-    try store.write(JSONEncoder().encode(tokens), for: AuthSession.tokenKey)
-    let oauth = DiscordOAuth(applicationID: "123456789012345678")
-    let session = AuthSession(oauth: oauth, transport: transport, store: store)
-    return try BotgeAPI(baseURL: #require(base), session: session, transport: transport)
-  }
-
   private static func body(_ request: URLRequest?) throws -> [String: String] {
     let data = try #require(request?.httpBody)
     let object = try JSONSerialization.jsonObject(with: data) as? [String: Any]
@@ -39,7 +23,7 @@ struct CatalogAPITests {
       StubTransport.json(201, ["message": "Added peepoHey.", "added": true]),
       StubTransport.json(200, ["message": "Removed emote.", "removed": true])
     ])
-    let api = try Self.api(transport)
+    let api = try TestAPI.signedIn(transport)
     #expect(try await api.catalog(guild: "1").canComposeDiscovery)
     #expect(try await api.addEmote(guild: "1", sevenTVID: "A") == "Added peepoHey.")
     #expect(try await api.removeEmote(guild: "1", sevenTVID: "A") == "Removed emote.")
@@ -63,7 +47,7 @@ struct CatalogAPITests {
       )
     )
     let transport = StubTransport([results])
-    let api = try Self.api(transport)
+    let api = try TestAPI.signedIn(transport)
     let changes = try await api.changeEmotes(guild: "1", action: .add, sevenTVIDs: ["A", "B"])
     #expect(changes.map(\.succeeded) == [true, false])
     #expect(changes.last?.emoteID == "B")
@@ -83,7 +67,7 @@ struct CatalogAPITests {
 
   @Test
   func `socket URLs switch to WebSocket schemes`() async throws {
-    let secure = try Self.api(StubTransport([]))
+    let secure = try TestAPI.signedIn(StubTransport([]))
     #expect(await secure.socketURL("catalog/ws")?
       .absoluteString == "wss://botge.example.com/botge-api/app/v1/catalog/ws")
     let store = MemorySecretStore()

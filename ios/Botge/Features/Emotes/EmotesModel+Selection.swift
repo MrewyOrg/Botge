@@ -31,21 +31,23 @@ extension EmotesModel {
       play(.selection)
       return
     }
-    guard isSelectable(emote) else {
-      notice = batchAction == .add
-        ? String(localized: "\(emote.name) is already on the server.")
-        : String(localized: "Only emotes the server added can be removed.")
-      play(.failure)
-      return
-    }
-    guard selection.count < BotgeAPI.maxBatch else {
-      notice = String(localized: "Select at most \(BotgeAPI.maxBatch) emotes at a time.")
+    // The grid dims emotes that cannot be selected, so a tap here only confirms the limit.
+    guard canSelect(emote) else {
       play(.failure)
       return
     }
 
     selection.insert(emote.id)
     play(.selection)
+  }
+
+  /// Whether `emote` can be selected or deselected now: selected already, or selectable while
+  /// the selection holds fewer than ``BotgeAPI/maxBatch`` emotes.
+  ///
+  /// - Parameter emote: A visible emote.
+  /// - Returns: Whether a tap changes the selection.
+  func canSelect(_ emote: CatalogEmote) -> Bool {
+    selection.contains(emote.id) || (isSelectable(emote) && selection.count < BotgeAPI.maxBatch)
   }
 
   /// Leaves selection mode and clears the selection.
@@ -77,16 +79,18 @@ extension EmotesModel {
         sevenTVIDs: ids
       )
       let failed = results.filter { !$0.succeeded }
-      notice = failed.isEmpty
-        ? String(localized: "Updated \(results.count) emotes.")
-        : String(localized: "\(failed.count) of \(results.count) failed: \(failed[0].message)")
+      if let first = failed.first {
+        actionFailure = String(
+          localized: "\(failed.count) of \(results.count) failed: \(first.message)"
+        )
+      }
       play(failed.isEmpty ? .success : .warning)
       endSelection()
       await load()
     } catch .signedOut {
       await app.signOut()
     } catch {
-      notice = error.message
+      actionFailure = error.message
       play(.failure)
     }
   }

@@ -381,6 +381,9 @@ jobs:
       - name: Check Swift formatting, lints and documentation tags
         run: sh scripts/check-ios.sh static
 
+      - name: Find unused Swift declarations and imports
+        run: sh scripts/check-ios.sh analyze
+
       - name: Run iOS tests and enforce coverage
         run: sh scripts/check-ios.sh test
 

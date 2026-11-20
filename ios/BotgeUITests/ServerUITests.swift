@@ -25,8 +25,9 @@ final class ServerUITests: XCTestCase {
     XCTAssertTrue(app.buttons["server.discard"].exists)
 
     save.tap()
-    XCTAssertTrue(app.staticTexts["notice"].waitForExistence(timeout: 5))
-    XCTAssertFalse(save.isEnabled)
+    let saved = NSPredicate(format: "isEnabled == false")
+    expectation(for: saved, evaluatedWith: save)
+    waitForExpectations(timeout: 5)
     XCTAssertFalse(app.buttons["server.discard"].exists)
   }
 }

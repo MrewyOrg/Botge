@@ -28,6 +28,13 @@
     {
       "target": {
         "containerPath": "container:Botge.xcodeproj",
+        "identifier": "BotgeTests",
+        "name": "BotgeTests"
+      }
+    },
+    {
+      "target": {
+        "containerPath": "container:Botge.xcodeproj",
         "identifier": "BotgeUITests",
         "name": "BotgeUITests"
       }

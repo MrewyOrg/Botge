@@ -12,41 +12,17 @@ struct ImageLoadingTests {
   }
 
   @Test
-  func `formats are skipped after repeated refusals until one decodes`() {
-    let health = FormatHealth()
-    for _ in 1 ..< FormatHealth.limit {
-      health.record(.webp, decoded: false)
+  func `each image is one request that prefers the disk cache`() async {
+    let transport = StubTransport([Self.ok(ImageFixtures.gif(frames: 2, delay: 0.1))])
+    let image = await EmoteImageLoader(transport: transport)
+      .image(for: "/7tv-cdn/emote/ID/2x.gif", animated: true)
+    guard case .animated = image else {
+      Issue.record("Expected an animation")
+      return
     }
-    #expect(!health.isSkipped(.webp))
-    health.record(.webp, decoded: false)
-    #expect(health.isSkipped(.webp))
-    #expect(!health.isSkipped(.gif))
 
-    let proven = FormatHealth()
-    proven.record(.gif, decoded: true)
-    for _ in 0 ... FormatHealth.limit {
-      proven.record(.gif, decoded: false)
-    }
-    #expect(!proven.isSkipped(.gif))
-  }
-
-  @Test
-  func `a format the device refuses stops being downloaded`() async {
-    let gif = ImageFixtures.gif(frames: 1, delay: 0.1)
-    var replies = [StubTransport.Reply]()
-    for _ in 0 ..< FormatHealth.limit {
-      replies += [Self.ok(Data("refused".utf8)), Self.ok(gif)]
-    }
-    replies.append(Self.ok(gif))
-    let transport = StubTransport(replies)
-    let loader = EmoteImageLoader(transport: transport)
-    for index in 0 ... FormatHealth.limit {
-      _ = await loader.image(for: Self.path("ID\(index)"), animated: false)
-    }
-    let formats = transport.requests.map { $0.url?.pathExtension ?? "" }
-    #expect(formats.suffix(1) == ["gif"])
-    #expect(formats.count == FormatHealth.limit * 2 + 1)
-    #expect(transport.requests.allSatisfy { $0.cachePolicy == .returnCacheDataElseLoad })
+    #expect(transport.requests.map { $0.url?.lastPathComponent } == ["2x.gif"])
+    #expect(transport.requests.first?.cachePolicy == .returnCacheDataElseLoad)
   }
 
   @Test
