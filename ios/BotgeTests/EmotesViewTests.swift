@@ -251,11 +251,13 @@ struct EmotesViewTests {
     let model = EmotesModel(guild: Fixtures.guild, app: app)
     let view = NavigationStack { EmotesView(model: model) }
     await Hosting.show(view, model: app, settle: .milliseconds(600)) {
+      // CI simulators are slower, so wait for each load instead of a fixed time.
+      await Fixtures.wait { model.catalog != nil }
       #expect(model.filter.query == "pee" && model.source == .server)
       #expect(model.catalog != nil)
       model.play(.success)
       model.source = .discovery(.trending)
-      try? await Task.sleep(for: .milliseconds(600))
+      await Fixtures.wait { model.discovery.page > 0 }
       Self.scrollEveryScrollView()
       model.sheet = .composer
     }

@@ -44,8 +44,8 @@ enum Fixtures {
   private static let poll: Duration = .milliseconds(pollMilliseconds)
   /// ``poll`` in milliseconds.
   private static let pollMilliseconds = 10
-  /// Checks before ``wait(until:)`` gives up: two seconds in all.
-  private static let polls = 200
+  /// Checks before ``wait(until:)`` gives up: five seconds in all, for slower CI simulators.
+  private static let polls = 500
 
   /// A model with the fixture backend, before it restores the login.
   ///

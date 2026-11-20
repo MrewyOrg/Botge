@@ -37,15 +37,16 @@ struct EmoteImageTests {
       fallbackPath: nil,
       priority: .utility
     )
-    // Hosted, the view reads the simulator's Auto-Play Animated Images setting, which is on.
-    await Hosting.show(view, model: app) {
+    // Simulators differ in the Auto-Play Animated Images setting, so the test turns playback on.
+    let playing = view.environment(\.forcesEmoteAnimation, true)
+    await Hosting.show(playing, model: app) {
       await Fixtures
         .wait { app.imageLoader.cachedImage(for: Self.animatedPath, animated: true) != nil }
     }
     #expect(app.imageLoader.cachedImage(for: Self.animatedPath, animated: true) != nil)
-    await Hosting.show(view, model: app)
+    await Hosting.show(playing, model: app)
     #expect(throws: Never.self) {
-      try view.environment(app).inspect().find(AnimatedEmoteView.self)
+      try playing.environment(app).inspect().find(AnimatedEmoteView.self)
     }
   }
 

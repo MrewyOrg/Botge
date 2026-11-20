@@ -15,6 +15,8 @@ struct EmoteImageView: View {
   @Environment(AppModel.self) private var model
   /// Whether the system Auto-Play Animated Images setting is on.
   @Environment(\.accessibilityPlayAnimatedImages) private var playsAnimatedImages
+  /// Plays animations regardless of the system setting, for previews and tests.
+  @Environment(\.forcesEmoteAnimation) private var forcesEmoteAnimation
   /// The decoded image once loaded.
   @State private var image: EmoteImage?
 
@@ -28,7 +30,7 @@ struct EmoteImageView: View {
   let priority: TaskPriority
 
   var body: some View {
-    let animates = isAnimated && playsAnimatedImages
+    let animates = isAnimated && (forcesEmoteAnimation || playsAnimatedImages)
     Group {
       if let shown = shown(animated: animates) {
         AnimatedEmoteView(image: shown, animates: animates)
