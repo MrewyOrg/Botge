@@ -1,12 +1,12 @@
 # check=error=true
 
-FROM dhi.io/alpine-base:3.24-dev@sha256:266554e75cb00f88effe4048ba78b6f628d6a5ca67ac9e9727ae37a4a1299ce5 AS runtime-tools
+FROM dhi.io/alpine-base:3.24-dev@sha256:7e00fc0f6f9f84303dc2657aac557bdefe9877a66c388c0521c5794d51056efa AS runtime-tools
 WORKDIR /app
 
 RUN apk add --no-cache --repository=https://dl-cdn.alpinelinux.org/alpine/v3.24/community \
   apk-tools-static
 
-FROM dhi.io/debian-base:trixie-dev@sha256:f90fd43cdf3dd94840b4dc3a2a39fd2a08578e40e7895535e2e20a1275ba6013 AS build-tools
+FROM dhi.io/debian-base:trixie-dev@sha256:3a0f849e7ecad5433a8a517e4606794dc65941b275177c7f44002c3fc322d7a8 AS build-tools
 USER 0:0
 WORKDIR /app
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -57,7 +57,7 @@ RUN --network=none for manifest in crates/*/Cargo.toml; do \
   done \
   && cargo build --release --frozen && cp "target/$(cat /rust-target)/release/botge" /botge
 
-FROM dhi.io/alpine-base:3.24@sha256:6278da77eb7e000c38b95711f93d199b2eb108e371a9eb95fb67b911c1f5e2cd AS botge
+FROM dhi.io/alpine-base:3.24@sha256:57418c4becf58042c76a2efeb74c1b402e58249289348579c9f04d3669a8b35b AS botge
 USER 0:0
 WORKDIR /app
 ENV BOTGE_REGISTER_COMMANDS=true
