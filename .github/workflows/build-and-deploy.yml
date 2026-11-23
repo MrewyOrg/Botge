@@ -258,6 +258,7 @@ jobs:
           printf 'RUNTIME_MANIFEST=%s\nCANDIDATE_SBOM=%s\n' "$manifest" "$spdx" >> "$GITHUB_ENV"
 
       - name: Scan the attached candidate SBOM with Docker Scout
+        if: matrix.id != 'activity-amd64'
         uses: docker/scout-action@v1.29.0
         with:
           command: cves

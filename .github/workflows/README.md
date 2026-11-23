@@ -60,8 +60,9 @@ npm audits read the committed lockfiles directly without installing dependencies
 
 Dependency review, npm/Cargo audits, and Docker Scout block **critical** vulnerabilities. Cargo
 maintenance warnings and advisories without severity scores are informational; scanner errors still
-fail checks. Scout scans the immutable candidate on AMD64 and ARM64, including unfixed findings. See
-[production contracts](../../docs/PRODUCTION.md#dependency-security) for triage and exceptions.
+fail checks. Scout scans the immutable Rust candidate on AMD64 and ARM64, including unfixed
+findings. See [production contracts](../../docs/PRODUCTION.md#dependency-security) for triage and
+exceptions.
 
 [CodeQL](codeql.yml) scans workflows, Rust, and TypeScript on PRs to `main`, pushes to `main`, and
 scheduled/manual runs. PRs into `dev` are Dependabot updates, which reach CodeQL through the release
@@ -85,11 +86,11 @@ still run when their inputs change. Candidate builds wait for validation and aud
 updated PR cancels obsolete builds for the same candidate platform.
 
 Native AMD64 and ARM64 runners qualify the Rust bot. A native AMD64 runner qualifies the Activity
-server. Each runner builds a local OCI archive with an SBOM and build provenance, scans the runtime
-manifest's attached SPDX SBOM with Scout, and smoke-tests the image from that archive. The Rust
-builds push their tested archives to Docker Hub by digest. The Activity build retains its tested
-archive as a GitHub Actions artifact for seven days. Rerun the Activity build if the archive expires
-before approval.
+server. Each runner builds a local OCI archive with an SBOM and build provenance, validates the
+attached SPDX SBOM, and smoke-tests the image from that archive. The Rust builds also scan their
+SBOMs with Scout and push their tested archives to Docker Hub by digest. The Activity build retains
+its tested archive as a GitHub Actions artifact for seven days. Rerun the Activity build if the
+archive expires before approval.
 
 The Rust publication job assembles the platforms under `mrewy/botge:pr-<number>-<merge SHA>`,
 verifies the published SBOMs and attests the candidate digest.

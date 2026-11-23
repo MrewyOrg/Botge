@@ -98,10 +98,10 @@ image does not undo database writes or migrations.
 ## Dependency security
 
 Dependency review, npm/Cargo audits, and Docker Scout block critical vulnerabilities. Scout checks
-both image platforms, including unfixed findings. Cargo maintenance warnings and advisories without
-severity scores are informational. Scanner errors fail checks. Full audits run weekly and on demand;
-see the workflow guide for PR triggers. Exceptions need an advisory ID, affected path, reachability
-evidence, owner, expiry, and follow-up fix.
+both Rust image platforms, including unfixed findings. Cargo maintenance warnings and advisories
+without severity scores are informational. Scanner errors fail checks. Full audits run weekly and on
+demand; see the workflow guide for PR triggers. Exceptions need an advisory ID, affected path,
+reachability evidence, owner, expiry, and follow-up fix.
 
 ### Findings requiring triage
 

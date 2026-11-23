@@ -36,7 +36,7 @@ flowchart TB
     subgraph release[Release from dev to main]
         changed{"Image inputs changed?"}
         changed -->|Rust| rust["Build AMD64 and ARM64<br/>Scan SBOMs and smoke-test images"] --> hub["Publish candidate to Docker Hub"] --> approval
-        changed -->|Activity| go["Build AMD64<br/>Scan SBOM and smoke-test image"] --> artifact["Retain tested archive in GitHub Actions"] --> approval
+        changed -->|Activity| go["Build AMD64<br/>Validate SBOM and smoke-test image"] --> artifact["Retain tested archive in GitHub Actions"] --> approval
         changed -->|No| approval["Production environment approval"]
         approval -->|Rust changed| vm["Deploy digest through IAP and Compose<br/>Verify gateway and digest"] --> merge
         approval -->|Activity changed| run["Verify archive, publish and attest in Artifact Registry<br/>Deploy and verify Cloud Run revision"] --> merge
