@@ -1,5 +1,3 @@
-// cspell:words argb yuva
-
 //! Renders small media fixtures with `FFmpeg` and checks the resulting bytes and playback timing.
 
 #![expect(
@@ -115,11 +113,11 @@ fn accepts_only_discord_media_and_maps_the_provider_cache() -> Result<()> {
   ] {
     assert!(Layer::discord(rejected).is_none());
   }
-  let url = Url::parse("https://cdn.betterttv.net/emote/abcd/2x.png?x=1")?;
+  let url = Url::parse("https://cdn.7tv.app/emote/abcd/2x.png?x=1")?;
   let cache = Url::parse("http://nginx:80")?;
   assert_eq!(
     cache_url(&url, Some(&cache)).as_str(),
-    "http://nginx/bttv/emote/abcd/2x.png?x=1"
+    "http://nginx/7tv/emote/abcd/2x.png?x=1"
   );
   assert_eq!(cache_url(&url, None), url);
   assert_eq!(image_type(b"GIF87a"), Some("gif"));
@@ -130,7 +128,6 @@ fn accepts_only_discord_media_and_maps_the_provider_cache() -> Result<()> {
   Ok(())
 }
 
-// cspell:disable
 // 8×8 red, green, and blue frames with delays of 73, 117, and 4000 ms.
 const ANIMATED_BASE: &str = concat!(
   "UklGRrQAAABXRUJQVlA4WAoAAAACAAAABwAABwAAQU5JTQYAAAD/////AABBTk1GKAAAAAAA",
@@ -138,8 +135,6 @@ const ANIMATED_BASE: &str = concat!(
   "AAcAAHUAAABWUDhMDwAAAC8HwAEAB1DAiP4HIqL/AQBBTk1GKAAAAAAAAAAAAAcAAAcAAKAP",
   "AABWUDhMDwAAAC8HwAEABxDR//4HIqL/AQA=",
 );
-
-// cspell:enable
 
 #[tokio::test]
 async fn downloads_originals_and_stacks_static_columns_with_a_gap() -> Result<()> {

@@ -6,14 +6,10 @@
 [![CodeQL](https://github.com/MrewyOrg/Botge/actions/workflows/codeql.yml/badge.svg?branch=main&event=push)](https://github.com/MrewyOrg/Botge/actions/workflows/codeql.yml?query=branch%3Amain+event%3Apush)
 [![License](https://img.shields.io/github/license/MrewyOrg/Botge)](LICENSE.txt)
 
-Botge brings Twitch-style emotes to Discord. The Rust bot handles emote commands, voice, and the
-Activity API. The TypeScript Discord Activity lets members browse and compose emotes and lets
-authorized users manage server settings. The SwiftUI iOS app offers the same features, including the
-Guess game with a Lock Screen Live Activity, against one operator's deployment.
-
-Try the [Activity demo](https://botge-activity-demo.mrewy.workers.dev) in your browser. It is an
-unofficial preview with placeholder emotes and in-memory settings, so it needs no Discord account or
-bot, and nothing you do there is saved.
+Botge brings 7TV emotes to Discord. The Rust bot handles emote commands, voice, and the Activity
+API. The TypeScript Discord Activity runs from a signed Go origin and lets members browse and
+compose emotes. Administrators can manage settings and restore earlier catalog revisions. The
+SwiftUI iOS app offers the same server features and a Guess game with a Lock Screen Live Activity.
 
 ## Documentation
 
@@ -31,7 +27,7 @@ Implementation details stay versioned with the code.
 
 - [`crates/`](crates/) contains the Rust workspace. See the [architecture](docs/ARCHITECTURE.md) and
   [workspace guide](crates/README.md).
-- [`activity/`](activity/) contains the browser, Worker, and their
+- [`activity/`](activity/) contains the browser client, Go origin, and their
   [workspace tooling](activity/README.md).
 - [`ios/`](ios/) contains the [iOS app and its setup guide](ios/README.md).
 - [`tests/`](tests/) documents the [test suites and coverage](tests/README.md).

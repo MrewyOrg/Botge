@@ -1,6 +1,8 @@
 """Verify documentation generation catches import failures without running helper entry points."""
 
 import html
+import subprocess
+import sys
 import tempfile
 import unittest
 from pathlib import Path
@@ -11,12 +13,29 @@ from doc_python import build
 class DocumentationTests(unittest.TestCase):
     """Exercise generated output and failures using isolated modules."""
 
+    def test_cli_discovers_helpers_across_script_folders(self) -> None:
+        """Generate documentation from another directory for all purpose-based folders."""
+        root = Path(__file__).resolve().parents[2]
+        script = root / 'scripts' / 'quality' / 'doc_python.py'
+        with tempfile.TemporaryDirectory() as temporary:
+            output = Path(temporary) / 'docs'
+            result = subprocess.run(  # noqa: S603 - Fixed local CLI and temporary output.
+                (sys.executable, str(script), '--output', str(output)),
+                cwd=temporary,
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            for name in ('backup_github', 'check_swift_docs', 'doctor', 'lint_workflows'):
+                self.assertTrue((output / f'{name}.html').is_file(), name)
+
     def test_builds_api_pages_without_running_entry_points(self) -> None:
         """Render real docstrings and create a navigable index from import-safe modules."""
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
-            sources = root / 'scripts'
-            sources.mkdir()
+            sources = root / 'scripts' / 'quality'
+            sources.mkdir(parents=True)
             (sources / 'fixture.py').write_text(
                 '"""Fixture documentation."""\n'
                 'def add(value: int) -> int:\n'
@@ -37,8 +56,8 @@ class DocumentationTests(unittest.TestCase):
         """A previous HTML file cannot hide an import failure in a later documentation build."""
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
-            sources = root / 'scripts'
-            sources.mkdir()
+            sources = root / 'scripts' / 'quality'
+            sources.mkdir(parents=True)
             (sources / 'broken.py').write_text('raise RuntimeError("fixture failure")\n')
             output = root / 'output'
             output.mkdir()

@@ -20,9 +20,7 @@ test('serves a catalog that passes server catalog validation', async () => {
     'Hype',
     'Halo'
   ]);
-  expect(new Set(catalog.map((emote) => emote.source))).toEqual(
-    new Set(['7TV', 'BTTV', 'FFZ', 'Twitch'])
-  );
+  expect(new Set(catalog.map((emote) => emote.source))).toEqual(new Set(['7TV']));
 });
 
 test('rejects operations for other guilds with an API-style message', async () => {
@@ -78,6 +76,27 @@ test('reports each item of a batch change', async () => {
   ).toEqual([{ emoteId: grin, ok: true, message: 'Removed Grin from this server.' }]);
 });
 
+test('keeps server history, live watches, and game tickets unavailable in the demo', async () => {
+  const demo = createDemoServer(0);
+  const history = { message: 'Catalog history is available on a connected Botge server.' } as const;
+  expect(await demo.request('catalog/history', DEMO_GUILD_ID)).toEqual(history);
+  expect(await demo.request('catalog/history/preview', DEMO_GUILD_ID, { revision: 1 })).toEqual(
+    history
+  );
+  expect(
+    await demo.request('catalog/history/restore', DEMO_GUILD_ID, {
+      revision: 1,
+      expectedRevision: 2
+    })
+  ).toEqual(history);
+  expect(await demo.request('catalog/watch', DEMO_GUILD_ID)).toEqual({
+    message: 'The demo catalog has no live updates.'
+  });
+  expect(await demo.request('game/join', DEMO_GUILD_ID, { instanceId: 'demo' })).toEqual({
+    message: 'The demo game runs in the browser.'
+  });
+});
+
 test('keeps voice, emote, and border settings in memory', async () => {
   const demo = createDemoServer(0);
   expect(await demo.request('settings', DEMO_GUILD_ID)).toMatchObject({
@@ -89,13 +108,7 @@ test('keeps voice, emote, and border settings in memory', async () => {
 
   const read = await demo.request('settings/emotes/read', DEMO_GUILD_ID);
   expect(read).toMatchObject({ allowEveryone: false, allowedRoles: ['100000000000000021'] });
-  const emoteSettings = {
-    sevenTvSet: null,
-    bttvTwitchId: null,
-    ffzChannel: 'other',
-    allowEveryone: true,
-    allowedRoles: []
-  } as const;
+  const emoteSettings = { sevenTvSet: null, allowEveryone: true, allowedRoles: [] } as const;
   expect(
     await demo.request('settings/emotes', DEMO_GUILD_ID, { emotes: emoteSettings })
   ).toMatchObject(emoteSettings);

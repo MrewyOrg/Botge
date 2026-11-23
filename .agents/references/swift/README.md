@@ -1,9 +1,9 @@
 # Swift references: compact baseline
 
-Reviewed 2026-11-19. Read this index first; load only relevant cached sections. These are original
-navigation summaries, not substitutes for upstream rules. The [audit](AUDIT.md) maps each rule to
-the check that enforces it. Full snapshots are ignored; source URLs, revisions and SHA-256 hashes
-are tracked in the [manifest](../sources.json). From the repository root, run
+Reviewed 2026-11-20. This index records how Botge applies the upstream guides that SwiftFormat and
+SwiftLint encode; the [audit](AUDIT.md) maps each rule to the check that enforces it. Full snapshots
+are ignored; source URLs, revisions and SHA-256 hashes are tracked in the
+[manifest](../sources.json). From the repository root, run
 `python3 .agents/scripts/cache_references.py` if needed, or add `--check` for offline verification.
 Builds and CI never fetch reference snapshots. Refresh manually after reviewing upstream changes.
 
@@ -27,19 +27,13 @@ Builds and CI never fetch reference snapshots. Refresh manually after reviewing 
   [App Shortcuts](../cache/hig-app-shortcuts.txt) and [privacy](../cache/hig-privacy.txt);
   [published HIG](https://developer.apple.com/design/human-interface-guidelines/).
 
-## Working rules
-
-Name by role and read call sites as English phrases; label arguments so calls stay clear; prefer
-methods and properties to free functions; document every declaration with `///`, starting with a
-summary sentence, and list `- Throws:` for throwing APIs. Use value types, `let`, `private`, typed
-throws and `Sendable` models; keep shared mutable state in actors or the main actor. Validate
-external input at boundaries (configuration, OAuth callbacks, API and image bytes). Never force
-unwrap or force try. Keep views small and stateless where possible; state lives in `@Observable`
-models. Follow the HIG for navigation, settings, sign-in, haptics, both appearances, Dynamic Type
-and VoiceOver.
+## Project facts
 
 The iOS app keeps working in Lockdown Mode: no WebKit or Safari views, natively rendered documents,
-and image decoding that falls back to a first frame and then a placeholder.
+and image decoding that falls back to a first frame and then a placeholder. Lockdown Mode decodes
+images out of process: animated 7TV emotes load as GIF (WebP is about twenty times slower), frames
+decode from a file and are rendered to bitmaps off the main thread, and Core Animation plays them.
+Measure such changes on an iPhone with Lockdown Mode on.
 
 ## Botge deviations
 
@@ -50,7 +44,7 @@ and image decoding that falls back to a first frame and then a placeholder.
   checked, every declaration is documented. Test functions are exempt, as in Rust.
 - **Parameter and Returns tags.** Following Google, functions document parameters and results with
   `- Parameter(s):` and `- Returns:` unless the comment names the parameter in backticks or the
-  summary starts with "Returns" or "Whether". `scripts/check_swift_docs.py` enforces this.
+  summary starts with "Returns" or "Whether". `scripts/ios/check_swift_docs.py` enforces this.
 - **`random()` factories.** `PKCE.random()` and `GameRoomCode.random()` follow the standard
   library's `random(in:)` naming rather than the `make` prefix; other factories start with `make`.
 - **One type per file.** SwiftLint's `one_declaration_per_file` applies; small private helpers move

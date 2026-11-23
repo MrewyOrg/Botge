@@ -129,7 +129,7 @@ struct DiscoveryTests {
   }
 
   @Test
-  func `pages are fetched from 7TV and failures are classified`() async throws {
+  func `pages send bounded tag filters to 7TV and classify failures`() async throws {
     let found = try StubTransport.Reply.response(status: 200, body: Self.page([Self.item()]))
     let transport = StubTransport([
       found,
@@ -137,10 +137,20 @@ struct DiscoveryTests {
       .failure(.timedOut)
     ])
     let discovery = SevenTVDiscovery(transport: transport)
-    let page = try await discovery.page(.top, number: 1, filter: EmoteFilter())
+    var filter = EmoteFilter()
+    let terms = (1 ... EmoteFilter.maxTagTerms).map { "tag\($0)" }
+    filter.tags = terms.map { " \($0.uppercased()) " }.joined(separator: ",") + ", excess"
+    let page = try await discovery.page(.top, number: 1, filter: filter)
     #expect(page.emotes.count == 1)
-    #expect(transport.requests.first?.url?.absoluteString == "https://7tv.io/v4/gql")
-    #expect(transport.requests.first?.httpMethod == "POST")
+    let request = try #require(transport.requests.first)
+    #expect(request.url?.absoluteString == "https://7tv.io/v4/gql")
+    #expect(request.httpMethod == "POST")
+    let data = try #require(request.httpBody)
+    let decoded = try #require(JSONSerialization.jsonObject(with: data) as? [String: Any])
+    let variables = try #require(decoded["variables"] as? [String: Any])
+    let tags = try #require(variables["tags"] as? [String: Any])
+    #expect(tags["match"] as? String == "ALL")
+    #expect(tags["tags"] as? [String] == terms)
     await #expect(throws: APIError.self) {
       try await discovery.page(.top, number: 2, filter: EmoteFilter())
     }
@@ -176,8 +186,8 @@ struct DiscoveryTests {
     #expect(closed.resolving(discovered).composeToken == nil)
     let foreign = CatalogEmote(
       name: "x",
-      source: .betterTTV,
-      image: "/bttv-cdn/x",
+      source: .sevenTV,
+      image: "/7tv-cdn/x",
       isAnimated: false
     )
     #expect(open.resolving(foreign) == foreign)

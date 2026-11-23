@@ -200,7 +200,6 @@ async fn rejects_activity_startup_when_identity_or_listener_is_unavailable() -> 
   let emotes = Arc::new(Application::new(
     config::Providers::default(),
     Arc::clone(&store),
-    None,
   )?);
   let valid = TestServer::start(botge_discord::test_support::fixture_routes()).await?;
   let rejected = TestServer::start(Router::new().route(
@@ -297,7 +296,6 @@ async fn aborts_queued_provider_work_and_reports_startup_and_shutdown_failures()
       token: "fixture".into(),
       data: directory.path().into(),
       activity: None,
-      twitch: None,
       cache: None,
       register_commands: false,
       prefix_compose: false,
@@ -348,8 +346,6 @@ fn loads_runtime_configuration_and_rejects_partial_activity_credentials() -> Res
     ("APP_ID", "42"),
     ("BOTGE_DATA_DIR", "/fixture"),
     ("LOCAL_CACHE_BASE", "http://nginx"),
-    ("TWITCH_CLIENT_ID", "id"),
-    ("TWITCH_SECRET", "secret"),
     ("BOTGE_REGISTER_COMMANDS", "true"),
     ("BOTGE_ENABLE_PREFIX_COMPOSE", "true"),
   ]);
@@ -366,7 +362,7 @@ fn loads_runtime_configuration_and_rejects_partial_activity_credentials() -> Res
     options.activity.map(|api| api.app_api),
     Some(botge_activity::AppApi::Enabled)
   );
-  assert!(options.twitch.is_some() && options.cache.is_some() && options.register_commands);
+  assert!(options.cache.is_some() && options.register_commands);
   assert!(options.prefix_compose);
   env.insert("ACTIVITY_BIND_HOST", "invalid");
   assert!(Options::read(&|key| env.get(key).map(ToString::to_string)).is_err());
@@ -417,7 +413,10 @@ async fn starts_gateway_and_http_reconciles_voice_and_handles_shutdown() -> Resu
   {
     let store = Store::open(&db)?;
     store.save_voice_settings(guild, &voice)?;
-    store.add_emote(guild, botge_test_support::example("Wave", "1"))?
+    store.add_emote(
+      botge_storage::CatalogEditor::system(guild),
+      botge_test_support::example("Wave", "1"),
+    )?
   };
 
   let listener = TcpListener::bind("127.0.0.1:0").await?;
@@ -480,7 +479,6 @@ async fn starts_gateway_and_http_reconciles_voice_and_handles_shutdown() -> Resu
   let options = Options {
     token: "fixture".into(),
     data: dir.path().into(),
-    twitch: None,
     cache: Some(http.origin.clone()),
     register_commands: true,
     prefix_compose: true,
@@ -588,7 +586,6 @@ async fn keeps_disabled_activity_idle_and_rejects_invalid_api_configuration() ->
   let emotes = Arc::new(Application::new(
     config::Providers::default(),
     Arc::clone(&store),
-    None,
   )?);
   let http = Arc::new(Http::new("fixture"));
   let changed = Arc::new(Notify::new());
@@ -701,7 +698,6 @@ async fn rejects_activity_configuration_and_discord_identity_before_gateway_star
     let options = Options {
       token: "fixture".into(),
       data: directory.path().join(format!("stage-{stage}")),
-      twitch: None,
       cache: None,
       register_commands: false,
       prefix_compose: false,

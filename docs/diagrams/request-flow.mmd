@@ -9,10 +9,14 @@ flowchart TB
         compose --> render["botge-emotes<br/>Original download or bounded FFmpeg render"]
         render --> reply["Return through botge-app and botge-discord"] --> attachment["Discord text / attachment"]
     end
+    subgraph Content["Activity launch and assets"]
+        direction LR
+        launch["Discord Activity"] --> root["Discord proxy<br/>/ mapping"] --> go["Go origin on Cloud Run<br/>Verify signatures and serve embedded assets"]
+    end
     subgraph Settings["Activity voice settings"]
         direction LR
-        browser["Activity browser"] --> proxy["Discord proxy<br/>/botge-api"] --> tunnel["API tunnel"]
-        tunnel --> api["botge-activity<br/>Proxy signature and request validation"]
+        browser["Activity browser"] --> proxy["Discord proxy<br/>/botge-api"] --> ingress["Public HTTPS endpoint<br/>Tunnel or reverse proxy"]
+        ingress --> api["Rust bot on the VM<br/>Proxy signature and request validation"]
         api --> authorize["botge-app<br/>Authenticate and authorize"]
         authorize <-->|current identity and guild access| access["botge-discord<br/>GuildAccess implementation"]
         authorize -->|authorized| commit["botge-storage<br/>Commit voice preference"]
@@ -21,4 +25,3 @@ flowchart TB
         response["Responses return through botge-app and botge-activity.<br/>Voice reconciliation runs asynchronously after commit."]
     end
     auth["/auth exchanges a one-use code; later requests use a bearer token.<br/>Personal borders use user identity; guild operations check current guild permissions."]
-    ui["UI: / maps to the Cloudflare Worker; signed HTML and static assets are served separately.<br/>Provider media uses Discord CDN mappings."]

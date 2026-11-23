@@ -19,8 +19,6 @@ function settingsPanel(): HTMLDetailsElement {
 
 const defaults = {
   sevenTvSet: null,
-  bttvTwitchId: null,
-  ffzChannel: null,
   allowEveryone: false,
   allowedRoles: [],
   roles: [
@@ -33,7 +31,7 @@ test('loads and submits the provider sets and added-emote access', async () => {
   const request = vi
     .fn()
     .mockResolvedValueOnce({ ...defaults, allowedRoles: ['123'] })
-    .mockResolvedValueOnce({ ...defaults, ffzChannel: 'streamer', allowedRoles: ['42', '77'] });
+    .mockResolvedValueOnce({ ...defaults, allowedRoles: ['42', '77'] });
   mountEmoteSettings(request);
   const panel = settingsPanel();
   expect(panel.hidden).toBe(false);
@@ -43,7 +41,7 @@ test('loads and submits the provider sets and added-emote access', async () => {
   });
   const field = (name: string): HTMLInputElement =>
     requireValue(panel.querySelector<HTMLInputElement>(`input[name="${name}"]`), 'Missing input');
-  field('ffz-channel').value = 'Streamer';
+  field('seven-tv-set').value = ' 01234567890123456789ABCDEF ';
   const role = requireValue(panel.querySelector('select'), 'Missing role picker');
   const add = requireValue(
     panel.querySelector<HTMLButtonElement>('[name="add-role"]'),
@@ -62,10 +60,8 @@ test('loads and submits the provider sets and added-emote access', async () => {
     expect(panel.querySelector('[role="status"]')?.textContent).toContain('Saved.');
   });
   expect(request).toHaveBeenLastCalledWith({
-    sevenTvSet: null,
-    bttvTwitchId: null,
+    sevenTvSet: '01234567890123456789ABCDEF',
     allowEveryone: false,
-    ffzChannel: 'streamer',
     allowedRoles: ['42', '77']
   });
 });
@@ -73,7 +69,6 @@ test('loads and submits the provider sets and added-emote access', async () => {
 test.each([
   [null, 'Invalid emote settings response.'],
   [{ message: 'Access denied.' }, 'Access denied.'],
-  [{ ...defaults, ffzChannel: 42 }, 'Invalid emote settings response.'],
   [{ ...defaults, allowedRoles: null }, 'Invalid emote settings response.'],
   [{ ...defaults, allowedRoles: ['42', null] }, 'Invalid emote settings response.'],
   [{ ...defaults, roles: [defaults.roles[0], { id: '77' }] }, 'Invalid emote settings response.']
@@ -120,6 +115,79 @@ test('ignores a save before the settings load and while another save is in fligh
     expect(panel.querySelector('[role="status"]')?.textContent).toContain('Saved.');
   });
   expect(panel.querySelector('fieldset')?.disabled).toBe(false);
+});
+
+test('protects an unsaved draft and blocks saves during catalog restore', async () => {
+  const request = vi.fn().mockResolvedValue(defaults);
+  const settings = mountEmoteSettings(request);
+  const panel = settingsPanel();
+  const form = requireValue(panel.querySelector('form'), 'Missing form');
+  const field = requireValue(
+    form.querySelector<HTMLInputElement>('input[name="seven-tv-set"]'),
+    'Missing set field'
+  );
+  const fields = requireValue(form.querySelector('fieldset'), 'Missing settings fields');
+  panel.open = true;
+  await vi.waitFor(() => {
+    expect(fields.disabled).toBe(false);
+  });
+
+  const send = vi.fn<() => Promise<unknown>>();
+  field.value = '01234567890123456789ABCDEF';
+  await expect(settings.restore(send)).rejects.toThrow('unsaved emote settings');
+  expect(send).not.toHaveBeenCalled();
+  expect(field.value).toBe('01234567890123456789ABCDEF');
+
+  field.value = '';
+  const everyone = requireValue(
+    form.querySelector<HTMLInputElement>('input[name="allow-everyone"]'),
+    'Missing manager policy switch'
+  );
+  everyone.checked = true;
+  await expect(settings.restore(send)).rejects.toThrow('unsaved emote settings');
+  expect(everyone.checked).toBe(true);
+  everyone.checked = false;
+
+  let complete: (result: unknown) => void = () => undefined;
+  send.mockReturnValue(
+    new Promise((resolve) => {
+      complete = resolve;
+    })
+  );
+  const restore = settings.restore(send);
+  expect(fields.disabled).toBe(true);
+  await expect(settings.restore(send)).rejects.toThrow('finish loading or saving');
+  form.dispatchEvent(new Event('submit', { cancelable: true } as const));
+  expect(request).toHaveBeenCalledOnce();
+  complete({ currentRevision: 2 } as const);
+  await expect(restore).resolves.toEqual({ currentRevision: 2 } as const);
+  expect(fields.disabled).toBe(false);
+});
+
+test('loads the newly saved policy when settings are opened during a restore', async () => {
+  const request = vi.fn().mockResolvedValue(defaults);
+  const settings = mountEmoteSettings(request);
+  let complete: (result: unknown) => void = () => undefined;
+  const pending = new Promise<unknown>((resolve) => {
+    complete = resolve;
+  });
+  const restore = settings.restore(async () => await pending);
+  const panel = settingsPanel();
+  panel.open = true;
+  expect(request).not.toHaveBeenCalled();
+
+  complete({ currentRevision: 2 } as const);
+  await restore;
+  await vi.waitFor(() => {
+    expect(panel.querySelector('fieldset')?.disabled).toBe(false);
+  });
+  expect(request).toHaveBeenCalledOnce();
+
+  settings.reload();
+  await vi.waitFor(() => {
+    expect(panel.querySelector('fieldset')?.disabled).toBe(false);
+  });
+  expect(request).toHaveBeenCalledTimes(2);
 });
 
 test('stops adding manager roles at the 25-role limit', async () => {

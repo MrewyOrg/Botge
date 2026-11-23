@@ -1,5 +1,3 @@
-// cspell:words initialise
-
 //! Checks voice reconciliation decisions and status deduplication through local HTTP fixtures.
 
 #![expect(

@@ -4,9 +4,11 @@ use botge_domain::{
   emotes::{Emote, GuildEmotes, valid_seven_id},
   providers::Providers,
 };
-pub use botge_emotes::catalog::Catalog;
 use botge_storage::Store;
-use std::{num::NonZeroU64, sync::Arc};
+use std::{num::NonZeroU64, sync::Arc, time::Duration};
+
+/// Maximum time autocomplete waits for a provider refresh before using its last snapshot.
+const AUTOCOMPLETE_REFRESH_WAIT: Duration = Duration::from_millis(1400);
 
 /// Compositions that may resolve, download and render at the same time.
 ///
@@ -32,15 +34,11 @@ impl Application {
   /// # Errors
   ///
   /// Returns an error if the bounded provider HTTP client cannot be initialized.
-  pub fn new(
-    policy: Providers,
-    store: Arc<Store>,
-    twitch: Option<(String, String)>,
-  ) -> Result<Self> {
+  pub fn new(policy: Providers, store: Arc<Store>) -> Result<Self> {
     Ok(Self {
       policy,
       store,
-      client: botge_emotes::Emotes::new(policy, twitch)?,
+      client: botge_emotes::Emotes::new(policy)?,
       render_slot: tokio::sync::Semaphore::new(RENDER_SLOTS),
       metrics: Metrics::default(),
       games: game::Games::default(),
@@ -81,7 +79,7 @@ impl Application {
   /// cached or empty results without cancelling the shared refresh.
   pub async fn catalog_for_autocomplete(&self, guild: Option<NonZeroU64>) -> Result<Catalog> {
     self
-      .catalog_with_timeout(guild, Some(std::time::Duration::from_millis(1400)))
+      .catalog_with_timeout(guild, Some(AUTOCOMPLETE_REFRESH_WAIT))
       .await
   }
 
@@ -93,7 +91,7 @@ impl Application {
   async fn catalog_with_timeout(
     &self,
     guild: Option<NonZeroU64>,
-    timeout: Option<std::time::Duration>,
+    timeout: Option<Duration>,
   ) -> Result<Catalog> {
     let store = Arc::clone(&self.store);
     let added_enabled = self.policy.seven_added;
@@ -174,14 +172,18 @@ mod composition;
 
 pub mod game;
 
-pub mod catalog_watch;
+mod catalog_history;
+mod catalog_watch;
 mod tickets;
+#[doc(inline)]
 pub use catalog_watch::{CatalogChange, CatalogWatcher, WatchTicket};
 
-pub mod metrics;
-pub use botge_emotes::rendering::Layer;
+mod metrics;
+#[doc(inline)]
+pub use botge_emotes::{catalog::Catalog, rendering::Layer};
 #[doc(inline)]
 pub use composition::{ComposeRequest, Composition};
+#[doc(inline)]
 pub use metrics::Metrics;
 impl Application {
   /// Holds every render slot while a fixture verifies busy responses.

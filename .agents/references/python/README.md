@@ -1,11 +1,11 @@
 # Python references: compact baseline
 
-Reviewed 2026-11-14. Read this index first; load only relevant cached sections. These are original
-navigation summaries, not substitutes for upstream rules. [Audit and exceptions](AUDIT.md) describe
-Botge's application. Full snapshots are ignored; source URLs, revisions and SHA-256 hashes are
-tracked in the [manifest](../sources.json). From the repository root, run
-`python3 .agents/scripts/cache_references.py` if needed, or add `--check` for offline verification.
-Builds and CI never fetch reference snapshots. Refresh manually after reviewing upstream changes.
+Reviewed 2026-11-14. This index records how Botge applies the upstream guides that Ruff and Pyright
+encode; the [audit and exceptions](AUDIT.md) describe Botge's application. Full snapshots are
+ignored; source URLs, revisions and SHA-256 hashes are tracked in the [manifest](../sources.json).
+From the repository root, run `python3 .agents/scripts/cache_references.py` if needed, or add
+`--check` for offline verification. Builds and CI never fetch reference snapshots. Refresh manually
+after reviewing upstream changes.
 
 ## Sources
 
@@ -22,15 +22,7 @@ Builds and CI never fetch reference snapshots. Refresh manually after reviewing 
   [official library guidance](https://azure.github.io/azure-sdk/python_design.html), applied
   selectively.
 
-## Working rules
-
-Use typed boundaries, explicit errors, small interfaces and ordinary Python constructs. Validate
-external JSON before narrowing types; use abstract read-only views where appropriate. Prefer
-built-in generics, `X | None`, `type` aliases and `@override` on the pinned Python. Keep imports
-side-effect free, entry points guarded, resources scoped, subprocesses shell-free and work bounded.
-Document observable behavior, side effects, meaningful arguments and actual failure conditions; keep
-obvious helpers brief. Test behavior and failures. Run the shared strict checks; generate pydoc when
-API documentation is useful.
+## Botge application
 
 Botge uses four spaces, single quotes, 100 columns, Ruff, strict Pyright, unittest, Husky and uv.
 The audit records differences from upstream tool, formatting, import and header preferences. These

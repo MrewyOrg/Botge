@@ -8,9 +8,8 @@
 !/.github/codeql/output/.gitkeep
 /data
 /activity/dist/
-/activity/dist-demo/
-/activity/.wrangler/
-/.wrangler/
+/activity/server/internal/site/dist*/
+/activity/server/internal/site/.stage.lock/
 /nginx/cache
 node_modules/
 /tmp
@@ -27,7 +26,6 @@ node_modules/
 /.agents/references/cache/
 .venv/
 .ruff_cache/
-# cspell:words pycache
 **/__pycache__/
 # iOS: the Xcode project is generated from ios/project.yml; tools and builds are local.
 /ios/*.xcodeproj/

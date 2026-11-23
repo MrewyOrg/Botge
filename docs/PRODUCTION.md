@@ -1,5 +1,3 @@
-<!-- cspell:words bigint libcrux aesgcm chacha poly ringbuf mrhx -->
-
 # Production contracts
 
 Implementation requirements live here. Use the wiki for
@@ -8,6 +6,8 @@ Implementation requirements live here. Use the wiki for
 [workflow guide](../.github/workflows/README.md) for CI and approval rules.
 
 ## Deployment and readiness
+
+### Rust bot on the VM
 
 Update the host's control client, handler, and `compose.yaml` before the first digest deployment.
 Image deployments do not update these host files. An incompatible host configuration rejects the
@@ -42,6 +42,21 @@ unhealthy. Unhealthy status alone does not restart it. The Activity API's `/heal
 availability separately. These checks do not verify providers, rendering, storage, or voice
 playback.
 
+### Go Activity origin on Cloud Run
+
+The release workflow qualifies the Go image before production approval and publishes the tested
+digest to Artifact Registry after approval. Cloud Run probes `/healthz` to start the revision. An
+administrator enables public invocation on the service so Discord's signed content requests can
+reach it. See the
+[Activity deployment settings](../.github/workflows/README.md#activity-deployment-on-cloud-run).
+
+Use the Cloud Run hostname for the Discord `/` mapping and the VM's
+[API HTTPS endpoint](../activity/README.md#api-https-endpoint) for `/botge-api`. Verify a cold
+launch, assets, catalog history, and voice settings through Discord. On a broken launch or sustained
+origin errors, [send traffic back to the last known-good revision][run-rollback]. If the mapping
+changed during the cutover, restore its previous working target. Keep the corresponding image digest
+available in Artifact Registry and check with a fresh Activity launch after recovery.
+
 ## Backups and recovery
 
 Operator targets: an encrypted off-host backup daily, 30 days of retention, an owner for failures,
@@ -49,21 +64,24 @@ and a restore exercise at least quarterly and after storage or schema changes. K
 and configuration with recovery records; store credentials separately. Scheduling, off-host storage,
 and host-level restore drills require operator setup.
 
-Run `scripts/backup-compose.sh NEW_DIRECTORY` on the host with `BOTGE_DIR`, `BOTGE_CONTROL_LOCK`,
-and the installed control account's rootless Docker environment. The parent directory must exist;
-the destination must not. Backup and import require the container database directory to resolve to
-`/app/data`: use the image default or that explicit absolute path. Backup inspects the running
-container; import checks Compose configuration and the import container. Unsupported data-directory
-or working-directory overrides are rejected before stopping Botge when visible in the preflight. The
-script shares the deployment lock, stops Botge, copies redb, verifies all tables read-only with the
-running image, and writes a checksum and image ID. Its exit trap restarts the original container
-even if copying or verification fails. Upload successful backups to encrypted off-host storage. The
-script does not schedule, upload, or delete backups.
+Run `scripts/operations/backup-compose.sh NEW_DIRECTORY` on the host with `BOTGE_DIR`,
+`BOTGE_CONTROL_LOCK`, and the installed control account's rootless Docker environment. The parent
+directory must exist; the destination must not. Backup and import require the container database
+directory to resolve to `/app/data`: use the image default or that explicit absolute path. Backup
+inspects the running container; import checks Compose configuration and the import container.
+Unsupported data-directory or working-directory overrides are rejected before stopping Botge when
+visible in the preflight. The script shares the deployment lock, stops Botge, copies redb, verifies
+all tables read-only with the running image, and writes a checksum and image ID. Its exit trap
+restarts the original container even if copying or verification fails. Upload successful backups to
+encrypted off-host storage. The script does not schedule, upload, or delete backups.
 
 The database records its schema version in a `meta` table. A database or backup without the marker
 predates it and is read as version 1; the bot stamps it on the next start. Startup and
 `--verify-database` reject a version the image does not support and leave the file unchanged, so
-restore a backup only with an image that reads its version. Older images ignore the marker.
+restore a backup only with an image that reads its version. Older images ignore the marker. The
+catalog history tables are additive. An older database can open without them. If an older image
+writes the managed catalog during rollback, restores from history require a new managed edit to
+record the current state.
 
 To restore:
 
@@ -80,10 +98,10 @@ image does not undo database writes or migrations.
 ## Dependency security
 
 Dependency review, npm/Cargo audits, and Docker Scout block critical vulnerabilities. Scout checks
-both image platforms, including unfixed findings. Cargo maintenance warnings and advisories without
-severity scores are informational. Scanner errors fail checks. Full audits run weekly and on demand;
-see the workflow guide for PR triggers. Exceptions need an advisory ID, affected path, reachability
-evidence, owner, expiry, and follow-up fix.
+both Rust image platforms, including unfixed findings. Cargo maintenance warnings and advisories
+without severity scores are informational. Scanner errors fail checks. Full audits run weekly and on
+demand; see the workflow guide for PR triggers. Exceptions need an advisory ID, affected path,
+reachability evidence, owner, expiry, and follow-up fix.
 
 ### Findings requiring triage
 
@@ -128,12 +146,14 @@ All project tooling and services must remain free to use without trial credits o
   expires after seven days. Do not depend on the paid Apple Developer Program.
 - Keep Docker Hub and the enabled Scout repository within their free entitlements. Retain rollback
   images without enabling paid registry features.
-- Keep the Activity on Cloudflare Workers Free. Accept quota failures rather than enabling paid
-  usage. Static assets and Worker requests have separate limits.
-- Serve the public Activity demo as static assets only, with no Worker script, so its traffic stays
-  free and never uses the daily Worker requests the Activity needs.
-- Deploy both from CI with a Cloudflare API token made from the **Edit Cloudflare Workers** template
-  and limited to the deploying account. Deployments are free and count against no request quota.
+- Keep Activity candidates in Artifact Registry within the billing account's shared 0.5 GiB-month
+  storage allowance and verify transfer costs. Configure cleanup for superseded candidate tags and
+  preserve digests used by deployments and rollback. Co-locate any future runtime with its registry.
+  [Artifact Registry pricing](https://cloud.google.com/artifact-registry/pricing)
+- Verify that the Cloud Run test and production Activity can run without paid overages before
+  deploying either service. A zero-dollar Cloud Run spend cap can pause the service on usage that
+  would be covered by free-tier credits. Google bills overages incurred before a cap takes effect.
+  [Cloud Billing spend caps](https://docs.cloud.google.com/billing/docs/how-to/budgets-spend-caps)
 - Use free capacity for encrypted off-host backups and monitoring; provision and test them
   separately.
 
@@ -143,12 +163,10 @@ allowances. Budget alerts are not spending caps; verify any enforced controls an
 Use existing local hardware if hosted resources cannot remain within verified free limits.
 
 References: [Actions billing][actions-billing], [Google Cloud Free Tier][free-tier], [budget
-controls][budgets], [Workers limits][workers], [static asset billing][assets], and [Docker Desktop
-licensing][desktop].
+controls][budgets], and [Docker Desktop licensing][desktop].
 
 [actions-billing]: https://docs.github.com/en/billing/concepts/product-billing/github-actions
 [free-tier]: https://docs.cloud.google.com/free/docs/free-cloud-features
 [budgets]: https://docs.cloud.google.com/billing/docs/how-to/budgets
-[workers]: https://developers.cloudflare.com/workers/platform/limits/
-[assets]: https://developers.cloudflare.com/workers/static-assets/billing-and-limitations/
 [desktop]: https://docs.docker.com/subscription-billing/desktop-license/
+[run-rollback]: https://docs.cloud.google.com/run/docs/rollouts-rollbacks-traffic-migration

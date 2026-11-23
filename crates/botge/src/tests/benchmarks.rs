@@ -46,7 +46,7 @@ fn browser_catalog(b: &mut Bencher) {
 fn catalog_future_fits_the_worker_budget() -> Result<()> {
   let directory = tempfile::tempdir()?;
   let store = Arc::new(Store::open(&directory.path().join("future.redb"))?);
-  let emotes = Application::new(config::Providers::default(), store, None)?;
+  let emotes = Application::new(config::Providers::default(), store)?;
   let future = emotes.catalog(None);
   let bytes = size_of_val(&future);
   // Keep per-request state below one memory page; a regression needs an explicit review.

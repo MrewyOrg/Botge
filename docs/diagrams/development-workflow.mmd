@@ -1,15 +1,48 @@
-%%{init: {"theme":"dark"}}%%
+---
+title: Botge development and release workflow
+config:
+  theme: base
+  fontFamily: "Arial, sans-serif"
+  markdownAutoWrap: false
+  flowchart:
+    htmlLabels: false
+    wrappingWidth: 340
+    nodeSpacing: 32
+    rankSpacing: 25
+    padding: 8
+  themeVariables:
+    darkMode: true
+    background: "#041221"
+    primaryColor: "#0b2536"
+    primaryBorderColor: "#46d4e7"
+    primaryTextColor: "#f4fbff"
+    clusterBkg: "#071a2c"
+    clusterBorder: "#30657c"
+    textColor: "#f4fbff"
+    lineColor: "#6ad5ff"
+    fontFamily: "Arial, sans-serif"
+---
 flowchart TB
-    edit["Edit Rust, TypeScript, Python and docs"] --> staged["pre-commit: lint-staged<br/>Activity build only for relevant staged changes"]
-    staged --> message["commit-msg: Commitlint and CSpell"] --> pr["Push branch and open PR"]
-    tools["Rust: rustfmt · Python: Ruff · TypeScript: ESLint<br/>Supported files: Prettier and CSpell"]
-    pr --> quality["BotgeQL<br/>Workspace Rust static checks and 95% per-file coverage<br/>TypeScript/Python checks and 90% coverage; markup/tooling"]
-    pr --> codeql["CodeQL<br/>Actions, Python, Rust, TypeScript"]
-    pr --> deps["Dependency review and npm/Cargo security audits"]
-    quality & deps --> changed{"Image inputs changed?<br/>dev PR to main"}
-    changed -->|yes| image["Build AMD64 and ARM64 candidate"] --> scan["Scan immutable candidate<br/>Critical findings block"]
-    scan --> approval["Production environment approval"] --> deploy["Promote approved digest<br/>IAP → control socket → Compose"]
-    deploy --> verify["Verify running digest and gateway readiness"] --> merge["Merge after all required checks pass"]
-    changed -->|no| record["Production approval records existing image<br/>No restart"] --> merge
+    subgraph local[Local development]
+        edit["Edit source, tooling, or docs"] --> staged["pre-commit runs lint-staged<br/>Build the Activity when staged changes affect it"]
+        staged --> message["commit-msg runs Commitlint"] --> pr["Push branch and open PR"]
+        tools["Language formatters and linters"] -.-> staged
+    end
+    subgraph checks[PR checks]
+        quality["BotgeQL<br/>Change-scoped language, tooling and coverage checks"]
+        codeql["CodeQL<br/>Actions, Go, Python, Rust, TypeScript"]
+        deps["Dependency review<br/>npm and Cargo security audits"]
+    end
+    subgraph release[Release from dev to main]
+        changed{"Image inputs changed?"}
+        changed -->|Rust| rust["Build AMD64 and ARM64<br/>Scan SBOMs and smoke-test images"] --> hub["Publish candidate to Docker Hub"] --> approval
+        changed -->|Activity| go["Build AMD64<br/>Validate SBOM and smoke-test image"] --> artifact["Retain tested archive in GitHub Actions"] --> approval
+        changed -->|No| approval["Production environment approval"]
+        approval -->|Rust changed| vm["Deploy digest through IAP and Compose<br/>Verify gateway and digest"] --> merge
+        approval -->|Activity changed| run["Verify archive, publish and attest in Artifact Registry<br/>Deploy and verify Cloud Run revision"] --> merge
+        approval -->|No images changed| record["Record the current deployment"] --> merge["Merge after all required checks pass"]
+    end
+    pr --> quality & codeql & deps
+    quality & deps --> changed
     codeql --> merge
-    note["Merge does not deploy again. Docker cleanup is manual.<br/>GitHub Releases holds version notes."]
+    merge -.-> note["Docker cleanup is manual.<br/>Find version notes in GitHub Releases."]

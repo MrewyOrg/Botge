@@ -2,9 +2,15 @@
 
 import { requireValue } from './validation.ts';
 
-type MenuTrigger = Readonly<Pick<HTMLButtonElement, 'focus' | 'getBoundingClientRect'>>;
-
 type MenuAction = { readonly label: string; readonly run: () => void };
+
+/** Tile control that anchors a menu and receives its focus back. */
+export type MenuTrigger = Readonly<
+  Pick<
+    HTMLButtonElement,
+    'focus' | 'getBoundingClientRect' | 'hasAttribute' | 'setAttribute' | 'contains'
+  >
+>;
 
 /**
  * Mounts the emote action menu and its keyboard and dismissal handlers.
@@ -25,13 +31,17 @@ export function createContextMenu(): {
    * @param x - Pointer coordinate in the viewport; two zero coordinates select keyboard anchoring.
    * @param y - Pointer coordinate in the viewport; keyboard anchoring uses the tile's bottom edge.
    * @param actions - Ordered labels and callbacks for the current emote.
+   * @param focusLast - Starts on the last item when opened with Up Arrow.
    */
   readonly open: (
     trigger: MenuTrigger,
     x: number,
     y: number,
-    actions: readonly MenuAction[]
+    actions: readonly MenuAction[],
+    focusLast?: boolean
   ) => void;
+  /** Closes the menu and returns focus to its trigger. */
+  readonly dismiss: () => void;
 } {
   const menu = requireValue(
     document.querySelector<HTMLElement>('#emote-context-menu'),
@@ -39,17 +49,36 @@ export function createContextMenu(): {
   );
   // Focusable only by script, so a pointer-opened menu can take focus without selecting an action.
   menu.tabIndex = -1;
+  const native = typeof menu.showPopover === 'function';
+  if (native) menu.popover = 'auto';
   let owner: MenuTrigger | undefined;
 
-  function close(restoreFocus = false): void {
-    if (restoreFocus) owner?.focus({ preventScroll: true });
+  function clearOwner(): void {
+    if (owner?.hasAttribute('aria-haspopup') === true) owner.setAttribute('aria-expanded', 'false');
     owner = undefined;
-    menu.hidden = true;
   }
 
-  document.addEventListener('pointerdown', (event: { readonly target: unknown }) => {
-    if (event.target instanceof Node && !menu.contains(event.target)) close();
-  });
+  function close(restoreFocus = false): void {
+    const trigger = owner;
+    clearOwner();
+    if (native && menu.matches(':popover-open')) menu.hidePopover();
+    menu.hidden = true;
+    if (restoreFocus) trigger?.focus({ preventScroll: true });
+  }
+
+  if (native)
+    menu.addEventListener('toggle', () => {
+      if (!menu.matches(':popover-open')) close();
+    });
+  else
+    document.addEventListener('pointerdown', (event: { readonly target: unknown }) => {
+      if (
+        event.target instanceof Node
+        && !menu.contains(event.target)
+        && !(owner?.hasAttribute('aria-haspopup') === true && owner.contains(event.target))
+      )
+        close();
+    });
   window.addEventListener('resize', () => {
     close();
   });
@@ -78,7 +107,7 @@ export function createContextMenu(): {
           buttons[(index + 1) % buttons.length]?.focus();
           break;
         case 'ArrowUp':
-          buttons[(index + buttons.length - 1) % buttons.length]?.focus();
+          buttons.at(index < 0 ? -1 : index - 1)?.focus();
           break;
         case 'Home':
           buttons.at(0)?.focus();
@@ -94,8 +123,13 @@ export function createContextMenu(): {
   );
 
   return {
-    open(trigger, x, y, actions): void {
+    dismiss: (): void => {
+      close(true);
+    },
+    open(trigger, x, y, actions, focusLast = false): void {
+      close();
       owner = trigger;
+      if (trigger.hasAttribute('aria-haspopup')) trigger.setAttribute('aria-expanded', 'true');
       const buttons: readonly HTMLButtonElement[] = actions.map(({ label, run }) => {
         const button = document.createElement('button');
         button.type = 'button';
@@ -110,12 +144,14 @@ export function createContextMenu(): {
       });
       menu.replaceChildren(...buttons);
       menu.hidden = false;
+      if (native)
+        menu.showPopover(trigger instanceof HTMLElement ? { source: trigger } : undefined);
       const anchor = trigger.getBoundingClientRect();
       // Keyboard invocation has no pointer position, so anchor it to the tile.
       const pointer = x !== 0 || y !== 0;
       menu.style.left = `${Math.max(8, Math.min(pointer ? x : anchor.left, window.innerWidth - menu.offsetWidth - 8))}px`;
       menu.style.top = `${Math.max(8, Math.min(pointer ? y : anchor.bottom, window.innerHeight - menu.offsetHeight - 8))}px`;
-      (pointer ? menu : buttons.at(0))?.focus({ preventScroll: true });
+      (pointer ? menu : buttons.at(focusLast ? -1 : 0))?.focus({ preventScroll: true });
     }
   };
 }

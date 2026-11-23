@@ -83,7 +83,6 @@ struct Options {
   token: String,
   data: PathBuf,
   activity: Option<ActivityOptions>,
-  twitch: Option<(String, String)>,
   cache: Option<Url>,
   register_commands: bool,
   prefix_compose: bool,
@@ -151,7 +150,6 @@ impl Options {
       token,
       activity,
       data: get("BOTGE_DATA_DIR").map_or_else(|| PathBuf::from("data"), PathBuf::from),
-      twitch: get("TWITCH_CLIENT_ID").zip(get("TWITCH_SECRET")),
       cache: get("LOCAL_CACHE_BASE")
         .map(|value| Url::parse(&value))
         .transpose()
@@ -264,7 +262,7 @@ async fn run(
   std::fs::create_dir_all(&options.data).context("could not create the data directory")?;
   let store = Arc::new(Store::open(&options.data.join("botge.redb"))?);
   let config = config::Config::load(config_path)?;
-  let mut application = Application::new(config.general, Arc::clone(&store), options.twitch)?;
+  let mut application = Application::new(config.general, Arc::clone(&store))?;
   application.set_game_cache(options.cache.clone());
   let application = Arc::new(application);
   let commands = commands::Commands::new(Arc::clone(&application), options.cache);

@@ -1,5 +1,3 @@
-# cspell:words GOBIN rhysd tsdoc
-
 name: BotgeQL
 
 on:
@@ -7,6 +5,11 @@ on:
     branches: [dev]
     types: [opened, synchronize, reopened, edited, ready_for_review]
   workflow_call:
+    inputs:
+      qualify-activity-image-in-release:
+        description: The release workflow will build and smoke-test the exact Activity candidate.
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -38,6 +41,7 @@ jobs:
       pull-requests: read
     outputs:
       rust: ${{ steps.paths.outputs.rust }}
+      go: ${{ steps.paths.outputs.go }}
       static: ${{ steps.paths.outputs.static }}
       activity: ${{ steps.paths.outputs.activity }}
       markup: ${{ steps.paths.outputs.markup }}
@@ -48,6 +52,7 @@ jobs:
       ios: ${{ steps.paths.outputs.ios }}
     steps:
       - name: Checkout repository
+        if: github.event_name != 'pull_request'
         uses: actions/checkout@v7.0.1
         with:
           persist-credentials: false
@@ -66,8 +71,31 @@ jobs:
               - 'pyproject.toml'
               - 'uv.lock'
               - '.python-version'
-              - 'scripts/check_python.py'
+              - 'scripts/quality/check_python.py'
               - '.github/workflows/botgeql.yml'
+            go:
+              - 'activity/server/**'
+              - 'activity/src/**'
+              - 'activity/public/**'
+              - 'activity/index.html'
+              - 'activity/tsconfig*.json'
+              - 'activity/scripts/stage-server-site.ts'
+              - 'activity/**/vite.config.*'
+              - 'vite.config.*'
+              - 'activity/package{,-lock}.json'
+              - 'package{,-lock}.json'
+              - 'assets/**'
+              - '**/.npmrc'
+              - '.nvmrc'
+              - '.husky/install.sh'
+              - 'LICENSE.txt'
+              - 'tsconfig.base.json'
+              - 'scripts/activity/stage-activity-server.sh'
+              - 'scripts/activity/check-activity-server.sh'
+              - '.github/codeql/codeql-config.yml'
+              - '.github/workflows/botgeql.yml'
+              - '.github/workflows/codeql.yml'
+              - '.github/workflows/actions.lock'
             rust:
               - '**/*.rs'
               - 'Cargo.{toml,lock}'
@@ -79,9 +107,9 @@ jobs:
               - 'botge.config.schema.json'
               - '.env.example'
               - 'Dockerfile*'
-              - 'scripts/check-rust*.sh'
-              - 'scripts/install-test-ffmpeg.sh'
+              - 'scripts/rust/**'
               - '.github/workflows/botgeql.yml'
+              - '.github/actions/rust-setup/**'
             static:
               - '**/*.ts'
               - '**/*.html'
@@ -139,19 +167,25 @@ jobs:
               - '.agents/scripts/**/*.sh'
               - '.husky/{pre-commit,commit-msg,post-merge}'
               - '.shellcheckrc'
+              - 'scripts/**/*.jq'
+              - 'scripts/quality/run_shell_tests.py'
+              - 'tests/shell/**'
               - '.github/workflows/botgeql.yml'
             ios:
               - 'ios/**'
               - 'docs/{TERMS,PRIVACY}.md'
               - 'LICENSE.txt'
-              - 'scripts/{check,setup}-ios*.sh'
-              - 'scripts/lint-swift.sh'
-              - 'scripts/check_swift_docs.py'
+              - 'scripts/ios/{check,setup}-ios*.sh'
+              - 'scripts/ios/lint-swift.sh'
+              - 'scripts/ios/coverage.jq'
+              - 'scripts/ios/check_swift_docs.py'
               - '.github/workflows/botgeql.yml'
             workflows:
               - '.github/workflows/*.{yml,yaml}'
+              - '.github/workflows/actions.lock'
+              - '.github/actions/**'
               - '.github/actionlint.*'
-              - 'scripts/lint-workflows.sh'
+              - 'scripts/quality/lint_workflows.py'
 
   documentation-and-typescript:
     name: Documentation and TypeScript
@@ -186,7 +220,6 @@ jobs:
         run: |
           npx prettier . --check
           npm run markdownlint
-          npm run cspell
 
       - name: Check PR title and commits
         if: github.event_name == 'pull_request'
@@ -245,7 +278,7 @@ jobs:
           components: clippy,rustfmt
 
       - name: Check Rust formatting, lints, and documentation
-        run: sh scripts/check-rust.sh static
+        run: sh scripts/rust/check-rust.sh static
 
       # The production image builds with this stable release; keep nightly-only code out of it.
       - name: Check production build on stable Rust
@@ -279,7 +312,7 @@ jobs:
           tools: cargo-llvm-cov ffmpeg
 
       - name: Check Rust tests and coverage
-        run: sh scripts/check-rust.sh coverage
+        run: sh scripts/rust/check-rust.sh coverage
 
   rust-miri:
     name: Rust Miri
@@ -309,7 +342,7 @@ jobs:
         run: cargo miri setup
 
       - name: Interpret pure Rust tests with Miri
-        run: sh scripts/check-rust.sh miri
+        run: sh scripts/rust/check-rust.sh miri
 
   rust-dependencies:
     name: Rust features and dependencies
@@ -334,9 +367,74 @@ jobs:
           tools: cargo-hack cargo-udeps
 
       - name: Check Rust feature combinations and unused dependencies
-        run: sh scripts/check-rust.sh dependencies
+        run: sh scripts/rust/check-rust.sh dependencies
 
-  # Rulesets require this check name. It passes only when every stage succeeded or was skipped.
+  go-activity:
+    name: Go Activity server
+    needs: changes
+    if: always() && !cancelled() && needs.changes.outputs.go == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    env:
+      GOTOOLCHAIN: local
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install the pinned Go toolchain
+        uses: actions/setup-go@v7.1.0
+        with:
+          go-version-file: activity/server/.go-version
+          cache-dependency-path: activity/server/tools/go.sum
+
+      - name: Set up Node for the Activity build
+        uses: actions/setup-node@v7.1.0
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Install dependencies and stage the production Activity
+        run: |
+          npm ci --prefer-offline --no-audit
+          sh scripts/activity/stage-activity-server.sh
+
+      - name: Install the pinned Go linter
+        run: |
+          version=2.15.0
+          archive="golangci-lint-${version}-linux-amd64.tar.gz"
+          cd "$RUNNER_TEMP"
+          curl --fail --silent --show-error --location --output "$archive" \
+            "https://github.com/golangci/golangci-lint/releases/download/v${version}/${archive}"
+          printf '%s  %s\n' \
+            9b7fe6a6bf6334b98decf8d86b11415ea7889afdabdd1959fdce23af2a9ebcea "$archive" |
+            sha256sum -c -
+          tar -xzf "$archive" "golangci-lint-${version}-linux-amd64/golangci-lint"
+          printf '%s\n' "$RUNNER_TEMP/golangci-lint-${version}-linux-amd64" >> "$GITHUB_PATH"
+
+      - name: Check the origin and enforce per-file statement coverage
+        run: sh scripts/activity/check-activity-server.sh
+
+      - name: Build the production Activity origin image
+        if: ${{ !inputs.qualify-activity-image-in-release }}
+        run: |
+          docker buildx create --name activity-origin --driver docker-container --driver-opt \
+            image=moby/buildkit:v0.35.0@sha256:aa632b921ef07411d2cb77292cd34213d4f7b384001d6fceef1e1f25bf9752bb
+          docker buildx build --builder activity-origin --platform linux/amd64 --load \
+            --policy reset=true,filename=activity/server/Dockerfile.rego,strict=true \
+            --tag botge-activity-origin:ci \
+            --file activity/server/Dockerfile .
+
+      - name: Smoke-test the production Activity origin image
+        if: ${{ !inputs.qualify-activity-image-in-release }}
+        env:
+          BOTGE_ACTIVITY_IMAGE: botge-activity-origin:ci
+        working-directory: activity/server
+        run: go test -mod=readonly ./cmd/activity-server -run '^TestActivityImage$' -count=1
+
   # Standard macOS runners are free for public repositories; see docs/PRODUCTION.md#cost-policy.
   # `xcode-27` is the standard-size preview image with Xcode 27 (`macos-latest` has only Xcode 26);
   # never use its paid larger variant.
@@ -356,36 +454,43 @@ jobs:
 
       # The app targets iOS 27, so use the newest installed Xcode 27.
       - name: Select Xcode 27
+        id: xcode
         run: |
           xcode=$(find /Applications -maxdepth 1 -name 'Xcode_27*.app' | sort -V | tail -n 1)
           test -n "$xcode"
           sudo xcode-select --switch "$xcode"
-          xcodebuild -version
+          version=$(xcodebuild -version)
+          printf '%s\n' "$version"
+          fingerprint=$(printf '%s\n' "$version" | shasum -a 256 | cut -d ' ' -f 1)
+          printf 'fingerprint=%s\n' "$fingerprint" >> "$GITHUB_OUTPUT"
 
       - name: Restore pinned iOS tools
-        uses: actions/cache@v6.1.0
+        uses: actions/cache/restore@v6.1.0
+        id: ios-tools
         with:
           path: ios/Tools/.build
           key:
-            ios-tools-${{ runner.os }}-${{ runner.arch }}-${{
-            hashFiles('ios/Tools/Package.resolved') }}
+            ios-tools-${{ runner.os }}-${{ runner.arch }}-${{ steps.xcode.outputs.fingerprint }}-${{
+            hashFiles('ios/Tools/Package.swift', 'ios/Tools/Package.resolved',
+            'scripts/ios/setup-ios-tools.sh') }}
 
       - name: Build pinned iOS tools
-        run: sh scripts/setup-ios-tools.sh
+        env:
+          BOTGE_IOS_USE_CACHED_TOOLS: ${{ steps.ios-tools.outputs.cache-hit }}
+        run: sh scripts/ios/setup-ios-tools.sh
 
-      - name: Set up Python for the documentation check
-        uses: actions/setup-python@v7.1.0
+      - name: Save built iOS tools before validation
+        if: steps.ios-tools.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v6.1.0
         with:
-          python-version-file: .python-version
+          path: ios/Tools/.build
+          key: ${{ steps.ios-tools.outputs.cache-primary-key }}
 
-      - name: Check Swift formatting, lints and documentation tags
-        run: sh scripts/check-ios.sh static
+      - name: Check Swift formatting and lints
+        run: sh scripts/ios/check-ios.sh lint
 
-      - name: Find unused Swift declarations and imports
-        run: sh scripts/check-ios.sh analyze
-
-      - name: Run iOS tests and enforce coverage
-        run: sh scripts/check-ios.sh test
+      - name: Analyze, test and enforce coverage from one instrumented build
+        run: sh scripts/ios/check-ios.sh ci
 
   botgeql:
     name: BotgeQL
@@ -398,7 +503,9 @@ jobs:
         rust-coverage,
         rust-miri,
         rust-dependencies,
-        ios
+        go-activity,
+        ios,
+        tooling-lint
       ]
     if: always()
     runs-on: ubuntu-latest
@@ -411,7 +518,8 @@ jobs:
             documentation-and-typescript=${{ needs.documentation-and-typescript.result }}
             rust-static=${{ needs.rust-static.result }} rust-coverage=${{ needs.rust-coverage.result
             }} rust-miri=${{ needs.rust-miri.result }} rust-dependencies=${{
-            needs.rust-dependencies.result }} ios=${{ needs.ios.result }}
+            needs.rust-dependencies.result }} go-activity=${{ needs.go-activity.result }} ios=${{
+            needs.ios.result }} tooling-lint=${{ needs.tooling-lint.result }}
         run: |
           status=0
           for entry in $RESULTS; do
@@ -431,12 +539,12 @@ jobs:
           exit "$status"
 
   tooling-lint:
-    name: Shell and workflow lint
+    name: Shell, Python, and workflow checks
     needs: [check-pr-target, changes]
     if: >-
       always() && !cancelled() && (needs.check-pr-target.result == 'success' ||
       needs.check-pr-target.result == 'skipped')
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     timeout-minutes: 15
     steps:
       - name: Require successful change detection
@@ -447,16 +555,20 @@ jobs:
       - name: Checkout repository
         if: >-
           needs.changes.outputs.shell == 'true' || needs.changes.outputs.workflows == 'true' ||
-          needs.changes.outputs.python == 'true'
+          needs.changes.outputs.python == 'true' || needs.changes.outputs.ios == 'true'
         uses: actions/checkout@v7.0.1
         with:
           persist-credentials: false
 
       - name: Set up Python tools
-        if: needs.changes.outputs.python == 'true'
+        if: needs.changes.outputs.python == 'true' || needs.changes.outputs.ios == 'true'
         uses: actions/setup-python@v7.1.0
         with:
           python-version-file: .python-version
+
+      - name: Check Swift documentation tags on Linux
+        if: needs.changes.outputs.ios == 'true'
+        run: python scripts/ios/check_swift_docs.py
 
       - name: Set up locked Python package manager
         if: needs.changes.outputs.python == 'true'
@@ -475,7 +587,7 @@ jobs:
 
       - name: Check Python helpers
         if: needs.changes.outputs.python == 'true'
-        run: .venv/bin/python scripts/check_python.py
+        run: .venv/bin/python scripts/quality/check_python.py
 
       - name: Install ShellCheck
         if: needs.changes.outputs.shell == 'true' || needs.changes.outputs.workflows == 'true'
@@ -508,8 +620,18 @@ jobs:
 
       - name: Check shell scripts
         if: needs.changes.outputs.shell == 'true'
-        run: bash scripts/lint-shell.sh
+        run: bash scripts/quality/lint-shell.sh
+
+      - name: Install shell test tools
+        if: needs.changes.outputs.shell == 'true'
+        run: |
+          sudo apt-get -o Acquire::Retries=2 update --error-on=any
+          sudo apt-get -o Acquire::Retries=2 install -y --no-install-recommends bats jq kcov
+
+      - name: Test shell scripts and enforce coverage
+        if: needs.changes.outputs.shell == 'true'
+        run: python3 scripts/quality/run_shell_tests.py
 
       - name: Check workflows and inline shell
         if: needs.changes.outputs.workflows == 'true'
-        run: sh scripts/lint-workflows.sh
+        run: python3 scripts/quality/lint_workflows.py

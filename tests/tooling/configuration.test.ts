@@ -1,7 +1,6 @@
 import { expect, test } from 'vitest';
 
 import commitlint from '../../commitlint.config.ts';
-import spelling from '../../cspell.config.ts';
 import staged from '../../lint-staged.config.ts';
 import formatting from '../../prettier.config.ts';
 import styles from '../../stylelint.config.ts';
@@ -22,11 +21,12 @@ test('commit checks skip only commits signed off by Dependabot', () => {
   expect(ignore?.(`${body} dependabot[bot]`)).toBe(false);
 });
 
-test('staged Rust uses rustfmt without following unstaged child modules', () => {
+test('staged Rust and Go format only the selected files', () => {
   expect(staged).toMatchObject({
-    '*.rs': ['rustfmt --config skip_children=true', 'cspell'],
+    '*.rs': ['rustfmt --config skip_children=true'],
     '*.ts': expect.arrayContaining(['prettier --write']) as unknown,
-    '!(*.ts|*.html|*.scss|*.md|*.rs|*.py|*.swift|*.webp|*.png)': expect.arrayContaining([
+    '*.go': 'gofmt -w',
+    '!(*.ts|*.html|*.scss|*.md|*.rs|*.go|*.py|*.swift|*.webp|*.png)': expect.arrayContaining([
       'prettier --write --ignore-unknown'
     ]) as unknown
   });
@@ -34,7 +34,7 @@ test('staged Rust uses rustfmt without following unstaged child modules', () => 
 
 test('staged Swift is formatted and linted with the pinned iOS tools', () => {
   expect(staged).toMatchObject({
-    '*.swift': ['ios/Tools/bin/swiftformat', 'sh scripts/lint-swift.sh', 'cspell']
+    '*.swift': ['ios/Tools/bin/swiftformat', 'sh scripts/ios/lint-swift.sh']
   });
 });
 
@@ -42,10 +42,9 @@ test('staged HTML and SCSS are linted after formatting', () => {
   expect(staged).toMatchObject({
     '*.html': [
       'prettier --write',
-      'eslint --flag unstable_native_nodejs_ts_config --concurrency=auto',
-      'cspell'
+      'eslint --flag unstable_native_nodejs_ts_config --concurrency=auto'
     ],
-    '*.scss': ['prettier --write', 'stylelint --max-warnings 0', 'cspell']
+    '*.scss': ['prettier --write', 'stylelint --max-warnings 0']
   });
 });
 
@@ -72,11 +71,4 @@ test('formatting preserves the shared TypeScript and documentation conventions',
     endOfLine: 'lf',
     proseWrap: 'always'
   });
-});
-
-test('spelling ignores Git objects while keeping commit messages checkable', () => {
-  expect(spelling.useGitignore).toBe(true);
-  expect(spelling.ignorePaths).toContain('.git/objects');
-  expect(spelling.ignorePaths).not.toContain('.git');
-  expect(spelling.ignorePaths).not.toContain('.git/COMMIT_EDITMSG');
 });

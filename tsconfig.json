@@ -2,7 +2,6 @@
   "extends": "./tsconfig.base",
   "files": [
     "commitlint.config.ts",
-    "cspell.config.ts",
     "eslint.config.ts",
     "lint-staged.config.ts",
     "prettier.config.ts",

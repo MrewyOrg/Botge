@@ -79,7 +79,7 @@ struct SettingsViewTests {
   @Test
   func `about shows the version, legal documents and the source`() async throws {
     #expect(AboutView.version { _ in nil } == "? (?)")
-    #expect(AboutView.version { $0 == "CFBundleVersion" ? "7" : "6.0.0" } == "6.0.0 (7)")
+    #expect(AboutView.version { $0 == "CFBundleVersion" ? "7" : "6.1.0" } == "6.1.0 (7)")
     let about = AboutView()
     #expect(throws: Never.self) { try about.inspect().find(ViewType.Link.self) }
     for link in try about.inspect().findAll(ViewType.NavigationLink.self) {

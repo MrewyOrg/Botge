@@ -2,12 +2,15 @@
 use super::access::FailureKind;
 use super::{
   Application,
-  access::{AccessError as ApiError, Credential, GuildAccess, GuildRole, membership},
+  access::{
+    AccessError as ApiError, Credential, GuildAccess, GuildRole, Membership, membership, user_id,
+  },
 };
 use botge_domain::{
   emotes::{Emote, GuildEmotes},
   settings::VoiceSettings,
 };
+use botge_storage::{AddEmoteOutcome, CatalogEditor};
 use std::{num::NonZeroU64, sync::Arc};
 
 /// The emote itself is already in the server catalog.
@@ -69,14 +72,11 @@ impl Application {
   /// internal errors.
   async fn add_to_catalog(
     &self,
-    guild: NonZeroU64,
+    editor: CatalogEditor,
     emote: Emote,
     catalog: &botge_emotes::catalog::Catalog,
   ) -> Result<String, ApiError> {
-    if catalog
-      .into_iter()
-      .any(|entry| entry.source == emote.source && entry.id == emote.id)
-    {
+    if catalog.into_iter().any(|entry| entry.id == emote.id) {
       return Err(ALREADY_ADDED);
     }
     if catalog
@@ -87,24 +87,15 @@ impl Application {
     }
     let store = Arc::clone(&self.store);
     let message = format!("Added emote {}.", emote.name);
-    let (id, name) = (emote.id.clone(), emote.name.clone());
-    if database(move || store.add_emote(guild, emote)).await? {
-      self.catalog_changed(crate::CatalogChange::Guild(guild));
-      return Ok(message);
+    match database(move || store.add_emote(editor, emote)).await? {
+      AddEmoteOutcome::Added => {
+        self.catalog_changed(crate::CatalogChange::Guild(editor.guild));
+        Ok(message)
+      }
+      AddEmoteOutcome::DuplicateId => Err(ALREADY_ADDED),
+      AddEmoteOutcome::DuplicateName => Err(NAME_TAKEN),
+      AddEmoteOutcome::Full => Err(CATALOG_FULL),
     }
-    // Storage refused the addition; read the saved list once to explain why.
-    let store = Arc::clone(&self.store);
-    let saved = database(move || store.added_emotes(guild)).await?;
-    Err(if saved.iter().any(|entry| entry.id == id) {
-      ALREADY_ADDED
-    } else if saved
-      .iter()
-      .any(|entry| entry.name.eq_ignore_ascii_case(&name))
-    {
-      NAME_TAKEN
-    } else {
-      CATALOG_FULL
-    })
   }
 
   /// Removes a stored addition and reports 404 when the guild has no matching row entry.
@@ -112,15 +103,15 @@ impl Application {
   /// # Errors
   ///
   /// Returns not-found if the ID is not individually added, or an internal database/task error.
-  async fn remove_from_catalog(&self, guild: NonZeroU64, id: String) -> Result<(), ApiError> {
+  async fn remove_from_catalog(&self, editor: CatalogEditor, id: String) -> Result<(), ApiError> {
     let store = Arc::clone(&self.store);
-    if !database(move || store.remove_emote(guild, &id)).await? {
+    if !database(move || store.remove_emote(editor, &id)).await? {
       return Err(ApiError(
         FailureKind::NotFound,
         "This emote is not individually added.",
       ));
     }
-    self.catalog_changed(crate::CatalogChange::Guild(guild));
+    self.catalog_changed(crate::CatalogChange::Guild(editor.guild));
     Ok(())
   }
 
@@ -138,7 +129,7 @@ impl Application {
     access: &A,
     guild: NonZeroU64,
     credential: &Credential,
-  ) -> Result<(), ApiError> {
+  ) -> Result<CatalogEditor, ApiError> {
     if !self.added_emotes_enabled() {
       return Err(ApiError(
         FailureKind::PermissionDenied,
@@ -146,17 +137,16 @@ impl Application {
       ));
     }
     let member = membership(access, guild, credential).await?;
-    if !self
-      .emote_settings(guild)
-      .await?
-      .can_manage(member.administrator, &member.roles)
-    {
+    if !member.can_manage_emotes(&self.emote_settings(guild).await?) {
       return Err(ApiError(
         FailureKind::PermissionDenied,
         "You do not have permission to manage added emotes.",
       ));
     }
-    Ok(())
+    Ok(CatalogEditor {
+      guild,
+      actor: Some(user_id(access, credential).await?),
+    })
   }
 
   /// Requires administrator access and returns the roles that can be shown in settings.
@@ -165,7 +155,7 @@ impl Application {
   ///
   /// Returns an error if current membership cannot be verified or the caller is not an
   /// administrator.
-  async fn authorize_settings<A: GuildAccess>(
+  pub(super) async fn authorize_settings<A: GuildAccess>(
     &self,
     access: &A,
     guild: NonZeroU64,
@@ -179,6 +169,13 @@ impl Application {
       ));
     }
     Ok(member.available_roles)
+  }
+}
+
+impl Membership {
+  /// Applies administrator access and the saved policy for ordinary members.
+  fn can_manage_emotes(&self, settings: &GuildEmotes) -> bool {
+    self.administrator || settings.allows_member_management(&self.roles)
   }
 }
 
@@ -255,8 +252,7 @@ impl Application {
       .map_err(ApiError::internal)?;
     Ok(GuildCatalog {
       entries,
-      can_manage: self.added_emotes_enabled()
-        && settings.can_manage(member.administrator, &member.roles),
+      can_manage: self.added_emotes_enabled() && member.can_manage_emotes(&settings),
       can_compose_discovery: self.added_emotes_enabled(),
     })
   }
@@ -274,13 +270,13 @@ impl Application {
     if !botge_domain::emotes::valid_seven_id(id) {
       return Err(ApiError::INVALID);
     }
-    self.authorize_change(access, guild, credential).await?;
+    let editor = self.authorize_change(access, guild, credential).await?;
     let emote = self.lookup_emote(id).await?;
     let catalog = self
       .catalog(Some(guild))
       .await
       .map_err(ApiError::internal)?;
-    self.add_to_catalog(guild, emote, &catalog).await
+    self.add_to_catalog(editor, emote, &catalog).await
   }
   /// Checks current management permissions before removing a saved addition.
   ///
@@ -296,8 +292,8 @@ impl Application {
     if !botge_domain::emotes::valid_seven_id(&id) {
       return Err(ApiError::INVALID);
     }
-    self.authorize_change(access, guild, credential).await?;
-    self.remove_from_catalog(guild, id).await
+    let editor = self.authorize_change(access, guild, credential).await?;
+    self.remove_from_catalog(editor, id).await
   }
   /// Authorizes one bounded batch and commits each successful mutation independently.
   ///
@@ -321,7 +317,7 @@ impl Application {
     {
       return Err(ApiError::INVALID);
     }
-    self.authorize_change(access, guild, credential).await?;
+    let editor = self.authorize_change(access, guild, credential).await?;
     let mut results = Vec::with_capacity(12);
     match action {
       EmoteAction::Add => {
@@ -332,7 +328,7 @@ impl Application {
         let catalog = catalog.map_err(ApiError::internal)?;
         for (id, emote) in ids.into_iter().zip(emotes) {
           let result = match emote {
-            Ok(emote) => self.add_to_catalog(guild, emote, &catalog).await,
+            Ok(emote) => self.add_to_catalog(editor, emote, &catalog).await,
             Err(error) => Err(error),
           };
           results.push(change(id, result));
@@ -341,7 +337,7 @@ impl Application {
       EmoteAction::Remove => {
         for id in ids {
           let result = self
-            .remove_from_catalog(guild, id.clone())
+            .remove_from_catalog(editor, id.clone())
             .await
             .map(|()| "Removed emote.".to_owned());
           results.push(change(id, result));
@@ -425,8 +421,12 @@ impl Application {
       return Err(ApiError::INVALID);
     }
     let store = Arc::clone(&self.store);
+    let editor = CatalogEditor {
+      guild,
+      actor: Some(user_id(access, credential).await?),
+    };
     let saved = database(move || {
-      store.save_guild_emotes(guild, &saved)?;
+      store.save_guild_emotes(editor, &saved)?;
       Ok(saved)
     })
     .await?;
@@ -442,7 +442,7 @@ impl Application {
     access: &A,
     credential: &Credential,
   ) -> Result<Option<u32>, ApiError> {
-    let user = super::access::user_id(access, credential).await?;
+    let user = user_id(access, credential).await?;
     self.border_for_user(user).await.map_err(ApiError::internal)
   }
   /// Writes a personal border under the credential's identity, never a request-supplied user ID.
@@ -458,7 +458,7 @@ impl Application {
     if color.is_some_and(|color| color > 0x00ff_ffff) {
       return Err(ApiError::INVALID);
     }
-    let user = super::access::user_id(access, credential).await?;
+    let user = user_id(access, credential).await?;
     let store = Arc::clone(&self.store);
     database(move || store.save_emote_border(user, color)).await
   }

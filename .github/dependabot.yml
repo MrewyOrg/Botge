@@ -33,7 +33,9 @@ updates:
     target-branch: dev
 
   - package-ecosystem: docker
-    directory: '/'
+    directories:
+      - '/'
+      - '/activity/server'
     # Registry publication dates are unavailable, so an age-based delay cannot be enforced.
     cooldown:
       exclude:
@@ -67,6 +69,18 @@ updates:
         versions: ['>=0.7']
     target-branch: dev
 
+  - package-ecosystem: gomod
+    directories: ['/activity/server', '/activity/server/tools']
+    schedule:
+      interval: weekly
+      day: monday
+      time: '12:49'
+    groups:
+      go-tool-dependencies:
+        patterns:
+          - '*'
+    target-branch: dev
+
   - package-ecosystem: npm
     directory: '/'
     schedule:
@@ -75,22 +89,6 @@ updates:
       time: '12:49'
     groups:
       npm-dependencies:
-        patterns:
-          - '*'
-    versioning-strategy: increase
-    labels:
-      - dependencies
-    target-branch: dev
-
-  # Wrangler for CI deployments has its own lockfile, so its native runtime stays out of `npm ci`.
-  - package-ecosystem: npm
-    directory: '/activity/deploy'
-    schedule:
-      interval: weekly
-      day: monday
-      time: '12:49'
-    groups:
-      activity-deploy-dependencies:
         patterns:
           - '*'
     versioning-strategy: increase

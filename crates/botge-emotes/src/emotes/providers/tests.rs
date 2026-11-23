@@ -9,12 +9,11 @@
 use std::assert_matches;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
-use axum::{
-  Json, Router,
-  routing::{get, post},
-};
+use axum::{Json, Router, routing::get};
 use botge_test_support::{SEVEN_ID, seven_example};
 use serde_json::json;
+
+use anyhow::Context as _;
 
 use super::*;
 use crate::tests::TestServer;
@@ -23,7 +22,7 @@ use crate::tests::TestServer;
 async fn bounds_refresh_admission_and_evicts_the_oldest_snapshot() -> Result<()> {
   let server =
     TestServer::start(Router::new().route("/new", get(|| async { Json(json!([])) }))).await?;
-  let mut client = ProviderClient::new(None)?;
+  let mut client = ProviderClient::new()?;
   client.test_origin = Some(server.origin.clone());
   let client = Arc::new(client);
   for index in 0..MAX_REFRESHES {
@@ -34,20 +33,8 @@ async fn bounds_refresh_admission_and_evicts_the_oldest_snapshot() -> Result<()>
       .await
       .insert(format!("pending-{index}"), receiver);
   }
-  assert_eq!(
-    client
-      .cached(Feed::BetterTtv, "pending-0".into())
-      .await
-      .as_ref(),
-    []
-  );
-  assert_eq!(
-    client
-      .cached(Feed::BetterTtv, "uncached".into())
-      .await
-      .as_ref(),
-    []
-  );
+  assert_eq!(client.cached("pending-0".into()).await.as_ref(), []);
+  assert_eq!(client.cached("uncached".into()).await.as_ref(), []);
   let stale = Arc::from([botge_test_support::example("Stale", "stale")]);
   client.cache.lock().await.insert(
     "stale".into(),
@@ -57,13 +44,7 @@ async fn bounds_refresh_admission_and_evicts_the_oldest_snapshot() -> Result<()>
       set_id: None,
     },
   );
-  assert_eq!(
-    client
-      .cached(Feed::BetterTtv, "stale".into())
-      .await
-      .as_ref(),
-    stale.as_ref()
-  );
+  assert_eq!(client.cached("stale".into()).await.as_ref(), stale.as_ref());
   client.refreshing.lock().await.clear();
   {
     let mut cache = client.cache.lock().await;
@@ -83,7 +64,7 @@ async fn bounds_refresh_admission_and_evicts_the_oldest_snapshot() -> Result<()>
   };
   assert_eq!(
     client
-      .refresh(Feed::BetterTtv, "https://provider.example/new")
+      .refresh("https://provider.example/new")
       .await
       .as_ref(),
     []
@@ -96,7 +77,7 @@ async fn bounds_refresh_admission_and_evicts_the_oldest_snapshot() -> Result<()>
   // Updating an existing full-cache entry must not evict another feed.
   assert_eq!(
     client
-      .refresh(Feed::BetterTtv, "https://provider.example/new")
+      .refresh("https://provider.example/new")
       .await
       .as_ref(),
     []
@@ -124,7 +105,7 @@ async fn rejects_oversized_chunked_responses_and_invalid_provider_metadata() -> 
       .route("/broken", get(|| async { "invalid JSON" })),
   )
   .await?;
-  let mut client = ProviderClient::new(None)?;
+  let mut client = ProviderClient::new()?;
   client.test_origin = Some(server.origin.clone());
   let response = client
     .http
@@ -133,20 +114,10 @@ async fn rejects_oversized_chunked_responses_and_invalid_provider_metadata() -> 
     .await?;
   assert_eq!(response.content_length(), None);
   assert_matches!(bounded_bytes(response, 4).await, Err(_));
-  let (_, id) = client
-    .fetch(Feed::SevenTv, "https://provider.example/invalid")
-    .await?;
+  let (_, id) = client.fetch("https://provider.example/invalid").await?;
   assert_eq!(id, None);
   assert_matches!(
-    client
-      .fetch(Feed::SevenTv, "https://provider.example/broken")
-      .await,
-    Err(_)
-  );
-  assert_matches!(
-    client
-      .fetch(Feed::Twitch, "https://provider.example/invalid")
-      .await,
+    client.fetch("https://provider.example/broken").await,
     Err(_)
   );
   Ok(())
@@ -154,58 +125,51 @@ async fn rejects_oversized_chunked_responses_and_invalid_provider_metadata() -> 
 
 #[tokio::test]
 async fn fetches_all_enabled_feeds_and_reuses_cached_results() -> Result<()> {
-  let http = TestServer::start(Router::new()
-        .route("/v3/emote-sets/{id}", get(|| async { Json(json!({"emotes":[{"name":"Set","flags":0,"data":seven_example("Set", false, 0)}]})) }))
-        .route("/v3/emotes/{id}", get(|axum::extract::Path(id): axum::extract::Path<String>| async move {
-            if id == SEVEN_ID { Ok(Json(seven_example("Added", false, 256))) } else { Err(StatusCode::NOT_FOUND) }
-        }))
-        .route("/3/cached/emotes/global", get(|| async { Json(json!([{"id":"valid","code":"Global","animated":false}])) }))
-        .route("/3/cached/users/twitch/{id}", get(|| async { Json(json!({"channelEmotes":[{"id":"valid","code":"Personal","animated":false}],"sharedEmotes":[]})) }))
-        .route("/v1/room/{name}", get(|| async { Json(json!({"room":{"set":7},"sets":{"7":{"emoticons":[{"id":12,"name":"Room","urls":{"2":"//cdn.frankerfacez.com/emote/12/2"}}]}}})) }))
-        .route("/v1/set/global", get(|| async { Json(json!({"sets":{"3":{"emoticons":[{"id":13,"name":"Global","urls":{"2":"//cdn.frankerfacez.com/emote/13/2"}}]}}})) }))
-        .route("/oauth2/token", post(|| async { Json(json!({"access_token":"fixture"})) }))
-        .route("/helix/chat/emotes/global", get(|| async { Json(json!({"data":[{"id":"valid","name":"Global","format":["static"]}]})) }))
-        .route("/large", get(|| async { "longer than four bytes" }))).await?;
-  let mut client = ProviderClient::new(Some(("fixture".into(), "fixture".into())))?;
+  let http = TestServer::start(
+    Router::new()
+      .route(
+        "/v3/emote-sets/{id}",
+        get(|| async {
+          Json(json!({"emotes":[{"name":"Set","flags":0,"data":seven_example("Set", false, 0)}]}))
+        }),
+      )
+      .route(
+        "/v3/emotes/{id}",
+        get(
+          |axum::extract::Path(id): axum::extract::Path<String>| async move {
+            if id == SEVEN_ID {
+              Ok(Json(seven_example("Added", false, 256)))
+            } else {
+              Err(StatusCode::NOT_FOUND)
+            }
+          },
+        ),
+      )
+      .route("/large", get(|| async { "longer than four bytes" })),
+  )
+  .await?;
+  let mut client = ProviderClient::new()?;
   client.test_origin = Some(http.origin.clone());
   let client = Arc::new(client);
   let policy = Providers {
     seven_global: true,
     seven_personal: true,
     seven_added: true,
-    bttv: true,
-    ffz: true,
-    twitch: true,
   };
   let guild = GuildEmotes {
     seven_tv_set: Some(SEVEN_ID.into()),
-    bttv_twitch_id: Some("42".into()),
-    ffz_channel: Some("name".into()),
     ..GuildEmotes::default()
   };
-  assert_eq!(client.catalog(policy, &guild, true, None).await.len(), 7);
-  // Without the global feeds, only the three the guild selected remain.
-  assert_eq!(client.catalog(policy, &guild, false, None).await.len(), 3);
+  assert_eq!(client.catalog(policy, &guild, true, None).await.len(), 2);
+  // Without the global feeds, only the set selected by the guild remains.
+  assert_eq!(client.catalog(policy, &guild, false, None).await.len(), 1);
   assert_eq!(
     client
       .catalog(policy, &GuildEmotes::default(), true, None)
       .await
       .len(),
-    4
+    1
   );
-  let without_twitch_credentials = Arc::new(ProviderClient::new(None)?);
-  let catalog = without_twitch_credentials
-    .catalog(
-      Providers {
-        twitch: true,
-        ..Providers::default()
-      },
-      &guild,
-      true,
-      None,
-    )
-    .await;
-  assert!(catalog.is_empty(), "unexpected catalog emotes: {catalog:?}");
   let added = client
     .added(SEVEN_ID)
     .await?
@@ -217,10 +181,8 @@ async fn fetches_all_enabled_feeds_and_reuses_cached_results() -> Result<()> {
     Err(_)
   );
   drop(http);
-  assert_eq!(client.catalog(policy, &guild, true, None).await.len(), 7);
-  let unavailable = client
-    .cached(Feed::SevenTv, "https://7tv.io/invalid".into())
-    .await;
+  assert_eq!(client.catalog(policy, &guild, true, None).await.len(), 2);
+  let unavailable = client.cached("https://7tv.io/invalid".into()).await;
   assert!(unavailable.is_empty());
   Ok(())
 }
@@ -238,12 +200,14 @@ async fn keeps_stale_emotes_during_a_provider_outage_and_recovers_after_retry() 
           1 => return Err(StatusCode::SERVICE_UNAVAILABLE),
           _ => "Updated",
         };
-        Ok(Json(json!([{"id":"valid","code":code,"animated":false}])))
+        Ok(Json(
+          json!({"emotes":[{"name":code,"flags":0,"data":seven_example(code, false, 0)}]}),
+        ))
       }
     }),
   ))
   .await?;
-  let client = Arc::new(ProviderClient::new(None)?);
+  let client = Arc::new(ProviderClient::new()?);
   let url = server.origin.join("emotes")?.to_string();
 
   for (attempt, expected) in ["Wave", "Wave", "Updated"].into_iter().enumerate() {
@@ -257,15 +221,12 @@ async fn keeps_stale_emotes_during_a_provider_outage_and_recovers_after_retry() 
         .context("missing provider cache entry")?
         .expires = Instant::now();
     }
-    let entries = client.cached(Feed::BetterTtv, url.clone()).await;
+    let entries = client.cached(url.clone()).await;
     assert_eq!(
       entries.first().map(|emote| emote.name.as_str()),
       Some(expected)
     );
-    assert_eq!(
-      &*client.cached(Feed::BetterTtv, url.clone()).await,
-      &*entries
-    );
+    assert_eq!(&*client.cached(url.clone()).await, &*entries);
     assert_eq!(requests.load(Ordering::Relaxed), attempt + 1);
   }
   Ok(())
@@ -276,23 +237,23 @@ async fn slow_autocomplete_feeds_finish_one_shared_refresh_after_the_deadline() 
   let requests = Arc::new(AtomicUsize::new(0));
   let release = Arc::new(tokio::sync::Notify::new());
   let server = TestServer::start(Router::new().route(
-    "/3/cached/emotes/global",
+    "/v3/emote-sets/global",
     get({
       let requests = Arc::clone(&requests);
       let release = Arc::clone(&release);
       move || async move {
         requests.fetch_add(1, Ordering::Relaxed);
         release.notified().await;
-        Json(json!([{"id":"valid","code":"SlowWave","animated":false}]))
+        Json(json!({"emotes":[{"name":"SlowWave","flags":0,"data":seven_example("SlowWave", false, 0)}]}))
       }
     }),
   ))
   .await?;
-  let mut client = ProviderClient::new(None)?;
+  let mut client = ProviderClient::new()?;
   client.test_origin = Some(server.origin.clone());
   let client = Arc::new(client);
   let policy = Providers {
-    bttv: true,
+    seven_global: true,
     ..Providers::default()
   };
   let guild = GuildEmotes::default();
@@ -324,7 +285,7 @@ async fn slow_autocomplete_feeds_finish_one_shared_refresh_after_the_deadline() 
 
 #[test]
 fn maps_only_usable_fixture_origins_and_provider_urls() -> Result<()> {
-  let mut client = ProviderClient::new(None)?;
+  let mut client = ProviderClient::new()?;
   assert_eq!(client.endpoint("not a URL"), "not a URL");
   client.test_origin = Some(Url::parse("http://127.0.0.1:1234")?);
   assert_eq!(client.endpoint("not a URL"), "not a URL");
@@ -376,11 +337,11 @@ async fn forwards_provider_outages_to_legacy_logging() -> Result<()> {
     return Ok(());
   };
   let server = TestServer::start(Router::new()).await?;
-  let mut client = ProviderClient::new(None)?;
+  let mut client = ProviderClient::new()?;
   client.test_origin = Some(server.origin.clone());
   assert_eq!(
     client
-      .refresh(Feed::BetterTtv, "https://provider.example/missing")
+      .refresh("https://provider.example/missing")
       .await
       .as_ref(),
     []

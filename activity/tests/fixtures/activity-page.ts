@@ -102,6 +102,7 @@ beforeEach(() => {
   const dialog = previewDialog();
   dialog.showModal = (): void => {
     dialog.open = true;
+    dialog.querySelector<HTMLElement>('[autofocus]')?.focus();
   };
   dialog.close = (): void => {
     dialog.open = false;
@@ -114,5 +115,4 @@ afterEach(() => {
   vi.unstubAllGlobals();
   vi.unstubAllEnvs();
   vi.restoreAllMocks();
-  document.head.querySelector('link[rel="icon"]')?.remove();
 });

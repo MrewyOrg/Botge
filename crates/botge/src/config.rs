@@ -1,5 +1,3 @@
-// cspell:words jsonc
-
 //! Loads operator configuration. Emote providers are disabled until enabled explicitly.
 
 use std::{fs, io::ErrorKind, path::Path};

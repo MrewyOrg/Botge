@@ -8,7 +8,6 @@
  * This browser entry resolves the enabled features, then creates and connects the catalog,
  * composer, and settings modules. Discord-only features follow the build flags and the current
  * guild context; outside Discord, the demo flag runs them against in-memory placeholders.
- * The package also includes the Cloudflare Worker that authenticates HTML requests.
  *
  * @see {@link https://github.com/MrewyOrg/Botge/wiki/Activity | Activity guide}
  * @packageDocumentation
@@ -17,7 +16,6 @@
 import { DiscordSDK } from '@discord/embedded-app-sdk';
 
 import demoEmoteUrl from '../../assets/botge-emoji.png';
-import iconUrl from '../../assets/botge-icon.png';
 import { type ActivityOperation, createActivityApi, waitForDiscord } from './activity-api.ts';
 import { watchCatalog } from './catalog/catalog-watch.ts';
 import { parseCatalog } from './catalog/catalog.ts';
@@ -36,22 +34,14 @@ import { fetchDiscoveryPage } from './catalog/seventv.ts';
 import { createComposer } from './composer/composer.ts';
 import type { DemoServer } from './demo/demo-server.ts';
 import { resolveFeatures } from './features.ts';
-import { connectGameServer } from './game/game-server.ts';
-import { mountGame } from './game/game-view.ts';
+import type { mountGame } from './game/game-view.ts';
 import { trackInputModality } from './input-modality.ts';
 import { createPageNavigation } from './page-navigation.ts';
 import { mountEmoteBorderSettings } from './settings/emote-border-settings.ts';
-import { mountEmoteSettings } from './settings/emote-settings.ts';
-import { mountVoiceSettings } from './settings/voice-settings.ts';
 import { requireValue } from './validation.ts';
 import './style.scss';
 
 trackInputModality();
-
-const favicon = document.createElement('link');
-favicon.rel = 'icon';
-favicon.href = iconUrl;
-document.head.append(favicon);
 
 const appId = /^(?<appId>\d+)\.discordsays\.com$/u.exec(location.hostname)?.groups?.['appId'];
 const discord =
@@ -193,7 +183,6 @@ function mountBrowseModes(): void {
     button.addEventListener('click', () => {
       if (results.mode() !== value) selection.clear();
       const catalogMode = value === 'catalog';
-      element('#source-filter').hidden = !catalogMode;
       addedFilter.hidden = !catalogMode || features.catalogGuildId === undefined;
       // The catalog load decides whether Try again shows; other modes never show it.
       if (!catalogMode) retry.hidden = true;
@@ -209,20 +198,41 @@ function mountBrowseModes(): void {
  * Mounts the settings panels for a guild, loading the border at once so the composer preview
  * matches the bot's rendered image.
  */
-function mountSettings(guildId: string): void {
-  navigation.enableSettings();
+async function mountSettings(guildId: string): Promise<void> {
   void mountEmoteBorderSettings(async (color) => {
     if (color === undefined) return await requestServer('settings/border/read', guildId);
     return await requestServer('settings/border', guildId, { color });
   }, composer.setBorder).load();
+  const [{ mountVoiceSettings }, { mountEmoteSettings }, history] = await Promise.all([
+    import('./settings/voice-settings.ts'),
+    import('./settings/emote-settings.ts'),
+    demo === undefined ? import('./settings/catalog-history.ts') : undefined
+  ]);
   mountVoiceSettings(async (voice) => {
     if (voice === undefined) return await requestServer('settings', guildId);
     return await requestServer('settings/voice', guildId, { voice });
   });
-  mountEmoteSettings(async (emotes) => {
+  const emoteSettings = mountEmoteSettings(async (emotes) => {
     if (emotes === undefined) return await requestServer('settings/emotes/read', guildId);
     return await requestServer('settings/emotes', guildId, { emotes });
   });
+  if (history !== undefined) {
+    history.mountCatalogHistory({
+      load: async () => await requestServer('catalog/history', guildId),
+      preview: async (revision) =>
+        await requestServer('catalog/history/preview', guildId, { revision }),
+      restore: async (revision, expectedRevision) =>
+        await emoteSettings.restore(
+          async () =>
+            await requestServer('catalog/history/restore', guildId, { revision, expectedRevision })
+        ),
+      onRestore(): void {
+        emoteSettings.reload();
+        if (features.catalogGuildId === guildId) void actions.refreshCatalog(true);
+      }
+    });
+  }
+  navigation.enableSettings();
 }
 
 /** Display names of the people in this Activity instance, by Discord user ID. */
@@ -262,22 +272,46 @@ async function trackParticipants(onChange: () => void): Promise<void> {
 }
 
 /** Mounts the guessing game; it connects when its page is first shown. */
-function mountGamePage(guildId: string): void {
-  const game = mountGame({
+async function mountGamePage(guildId: string): Promise<ReturnType<typeof mountGame>> {
+  const [{ mountGame: createGame }, server] = await Promise.all([
+    import('./game/game-view.ts'),
+    demo === undefined ? import('./game/game-server.ts') : undefined
+  ]);
+  const game = createGame({
     connect:
-      demo === undefined ?
-        connectGameServer(
-          async () =>
-            await requestServer('game/join', guildId, { instanceId: discord?.instanceId ?? '' })
-        )
-      : demo.connectGame,
+      demo?.connectGame
+      ?? requireValue(server, 'Missing game server.').connectGameServer(
+        async () =>
+          await requestServer('game/join', guildId, { instanceId: discord?.instanceId ?? '' })
+      ),
     playerName: (id) => participantNames.get(id),
     // The catalog lists the answers, so it stays closed while a match is running.
     onPlaying: navigation.lockCatalog
   });
-  navigation.enableGame(game.open);
   void trackParticipants(game.refresh).catch((error: unknown) => {
     console.error(error);
+  });
+  return game;
+}
+
+function enableGame(guildId: string): void {
+  let loading: Promise<ReturnType<typeof mountGame>> | undefined;
+  const page = element('#activity-game');
+  const status = element('#game-status');
+  navigation.enableGame(() => {
+    if (loading === undefined) {
+      status.textContent = 'Loading game…';
+      loading = mountGamePage(guildId);
+    }
+    void loading
+      .then((game) => {
+        if (page.hidden === false) game.open();
+      })
+      .catch((error: unknown) => {
+        loading = undefined;
+        status.textContent = 'Could not load the game. Select Guess to retry.';
+        console.error(error);
+      });
   });
 }
 
@@ -307,8 +341,11 @@ async function loadActivity(): Promise<void> {
     await waitForDiscord(async () => {
       await discord.ready();
     });
-  if (features.settingsGuildId !== undefined) mountSettings(features.settingsGuildId);
-  if (features.gameGuildId !== undefined) mountGamePage(features.gameGuildId);
+  if (features.settingsGuildId !== undefined)
+    void mountSettings(features.settingsGuildId).catch((error: unknown) => {
+      console.error(error);
+    });
+  if (features.gameGuildId !== undefined) enableGame(features.gameGuildId);
 
   preview.connectChanges(actions.change);
   tiles.connectChanges((emote, removing, feedback) => {
@@ -328,7 +365,7 @@ async function loadActivity(): Promise<void> {
       results.update(delay);
     });
   }
-  for (const selector of ['#source', '#motion', '#overlay-filter'] as const) {
+  for (const selector of ['#motion', '#overlay-filter'] as const) {
     element(selector).addEventListener('change', () => {
       results.update();
     });

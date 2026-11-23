@@ -3,6 +3,14 @@
 Shared checks live here; agent-only reference and benchmark helpers remain in `.agents/scripts/`.
 Rust check scopes and prerequisites are described in the [test guide](../tests/README.md).
 
+- **`activity/`.** Activity origin asset staging and Go checks
+- **`ios/`.** Xcode checks, simulator tests, Swift documentation, and Swift tool setup
+- **`operations/`.** Compose and GitHub backups, the deploy client, and the backup LaunchAgent
+  template
+- **`quality/`.** Repository-wide shell, workflow, Python, and documentation checks
+- **`rust/`.** Cargo checks, coverage, Miri, and the test FFmpeg installer
+- **`setup/`.** Dev Container bootstrap and local prerequisite checks
+
 ## Python setup
 
 Python is used for repository tooling. `.python-version` pins the interpreter; `pyproject.toml` owns
@@ -14,10 +22,10 @@ Create the ignored root `.venv/` and install locked tools with [uv](https://docs
 
 ```sh
 uv sync --locked
-.venv/bin/python scripts/check_python.py
-.venv/bin/python scripts/doctor.py
+.venv/bin/python scripts/quality/check_python.py
+.venv/bin/python scripts/setup/doctor.py
 # Optional API documentation
-.venv/bin/python scripts/doc_python.py
+.venv/bin/python scripts/quality/doc_python.py
 ```
 
 Use the uv version required by `pyproject.toml`. It selects the pinned Python and installs it when
@@ -48,10 +56,29 @@ Python validation enforces the [Python coverage gate](../tests/README.md#coverag
 helper file. It includes Python subprocesses and normalizes copied fixtures. Tests and generated
 files are outside the measured helper source set.
 
-## Rust coverage validation
+## Python guideline checklist
 
-`check-rust-coverage.sh` keeps its short jq filter: it checks four coverage categories per file and
-rejects reports without branch measurements. jq is already needed by repository and deployment
-scripts. Moving this filter to Python would add Python setup to Rust-only CI checks without a
-meaningful speed or dependency saving. Reconsider if report validation grows enough to benefit from
-typed parsing, detailed schema diagnostics and dedicated fixtures.
+Ruff (`ALL`) and strict Pyright enforce most of PEP 8 and the Google guide. These need judgment;
+each names its source in the cached guides listed in the
+[Python reference index](../.agents/references/python/README.md), so read that one section when a
+case is unclear.
+
+- **Boundaries:** validate external JSON before narrowing types; reject Booleans where numbers are
+  expected and non-finite numbers (Google 2.4, typing best practices).
+- **Types:** accept abstract read-only inputs, return concrete results, and keep precise unions
+  instead of `Any` (typing best practices, modern typing).
+- **State:** no mutable globals; parser and runtime state belongs to instances. Prefer plain fields
+  and frozen dataclasses to properties and getters (Google 2.5, 2.13, 3.15).
+- **Resources:** context-managed files and processes, shell-free subprocesses, and bounded work
+  (Google 3.11, Microsoft review).
+- **Entry points:** guard `main`, and handle help and argument errors before any probe or side
+  effect (Google 3.17).
+- **Docstrings:** describe observable behavior, side effects, meaningful arguments and actual
+  failure conditions; keep obvious helpers brief (PEP 257, Google 3.8).
+
+## Shell and Python boundaries
+
+The Activity, iOS, Rust, and setup entry points orchestrate platform commands in shell. The Rust and
+iOS coverage filters live alongside the check scripts as jq files. Workflow linting uses Python for
+the temporary checkout copy, text normalization, and subprocess exit status. Run the shell behavior
+and coverage gates with `npm run test:shell`.

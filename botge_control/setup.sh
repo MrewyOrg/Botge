@@ -1,5 +1,4 @@
 #!/bin/bash
-# cspell:words dbus subuid uidmap elif
 set -euo pipefail
 
 if ((EUID != 0)); then
@@ -56,13 +55,16 @@ for file in \
   botge_control/bin/botge_control.sh \
   botge_control/systemd/botge_control.socket \
   botge_control/systemd/botge_control@.service \
-  scripts/botge-control.sh \
+  scripts/operations/botge-control.sh \
   compose.yaml \
   botge.example.config.jsonc \
   .env.example \
   nginx/botge-nginx.conf; do
   # Keep installed command paths and preserve local control configuration.
   destination="${BOTGE_DOWNLOAD_DIR}/${file%.sh}"
+  if [[ "${file}" == scripts/operations/botge-control.sh ]]; then
+    destination="${BOTGE_DOWNLOAD_DIR}/scripts/botge-control"
+  fi
   if [[ "${file}" == botge_control/config.sh && -e "${destination}" ]]; then
     continue
   fi

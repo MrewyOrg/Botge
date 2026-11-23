@@ -245,7 +245,7 @@ dependencies = [
 
 [[package]]
 name = "botge"
-version = "6.0.0"
+version = "6.1.0"
 dependencies = [
  "anyhow",
  "axum",
@@ -278,7 +278,7 @@ dependencies = [
 
 [[package]]
 name = "botge-activity"
-version = "6.0.0"
+version = "6.1.0"
 dependencies = [
  "anyhow",
  "axum",
@@ -306,7 +306,7 @@ dependencies = [
 
 [[package]]
 name = "botge-app"
-version = "6.0.0"
+version = "6.1.0"
 dependencies = [
  "anyhow",
  "axum",
@@ -327,7 +327,7 @@ dependencies = [
 
 [[package]]
 name = "botge-discord"
-version = "6.0.0"
+version = "6.1.0"
 dependencies = [
  "anyhow",
  "axum",
@@ -349,7 +349,7 @@ dependencies = [
 
 [[package]]
 name = "botge-domain"
-version = "6.0.0"
+version = "6.1.0"
 dependencies = [
  "anyhow",
  "mimalloc",
@@ -360,7 +360,7 @@ dependencies = [
 
 [[package]]
 name = "botge-emotes"
-version = "6.0.0"
+version = "6.1.0"
 dependencies = [
  "anyhow",
  "axum",
@@ -380,7 +380,7 @@ dependencies = [
 
 [[package]]
 name = "botge-storage"
-version = "6.0.0"
+version = "6.1.0"
 dependencies = [
  "anyhow",
  "botge-domain",
@@ -394,7 +394,7 @@ dependencies = [
 
 [[package]]
 name = "botge-test-support"
-version = "6.0.0"
+version = "6.1.0"
 dependencies = [
  "anyhow",
  "axum",
@@ -412,7 +412,7 @@ dependencies = [
 
 [[package]]
 name = "botge-voice"
-version = "6.0.0"
+version = "6.1.0"
 dependencies = [
  "anyhow",
  "axum",

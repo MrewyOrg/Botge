@@ -2,6 +2,7 @@
 
 import { type BrowserEmote, filterEmotes } from './catalog.ts';
 import type { createEmoteAccess } from './emote-access.ts';
+import { emoteKey } from './emote-selection.ts';
 import type { DiscoveryMode, fetchDiscoveryPage } from './seventv.ts';
 import { requireValue } from '../validation.ts';
 
@@ -80,7 +81,6 @@ export function createEmoteResults(options: ResultsOptions): {
     requireValue(document.querySelector<HTMLSelectElement>(selector), `Missing ${selector}.`);
   const search = input('#search');
   const tags = input('#tag-search');
-  const source = select('#source');
   const motion = select('#motion');
   const overlay = select('#overlay-filter');
   const addedFilter = requireValue(
@@ -88,6 +88,10 @@ export function createEmoteResults(options: ResultsOptions): {
     'Missing added filter.'
   );
   const results = requireValue(document.querySelector('#results'), 'Missing results.');
+  const heading = requireValue(
+    document.querySelector<HTMLElement>('#catalog-heading'),
+    'Missing catalog heading.'
+  );
   const more = requireValue(
     document.querySelector<HTMLButtonElement>('#more'),
     'Missing pagination.'
@@ -103,29 +107,81 @@ export function createEmoteResults(options: ResultsOptions): {
   /** Undecorated 7TV entries in display order, kept to redraw tiles after catalog changes. */
   const loaded: DiscoveryEmote[] = [];
   const searchByMode: Record<BrowseMode, string> = { catalog: '', trending: '', top: '' };
+  const snapshots = new WeakMap<Element, string>();
 
   /** Applies the guild's saved state and compose permission to a 7TV discovery entry. */
-  function discoveryTile(emote: DiscoveryEmote): HTMLLIElement {
+  function decorateDiscovery(emote: DiscoveryEmote): BrowserEmote {
     const id = emote.sevenTVId;
     const known = access.known(id);
     const token =
       known?.composeToken
       ?? (options.composeAnyDiscovery || access.canComposeDiscovery() ? `7tv:${id}` : undefined);
-    return tile(
-      {
-        ...emote,
-        ...(known?.added === true ? { added: true } : {}),
-        ...(known?.composeToken !== undefined ? { overlaying: known.overlaying === true } : {}),
-        ...(token === undefined ? {} : { composeToken: token })
-      },
-      false
-    );
+    return {
+      ...emote,
+      ...(known?.added === true ? { added: true } : {}),
+      ...(known?.composeToken !== undefined ? { overlaying: known.overlaying === true } : {}),
+      ...(token === undefined ? {} : { composeToken: token })
+    };
   }
 
-  function renderMore(count: number = PAGE_SIZE): void {
-    const next: readonly BrowserEmote[] = matches.slice(visible, visible + count);
-    results.append(...next.map((emote) => tile(emote)));
-    visible += next.length;
+  function makeTile(emote: BrowserEmote, shortcut: boolean, snapshot: string): HTMLLIElement {
+    const item = tile(emote, shortcut);
+    item.dataset['emoteKey'] = emoteKey(emote);
+    snapshots.set(item, snapshot);
+    return item;
+  }
+
+  function appendTiles(emotes: readonly BrowserEmote[], shortcut: boolean): void {
+    for (const emote of emotes)
+      results.append(makeTile(emote, shortcut, JSON.stringify([shortcut, emote])));
+  }
+
+  function redraw(emotes: readonly BrowserEmote[], shortcut: boolean): void {
+    const previous: readonly Element[] = [...results.children];
+    const active = document.activeElement;
+    const focusIndex = previous.findIndex((item: Readonly<Pick<Element, 'contains'>>) =>
+      item.contains(active)
+    );
+    const focusKey =
+      focusIndex < 0 ? undefined : previous[focusIndex]?.getAttribute('data-emote-key');
+    const available = new Map<string, Element[]>();
+    for (const item of previous) {
+      const snapshot = snapshots.get(item);
+      if (snapshot === undefined) continue;
+      const siblings = available.get(snapshot) ?? [];
+      siblings.push(item);
+      available.set(snapshot, siblings);
+    }
+    const next: readonly Element[] = emotes.map((emote) => {
+      const snapshot = JSON.stringify([shortcut, emote]);
+      return available.get(snapshot)?.shift() ?? makeTile(emote, shortcut, snapshot);
+    });
+    const retained = new Set(next);
+    for (const item of previous) if (!retained.has(item)) item.remove();
+    for (const [index, item] of next.entries()) {
+      const before = results.children.item(index);
+      if (before === item) continue;
+      if (item.parentElement === results && typeof results.moveBefore === 'function')
+        results.moveBefore(item, before);
+      else results.insertBefore(item, before);
+    }
+    if (focusIndex < 0 || document.activeElement === active) return;
+    const sameEmote = next.find(
+      (item: Readonly<Pick<Element, 'getAttribute'>>) =>
+        item.getAttribute('data-emote-key') === focusKey
+    );
+    const sameControl = ['.tile-actions', '.tile-compose'] as const;
+    const action = sameControl.find((selector) => active?.matches(selector) === true);
+    const target =
+      (action === undefined ? undefined : sameEmote?.querySelector<HTMLElement>(action))
+      ?? (sameEmote ?? next[Math.min(focusIndex, next.length - 1)])?.querySelector<HTMLElement>(
+        '.tile'
+      )
+      ?? heading;
+    target.focus({ preventScroll: true });
+  }
+
+  function reportCatalogPage(): void {
     more.hidden = visible >= matches.length;
     report(
       matches.length === 0 ?
@@ -134,20 +190,26 @@ export function createEmoteResults(options: ResultsOptions): {
     );
   }
 
+  function renderMore(count: number = PAGE_SIZE): void {
+    const next: readonly BrowserEmote[] = matches.slice(visible, visible + count);
+    appendTiles(next, true);
+    visible += next.length;
+    reportCatalogPage();
+  }
+
   /** @param keep - Tiles to show at least, so a catalog refresh does not collapse loaded pages. */
   function resetCatalog(keep = 0): void {
     matches = filterEmotes(
       catalog,
       search.value,
-      source.value,
       motion.value,
       addedFilter.getAttribute('aria-pressed') === 'true',
       overlay.value,
       tags.value
     );
-    results.replaceChildren();
-    visible = 0;
-    renderMore(Math.max(PAGE_SIZE, keep));
+    visible = Math.min(matches.length, Math.max(PAGE_SIZE, keep));
+    redraw(matches.slice(0, visible), true);
+    reportCatalogPage();
   }
 
   async function loadDiscovery(target: DiscoveryMode, next: number): Promise<void> {
@@ -166,7 +228,7 @@ export function createEmoteResults(options: ResultsOptions): {
       );
       if (current.signal.aborted) return;
       loaded.push(...response.emotes);
-      results.append(...response.emotes.map(discoveryTile));
+      appendTiles(response.emotes.map(decorateDiscovery), false);
       page = next;
       more.hidden = next >= response.pageCount;
       more.textContent = 'Show more';
@@ -222,21 +284,11 @@ export function createEmoteResults(options: ResultsOptions): {
     setCatalog(entries): void {
       catalog = entries;
       options.onCatalog();
-      const selected = source.value;
-      const sources = new Set(catalog.map((emote) => emote.source));
-      source.length = 1;
-      for (const name of sources) source.add(new Option(name, name));
-      source.value = sources.has(selected) ? selected : '';
       if (mode === 'catalog') {
         resetCatalog(visible);
         return;
       }
-      // Keep loaded pages and keyboard focus instead of fetching page one again.
-      const focused = [...results.children].findIndex((item: Readonly<Pick<Element, 'contains'>>) =>
-        item.contains(document.activeElement)
-      );
-      results.replaceChildren(...loaded.map(discoveryTile));
-      results.children.item(focused)?.querySelector<HTMLButtonElement>('.tile')?.focus();
+      redraw(loaded.map(decorateDiscovery), false);
     }
   };
 }

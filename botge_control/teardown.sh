@@ -1,5 +1,4 @@
 #!/bin/bash
-# cspell:words pgrep
 set -euo pipefail
 
 if ((EUID != 0)); then

@@ -35,25 +35,30 @@ that prefix. It uses matching message contents to resolve emotes and reply, with
 
 The redb file stores guild voice selections, voice status text, provider set references, role IDs,
 the guild's emote-management setting, metadata for individually added emotes, and emote border
-colors keyed by Discord user ID. The operator controls retention and deletion.
+colors keyed by Discord user ID. Botge retains up to 32 managed catalog revisions per guild.
+Revisions contain saved emote references, 7TV set and role settings, timestamps, and the Discord
+account ID of the member who made the edit. Only current guild administrators can read or restore
+history. The operator controls the database and its backups.
 
 `/clear-messages` fetches Discord channel history to check message IDs and pin status. The bot uses
 that history during deletion and does not store it.
 
 Emote renders download provider or Discord images and create temporary files, which the renderer
 removes when the request ends. The rendered attachment is sent to Discord. nginx may retain provider
-images in its cache. The Activity frontend is served by Cloudflare, and the bot API can be reached
-through the operator's HTTPS tunnel.
+images in its cache. The operator can make the bot API reachable through a public HTTPS tunnel or
+reverse proxy.
 
 ## Activity, logs, and retention
 
-Optional 7TV discovery sends searches, filters, and page requests through Discord’s Activity proxy.
-Enabled providers receive requests for emote catalogs, set updates, and images. When opening the
-server catalog or changing settings, Botge verifies Discord's signed proxy metadata. OAuth access
-tokens stay in Activity memory until renewal or closure and are sent to the bot with each API
-operation. Botge does not persist them, and the browser does not put them in local storage. To avoid
-asking Discord on every operation, the bot keeps a keyed hash of each token with its account ID in
-memory for up to five minutes, and member records it fetched from Discord for up to 30 seconds.
+The Go origin verifies Discord's signature before serving the Activity page or assets. Its request
+logs record status, duration and byte count. Optional 7TV discovery sends searches, filters, and
+page requests through Discord’s Activity proxy. 7TV receives requests for emote catalogs, set
+updates, and images. When opening the server catalog or changing settings, Botge verifies Discord's
+signed proxy metadata. OAuth access tokens stay in Activity memory until renewal or closure and are
+sent to the bot with each API operation. Botge does not persist them, and the browser does not put
+them in local storage. To avoid asking Discord on every operation, the bot keeps a keyed hash of
+each token with its account ID in memory for up to five minutes, and member records it fetched from
+Discord for up to 30 seconds.
 
 An open server catalog keeps a connection to the bot that reports when the catalog changed. It
 carries no catalog data and closes within an hour. In the guessing game, players in the same
@@ -85,9 +90,10 @@ memory while the room is open, as for the Activity.
 During a match the app shows a Live Activity on the Lock Screen and in the Dynamic Island with the
 server name, round, countdown, score and place. It is created and updated on the device without a
 push server, so it is visible to anyone who can see the locked phone, and it ends with the match.
-Siri, Spotlight and Shortcuts can open the app to search emotes or the Guess tab; a spoken search is
-handled by Siri under Apple's terms, and the app receives only the search text, which stays on the
-device.
+With App Lock on, a match's Live Activity shows only the round and countdown; the server name and
+score are never handed to iOS. Siri, Spotlight and Shortcuts can open the app to search emotes or
+the Guess tab; a spoken search is handled by Siri under Apple's terms, and the app receives only the
+search text, which stays on the device.
 
 App settings, including the chosen server, stay on the device. Face ID or the passcode is checked by
 iOS; Botge never receives biometric data. Emote images are downloaded from the providers' CDNs and

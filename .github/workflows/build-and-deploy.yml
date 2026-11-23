@@ -1,5 +1,3 @@
-# cspell:words cves
-
 name: Build and Deploy
 
 on:
@@ -17,10 +15,17 @@ defaults:
 jobs:
   validate:
     name: Validate
+    needs: filter-paths
+    if: ${{ !cancelled() }}
     uses: $/.github/workflows/botgeql.yml
     permissions:
       contents: read
       pull-requests: read
+    with:
+      qualify-activity-image-in-release: >-
+        ${{ needs.filter-paths.result == 'success' && needs.filter-paths.outputs.activity-origin ==
+        'true' && !github.event.pull_request.draft && github.event.pull_request.head.ref == 'dev' &&
+        github.event.pull_request.head.repo.full_name == github.repository }}
 
   filter-paths:
     name: Filter deployment paths
@@ -45,42 +50,52 @@ jobs:
               - 'Dockerfile.rego'
               - 'LICENSE.txt'
               - 'rust-toolchain.toml'
-            # The Activity Worker serves the built page, so page and Worker inputs both count.
-            activity:
+            activity-origin:
               - '.github/workflows/build-and-deploy.yml'
+              - '.husky/install.sh'
+              - '.npmrc'
               - '.nvmrc'
-              - 'activity/deploy/**'
+              - 'LICENSE.txt'
               - 'activity/index.html'
               - 'activity/package.json'
               - 'activity/public/**'
+              - 'activity/scripts/stage-server-site.ts'
+              - 'activity/server/.go-version'
+              - 'activity/server/Dockerfile*'
+              - 'activity/server/cmd/**'
+              - 'activity/server/go.mod'
+              - 'activity/server/internal/**'
               - 'activity/src/**'
               - 'activity/tsconfig*.json'
-              - 'assets/**'
+              - 'activity/vite.config.ts'
+              - 'assets/botge-emoji.png'
+              - 'assets/botge-icon.png'
               - 'package-lock.json'
               - 'package.json'
+              - 'scripts/activity/stage-activity-server.sh'
               - 'tsconfig.base.json'
-              - 'activity/worker/**'
-              - 'activity/wrangler.jsonc'
-            demo:
-              - '.github/workflows/build-and-deploy.yml'
-              - '.nvmrc'
-              - 'activity/deploy/**'
-              - 'activity/index.html'
-              - 'activity/package.json'
-              - 'activity/public/**'
-              - 'activity/src/**'
-              - 'activity/tsconfig*.json'
-              - 'assets/**'
-              - 'package-lock.json'
-              - 'package.json'
-              - 'tsconfig.base.json'
-              - 'activity/.env.demo'
-              - 'activity/scripts/**'
-              - 'activity/wrangler.demo.jsonc'
+      - name: Select native candidate builds
+        id: candidates
+        env:
+          BUILD_BOT: ${{ steps.changes.outputs.build }}
+          BUILD_ACTIVITY: ${{ steps.changes.outputs.activity-origin }}
+        run: |
+          matrix=$(jq -cn --arg bot "$BUILD_BOT" --arg activity "$BUILD_ACTIVITY" '
+            {include: [
+              (select($bot == "true") |
+                {id: "bot-amd64", name: "Rust bot AMD64", runner: "ubuntu-24.04",
+                 arch: "amd64", file: "Dockerfile", repository: "docker.io/mrewy/botge"},
+                {id: "bot-arm64", name: "Rust bot ARM64", runner: "ubuntu-24.04-arm",
+                 arch: "arm64", file: "Dockerfile", repository: "docker.io/mrewy/botge"}),
+              (select($activity == "true") |
+                {id: "activity-amd64", name: "Activity server AMD64", runner: "ubuntu-24.04",
+                 arch: "amd64", file: "activity/server/Dockerfile"})
+            ]}')
+          printf 'matrix=%s\n' "$matrix" >> "$GITHUB_OUTPUT"
     outputs:
       build: ${{ steps.changes.outputs.build }}
-      activity: ${{ steps.changes.outputs.activity }}
-      demo: ${{ steps.changes.outputs.demo }}
+      activity-origin: ${{ steps.changes.outputs.activity-origin }}
+      candidates: ${{ steps.candidates.outputs.matrix }}
 
   security:
     name: Security
@@ -89,50 +104,166 @@ jobs:
       contents: read
 
   build:
-    name: Build candidate
+    name: Build and qualify ${{ matrix.name }}
     needs: [validate, security, filter-paths]
-    if: needs.filter-paths.outputs.build == 'true' && !github.event.pull_request.draft
-    uses: docker/github-builder/.github/workflows/build.yml@1037c7b9c980b1eb201d37bb9f1fa6caaa96af60
+    if: >-
+      (needs.filter-paths.outputs.build == 'true' || needs.filter-paths.outputs.activity-origin ==
+      'true') && !github.event.pull_request.draft && github.event.pull_request.head.ref == 'dev' &&
+      github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 40
     permissions:
       contents: read
       id-token: write
-    with:
-      output: image
-      push: true
-      meta-images: mrewy/botge
-      # The candidate tag identifies the tested PR merge commit. Approval controls promotion.
-      meta-tags: type=raw,value=pr-${{ github.event.number }}-${{ github.sha }}
-      meta-flavor: latest=false
-      set-meta-annotations: true
-      set-meta-labels: true
-      cache: true
-      cache-mode: max
-      platforms: linux/amd64,linux/arm64
-      sbom: true
-    secrets:
-      registry-auths: |
-        - registry: docker.io
-          username: ${{ secrets.DOCKER_USERNAME }}
-          password: ${{ secrets.DOCKER_PASSWORD }}
-
-  scan:
-    name: Scan candidate image (${{ matrix.platform }})
-    needs: build
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    permissions:
-      contents: read
     strategy:
       fail-fast: false
-      matrix:
-        platform: [linux/amd64, linux/arm64]
+      matrix: ${{ fromJSON(needs.filter-paths.outputs.candidates) }}
+    concurrency:
+      group: botge-candidate-${{ github.event.pull_request.number }}-${{ matrix.id }}
+      cancel-in-progress: true
+    outputs:
+      bot-amd64: ${{ steps.store.outputs.bot-amd64 }}
+      bot-arm64: ${{ steps.store.outputs.bot-arm64 }}
+      activity-amd64: ${{ steps.activity-handoff.outputs.digest }}
+      activity-archive-sha256: ${{ steps.activity-handoff.outputs.archive-sha256 }}
+      activity-artifact-id: ${{ steps.activity-artifact.outputs.artifact-id }}
+    env:
+      CANDIDATE_ID: ${{ matrix.id }}
+      ARCH: ${{ matrix.arch }}
+      DOCKERFILE: ${{ matrix.file }}
+      IMAGE_REPOSITORY: ${{ matrix.repository }}
+      GOTOOLCHAIN: local
+      SMOKE_IMAGE: botge-candidate:local
     steps:
-      - name: Scan the immutable candidate with Docker Scout
+      - name: Checkout the tested merge commit
+        uses: actions/checkout@v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+
+      - name: Set up the signed cache credentials
+        id: cache-runtime
+        uses: actions/github-script@v9.0.0
+        with:
+          script: |
+            for (const [name, variable] of Object.entries({
+              token: 'ACTIONS_RUNTIME_TOKEN',
+              results: 'ACTIONS_RESULTS_URL',
+              'oidc-token': 'ACTIONS_ID_TOKEN_REQUEST_TOKEN',
+              'oidc-url': 'ACTIONS_ID_TOKEN_REQUEST_URL',
+            })) {
+              const value = process.env[variable];
+              if (!value) throw new Error(`${variable} is unavailable`);
+              core.setSecret(value);
+              core.setOutput(name, value);
+            }
+
+      - name: Set up the pinned builder
+        id: buildx
+        uses: docker/setup-buildx-action@v4.4.1
+        with:
+          version: v0.39.0
+          cache-binary: false
+          buildkitd-flags: ''
+          driver-opts: |
+            image=moby/buildkit:v0.35.0@sha256:aa632b921ef07411d2cb77292cd34213d4f7b384001d6fceef1e1f25bf9752bb
+            env.ACTIONS_ID_TOKEN_REQUEST_TOKEN=${{ steps.cache-runtime.outputs.oidc-token }}
+            env.ACTIONS_ID_TOKEN_REQUEST_URL=${{ steps.cache-runtime.outputs.oidc-url }}
+          buildkitd-config-inline: |
+            [cache.gha.sign]
+              command = ["botge-sign-cache"]
+            [cache.gha.verify]
+              required = true
+              [cache.gha.verify.policy]
+                timestampThreshold = 1
+                tlogThreshold = 1
+                subjectAlternativeName = "https://github.com/MrewyOrg/Botge/.github/workflows/build-and-deploy.yml*"
+                githubWorkflowRepository = "MrewyOrg/Botge"
+                issuer = "https://token.actions.githubusercontent.com"
+                runnerEnvironment = "github-hosted"
+                sourceRepositoryURI = "https://github.com/MrewyOrg/Botge"
+
+      - name: Install the BuildKit cache signer
+        env:
+          BUILDER_NAME: ${{ steps.buildx.outputs.name }}
+        run: |
+          case "$ARCH" in
+            amd64) checksum=424e2c97d0b45fd7a6b608a87f090f35633f4c23ece5f092d48bba11aaf4bbfa ;;
+            arm64) checksum=ade83b7aac62e131cacfe96d958948b2150cc9efec46a570a2649b8e27dedad2 ;;
+          esac
+          cosign="$RUNNER_TEMP/cosign"
+          curl -fsSL --retry 3 -o "$cosign" \
+            "https://github.com/sigstore/cosign/releases/download/v3.1.4/cosign-linux-$ARCH"
+          printf '%s  %s\n' "$checksum" "$cosign" | sha256sum --check --status
+          chmod 0755 "$cosign"
+          signer="$RUNNER_TEMP/botge-sign-cache"
+          cat > "$signer" <<'SH'
+          #!/bin/sh
+          set -eu
+          scratch=$(mktemp -d)
+          trap 'rm -rf "$scratch"' EXIT
+          cat > "$scratch/blob"
+          COSIGN_EXPERIMENTAL=1 cosign signing-config create --with-default-services=true \
+            --out="$scratch/config.json" >&2
+          cosign sign-blob --yes --oidc-provider github-actions --new-bundle-format \
+            --signing-config "$scratch/config.json" --bundle "$scratch/bundle" "$scratch/blob" >&2
+          cat "$scratch/bundle"
+          SH
+          chmod 0755 "$signer"
+          builder_container="buildx_buildkit_${BUILDER_NAME}0"
+          docker cp "$cosign" "$builder_container:/usr/bin/cosign"
+          docker cp "$signer" "$builder_container:/usr/bin/botge-sign-cache"
+
+      - name: Build a local OCI candidate with its SBOM
+        env:
+          BUILDER_NAME: ${{ steps.buildx.outputs.name }}
+          ACTIONS_RUNTIME_TOKEN: ${{ steps.cache-runtime.outputs.token }}
+          ACTIONS_RESULTS_URL: ${{ steps.cache-runtime.outputs.results }}
+        run: |
+          archive="$RUNNER_TEMP/candidate.oci.tar"
+          metadata="$RUNNER_TEMP/candidate-metadata.json"
+          layout="$RUNNER_TEMP/candidate-oci"
+          docker buildx build --builder "$BUILDER_NAME" --platform "linux/$ARCH" \
+            --file "$DOCKERFILE" --policy "reset=true,filename=$DOCKERFILE.rego,strict=true" \
+            --tag "$SMOKE_IMAGE" \
+            --label "org.opencontainers.image.revision=$GITHUB_SHA" \
+            --label "org.opencontainers.image.source=$GITHUB_SERVER_URL/$GITHUB_REPOSITORY" \
+            --provenance mode=max,version=v1 \
+            --sbom generator=docker.io/docker/buildkit-syft-scanner:1.12.1@sha256:873a7458c3c8ac8e32c7b796c10e1600b07b963d2aa000a72a2d97aaaa2d6315 \
+            --cache-from "type=gha,version=2,scope=$CANDIDATE_ID" \
+            --cache-to "type=gha,version=2,scope=$CANDIDATE_ID,mode=max,ignore-error=true" \
+            --metadata-file "$metadata" \
+            --output "type=oci,oci-artifact=true,compression=gzip,force-compression=true,dest=$archive" .
+          mkdir "$layout"
+          tar -xf "$archive" -C "$layout"
+          printf 'OCI_ARCHIVE=%s\nOCI_METADATA=%s\nOCI_DIR=%s\n' "$archive" "$metadata" "$layout" >> "$GITHUB_ENV"
+
+      - name: Extract the tested platform's attached SBOM
+        run: |
+          index=$(jq -er '."containerimage.digest" | select(test("^sha256:[a-f0-9]{64}$"))' "$OCI_METADATA")
+          blobs="$OCI_DIR/blobs/sha256"
+          manifest=$(jq -er --arg arch "$ARCH" '.manifests[] |
+            select(.platform.os == "linux" and .platform.architecture == $arch) |
+            .digest | select(test("^sha256:[a-f0-9]{64}$"))' "$blobs/${index#sha256:}")
+          attestation=$(jq -er --arg subject "$manifest" '.manifests[] |
+            select(.annotations["vnd.docker.reference.type"] == "attestation-manifest" and
+              .annotations["vnd.docker.reference.digest"] == $subject) |
+            .digest | select(test("^sha256:[a-f0-9]{64}$"))' "$blobs/${index#sha256:}")
+          sbom=$(jq -er '.layers[] |
+            select(.annotations["in-toto.io/predicate-type"] == "https://spdx.dev/Document") |
+            .digest | select(test("^sha256:[a-f0-9]{64}$"))' "$blobs/${attestation#sha256:}")
+          # Scout cannot read BuildKit's nested OCI index directly.
+          spdx="$RUNNER_TEMP/candidate.spdx.json"
+          jq -e '.predicate | select(.SPDXID == "SPDXRef-DOCUMENT")' "$blobs/${sbom#sha256:}" > "$spdx"
+          printf 'RUNTIME_MANIFEST=%s\nCANDIDATE_SBOM=%s\n' "$manifest" "$spdx" >> "$GITHUB_ENV"
+
+      - name: Scan the attached candidate SBOM with Docker Scout
+        if: matrix.id != 'activity-amd64'
         uses: docker/scout-action@v1.29.0
         with:
           command: cves
-          image: registry://mrewy/botge@${{ needs.build.outputs.digest }}
-          platform: ${{ matrix.platform }}
+          image: sbom://${{ env.CANDIDATE_SBOM }}
+          platform: linux/${{ matrix.arch }}
           dockerhub-user: ${{ secrets.DOCKER_USERNAME }}
           dockerhub-password: ${{ secrets.DOCKER_PASSWORD }}
           only-severities: critical
@@ -140,14 +271,154 @@ jobs:
           exit-code: true
           write-comment: false
 
+      - name: Load the checked platform image locally for smoke tests
+        run: |
+          config=$(jq -er '.config.digest' "$OCI_DIR/blobs/sha256/${RUNTIME_MANIFEST#sha256:}")
+          # The runner Docker daemon can load this single-platform Docker archive with either image store.
+          # Compare its config bytes, which also bind the uncompressed filesystem layers.
+          runtime_archive="$RUNNER_TEMP/candidate.docker.tar"
+          skopeo --override-os linux --override-arch "$ARCH" copy \
+            "oci-archive:$OCI_ARCHIVE" "docker-archive:$runtime_archive:$SMOKE_IMAGE"
+          config_hash=$(skopeo inspect --raw --config "docker-archive:$runtime_archive" |
+            sha256sum | cut -d ' ' -f 1)
+          test "sha256:$config_hash" = "$config"
+          docker load --input "$runtime_archive"
+
+      - name: Smoke-test the Rust executable
+        if: matrix.id != 'activity-amd64'
+        run: |
+          docker run --rm --pull=never --network=none --entrypoint /app/botge \
+            "$SMOKE_IMAGE" --version | grep -E '^Botge [0-9]+[.][0-9]+[.][0-9]+'
+
+      - name: Install the pinned Go toolchain
+        if: matrix.id == 'activity-amd64'
+        uses: actions/setup-go@v7.1.0
+        with:
+          go-version-file: activity/server/.go-version
+          cache-dependency-path: activity/server/tools/go.sum
+
+      - name: Set up Node for the Activity build
+        if: matrix.id == 'activity-amd64'
+        uses: actions/setup-node@v7.1.0
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Stage the matching production assets
+        if: matrix.id == 'activity-amd64'
+        run: |
+          npm ci --prefer-offline --no-audit
+          sh scripts/activity/stage-activity-server.sh
+
+      - name: Smoke-test signed Activity requests and shutdown
+        if: matrix.id == 'activity-amd64'
+        working-directory: activity/server
+        env:
+          BOTGE_ACTIVITY_IMAGE: ${{ env.SMOKE_IMAGE }}
+        run: go test -mod=readonly ./cmd/activity-server -run '^TestActivityImage$' -count=1
+
+      - name: Log in to Docker Hub for publication
+        if: matrix.id != 'activity-amd64'
+        uses: docker/login-action@v4.8.0
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      - name: Record the tested Activity archive and image digest
+        if: matrix.id == 'activity-amd64'
+        id: activity-handoff
+        run: |
+          digest=$(jq -er '."containerimage.digest" | select(test("^sha256:[a-f0-9]{64}$"))' "$OCI_METADATA")
+          archive_hash=$(sha256sum "$OCI_ARCHIVE" | cut -d ' ' -f 1)
+          printf 'digest=%s\narchive-sha256=%s\n' "$digest" "$archive_hash" >> "$GITHUB_OUTPUT"
+
+      - name: Retain the tested Activity archive for production approval
+        if: matrix.id == 'activity-amd64'
+        id: activity-artifact
+        uses: actions/upload-artifact@v7.0.2
+        with:
+          name: botge-activity-oci-${{ github.run_attempt }}
+          path: ${{ env.OCI_ARCHIVE }}
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 7
+
+      - name: Store the tested Rust OCI archive by digest
+        if: matrix.id != 'activity-amd64'
+        id: store
+        run: |
+          digest=$(jq -er '."containerimage.digest" | select(test("^sha256:[a-f0-9]{64}$"))' "$OCI_METADATA")
+          skopeo copy --all --preserve-digests "oci-archive:$OCI_ARCHIVE" \
+            "docker://$IMAGE_REPOSITORY@$digest"
+          printf '%s=%s\n' "$CANDIDATE_ID" "$digest" >> "$GITHUB_OUTPUT"
+
+  publish:
+    name: Publish the qualified Rust candidate
+    needs: [build, filter-paths]
+    if: needs.filter-paths.outputs.build == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      id-token: write
+      attestations: write
+    outputs:
+      digest: ${{ steps.candidates.outputs.bot-digest }}
+    steps:
+      - name: Log in to Docker Hub to publish candidate tags
+        uses: docker/login-action@v4.8.0
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      - name: Assemble the Rust candidate index and verify its published SBOMs
+        id: candidates
+        env:
+          PR_NUMBER: ${{ github.event.number }}
+          BOT_AMD64: ${{ needs.build.outputs.bot-amd64 }}
+          BOT_ARM64: ${{ needs.build.outputs.bot-arm64 }}
+        run: |
+          require_digest() {
+            [[ "$1" =~ ^sha256:[a-f0-9]{64}$ ]] || {
+              echo 'A qualified build did not return a valid digest.' >&2
+              return 1
+            }
+          }
+          require_digest "$BOT_AMD64"
+          require_digest "$BOT_ARM64"
+          docker buildx imagetools create --tag "mrewy/botge:pr-$PR_NUMBER-$GITHUB_SHA" \
+            --metadata-file "$RUNNER_TEMP/bot-index.json" \
+            "mrewy/botge@$BOT_AMD64" "mrewy/botge@$BOT_ARM64"
+          bot_digest=$(jq -er '."containerimage.descriptor".digest' "$RUNNER_TEMP/bot-index.json")
+          require_digest "$bot_digest"
+          for arch in amd64 arm64; do
+            docker buildx imagetools inspect "mrewy/botge@$bot_digest" \
+              --format "{{json (index .SBOM \"linux/$arch\").SPDX}}" |
+              jq -e '.SPDXID == "SPDXRef-DOCUMENT"' > /dev/null
+          done
+          printf 'bot-digest=%s\n' "$bot_digest" >> "$GITHUB_OUTPUT"
+          printf 'Qualified Rust bot mrewy/botge@%s\n\n' "$bot_digest" >> "$GITHUB_STEP_SUMMARY"
+          printf 'Tested merge commit %s\n' "$GITHUB_SHA" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Sign the qualified Rust candidate provenance
+        uses: actions/attest@v4.2.2
+        with:
+          subject-name: docker.io/mrewy/botge
+          subject-digest: ${{ steps.candidates.outputs.bot-digest }}
+          push-to-registry: true
+          create-storage-record: false
+
   deploy:
     name: Deploy
-    needs: [validate, security, filter-paths, build, scan]
+    needs: [validate, security, filter-paths, build, publish]
     if: >-
       always() && !cancelled() && !github.event.pull_request.draft && needs.validate.result ==
       'success' && needs.security.result == 'success' && needs.filter-paths.result == 'success' &&
-      (needs.build.result == 'success' || needs.build.result == 'skipped') && (needs.scan.result ==
-      'success' || (needs.filter-paths.outputs.build != 'true' && needs.scan.result == 'skipped'))
+      (((needs.filter-paths.outputs.build == 'true' || needs.filter-paths.outputs.activity-origin ==
+      'true') && needs.build.result == 'success') || (needs.filter-paths.outputs.build == 'false' &&
+      needs.filter-paths.outputs.activity-origin == 'false' && needs.build.result == 'skipped')) &&
+      ((needs.filter-paths.outputs.build == 'true' && needs.publish.result == 'success') ||
+      (needs.filter-paths.outputs.build == 'false' && needs.publish.result == 'skipped'))
     runs-on: ubuntu-latest
     timeout-minutes: 20
     environment: production
@@ -159,6 +430,7 @@ jobs:
       contents: read
       pull-requests: read
       id-token: write
+      attestations: write
     steps:
       # The PR may have changed while this job waited for production approval.
       - name: Reject stale pull requests and changed targets
@@ -171,20 +443,69 @@ jobs:
           gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER" |
             jq --exit-status --arg head "$EXPECTED_HEAD" --arg merge "$EXPECTED_MERGE" \
               --arg repo "$GITHUB_REPOSITORY" '
-                .state == "open" and .base.ref == "main" and .head.ref == "dev" and
+                .state == "open" and .draft == false and .base.ref == "main" and .head.ref == "dev" and
                 .head.repo.full_name == $repo and .head.sha == $head and .merge_commit_sha == $merge
               ' > /dev/null
 
-      - name: Record a change without a new image
+      - name: Check Activity deployment configuration
+        if: needs.filter-paths.outputs.activity-origin == 'true'
+        id: activity-config
+        env:
+          ACTIVITY_IMAGE: ${{ vars.ACTIVITY_ARTIFACT_REGISTRY_IMAGE }}
+          ACTIVITY_SERVICE: ${{ vars.ACTIVITY_CLOUD_RUN_SERVICE }}
+          ACTIVITY_DEPLOYER: ${{ vars.ACTIVITY_GCLOUD_DEPLOY_SERVICE_ACCOUNT }}
+          ACTIVITY_RUNTIME: ${{ vars.ACTIVITY_CLOUD_RUN_RUNTIME_SERVICE_ACCOUNT }}
+          ACTIVITY_PUBLIC_KEY: ${{ vars.DISCORD_ACTIVITY_PUBLIC_KEY }}
+          ACTIVITY_ARTIFACT_ID: ${{ needs.build.outputs.activity-artifact-id }}
+          ACTIVITY_DIGEST: ${{ needs.build.outputs.activity-amd64 }}
+          ACTIVITY_ARCHIVE_SHA256: ${{ needs.build.outputs.activity-archive-sha256 }}
+          WIF_PROVIDER: ${{ secrets.GCLOUD_WORKLOAD_IDENTITY_PROVIDER }}
+        run: |
+          if [[ ! "$ACTIVITY_IMAGE" =~ ^([a-z0-9-]+)-docker\.pkg\.dev/([a-z][a-z0-9-]*)/[a-z0-9-]+/botge-activity-server$ ]]; then
+            echo 'Set ACTIVITY_ARTIFACT_REGISTRY_IMAGE in production to the untagged Artifact Registry image.' >&2
+            exit 1
+          fi
+          region=${BASH_REMATCH[1]}
+          project=${BASH_REMATCH[2]}
+          if [[ -z "$ACTIVITY_SERVICE" || -z "$ACTIVITY_DEPLOYER" || -z "$ACTIVITY_RUNTIME" ||
+                -z "$WIF_PROVIDER" || ! "$ACTIVITY_PUBLIC_KEY" =~ ^[[:xdigit:]]{64}$ ]]; then
+            echo 'Configure the Activity service, service accounts, Discord public key, and Google provider in production.' >&2
+            exit 1
+          fi
+          if [[ ! "$ACTIVITY_ARTIFACT_ID" =~ ^[0-9]+$ ||
+                ! "$ACTIVITY_DIGEST" =~ ^sha256:[a-f0-9]{64}$ ||
+                ! "$ACTIVITY_ARCHIVE_SHA256" =~ ^[a-f0-9]{64}$ ]]; then
+            echo 'The qualified build did not return a valid Activity artifact and digest.' >&2
+            exit 1
+          fi
+          printf 'region=%s\nproject=%s\n' "$region" "$project" >> "$GITHUB_OUTPUT"
+          printf 'ACTIVITY_IMAGE=%s\nACTIVITY_SERVICE=%s\nACTIVITY_DEPLOYER=%s\nACTIVITY_RUNTIME=%s\n' \
+            "$ACTIVITY_IMAGE" "$ACTIVITY_SERVICE" "$ACTIVITY_DEPLOYER" "$ACTIVITY_RUNTIME" >> "$GITHUB_ENV"
+
+      - name: Download the exact tested Activity archive
+        if: needs.filter-paths.outputs.activity-origin == 'true'
+        uses: actions/download-artifact@v8.0.2
+        with:
+          artifact-ids: ${{ needs.build.outputs.activity-artifact-id }}
+          path: ${{ runner.temp }}/botge-activity
+
+      - name: Verify the Activity archive before deployment
+        if: needs.filter-paths.outputs.activity-origin == 'true'
+        env:
+          ACTIVITY_ARCHIVE_SHA256: ${{ needs.build.outputs.activity-archive-sha256 }}
+        run: |
+          archive_hash=$(sha256sum "$RUNNER_TEMP/botge-activity/candidate.oci.tar" | cut -d ' ' -f 1)
+          if [[ "$archive_hash" != "$ACTIVITY_ARCHIVE_SHA256" ]]; then
+            echo 'The downloaded Activity archive does not match the qualified build.' >&2
+            exit 1
+          fi
+
+      - name: Record an unchanged bot image
         if: needs.filter-paths.outputs.build != 'true'
-        run:
-          echo 'No image-affecting changes; the existing production image is retained.' >>
-          "$GITHUB_STEP_SUMMARY"
+        run: echo 'Retained the current bot image.' >> "$GITHUB_STEP_SUMMARY"
 
       - name: Checkout the tested candidate
-        if:
-          needs.filter-paths.outputs.build == 'true' || needs.filter-paths.outputs.activity ==
-          'true'
+        if: needs.filter-paths.outputs.build == 'true'
         uses: actions/checkout@v7.0.1
         with:
           ref: ${{ github.sha }}
@@ -202,23 +523,6 @@ jobs:
         if: needs.filter-paths.outputs.build == 'true'
         uses: google-github-actions/setup-gcloud@v3.0.1
 
-      - name: Promote the approved candidate to latest
-        if: needs.filter-paths.outputs.build == 'true'
-        env:
-          IMAGE_DIGEST: ${{ needs.build.outputs.digest }}
-          DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
-          DOCKER_PASSWORD: ${{ secrets.DOCKER_PASSWORD }}
-        run: |
-          [[ "$IMAGE_DIGEST" =~ ^sha256:[a-f0-9]{64}$ ]] || {
-            echo 'The build did not return a valid image digest.' >&2
-            exit 1
-          }
-          DOCKER_CONFIG="$(mktemp -d "$RUNNER_TEMP/docker-auth.XXXXXX")"
-          export DOCKER_CONFIG
-          trap 'rm -rf "$DOCKER_CONFIG"' EXIT
-          printf '%s' "$DOCKER_PASSWORD" | docker login --username "$DOCKER_USERNAME" --password-stdin
-          docker buildx imagetools create --tag mrewy/botge:latest "mrewy/botge@$IMAGE_DIGEST"
-
       - name: Deploy Botge
         if: needs.filter-paths.outputs.build == 'true'
         env:
@@ -226,130 +530,100 @@ jobs:
           GCLOUD_PROJECT_ID: ${{ secrets.GCLOUD_PROJECT_ID }}
           GCLOUD_ZONE: ${{ secrets.GCLOUD_ZONE }}
           BOTGE_CONTROL_SOCKET: ${{ secrets.BOTGE_CONTROL_SOCKET }}
-          IMAGE_DIGEST: ${{ needs.build.outputs.digest }}
+          IMAGE_DIGEST: ${{ needs.publish.outputs.digest }}
         run: |
+          [[ "$IMAGE_DIGEST" =~ ^sha256:[a-f0-9]{64}$ ]] || {
+            echo 'The build did not return a valid image digest.' >&2
+            exit 1
+          }
           gcloud compute ssh "$GCLOUD_INSTANCE" \
             --project="$GCLOUD_PROJECT_ID" \
             --zone="$GCLOUD_ZONE" \
             --tunnel-through-iap \
             --quiet \
             --command="BOTGE_CONTROL_SOCKET=$(printf '%q' "$BOTGE_CONTROL_SOCKET") bash -s -- deploy $(printf '%q' "$IMAGE_DIGEST")" \
-              < scripts/botge-control.sh
-          printf 'Deployed candidate: mrewy/botge@%s\n' "$IMAGE_DIGEST" >> "$GITHUB_STEP_SUMMARY"
+              < scripts/operations/botge-control.sh
+          printf 'Deployed bot mrewy/botge@%s\n\nDeployed merge commit %s\n' \
+            "$IMAGE_DIGEST" "$GITHUB_SHA" >> "$GITHUB_STEP_SUMMARY"
 
-      # The bot goes first, so the Activity page never calls an API older than itself.
-      - name: Record an unchanged Activity
-        if: needs.filter-paths.outputs.activity != 'true'
-        run:
-          echo 'No Activity changes; the deployed Activity Worker is retained.' >>
-          "$GITHUB_STEP_SUMMARY"
+      - name: Tag the healthy bot digest as latest
+        if: needs.filter-paths.outputs.build == 'true'
+        env:
+          IMAGE_DIGEST: ${{ needs.publish.outputs.digest }}
+          DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
+          DOCKER_PASSWORD: ${{ secrets.DOCKER_PASSWORD }}
+        run: |
+          DOCKER_CONFIG="$(mktemp -d "$RUNNER_TEMP/docker-auth.XXXXXX")"
+          export DOCKER_CONFIG
+          trap 'rm -rf "$DOCKER_CONFIG"' EXIT
+          printf '%s' "$DOCKER_PASSWORD" | docker login --username "$DOCKER_USERNAME" --password-stdin
+          docker buildx imagetools create --tag mrewy/botge:latest "mrewy/botge@$IMAGE_DIGEST"
 
-      - name: Set up Node.js
-        if: needs.filter-paths.outputs.activity == 'true'
-        uses: actions/setup-node@v7.1.0
+      - name: Authenticate the approved Activity deployment to Google Cloud
+        if: needs.filter-paths.outputs.activity-origin == 'true'
+        id: activity-auth
+        uses: google-github-actions/auth@v3.0.0
         with:
-          node-version-file: .nvmrc
-          cache: npm
-          cache-dependency-path: |
-            package-lock.json
-            activity/deploy/package-lock.json
+          workload_identity_provider: ${{ secrets.GCLOUD_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ env.ACTIVITY_DEPLOYER }}
+          project_id: ${{ steps.activity-config.outputs.project }}
+          token_format: access_token
 
-      - name: Build the Activity
-        if: needs.filter-paths.outputs.activity == 'true'
-        # Vite reads these at build time; without them the page shows only the preview catalog.
-        env:
-          VITE_ENABLE_ACTIVITY_CATALOG: 'true'
-          VITE_ENABLE_ACTIVITY_ADDS: 'true'
-          VITE_ENABLE_ACTIVITY_SETTINGS: 'true'
-          VITE_ENABLE_ACTIVITY_GAME: 'true'
-          VITE_ENABLE_7TV_DISCOVERY: 'true'
-        run: |
-          npm ci --prefer-offline --no-audit
-          npm run build -w activity
+      - name: Set up Google Cloud for the Activity
+        if: needs.filter-paths.outputs.activity-origin == 'true'
+        uses: google-github-actions/setup-gcloud@v3.0.1
 
-      - name: Deploy the Activity Worker
-        if: needs.filter-paths.outputs.activity == 'true'
+      - name: Publish the tested Activity OCI archive by digest
+        if: needs.filter-paths.outputs.activity-origin == 'true'
         env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          DISCORD_ACTIVITY_PUBLIC_KEY: ${{ vars.DISCORD_ACTIVITY_PUBLIC_KEY }}
-          WRANGLER_SEND_METRICS: 'false'
-        run: |
-          [[ "$DISCORD_ACTIVITY_PUBLIC_KEY" =~ ^[0-9a-fA-F]{64}$ ]] || {
-            echo 'Set the DISCORD_ACTIVITY_PUBLIC_KEY variable on the production environment.' >&2
-            exit 1
-          }
-          # Install scripts stay off: Wrangler bundles and uploads without them.
-          npm ci --prefix activity/deploy --ignore-scripts --no-audit
-          activity/deploy/node_modules/.bin/wrangler deploy --config activity/wrangler.jsonc \
-            --var "DISCORD_ACTIVITY_PUBLIC_KEY:$DISCORD_ACTIVITY_PUBLIC_KEY"
-          echo 'Deployed the Activity Worker.' >> "$GITHUB_STEP_SUMMARY"
-
-  deploy-demo:
-    name: Deploy demo
-    # Only an approved, successful production deployment releases the demo, so one approval covers
-    # both. It then runs for every ready PR, so its environment always records a deployment for the
-    # merge rule; the upload happens only when demo inputs changed.
-    needs: [filter-paths, deploy]
-    if: ${{ !github.event.pull_request.draft }}
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    environment: activity-demo
-    concurrency:
-      group: botge-activity-demo
-      cancel-in-progress: false
-    permissions:
-      contents: read
-      pull-requests: read
-    steps:
-      - name: Reject stale pull requests and changed targets
-        env:
-          GH_TOKEN: ${{ github.token }}
+          ACCESS_TOKEN: ${{ steps.activity-auth.outputs.access_token }}
+          ACTIVITY_DIGEST: ${{ needs.build.outputs.activity-amd64 }}
           PR_NUMBER: ${{ github.event.number }}
-          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha }}
-          EXPECTED_MERGE: ${{ github.sha }}
         run: |
-          gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER" |
-            jq --exit-status --arg head "$EXPECTED_HEAD" --arg merge "$EXPECTED_MERGE" \
-              --arg repo "$GITHUB_REPOSITORY" '
-                .state == "open" and .base.ref == "main" and .head.ref == "dev" and
-                .head.repo.full_name == $repo and .head.sha == $head and .merge_commit_sha == $merge
-              ' > /dev/null
+          printf '%s' "$ACCESS_TOKEN" |
+            docker login --username oauth2accesstoken --password-stdin "${ACTIVITY_IMAGE%%/*}"
+          skopeo copy --all --preserve-digests "oci-archive:$RUNNER_TEMP/botge-activity/candidate.oci.tar" \
+            "docker://$ACTIVITY_IMAGE@$ACTIVITY_DIGEST"
+          docker buildx imagetools create --tag "$ACTIVITY_IMAGE:activity-pr-$PR_NUMBER-$GITHUB_SHA" \
+            --metadata-file "$RUNNER_TEMP/activity-index.json" "$ACTIVITY_IMAGE@$ACTIVITY_DIGEST"
+          test "$(jq -er '."containerimage.descriptor".digest' "$RUNNER_TEMP/activity-index.json")" = "$ACTIVITY_DIGEST"
+          docker buildx imagetools inspect "$ACTIVITY_IMAGE@$ACTIVITY_DIGEST" \
+            --format '{{json .SBOM.SPDX}}' | jq -e '.SPDXID == "SPDXRef-DOCUMENT"' > /dev/null
 
-      - name: Record an unchanged demo
-        if: needs.filter-paths.outputs.demo != 'true'
-        run: echo 'No demo changes; the deployed demo is retained.' >> "$GITHUB_STEP_SUMMARY"
-
-      - name: Checkout the tested candidate
-        if: needs.filter-paths.outputs.demo == 'true'
-        uses: actions/checkout@v7.0.1
+      - name: Sign the qualified Activity candidate provenance
+        if: needs.filter-paths.outputs.activity-origin == 'true'
+        uses: actions/attest@v4.2.2
         with:
-          ref: ${{ github.sha }}
-          persist-credentials: false
+          subject-name: ${{ env.ACTIVITY_IMAGE }}
+          subject-digest: ${{ needs.build.outputs.activity-amd64 }}
+          push-to-registry: true
+          create-storage-record: false
 
-      - name: Set up Node.js
-        if: needs.filter-paths.outputs.demo == 'true'
-        uses: actions/setup-node@v7.1.0
-        with:
-          node-version-file: .nvmrc
-          cache: npm
-          cache-dependency-path: |
-            package-lock.json
-            activity/deploy/package-lock.json
-
-      - name: Build the demo
-        if: needs.filter-paths.outputs.demo == 'true'
-        run: |
-          npm ci --prefer-offline --no-audit
-          npm run build:demo -w activity
-
-      - name: Deploy the demo
-        if: needs.filter-paths.outputs.demo == 'true'
+      - name: Deploy the qualified Activity digest to Cloud Run
+        if: needs.filter-paths.outputs.activity-origin == 'true'
         env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          WRANGLER_SEND_METRICS: 'false'
+          ACTIVITY_DIGEST: ${{ needs.build.outputs.activity-amd64 }}
+          ACTIVITY_PUBLIC_KEY: ${{ vars.DISCORD_ACTIVITY_PUBLIC_KEY }}
+          PROJECT: ${{ steps.activity-config.outputs.project }}
+          REGION: ${{ steps.activity-config.outputs.region }}
         run: |
-          npm ci --prefix activity/deploy --ignore-scripts --no-audit
-          activity/deploy/node_modules/.bin/wrangler deploy --config activity/wrangler.demo.jsonc
-          echo 'Deployed the demo.' >> "$GITHUB_STEP_SUMMARY"
+          gcloud run deploy "$ACTIVITY_SERVICE" --project="$PROJECT" --region="$REGION" \
+            --image="$ACTIVITY_IMAGE@$ACTIVITY_DIGEST" --service-account="$ACTIVITY_RUNTIME" \
+            --invoker-iam-check --ingress=all --port=8080 \
+            --min=0 --max=1 --cpu=1 --memory=256Mi --cpu-throttling --no-cpu-boost --timeout=15s \
+            --startup-probe='httpGet.path=/healthz,httpGet.port=8080,timeoutSeconds=2,periodSeconds=3,failureThreshold=5' \
+            --update-env-vars="DISCORD_ACTIVITY_PUBLIC_KEY=$ACTIVITY_PUBLIC_KEY" --quiet
+          gcloud run services update-traffic "$ACTIVITY_SERVICE" --project="$PROJECT" --region="$REGION" \
+            --to-latest --quiet
+          service=$(gcloud run services describe "$ACTIVITY_SERVICE" --project="$PROJECT" --region="$REGION" --format=json)
+          revision=$(jq -er '
+            .status as $status | $status.latestReadyRevisionName |
+            select(. == $status.latestCreatedRevisionName) |
+            select(. as $revision | any($status.traffic[]; .revisionName == $revision and .percent == 100))
+          ' <<< "$service")
+          image=$(gcloud run revisions describe "$revision" --project="$PROJECT" --region="$REGION" \
+            --format='value(spec.containers[0].image)')
+          test "$image" = "$ACTIVITY_IMAGE@$ACTIVITY_DIGEST"
+          url=$(jq -er '.status.url' <<< "$service")
+          printf 'Deployed Activity %s as %s at %s\n\nDeployed merge commit %s\n' \
+            "$image" "$revision" "$url" "$GITHUB_SHA" >> "$GITHUB_STEP_SUMMARY"

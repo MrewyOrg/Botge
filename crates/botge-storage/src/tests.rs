@@ -18,7 +18,10 @@ use std::{assert_matches, sync::Barrier, thread};
 #[cfg(test)]
 use super::*;
 #[cfg(not(test))]
-use super::{NonZeroU64, Result, Store, TableDefinition, VOICE_SETTINGS};
+use super::{
+  ADDED_EMOTES, Emote, GUILD_EMOTES, GuildEmotes, NonZeroU64, Result, Store, TableDefinition,
+  VOICE_SETTINGS,
+};
 
 mod faults;
 
@@ -39,14 +42,33 @@ impl Store {
     transaction.commit()?;
     Ok(())
   }
+
+  /// Simulates an older release writing the live policy without recording a revision.
+  pub fn save_untracked_policy_fixture(
+    &self,
+    guild: NonZeroU64,
+    policy: &GuildEmotes,
+  ) -> Result<()> {
+    self.save_json(GUILD_EMOTES, guild, policy)
+  }
+
+  /// Seeds a saved catalog in one transaction without recording a revision per emote.
+  pub fn save_untracked_emotes_fixture(&self, guild: NonZeroU64, emotes: &[Emote]) -> Result<()> {
+    self.save_json(ADDED_EMOTES, guild, &emotes)
+  }
 }
 
 #[test]
 fn rejects_malformed_backups_and_full_catalogs_without_changing_saved_data() -> Result<()> {
   let directory = tempfile::tempdir()?;
-  for (index, definition) in [VOICE_SETTINGS, GUILD_EMOTES, ADDED_EMOTES]
-    .into_iter()
-    .enumerate()
+  for (index, (definition, payload)) in [
+    (VOICE_SETTINGS, "not JSON"),
+    (VOICE_SETTINGS, r#"{"channelId":42}"#),
+    (GUILD_EMOTES, r#"{"allowedRoles":true}"#),
+    (ADDED_EMOTES, r#"{"id":"1"}"#),
+  ]
+  .into_iter()
+  .enumerate()
   {
     let path = directory.path().join(format!("invalid-{index}.redb"));
     {
@@ -54,7 +76,7 @@ fn rejects_malformed_backups_and_full_catalogs_without_changing_saved_data() -> 
       let transaction = store.0.begin_write()?;
       transaction
         .open_table(definition)?
-        .insert(NonZeroU64::MIN, "not JSON")?;
+        .insert(NonZeroU64::MIN, payload)?;
       transaction.commit()?
     };
     std::assert_matches!(verify_backup(&path), Err(_));
@@ -63,15 +85,14 @@ fn rejects_malformed_backups_and_full_catalogs_without_changing_saved_data() -> 
   let entries: Vec<_> = (0..1000)
     .map(|index| botge_test_support::example(&format!("Emote{index}"), &index.to_string()))
     .collect();
-  let transaction = store.0.begin_write()?;
-  transaction
-    .open_table(ADDED_EMOTES)?
-    .insert(NonZeroU64::MIN, serde_json::to_string(&entries)?.as_str())?;
-  transaction.commit()?;
-  assert!(!store.add_emote(
-    NonZeroU64::MIN,
-    botge_test_support::example("Overflow", "1001")
-  )?);
+  store.save_untracked_emotes_fixture(NonZeroU64::MIN, &entries)?;
+  assert_eq!(
+    store.add_emote(
+      CatalogEditor::system(NonZeroU64::MIN),
+      botge_test_support::example("Overflow", "1001")
+    )?,
+    AddEmoteOutcome::Full
+  );
   assert_eq!(store.added_emotes(NonZeroU64::MIN)?, entries);
   Ok(())
 }
@@ -124,13 +145,21 @@ fn offline_backup_is_readable_and_restores_saved_data() -> Result<()> {
   let directory = tempfile::tempdir()?;
   let source = directory.path().join("source.redb");
   let backup = directory.path().join("backup.redb");
+  let emote = botge_test_support::example("Wave", "1");
   std::assert_matches!(verify_backup(&source), Err(_));
   assert!(!source.exists());
   {
     let store = Store::open(&source)?;
     store.save_emote_border(NonZeroU64::MIN, Some(0x0012_3456))?;
     store.save_voice_settings(NonZeroU64::MIN, &VoiceSettings::default())?;
-    store.save_guild_emotes(NonZeroU64::MIN, &GuildEmotes::default())?
+    store.save_guild_emotes(
+      CatalogEditor::system(NonZeroU64::MIN),
+      &GuildEmotes::default(),
+    )?;
+    assert_eq!(
+      store.add_emote(CatalogEditor::system(NonZeroU64::MIN), emote.clone())?,
+      AddEmoteOutcome::Added
+    );
   };
   std::fs::copy(&source, &backup)?;
   let bytes = std::fs::read(&backup)?;
@@ -138,6 +167,7 @@ fn offline_backup_is_readable_and_restores_saved_data() -> Result<()> {
   assert_eq!(std::fs::read(&backup)?, bytes);
   let restored = Store::open(&backup)?;
   assert_eq!(restored.emote_border(NonZeroU64::MIN)?, Some(0x0012_3456));
+  assert_eq!(restored.added_emotes(NonZeroU64::MIN)?, vec![emote]);
   drop(restored);
   std::fs::write(&backup, "not a database")?;
   std::assert_matches!(verify_backup(&backup), Err(_));
@@ -178,13 +208,16 @@ fn refuses_invalid_paths_and_incompatible_database_schemas() -> Result<()> {
       "guild_emotes" => {
         assert_matches!(store.guild_emotes(guild), Err(_));
         std::assert_matches!(
-          store.save_guild_emotes(guild, &GuildEmotes::default()),
+          store.save_guild_emotes(CatalogEditor::system(guild), &GuildEmotes::default()),
           Err(_)
         );
       }
       "added_emotes" => {
         assert_matches!(store.added_emotes(guild), Err(_));
-        assert_matches!(store.remove_emote(guild, "1"), Err(_));
+        assert_matches!(
+          store.remove_emote(CatalogEditor::system(guild), "1"),
+          Err(_)
+        );
       }
       "emote_borders" => {
         assert_matches!(store.emote_border(guild), Err(_));
@@ -217,7 +250,10 @@ fn reports_malformed_rows_without_replacing_them() -> Result<()> {
     Err(_)
   );
   assert_matches!(store.added_emotes(guild), Err(_));
-  assert_matches!(store.remove_emote(guild, "1"), Err(_));
+  assert_matches!(
+    store.remove_emote(CatalogEditor::system(guild), "1"),
+    Err(_)
+  );
   assert_matches!(store.added_emotes(guild), Err(_));
   Ok(())
 }
@@ -293,19 +329,37 @@ fn persists_emote_settings_and_added_emotes_with_atomic_duplicate_checks() -> Re
     allow_everyone: true,
     ..GuildEmotes::default()
   };
-  store.save_guild_emotes(guild, &settings)?;
+  store.save_guild_emotes(CatalogEditor::system(guild), &settings)?;
   assert_eq!(store.guild_emotes(guild)?, settings);
   settings.seven_tv_set = Some("invalid".into());
-  std::assert_matches!(store.save_guild_emotes(guild, &settings), Err(_));
+  std::assert_matches!(
+    store.save_guild_emotes(CatalogEditor::system(guild), &settings),
+    Err(_)
+  );
   let first = botge_test_support::example("Wave", "1");
-  assert!(store.add_emote(guild, first.clone())?);
-  assert!(!store.add_emote(guild, botge_test_support::example("wave", "2"))?);
-  assert!(!store.add_emote(guild, botge_test_support::example("Other", "1"))?);
+  assert_eq!(
+    store.add_emote(CatalogEditor::system(guild), first.clone())?,
+    AddEmoteOutcome::Added
+  );
+  assert_eq!(
+    store.add_emote(
+      CatalogEditor::system(guild),
+      botge_test_support::example("wave", "2")
+    )?,
+    AddEmoteOutcome::DuplicateName
+  );
+  assert_eq!(
+    store.add_emote(
+      CatalogEditor::system(guild),
+      botge_test_support::example("Other", "1")
+    )?,
+    AddEmoteOutcome::DuplicateId
+  );
   let added = store.added_emotes(other)?;
   assert!(added.is_empty(), "unexpected added emotes: {added:?}");
   assert_eq!(store.added_emotes(guild)?, vec![first]);
-  assert!(store.remove_emote(guild, "1")?);
-  assert!(!store.remove_emote(guild, "1")?);
+  assert!(store.remove_emote(CatalogEditor::system(guild), "1")?);
+  assert!(!store.remove_emote(CatalogEditor::system(guild), "1")?);
   let added = store.added_emotes(guild)?;
   assert!(added.is_empty(), "unexpected added emotes: {added:?}");
   Ok(())
@@ -325,7 +379,10 @@ fn concurrent_adds_keep_distinct_emotes_and_reject_duplicate_names() -> Result<(
       let store = &store;
       scope.spawn(move || {
         start.wait();
-        store.add_emote(guild, botge_test_support::example(name, id))
+        store.add_emote(
+          CatalogEditor::system(guild),
+          botge_test_support::example(name, id),
+        )
       })
     };
     let first = add("Wave", "1");
@@ -337,11 +394,16 @@ fn concurrent_adds_keep_distinct_emotes_and_reject_duplicate_names() -> Result<(
     let duplicate = duplicate
       .join()
       .map_err(|_error| anyhow::anyhow!("writer panicked"))??;
-    assert_ne!(first, duplicate);
-    assert!(
+    assert!(matches!(
+      (first, duplicate),
+      (AddEmoteOutcome::Added, AddEmoteOutcome::DuplicateName)
+        | (AddEmoteOutcome::DuplicateName, AddEmoteOutcome::Added)
+    ));
+    assert_eq!(
       distinct
         .join()
-        .map_err(|_error| anyhow::anyhow!("writer panicked"))??
+        .map_err(|_error| anyhow::anyhow!("writer panicked"))??,
+      AddEmoteOutcome::Added
     );
 
     let mut ids: Vec<_> = store
@@ -350,7 +412,17 @@ fn concurrent_adds_keep_distinct_emotes_and_reject_duplicate_names() -> Result<(
       .map(|emote| emote.id)
       .collect();
     ids.sort_unstable();
-    assert_eq!(ids, [if first { "1" } else { "2" }, "3"]);
+    assert_eq!(
+      ids,
+      [
+        if first == AddEmoteOutcome::Added {
+          "1"
+        } else {
+          "2"
+        },
+        "3"
+      ]
+    );
     Ok(())
   })
 }
@@ -404,10 +476,10 @@ fn lists_the_guilds_that_select_a_seven_tv_set() -> Result<()> {
     ..GuildEmotes::default()
   };
   let guild = |id: u64| NonZeroU64::new(id).ok_or_else(|| anyhow::anyhow!("zero guild"));
-  store.save_guild_emotes(guild(1)?, &selecting)?;
-  store.save_guild_emotes(guild(2)?, &other)?;
-  store.save_guild_emotes(guild(3)?, &GuildEmotes::default())?;
-  store.save_guild_emotes(guild(4)?, &selecting)?;
+  store.save_guild_emotes(CatalogEditor::system(guild(1)?), &selecting)?;
+  store.save_guild_emotes(CatalogEditor::system(guild(2)?), &other)?;
+  store.save_guild_emotes(CatalogEditor::system(guild(3)?), &GuildEmotes::default())?;
+  store.save_guild_emotes(CatalogEditor::system(guild(4)?), &selecting)?;
   assert_eq!(store.guilds_with_seven_tv_set(set)?, [guild(1)?, guild(4)?]);
   assert_eq!(store.guilds_with_seven_tv_set("unused")?, []);
   Ok(())

@@ -303,6 +303,531 @@
       "sha256": "9c637c45ac3a1c5414a4b7b6f606dbcd69a642fc01bf252bbdee0644fc299dd3",
       "text": "hig-privacy.txt",
       "license": "Apple copyright; local cache only, never committed or redistributed"
+    },
+    {
+      "file": "go-effective.html",
+      "url": "https://raw.githubusercontent.com/golang/website/0eef789c9f9a7cc074eab1b3fb2d96baea282546/_content/doc/effective_go.html",
+      "sha256": "9c6259ceaec348deabfcef9856955070da5370f3a95cf739b4d9c06b22544e0d"
+    },
+    {
+      "file": "go-doc-comments.md",
+      "url": "https://raw.githubusercontent.com/golang/website/0eef789c9f9a7cc074eab1b3fb2d96baea282546/_content/doc/comment.md",
+      "sha256": "c6785a74749946634204859ff60833db87127872990ce17e7f80ae29b8b64d38"
+    },
+    {
+      "file": "go-security.md",
+      "url": "https://raw.githubusercontent.com/golang/website/0eef789c9f9a7cc074eab1b3fb2d96baea282546/_content/doc/security/index.md",
+      "sha256": "272aa1d0fb5c22f687b747955f1927a78be8ad0f19169096cb0437e9f7fb1b45"
+    },
+    {
+      "file": "go-security-best-practices.md",
+      "url": "https://raw.githubusercontent.com/golang/website/0eef789c9f9a7cc074eab1b3fb2d96baea282546/_content/doc/security/best-practices.md",
+      "sha256": "9f1184cde64388824a4d5cb19ee5938b3fe75ce5b5378ee2475552b8da6dcbe4"
+    },
+    {
+      "file": "go-vulnerability-management.md",
+      "url": "https://raw.githubusercontent.com/golang/website/0eef789c9f9a7cc074eab1b3fb2d96baea282546/_content/doc/security/vuln/index.md",
+      "sha256": "67c5adf783fd88accf098042728568e8c9ad3e2a04fb390ba147678a38a2a823"
+    },
+    {
+      "file": "go-vulnerability-editor.md",
+      "url": "https://raw.githubusercontent.com/golang/website/0eef789c9f9a7cc074eab1b3fb2d96baea282546/_content/doc/security/vuln/editor.md",
+      "sha256": "0b494da11a9af83183ed913e3c72f4bd8e9a7b7a9359a3b5d66a1abbf6145363"
+    },
+    {
+      "file": "go-vulncheck-reference.md",
+      "url": "https://raw.githubusercontent.com/golang/website/0eef789c9f9a7cc074eab1b3fb2d96baea282546/_content/doc/security/vuln/vulncheck.md",
+      "sha256": "ada3b285c0acb5ab7cecb24db413de2e57bd0614954ab56811be47e49e5e42bf"
+    },
+    {
+      "file": "go-vulnerability-database.md",
+      "url": "https://raw.githubusercontent.com/golang/website/0eef789c9f9a7cc074eab1b3fb2d96baea282546/_content/doc/security/vulndb/index.md",
+      "sha256": "a3484b5aadcb45ddf1d22c4cc07a0e6b0831d84bdd5a6fc95f1674c587753d7b"
+    },
+    {
+      "file": "go-vulncheck-tutorial.md",
+      "url": "https://raw.githubusercontent.com/golang/website/0eef789c9f9a7cc074eab1b3fb2d96baea282546/_content/doc/tutorial/govulncheck.md",
+      "sha256": "6517f5eb2bc73ca2e1befbb643fcc5cd4d381dbbf404acf03bc12395393809f9"
+    },
+    {
+      "file": "go-vulncheck-ide.md",
+      "url": "https://raw.githubusercontent.com/golang/website/0eef789c9f9a7cc074eab1b3fb2d96baea282546/_content/doc/tutorial/govulncheck-ide.md",
+      "sha256": "b0173a57e407fe2937c85ed434dee7037eee0a9d91f495cb4d43a4e6f7dabd35"
+    },
+    {
+      "file": "go-fuzz.md",
+      "url": "https://raw.githubusercontent.com/golang/website/0eef789c9f9a7cc074eab1b3fb2d96baea282546/_content/doc/security/fuzz/index.md",
+      "sha256": "69bd18d0702cab7d9f3a9a4e1fb20f316cbefc518d0e804c7e753a538bd15bbb"
+    },
+    {
+      "file": "go-fuzz-technical.md",
+      "url": "https://raw.githubusercontent.com/golang/website/0eef789c9f9a7cc074eab1b3fb2d96baea282546/_content/doc/security/fuzz/technical.md",
+      "sha256": "30f0008d41be96f888cf08aaa8b7cf9101b93d1438ad17d8838016f74fc263b6"
+    },
+    {
+      "file": "go-fuzz-tutorial.md",
+      "url": "https://raw.githubusercontent.com/golang/website/0eef789c9f9a7cc074eab1b3fb2d96baea282546/_content/doc/tutorial/fuzz.md",
+      "sha256": "91f902e95484e8320b35801d1bb22c12b90f08983a3a269ca373cce96c8cc903"
+    },
+    {
+      "file": "go-race-detector.html",
+      "url": "https://raw.githubusercontent.com/golang/website/0eef789c9f9a7cc074eab1b3fb2d96baea282546/_content/doc/articles/race_detector.html",
+      "sha256": "8f5ff5a04485cc62766b42db0d4b9dce1c5475e71929134bb9e7c2743a7b1c53"
+    },
+    {
+      "file": "go-install.html",
+      "url": "https://raw.githubusercontent.com/golang/website/0eef789c9f9a7cc074eab1b3fb2d96baea282546/_content/doc/install.html",
+      "sha256": "bbebc94da105910fb6f002a31a97f859c47202417cba4a0a60d6b1093e731c5c"
+    },
+    {
+      "file": "go-toolchain.md",
+      "url": "https://raw.githubusercontent.com/golang/website/0eef789c9f9a7cc074eab1b3fb2d96baea282546/_content/doc/toolchain.md",
+      "sha256": "5f419cbb7776cac472e74f6ca67827e8a2cb6bb1e3e93946f9b9c9ac9a79f78f"
+    },
+    {
+      "file": "go-release-history.html",
+      "url": "https://raw.githubusercontent.com/golang/website/0eef789c9f9a7cc074eab1b3fb2d96baea282546/_content/doc/devel/release.html",
+      "sha256": "2973a1e0868a60fd5ebbcc750318404ba29b559caac717d8e41dbb3d8b073f93"
+    },
+    {
+      "file": "go-testable-examples.md",
+      "url": "https://raw.githubusercontent.com/golang/website/0eef789c9f9a7cc074eab1b3fb2d96baea282546/_content/blog/examples.md",
+      "sha256": "dbe7e265d1410552b4138338495de72beeefd8dca65cf1cd6df52663fd1a0a9a"
+    },
+    {
+      "file": "go-context-and-structs.md",
+      "url": "https://raw.githubusercontent.com/golang/website/0eef789c9f9a7cc074eab1b3fb2d96baea282546/_content/blog/context-and-structs.md",
+      "sha256": "1b7d3338be3d124c0a5f46c8a5eac89dea386b1176e2597fcba2c0ce5ae93c9a"
+    },
+    {
+      "file": "go-wiki-CodeReviewComments.md",
+      "url": "https://raw.githubusercontent.com/golang/wiki/fe2268bb04c953cd65bcae752e978912f5cbddaa/CodeReviewComments.md",
+      "sha256": "f24a50f00951ea2dddb309506037c9250a4dbb9c7bdfa6d5aef1be16ee60a48a"
+    },
+    {
+      "file": "go-wiki-TestComments.md",
+      "url": "https://raw.githubusercontent.com/golang/wiki/fe2268bb04c953cd65bcae752e978912f5cbddaa/TestComments.md",
+      "sha256": "a0a968b98c977cac790cecaaa589bed5c2aa78dcd0682752f89aced28fcc00a5"
+    },
+    {
+      "file": "go-wiki-TableDrivenTests.md",
+      "url": "https://raw.githubusercontent.com/golang/wiki/fe2268bb04c953cd65bcae752e978912f5cbddaa/TableDrivenTests.md",
+      "sha256": "27da9a2e7f71dc3b41c9a5bc5af8f060a65567f4fc536059f13ecea21e08e8ab"
+    },
+    {
+      "file": "go-wiki-CodeReviewConcurrency.md",
+      "url": "https://raw.githubusercontent.com/golang/wiki/fe2268bb04c953cd65bcae752e978912f5cbddaa/CodeReviewConcurrency.md",
+      "sha256": "81d02839077db708f10504df051c3fe48fd69dbd41c2bb373b41ff3f04e9bbec"
+    },
+    {
+      "file": "go-wiki-CommonMistakes.md",
+      "url": "https://raw.githubusercontent.com/golang/wiki/fe2268bb04c953cd65bcae752e978912f5cbddaa/CommonMistakes.md",
+      "sha256": "d6e05297d060c8713fee10ae174280431cd03aff304dd5127b6caf5b691a6546"
+    },
+    {
+      "file": "go-wiki-Comments.md",
+      "url": "https://raw.githubusercontent.com/golang/wiki/fe2268bb04c953cd65bcae752e978912f5cbddaa/Comments.md",
+      "sha256": "78425c97df88b7a50ed5c87a10b913c043532a81c076590b299641067a0d0d45"
+    },
+    {
+      "file": "go-google-best-practices.md",
+      "url": "https://raw.githubusercontent.com/google/styleguide/8bdadbb0732b387aaa26f553dd9033484d1a2071/go/best-practices.md",
+      "sha256": "01d0624a2f5b2ca53c62ad6bfd6398e3bf52d62c343447a945aa81b3d84c1b4e"
+    },
+    {
+      "file": "go-google-decisions.md",
+      "url": "https://raw.githubusercontent.com/google/styleguide/8bdadbb0732b387aaa26f553dd9033484d1a2071/go/decisions.md",
+      "sha256": "bcf367f7c93f30c36ad7bc36d633892f5a89ba2d03a6a098490dee1e801e388a"
+    },
+    {
+      "file": "go-google-guide.md",
+      "url": "https://raw.githubusercontent.com/google/styleguide/8bdadbb0732b387aaa26f553dd9033484d1a2071/go/guide.md",
+      "sha256": "206bd4875cf8a72314ee7e608c8115cb10899bbc16c1853c1f5cb5621d91d4ba"
+    },
+    {
+      "file": "go-google-index.md",
+      "url": "https://raw.githubusercontent.com/google/styleguide/8bdadbb0732b387aaa26f553dd9033484d1a2071/go/index.md",
+      "sha256": "30da6e8c06377510a655573b0b69ff522fed0967657a42e50119df86f2d3f7a6"
+    },
+    {
+      "file": "go-uber-style.md",
+      "url": "https://raw.githubusercontent.com/uber-go/guide/1d60a91aa5e87d443002e23c21903c49489dbde5/style.md",
+      "sha256": "9f29ffce482b9c31a6cd7aa82ec7e4333972ddaed10ffa8344e8bcb5348cc09a"
+    },
+    {
+      "file": "go-uber-README.md",
+      "url": "https://raw.githubusercontent.com/uber-go/guide/1d60a91aa5e87d443002e23c21903c49489dbde5/src/README.md",
+      "sha256": "f51a706b6a5769f49047f44bdee5908b9c35d07507a34caecc4b4fe67d787cb9"
+    },
+    {
+      "file": "go-uber-SUMMARY.md",
+      "url": "https://raw.githubusercontent.com/uber-go/guide/1d60a91aa5e87d443002e23c21903c49489dbde5/src/SUMMARY.md",
+      "sha256": "f9f2b0cf9db9a95be1e8fd8d93d93a27cdd6958b08e4c33894e3001731be73c7"
+    },
+    {
+      "file": "go-uber-atomic.md",
+      "url": "https://raw.githubusercontent.com/uber-go/guide/1d60a91aa5e87d443002e23c21903c49489dbde5/src/atomic.md",
+      "sha256": "7636e85bf86c941582f3b3f9960d2e51e4f11a7f07eb31e491ed1f3b5182a992"
+    },
+    {
+      "file": "go-uber-builtin-name.md",
+      "url": "https://raw.githubusercontent.com/uber-go/guide/1d60a91aa5e87d443002e23c21903c49489dbde5/src/builtin-name.md",
+      "sha256": "40ac93c3f498b3f516a196cd2cc49d7d1a2c3bdedf06c31229170c55c1bfc2bc"
+    },
+    {
+      "file": "go-uber-channel-size.md",
+      "url": "https://raw.githubusercontent.com/uber-go/guide/1d60a91aa5e87d443002e23c21903c49489dbde5/src/channel-size.md",
+      "sha256": "d2fdfc48adaec661b24770bcb8cb88eb691f18985631be7d54f2fe179acef55d"
+    },
+    {
+      "file": "go-uber-consistency.md",
+      "url": "https://raw.githubusercontent.com/uber-go/guide/1d60a91aa5e87d443002e23c21903c49489dbde5/src/consistency.md",
+      "sha256": "739f5e1464e0d000944d7e680d14aa2e590639943d9fb685303c201e9fb5b2c4"
+    },
+    {
+      "file": "go-uber-container-capacity.md",
+      "url": "https://raw.githubusercontent.com/uber-go/guide/1d60a91aa5e87d443002e23c21903c49489dbde5/src/container-capacity.md",
+      "sha256": "18eb0e91a885f3d960e16e089a18c49f3064c9c89968dfbea00a5415f4ca8541"
+    },
+    {
+      "file": "go-uber-container-copy.md",
+      "url": "https://raw.githubusercontent.com/uber-go/guide/1d60a91aa5e87d443002e23c21903c49489dbde5/src/container-copy.md",
+      "sha256": "343f15ab644b3f2a584556d23cecf3665f1b306ece6ea6554a24db142aac8fc0"
+    },
+    {
+      "file": "go-uber-decl-group.md",
+      "url": "https://raw.githubusercontent.com/uber-go/guide/1d60a91aa5e87d443002e23c21903c49489dbde5/src/decl-group.md",
+      "sha256": "9ccea87215945b23596dc52714d848aa494a9f2c476ae749cc5605ffecad14fd"
+    },
+    {
+      "file": "go-uber-defer-clean.md",
+      "url": "https://raw.githubusercontent.com/uber-go/guide/1d60a91aa5e87d443002e23c21903c49489dbde5/src/defer-clean.md",
+      "sha256": "b2986df0147121d6c125fd217c691a86a3e3382f8875a1bc8bc9f2517906948f"
+    },
+    {
+      "file": "go-uber-else-unnecessary.md",
+      "url": "https://raw.githubusercontent.com/uber-go/guide/1d60a91aa5e87d443002e23c21903c49489dbde5/src/else-unnecessary.md",
+      "sha256": "94df512e9ad089a930d68395da71a93bf96c218e2465f279d0d787c971011980"
+    },
+    {
+      "file": "go-uber-embed-public.md",
+      "url": "https://raw.githubusercontent.com/uber-go/guide/1d60a91aa5e87d443002e23c21903c49489dbde5/src/embed-public.md",
+      "sha256": "3eaf94daa259dd2a9e8f3676d1d373aeb9547f7ef56ec8e657fcabfd657b7eda"
+    },
+    {
+      "file": "go-uber-enum-start.md",
+      "url": "https://raw.githubusercontent.com/uber-go/guide/1d60a91aa5e87d443002e23c21903c49489dbde5/src/enum-start.md",
+      "sha256": "e476db290b24e3630fa320aae98d6e97c1f469773c8cf0850ce2bafe8e4df8fe"
+    },
+    {
+      "file": "go-uber-error-name.md",
+      "url": "https://raw.githubusercontent.com/uber-go/guide/1d60a91aa5e87d443002e23c21903c49489dbde5/src/error-name.md",
+      "sha256": "b1804a25b45930fc060a3831dc836552875b07521adee9a79cc535d148263293"
+    },
+    {
+      "file": "go-uber-error-once.md",
+      "url": "https://raw.githubusercontent.com/uber-go/guide/1d60a91aa5e87d443002e23c21903c49489dbde5/src/error-once.md",
+      "sha256": "adae14fc0ad5e2fe063464c4128f4294586c03c1c20c4a0769011b8487f242fa"
+    },
+    {
+      "file": "go-uber-error-type.md",
+      "url": "https://raw.githubusercontent.com/uber-go/guide/1d60a91aa5e87d443002e23c21903c49489dbde5/src/error-type.md",
+      "sha256": "d62821324babbb686f35e74f44f601c6976e77955f84de32e09fc1bf43a14a62"
+    },
+    {
+      "file": "go-uber-error-wrap.md",
+      "url": "https://raw.githubusercontent.com/uber-go/guide/1d60a91aa5e87d443002e23c21903c49489dbde5/src/error-wrap.md",
+      "sha256": "847e6b5e56bff3c20fd03cba5db4969e13f7cb572b648b9d9f26833aceaa5169"
+    },
+    {
+      "file": "go-uber-exit-main.md",
+      "url": "https://raw.githubusercontent.com/uber-go/guide/1d60a91aa5e87d443002e23c21903c49489dbde5/src/exit-main.md",
+      "sha256": "f7217945fc1d1abb3e79d6a2e3ad29e6d47184708db82f019d60244b4c49a9b1"
+    },
+    {
+      "file": "go-uber-exit-once.md",
+      "url": "https://raw.githubusercontent.com/uber-go/guide/1d60a91aa5e87d443002e23c21903c49489dbde5/src/exit-once.md",
+      "sha256": "d303cd3bb2b8daf4ddedc3b4dc83ed545db1cc05d91989b1a13b9322a4248a83"
+    },
+    {
+      "file": "go-uber-function-name.md",
+      "url": "https://raw.githubusercontent.com/uber-go/guide/1d60a91aa5e87d443002e23c21903c49489dbde5/src/function-name.md",
+      "sha256": "a55a67facab0c0fc6f64e712f77ce4e170e9301207cc8b78711a5e88099b4250"
+    },
+    {
+      "file": "go-uber-function-order.md",
+      "url": "https://raw.githubusercontent.com/uber-go/guide/1d60a91aa5e87d443002e23c21903c49489dbde5/src/function-order.md",
+      "sha256": "92e505edd98afca93933425740033fbc5e04af659679ded6ff5260e908674e7a"
+    },
+    {
+      "file": "go-uber-functional-option.md",
+      "url": "https://raw.githubusercontent.com/uber-go/guide/1d60a91aa5e87d443002e23c21903c49489dbde5/src/functional-option.md",
+      "sha256": "ed8fe0eb05f36438f6c375ed75624d454d466dfe3372a7961972d8315eed8b68"
+    },
+    {
+      "file": "go-uber-global-decl.md",
+      "url": "https://raw.githubusercontent.com/uber-go/guide/1d60a91aa5e87d443002e23c21903c49489dbde5/src/global-decl.md",
+      "sha256": "dee94a85ef5efdb362f0631224378c8068600111bb88fe28adc8a39dfd622b57"
+    },
+    {
+      "file": "go-uber-global-mut.md",
+      "url": "https://raw.githubusercontent.com/uber-go/guide/1d60a91aa5e87d443002e23c21903c49489dbde5/src/global-mut.md",
+      "sha256": "8e5cfc626ec8cc3de25f396b420d41f213249a34ea1655aa2c0d0113d4f0e536"
+    },
+    {
+      "file": "go-uber-global-name.md",
+      "url": "https://raw.githubusercontent.com/uber-go/guide/1d60a91aa5e87d443002e23c21903c49489dbde5/src/global-name.md",
+      "sha256": "b48f740228db48e5f5d1d9ca1d537a20a266a19c9deaae3c037ced30dcd0ef3d"
+    },
+    {
+      "file": "go-uber-goroutine-exit.md",
+      "url": "https://raw.githubusercontent.com/uber-go/guide/1d60a91aa5e87d443002e23c21903c49489dbde5/src/goroutine-exit.md",
+      "sha256": "ad53ae11e5a33f0b3f6d1fd628ad12c9e35e103e40110a18b426e72e45ea0247"
+    },
+    {
+      "file": "go-uber-goroutine-forget.md",
+      "url": "https://raw.githubusercontent.com/uber-go/guide/1d60a91aa5e87d443002e23c21903c49489dbde5/src/goroutine-forget.md",
+      "sha256": "0bee6e02d2d992160de646389552e7c940038b656a8ad08f15242158f99fb07a"
+    },
+    {
+      "file": "go-uber-goroutine-init.md",
+      "url": "https://raw.githubusercontent.com/uber-go/guide/1d60a91aa5e87d443002e23c21903c49489dbde5/src/goroutine-init.md",
+      "sha256": "ca061ebf5a4197a0fe149b23de309d9cbbf03d41a24784f8dd63d01cf7a1dc53"
+    },
+    {
+      "file": "go-uber-import-alias.md",
+      "url": "https://raw.githubusercontent.com/uber-go/guide/1d60a91aa5e87d443002e23c21903c49489dbde5/src/import-alias.md",
+      "sha256": "240c9c8cb7ef19028e7add74c01a8975d720d9ab1f9d40028c17456d164c62ed"
+    },
+    {
+      "file": "go-uber-import-group.md",
+      "url": "https://raw.githubusercontent.com/uber-go/guide/1d60a91aa5e87d443002e23c21903c49489dbde5/src/import-group.md",
+      "sha256": "b90018cb220a9fdb727f17d143c8e239103af8d6a0f58753589ad74cff0d7e90"
+    },
+    {
+      "file": "go-uber-init.md",
+      "url": "https://raw.githubusercontent.com/uber-go/guide/1d60a91aa5e87d443002e23c21903c49489dbde5/src/init.md",
+      "sha256": "85de6cb6a76516ae4e616bfcbe903b8a8b453d4301aa0bc4734c8b7698fce385"
+    },
+    {
+      "file": "go-uber-interface-compliance.md",
+      "url": "https://raw.githubusercontent.com/uber-go/guide/1d60a91aa5e87d443002e23c21903c49489dbde5/src/interface-compliance.md",
+      "sha256": "d46d1bd5bfba8f598865909eb105c4ab45489897d39d16a1f237dbccd6ac0b34"
+    },
+    {
+      "file": "go-uber-interface-pointer.md",
+      "url": "https://raw.githubusercontent.com/uber-go/guide/1d60a91aa5e87d443002e23c21903c49489dbde5/src/interface-pointer.md",
+      "sha256": "f6b53f9a54ab4782d2f1c017cf3492c81b384cec6712ec89d5fc71c457d96be2"
+    },
+    {
+      "file": "go-uber-interface-receiver.md",
+      "url": "https://raw.githubusercontent.com/uber-go/guide/1d60a91aa5e87d443002e23c21903c49489dbde5/src/interface-receiver.md",
+      "sha256": "c2e5b75885625e5f9faa5ae024e844c0576ac9de1a4ab8d5c4b2a80b0b4373d4"
+    },
+    {
+      "file": "go-uber-intro.md",
+      "url": "https://raw.githubusercontent.com/uber-go/guide/1d60a91aa5e87d443002e23c21903c49489dbde5/src/intro.md",
+      "sha256": "b7a3c4260f168a64c9c6a71c393930c6fc19b40e2f818552402978a1eb563033"
+    },
+    {
+      "file": "go-uber-line-length.md",
+      "url": "https://raw.githubusercontent.com/uber-go/guide/1d60a91aa5e87d443002e23c21903c49489dbde5/src/line-length.md",
+      "sha256": "414ed5b64750f53e65baedd86a876e56e094989e2ca0f498e4a949aef11db256"
+    },
+    {
+      "file": "go-uber-lint.md",
+      "url": "https://raw.githubusercontent.com/uber-go/guide/1d60a91aa5e87d443002e23c21903c49489dbde5/src/lint.md",
+      "sha256": "83bf34b85f782f6139d14fbe4e8ae185f28f76fa7afbd5af10ab1ff2899c61af"
+    },
+    {
+      "file": "go-uber-map-init.md",
+      "url": "https://raw.githubusercontent.com/uber-go/guide/1d60a91aa5e87d443002e23c21903c49489dbde5/src/map-init.md",
+      "sha256": "8c23dd3ae21251a795dbeb766dd73d225a7d8a3870b8710f64e08312fa467ed6"
+    },
+    {
+      "file": "go-uber-mutex-zero-value.md",
+      "url": "https://raw.githubusercontent.com/uber-go/guide/1d60a91aa5e87d443002e23c21903c49489dbde5/src/mutex-zero-value.md",
+      "sha256": "a3c05726fafa730ce8490534f9291ca3c2dcd433c74523e1c81e5f911fce157f"
+    },
+    {
+      "file": "go-uber-nest-less.md",
+      "url": "https://raw.githubusercontent.com/uber-go/guide/1d60a91aa5e87d443002e23c21903c49489dbde5/src/nest-less.md",
+      "sha256": "abefc3373cf291c5c4aaf0e72cd6db8556f85b5654f4655fd6b9f7acd3b349e7"
+    },
+    {
+      "file": "go-uber-package-name.md",
+      "url": "https://raw.githubusercontent.com/uber-go/guide/1d60a91aa5e87d443002e23c21903c49489dbde5/src/package-name.md",
+      "sha256": "40f15d6c3339642caf3d5fcd1e0005ccf9175f5446ea488bccfaa9cc36fe8e61"
+    },
+    {
+      "file": "go-uber-panic.md",
+      "url": "https://raw.githubusercontent.com/uber-go/guide/1d60a91aa5e87d443002e23c21903c49489dbde5/src/panic.md",
+      "sha256": "44940b4d187d9668f01efed2a670c673f019c006e2a11a7db91462c9a1727347"
+    },
+    {
+      "file": "go-uber-param-naked.md",
+      "url": "https://raw.githubusercontent.com/uber-go/guide/1d60a91aa5e87d443002e23c21903c49489dbde5/src/param-naked.md",
+      "sha256": "a1127ee067cbdcde95ec5200defd9c9a8f137c52129d74fa5bfb95aded7d7ddc"
+    },
+    {
+      "file": "go-uber-performance.md",
+      "url": "https://raw.githubusercontent.com/uber-go/guide/1d60a91aa5e87d443002e23c21903c49489dbde5/src/performance.md",
+      "sha256": "de3420f87c21540458a0171a3f409467b318abdeb70cf279d09e1685a5092b87"
+    },
+    {
+      "file": "go-uber-preface.txt",
+      "url": "https://raw.githubusercontent.com/uber-go/guide/1d60a91aa5e87d443002e23c21903c49489dbde5/src/preface.txt",
+      "sha256": "1336c0410dd3901ad54ae5f447deba3f130287e9780b50528e308612c54bd77c"
+    },
+    {
+      "file": "go-uber-printf-const.md",
+      "url": "https://raw.githubusercontent.com/uber-go/guide/1d60a91aa5e87d443002e23c21903c49489dbde5/src/printf-const.md",
+      "sha256": "22fc366e714d38a643d83624d51f55071fbd39aaf46d5c269480c73ad123e1bb"
+    },
+    {
+      "file": "go-uber-printf-name.md",
+      "url": "https://raw.githubusercontent.com/uber-go/guide/1d60a91aa5e87d443002e23c21903c49489dbde5/src/printf-name.md",
+      "sha256": "fdc0bc4268968ef00267eebd0b4f73f46b6ea0f75539a848e80814b420b42d1a"
+    },
+    {
+      "file": "go-uber-slice-nil.md",
+      "url": "https://raw.githubusercontent.com/uber-go/guide/1d60a91aa5e87d443002e23c21903c49489dbde5/src/slice-nil.md",
+      "sha256": "d20ce59d318c789e841db690c534aef1d2e6129f8ed2105f4970db04f7fe5024"
+    },
+    {
+      "file": "go-uber-strconv.md",
+      "url": "https://raw.githubusercontent.com/uber-go/guide/1d60a91aa5e87d443002e23c21903c49489dbde5/src/strconv.md",
+      "sha256": "87889aa9dbe1818221823fcf1da4e8ac1688ba15ec8db9c6819b6fa62edaabda"
+    },
+    {
+      "file": "go-uber-string-byte-slice.md",
+      "url": "https://raw.githubusercontent.com/uber-go/guide/1d60a91aa5e87d443002e23c21903c49489dbde5/src/string-byte-slice.md",
+      "sha256": "3a6741cabac7227f36f23b280989f46b4c78ce7374ee822ce10412f2252d2e36"
+    },
+    {
+      "file": "go-uber-string-escape.md",
+      "url": "https://raw.githubusercontent.com/uber-go/guide/1d60a91aa5e87d443002e23c21903c49489dbde5/src/string-escape.md",
+      "sha256": "55c400e36d6c5148c1d50ebf7f17baf8d20ebcfa718b8ac24f51fa59337c5b01"
+    },
+    {
+      "file": "go-uber-struct-embed.md",
+      "url": "https://raw.githubusercontent.com/uber-go/guide/1d60a91aa5e87d443002e23c21903c49489dbde5/src/struct-embed.md",
+      "sha256": "6bb5a603aeaa276e18eff30cbd61e0053a26f922a0b2e8739de87dafc9ab1372"
+    },
+    {
+      "file": "go-uber-struct-field-key.md",
+      "url": "https://raw.githubusercontent.com/uber-go/guide/1d60a91aa5e87d443002e23c21903c49489dbde5/src/struct-field-key.md",
+      "sha256": "963871c64a7aa25d08d8630c215dbea98df5b444addb74091f897cd620992ac0"
+    },
+    {
+      "file": "go-uber-struct-field-zero.md",
+      "url": "https://raw.githubusercontent.com/uber-go/guide/1d60a91aa5e87d443002e23c21903c49489dbde5/src/struct-field-zero.md",
+      "sha256": "a272fa4a2a49522f28d649499662a627c04075cd26bb0e2ef954e34606f76ee5"
+    },
+    {
+      "file": "go-uber-struct-pointer.md",
+      "url": "https://raw.githubusercontent.com/uber-go/guide/1d60a91aa5e87d443002e23c21903c49489dbde5/src/struct-pointer.md",
+      "sha256": "72a71b4d687b1649b0e3b957850abdc193ac52c323d3c9aae9dfa7835388a797"
+    },
+    {
+      "file": "go-uber-struct-tag.md",
+      "url": "https://raw.githubusercontent.com/uber-go/guide/1d60a91aa5e87d443002e23c21903c49489dbde5/src/struct-tag.md",
+      "sha256": "db7fc3a27164bb711baa4faee87cce42b6461315c9861958fb452f6572f63a00"
+    },
+    {
+      "file": "go-uber-struct-zero.md",
+      "url": "https://raw.githubusercontent.com/uber-go/guide/1d60a91aa5e87d443002e23c21903c49489dbde5/src/struct-zero.md",
+      "sha256": "a66c040a2c274e9665d2d62aaa73c002a2aecb5e05c0074d2af3dfe6cf9ce7cd"
+    },
+    {
+      "file": "go-uber-test-table.md",
+      "url": "https://raw.githubusercontent.com/uber-go/guide/1d60a91aa5e87d443002e23c21903c49489dbde5/src/test-table.md",
+      "sha256": "f0c991ba0136e9e96a08bdf9d9d82503647d014e4dab167357c42f184d0eb841"
+    },
+    {
+      "file": "go-uber-time.md",
+      "url": "https://raw.githubusercontent.com/uber-go/guide/1d60a91aa5e87d443002e23c21903c49489dbde5/src/time.md",
+      "sha256": "ade790e826a656afa2e7fc9c5915152abb4ed4471a26e882d46194bf8ac078ce"
+    },
+    {
+      "file": "go-uber-type-assert.md",
+      "url": "https://raw.githubusercontent.com/uber-go/guide/1d60a91aa5e87d443002e23c21903c49489dbde5/src/type-assert.md",
+      "sha256": "2e0d69481af09f24a541023c8c50455de87eb9eb06c82ed0d524e70d29456dcc"
+    },
+    {
+      "file": "go-uber-var-decl.md",
+      "url": "https://raw.githubusercontent.com/uber-go/guide/1d60a91aa5e87d443002e23c21903c49489dbde5/src/var-decl.md",
+      "sha256": "08002f3022a9a88c5bafe90822bbf3ca30976f92d82e95c845a568a885da32c0"
+    },
+    {
+      "file": "go-uber-var-scope.md",
+      "url": "https://raw.githubusercontent.com/uber-go/guide/1d60a91aa5e87d443002e23c21903c49489dbde5/src/var-scope.md",
+      "sha256": "a0130e9710a0f97f0b1049f5f271d10d1e3cb8ec06f09e8cfeb9521d75a2773e"
+    },
+    {
+      "file": "GO-BSD-LICENSE.txt",
+      "url": "https://raw.githubusercontent.com/golang/website/0eef789c9f9a7cc074eab1b3fb2d96baea282546/LICENSE",
+      "sha256": "911f8f5782931320f5b8d1160a76365b83aea6447ee6c04fa6d5591467db9dad"
+    },
+    {
+      "file": "GO-GOOGLE-LICENSE.txt",
+      "url": "https://raw.githubusercontent.com/google/styleguide/8bdadbb0732b387aaa26f553dd9033484d1a2071/LICENSE",
+      "sha256": "e6bc9e9c474700b708f568bac9e5a8a9bcb2b1dad53442f5ba449fcb848b8e76"
+    },
+    {
+      "file": "GO-UBER-LICENSE.txt",
+      "url": "https://raw.githubusercontent.com/uber-go/guide/1d60a91aa5e87d443002e23c21903c49489dbde5/LICENSE",
+      "sha256": "a6cba85bc92e0cff7a450b1d873c0eaa2e9fc96bf472df0247a26bec77bf3ff9"
+    },
+    {
+      "file": "go-memory-model.html",
+      "url": "https://raw.githubusercontent.com/golang/go/7b2881024c95a11ddb86663a616340aa3a88b67f/doc/go_mem.html",
+      "sha256": "a7372b4f36c9525ecc7531bbdbb9e53746ae3f58367a25fe8084d5a35bb8ee7c"
+    },
+    {
+      "file": "GO-CC-BY-4.0.txt",
+      "url": "https://raw.githubusercontent.com/spdx/license-list-data/ab9b0904b43db6f4b67431efd8821feb821f1c8b/text/CC-BY-4.0.txt",
+      "sha256": "d557539df68e771cc1eedcc91d13f70fca930e508d11eedcafa4b15db49e3744"
+    },
+    {
+      "file": "go-security-policy.md",
+      "url": "https://raw.githubusercontent.com/golang/website/0eef789c9f9a7cc074eab1b3fb2d96baea282546/_content/doc/security/policy.md",
+      "sha256": "36017dd3a399ae8f75dda4e8715184ad70cd865ef4bc043aa0b660e352d66ceb"
+    },
+    {
+      "file": "go-security-threat-model.md",
+      "url": "https://raw.githubusercontent.com/golang/website/0eef789c9f9a7cc074eab1b3fb2d96baea282546/_content/doc/security/threat-model.md",
+      "sha256": "c58e1f16eb682643adc1d6a74502920aa1700b02463eca04f26949a0a6fd0b9d"
+    },
+    {
+      "file": "go-security-decisions.md",
+      "url": "https://raw.githubusercontent.com/golang/website/0eef789c9f9a7cc074eab1b3fb2d96baea282546/_content/doc/security/decisions.md",
+      "sha256": "6c15e82b42de1a7fa6b2984144570d2ded12f1b7df86e15a82fb54226be487b4"
+    },
+    {
+      "file": "go-security-fips140.md",
+      "url": "https://raw.githubusercontent.com/golang/website/0eef789c9f9a7cc074eab1b3fb2d96baea282546/_content/doc/security/fips140.md",
+      "sha256": "d55a972d3019079ff8b2494eee938f8c90c8b66dd7e365049f2ea4c6a54592fd"
+    },
+    {
+      "file": "go-security-vuln-cna.md",
+      "url": "https://raw.githubusercontent.com/golang/website/0eef789c9f9a7cc074eab1b3fb2d96baea282546/_content/doc/security/vuln/cna.md",
+      "sha256": "baeefa9cc4fcf4983062a2012ebdf4940357d7084333bf470a27a7d00f6e1a73"
+    },
+    {
+      "file": "go-security-vuln-database.md",
+      "url": "https://raw.githubusercontent.com/golang/website/0eef789c9f9a7cc074eab1b3fb2d96baea282546/_content/doc/security/vuln/database.md",
+      "sha256": "57d52ce73fb1eb5d02a6889de1604bdd9e0edd8617d507a575acf401c228c1a7"
+    },
+    {
+      "file": "go-vulncheck-command.go",
+      "url": "https://raw.githubusercontent.com/golang/vuln/ef4cb2f7cae47fe3e21fc596455f694951867b29/cmd/govulncheck/doc.go",
+      "sha256": "d6b284c15cbbea4de95023a26e89d0c5d16cede975498b936b68edbc1103d1e0"
+    },
+    {
+      "file": "GO-VULN-LICENSE.txt",
+      "url": "https://raw.githubusercontent.com/golang/vuln/ef4cb2f7cae47fe3e21fc596455f694951867b29/LICENSE",
+      "sha256": "911f8f5782931320f5b8d1160a76365b83aea6447ee6c04fa6d5591467db9dad"
     }
   ]
 }

@@ -3,9 +3,8 @@
 User instructions and deployment setup are maintained in the
 [Activity wiki guide](https://github.com/MrewyOrg/Botge/wiki/Activity).
 
-Browser code lives in `src/`, and the Cloudflare entry point and proxy authentication live in
-`worker/`. The workspace shares the repository's npm lockfile. Run these commands from the
-repository root.
+Browser code lives in `src/` and the signed Go origin lives in `server/`. The workspace shares the
+repository's npm lockfile. Run these commands from the repository root.
 
 `src/index.ts` initializes Discord, then creates and connects the feature modules. Ownership:
 
@@ -24,7 +23,7 @@ repository root.
 | `catalog/emote-preview.ts`         | Emote preview dialog and its actions                      |
 | `catalog/emote-selection.ts`       | Bounded multi-selection and bulk controls                 |
 | `composer/`                        | Layer order, composition limits, previews, and the border |
-| `settings/`                        | Voice, provider/role policy, and personal border forms    |
+| `settings/`                        | Voice, catalog history, 7TV policy, and personal borders  |
 | `game/game-state.ts`               | Guessing game message validation and connection contract  |
 | `game/game-server.ts`              | Ticketed WebSocket connection to a Botge game room        |
 | `game/game-view.ts`                | Game page: blurred round image, guesses, and scoreboard   |
@@ -34,8 +33,8 @@ repository root.
 | `styles/`                          | Theme, top bar, layout, controls, panels, and utilities   |
 | `catalog/_*.scss`, `game/_*.scss`  | Catalog filters, tiles and overlays; the game page        |
 
-Tests mirror features under `tests/`, including browser integration suites and Worker tests.
-`tests/fixtures/activity-page.ts` shares page and Discord fixtures.
+Browser integration tests mirror features under `tests/`. `tests/fixtures/activity-page.ts` shares
+page and Discord fixtures.
 
 ```sh
 npm ci
@@ -48,16 +47,20 @@ npm run typecheck -w activity
 npm run check:markup -w activity
 ```
 
-Vite serves the local preview on its printed localhost URL and builds to `activity/dist/`.
-Production feature flags and Discord URL mappings are documented in the wiki. HTML validation checks
-the source and built page, and Vite compiles SCSS during the build.
+Vite serves the local preview on its printed localhost URL and builds to `activity/dist/`. The
+[production staging script](../scripts/activity/stage-activity-server.sh) enables the catalog,
+discovery, additions, settings, and game. HTML validation checks the source and built page, and Vite
+compiles SCSS during the build.
 
-The browser build targets `esnext` and requires ES2025 iterator helpers and `Promise.withResolvers`;
-Vite does not polyfill these runtime APIs. Keep the Discord embedded browser and local Node runtime
-compatible when adopting newer language or platform features.
+The browser build targets Chromium 126, Firefox 133, Safari 18.4, and iOS WebKit 18.4. These are
+minimum browser engine versions. For Discord desktop, check the bundled Chromium version. For
+Discord on Android, check the device's WebView version. For Discord on iOS, check the system WebKit
+version. Vite does not polyfill iterator helpers, `Promise.withResolvers`, or other runtime APIs.
+Keep the Discord embedded browser and local Node runtime compatible when adopting newer language or
+platform features.
 
-The Activity suite covers the browser and Worker without running the bot; the
-[test guide](../tests/README.md) owns its coverage gate. Rust API tests live beside
+The Activity suite tests the browser without running the bot. The [test guide](../tests/README.md)
+documents its coverage gate. Rust API tests live beside
 [the API implementation](../crates/botge-activity/src/activity/tests.rs).
 
 API calls are queued. `/auth` exchanges one OAuth code for an access token, then the browser
@@ -67,18 +70,83 @@ for each operation. SDK waits have 15-second deadlines; HTTP calls have a 45-sec
 an HTTP 401 `oauth_expired` response renews the token and retries once. Other failures release the
 queue without automatically repeating writes.
 
+## Go Activity origin
+
+The Go origin embeds the production Vite build and verifies Discord proxy signatures on every
+content request. It serves the Activity page, curated preview catalog and static assets. The Rust
+API serves the live server catalog, settings and game and authorizes its own requests.
+
+Use the [server checks](../tests/README.md#go-activity-server) to stage the production build and
+exercise the origin with synthetic keys over loopback. The command listens on all interfaces at
+`PORT` and requires a 64-character hexadecimal `DISCORD_ACTIVITY_PUBLIC_KEY`. `GET /healthz` and
+`HEAD /healthz` return 204 without proxy proof.
+
+## Discord URL mappings
+
+Enable Activities and Proxy Authentication, then enter the target hostnames without `https://` in
+the Discord Developer Portal. Use the same application's public key on the Go origin and Rust bot.
+
+| Prefix       | Target hostname                          |
+| ------------ | ---------------------------------------- |
+| `/`          | The Go origin's Cloud Run hostname       |
+| `/botge-api` | The Rust bot's public HTTPS API hostname |
+| `/7tv-api`   | `7tv.io` for discovery                   |
+| `/7tv-cdn`   | `cdn.7tv.app` for emote images           |
+
+Discord forwards browser requests to the mapped origins. The Go service serves the page and assets
+independently from the bot's API. See
+[Cloud Run deployment](../.github/workflows/README.md#activity-deployment-on-cloud-run).
+
+### API HTTPS endpoint
+
+On the bot host, use `compose.activity.yaml` with `compose.yaml` to publish the Rust API on
+`127.0.0.1:3080`. On rootless control installations, include the same settings in the installation's
+`compose.override.yaml`. A host-side `curl -i http://127.0.0.1:3080/healthz` should return `204`.
+Set `APP_ID`, `DISCORD_ACTIVITY_PUBLIC_KEY` and `DISCORD_ACTIVITY_CLIENT_SECRET` in the bot's `.env`
+and add `https://127.0.0.1` to the application's OAuth2 redirects.
+
+For [Tailscale Funnel][funnel], join the bot host to your tailnet and enable Funnel as prompted. Run
+these commands on that host:
+
+```sh
+tailscale funnel --bg http://127.0.0.1:3080
+tailscale funnel status
+```
+
+Enter the resulting `.ts.net` hostname as the `/botge-api` target. Funnel makes the endpoint
+reachable by Discord from the public internet while the Rust port stays on loopback. Tailscale Serve
+is private to the tailnet and Discord cannot reach it.
+
+A persistent [Cloudflare Tunnel][cloudflare-tunnel] with a Cloudflare-managed hostname can also
+forward to the loopback endpoint. For a tunnel-free setup, use a public HTTPS reverse proxy with a
+trusted certificate and an inbound HTTPS port. The included Compose nginx is a private 7TV image
+cache. A public nginx listener needs its own TLS and reverse-proxy configuration.
+
+Forward to the API's root and preserve Discord's signature headers, request bodies and WebSocket
+upgrades. Discord must be able to reach the endpoint without an interactive login. The Rust API
+verifies proxy requests and checks bearer tokens and guild permissions on protected operations.
+
+[funnel]: https://tailscale.com/docs/reference/tailscale-cli/funnel
+[cloudflare-tunnel]: https://developers.cloudflare.com/tunnel/get-started/
+
+## Catalog history
+
+Guild administrators can open **Catalog history** in Settings and preview a restore before
+confirming it. Botge retains up to 32 revisions of individually added emotes and 7TV management
+settings per guild. A restore creates a new revision. If the catalog changes after the preview,
+refresh the preview before confirming again.
+
 ## Live catalog updates
 
 After the server catalog first loads, the page asks the `catalog/watch` route for a one-use ticket
 and opens a WebSocket at `/botge-api/catalog/ws`, presenting the ticket in its first message as the
 game does. Botge sends `{"type":"changed"}` after an addition, removal or emote settings save in
 that server, and when 7TV reports an edit to the server's 7TV set or the global set; the page then
-reloads the catalog without a loading message. BTTV, FFZ and Twitch send no change events, so their
-edits appear on the next reload. A dropped connection reconnects after 1, 2, 5, 10, 30 and then
-every 60 seconds and reloads once, since changes may have been missed. Botge closes each connection
-after an hour, which rechecks membership on reconnect, and a refused ticket ends watching until the
-Activity reopens. The Try again button appears only after a catalog load fails. The demo has no
-watch, because its catalog changes only through the page.
+reloads the catalog without a loading message. On a dropped connection the client reconnects and
+reloads once, since changes may have been missed. Botge closes each connection after an hour, which
+rechecks membership on reconnect, and a refused ticket ends watching until the Activity reopens. The
+Try again button appears only after a catalog load fails. The demo has no watch, because its catalog
+changes only through the page.
 
 ## Guessing game
 
@@ -104,44 +172,19 @@ names come from the Discord SDK's participant list and fall back to an ID-based 
 `npm run dev:demo -w activity` starts the dev server in demo mode, which loads `.env.demo` and sets
 `VITE_ENABLE_ACTIVITY_DEMO=true`; plain `npm run dev` keeps the preview catalog. Outside Discord,
 the flag replaces the Botge API and 7TV discovery with the in-memory backend in
-`src/demo/demo-server.ts`. Every guild feature is then available against a pretend server: the
-server catalog, Trending and Top pages, adding and removing emotes, bulk actions, all settings
-panels, and a single-player guessing game with the server's rules and timings. State resets on
-reload and nothing reaches the network. The page says the emotes are placeholders and hides 7TV
-links, whose placeholder IDs have no 7TV page. Placeholder artwork lives in `public/7tv-cdn/demo/`
-so it passes server catalog validation; `.assetsignore` keeps it out of the Activity Worker. Normal
-builds, the plain dev server, and tests do not load the demo flag, and it has no effect inside
-Discord. The flag is read with dot access, typed in `src/vite-env.d.ts`, so Vite replaces it with a
-constant: normal builds leave out the demo backend and notice entirely, and demo builds load them as
-separate chunks.
-
-### Publishing the demo
-
-`npm run build:demo -w activity` builds with `.env.demo` into `activity/dist-demo/`, then
-`scripts/prepare-demo-site.ts` removes the copied `.assetsignore` and writes a `_headers` file with
-the Activity page's Content Security Policy, `frame-ancestors 'none'`, `nosniff`, and `no-referrer`.
-[`wrangler.demo.jsonc`](wrangler.demo.jsonc) deploys that directory as static assets with no Worker
-script. Cloudflare serves static asset requests free, and they do not count toward the account's
-daily Worker request limit that the Activity shares.
-
-Build and Deploy publishes the Activity Worker and the demo when their inputs change; see the
-[workflow guide](../.github/workflows/README.md#candidate-and-deployment). Both use Wrangler from
-`deploy/`, pinned by its own lockfile. To deploy the demo by hand, run from the repository root. The
-first deploy creates the `botge-activity-demo` Worker, and it needs no `--var`, because no Worker
-script runs:
-
-```sh
-npm run build:demo -w activity
-npm ci --prefix activity/deploy --ignore-scripts
-activity/deploy/node_modules/.bin/wrangler deploy --config activity/wrangler.demo.jsonc
-```
-
-Keep both Workers on the Free plan; see the [cost policy](../docs/PRODUCTION.md#cost-policy). GitHub
-READMEs cannot run the demo, so link to its URL instead.
+`src/demo/demo-server.ts`. The demo includes the server catalog, Trending and Top pages, adding and
+removing emotes, bulk actions, all settings forms except catalog history, and a single-player
+guessing game with the server's rules and timings. State resets on reload and nothing reaches the
+network. The page says the emotes are placeholders and hides 7TV links, whose placeholder IDs have
+no 7TV page. Placeholder artwork lives in `public/7tv-cdn/demo/` so it passes server catalog
+validation. The Go origin stages only approved production assets. Normal builds, the plain dev
+server, and tests do not load the demo flag, and it has no effect inside Discord. The flag is read
+with dot access, typed in `src/vite-env.d.ts`, so Vite replaces it with a constant: normal builds
+leave out the demo backend and notice entirely, and demo builds load them as separate chunks.
 
 ## Curated preview catalog
 
-For a local or public demo, add entries to `public/catalog.json` and put their images in
+To customize the preview catalog, add entries to `public/catalog.json` and put their images in
 `public/emotes/` before building.
 
 ```json

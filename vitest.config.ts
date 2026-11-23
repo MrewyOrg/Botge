@@ -4,7 +4,7 @@ const viteUserConfig: Readonly<ViteUserConfig> = defineConfig({
   test: {
     coverage: {
       provider: 'v8',
-      include: ['*.config.ts', 'activity/src/**/*.ts', 'activity/worker/**/*.ts'],
+      include: ['*.config.ts', 'activity/src/**/*.ts'],
       exclude: ['**/*.d.ts'],
       reporter: ['text-summary', 'html', 'json', 'json-summary'],
       reportsDirectory: 'coverage/typescript',

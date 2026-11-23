@@ -124,7 +124,6 @@ async fn confirms_clear_and_skips_pins_new_messages_and_already_deleted_messages
     std::sync::Arc::new(botge_app::Application::new(
       botge_domain::providers::Providers::default(),
       store,
-      None,
     )?),
     None,
   );

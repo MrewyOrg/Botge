@@ -7,13 +7,16 @@ import { isRecord, requireValue } from '../validation.ts';
 /** Complete guild provider and role-policy snapshot, including immutable selected roles. */
 export type EmoteSettings = DeepReadonly<{
   sevenTvSet: string | null;
-  bttvTwitchId: string | null;
-  ffzChannel: string | null;
   allowEveryone: boolean;
   allowedRoles: readonly string[];
 }>;
 
 type SettingsRequest = (emotes?: EmoteSettings) => Promise<unknown>;
+
+type EmoteSettingsControls = {
+  readonly reload: () => void;
+  readonly restore: (request: () => Promise<unknown>) => Promise<unknown>;
+};
 
 function nullableText(value: unknown): value is string | null {
   return value === null || typeof value === 'string';
@@ -36,8 +39,6 @@ function parseSettings(
   if (
     !isRecord(payload)
     || !nullableText(payload['sevenTvSet'])
-    || !nullableText(payload['bttvTwitchId'])
-    || !nullableText(payload['ffzChannel'])
     || typeof payload['allowEveryone'] !== 'boolean'
     || !Array.isArray(payload['allowedRoles'])
     || !Array.isArray(payload['roles'])
@@ -46,8 +47,6 @@ function parseSettings(
   return {
     emotes: {
       sevenTvSet: payload['sevenTvSet'],
-      bttvTwitchId: payload['bttvTwitchId'],
-      ffzChannel: payload['ffzChannel'],
       allowEveryone: payload['allowEveryone'],
       allowedRoles: payload['allowedRoles'].map((role: unknown) => {
         if (typeof role !== 'string') throw new Error('Invalid emote settings response.');
@@ -71,9 +70,10 @@ function parseSettings(
  * Async failures appear in the form's status message and preserve loaded inputs for retry.
  *
  * @param request - Reads with no argument or saves a complete replacement of emote settings.
+ * @returns Controls that guard restores and reload the saved settings.
  * @throws `Error` if required form markup is missing.
  */
-export function mountEmoteSettings(request: SettingsRequest): void {
+export function mountEmoteSettings(request: SettingsRequest): EmoteSettingsControls {
   const panel = requireValue(
     document.querySelector<HTMLDetailsElement>('#emote-settings'),
     'Missing emote settings.'
@@ -90,8 +90,6 @@ export function mountEmoteSettings(request: SettingsRequest): void {
       `Missing ${name} input.`
     );
   const seven = input('seven-tv-set');
-  const bttv = input('bttv-twitch-id');
-  const ffz = input('ffz-channel');
   const everyone = input('allow-everyone');
   const role = requireValue(form.querySelector('select'), 'Missing role picker.');
   const add = requireValue(
@@ -140,7 +138,27 @@ export function mountEmoteSettings(request: SettingsRequest): void {
     renderRoles();
     role.focus();
   });
-  let loaded = false;
+  let saved: EmoteSettings | undefined;
+
+  function draft(): EmoteSettings {
+    return {
+      sevenTvSet: seven.value.trim() || null,
+      allowEveryone: everyone.checked,
+      allowedRoles: [...selected]
+    };
+  }
+
+  function hasChanges(): boolean {
+    if (saved === undefined) return false;
+    const current = draft();
+    const { allowedRoles } = saved;
+    return (
+      current.sevenTvSet !== saved.sevenTvSet
+      || current.allowEveryone !== saved.allowEveryone
+      || current.allowedRoles.length !== allowedRoles.length
+      || current.allowedRoles.some((id, index) => id !== allowedRoles[index])
+    );
+  }
 
   async function update(settings?: EmoteSettings): Promise<void> {
     if (panel.getAttribute('aria-busy') === 'true') return;
@@ -149,39 +167,52 @@ export function mountEmoteSettings(request: SettingsRequest): void {
     feedback.textContent =
       settings === undefined ? 'Loading emote settings…' : 'Saving emote settings…';
     try {
-      const { emotes: saved, roles } = parseSettings(await request(settings));
+      const { emotes, roles } = parseSettings(await request(settings));
+      saved = emotes;
       seven.value = saved.sevenTvSet ?? '';
-      bttv.value = saved.bttvTwitchId ?? '';
-      ffz.value = saved.ffzChannel ?? '';
       everyone.checked = saved.allowEveryone;
       available = roles;
       selected.clear();
       for (const id of saved.allowedRoles) selected.add(id);
       renderRoles();
-      loaded = true;
       feedback.textContent = settings === undefined ? '' : 'Saved.';
     } catch (error) {
       feedback.textContent =
         error instanceof Error ? error.message : 'Could not load emote settings.';
     } finally {
-      fields.disabled = !loaded;
+      fields.disabled = saved === undefined;
       panel.removeAttribute('aria-busy');
     }
   }
 
   panel.addEventListener('toggle', () => {
-    if (panel.open && !loaded) void update();
+    if (panel.open && saved === undefined) void update();
   });
   form.addEventListener('submit', (event: Readonly<Pick<Event, 'preventDefault'>>) => {
     event.preventDefault();
-    if (!loaded) return;
-    void update({
-      sevenTvSet: seven.value.trim() || null,
-      bttvTwitchId: bttv.value.trim() || null,
-      ffzChannel: ffz.value.trim().toLowerCase() || null,
-      allowEveryone: everyone.checked,
-      allowedRoles: [...selected]
-    });
+    if (saved !== undefined) void update(draft());
   });
   panel.hidden = false;
+  return {
+    reload(): void {
+      saved = undefined;
+      fields.disabled = true;
+      if (panel.open) void update();
+    },
+    async restore(send): Promise<unknown> {
+      if (panel.getAttribute('aria-busy') === 'true')
+        throw new Error('Wait for emote settings to finish loading or saving.');
+      if (hasChanges())
+        throw new Error('Save or undo your unsaved emote settings before restoring.');
+      panel.setAttribute('aria-busy', 'true');
+      fields.disabled = true;
+      try {
+        return await send();
+      } finally {
+        panel.removeAttribute('aria-busy');
+        fields.disabled = saved === undefined;
+        if (panel.open && saved === undefined) void update();
+      }
+    }
+  };
 }

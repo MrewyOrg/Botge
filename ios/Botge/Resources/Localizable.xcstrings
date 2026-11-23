@@ -45,12 +45,6 @@
     "A 7TV set ID has 24 or 26 letters and digits." : {
 
     },
-    "A channel name has up to 25 letters, digits and underscores." : {
-
-    },
-    "A Twitch user ID has only digits." : {
-
-    },
     "About & Legal" : {
 
     },
@@ -103,9 +97,6 @@
 
     },
     "Ask for %@ or your passcode when opening Botge." : {
-
-    },
-    "BetterTTV" : {
 
     },
     "Blurred emote" : {
@@ -297,9 +288,6 @@
     "Follow Reduce Motion" : {
 
     },
-    "FrankerFaceZ" : {
-
-    },
     "Get ready…" : {
 
     },
@@ -357,9 +345,6 @@
       }
     },
     "Leave" : {
-
-    },
-    "Leave a source empty to turn it off." : {
 
     },
     "Leave Match" : {
@@ -676,9 +661,6 @@
 
     },
     "Turn on App Lock" : {
-
-    },
-    "Twitch User ID" : {
 
     },
     "Type the name of this emote." : {

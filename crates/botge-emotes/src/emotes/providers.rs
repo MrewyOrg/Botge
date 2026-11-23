@@ -16,12 +16,12 @@ use std::{
   time::{Duration, Instant},
 };
 
-use anyhow::{Context as _, Result};
+use anyhow::Result;
 use futures_util::future::join_all;
 #[cfg(any(test, feature = "test-util"))]
 use reqwest::Url;
 use reqwest::{Client, StatusCode};
-use serde::{Deserialize, de::DeserializeOwned};
+use serde::Deserialize;
 use tokio::sync::{Mutex, watch};
 
 use super::{Emote, GuildEmotes, valid_seven_id};
@@ -48,16 +48,6 @@ struct Cached {
   set_id: Option<String>,
 }
 
-/// Selects the parser and any authentication required by a provider endpoint.
-#[derive(Clone, Copy)]
-enum Feed {
-  SevenTv,
-  BetterTtv,
-  BetterTtvChannel,
-  Ffz,
-  Twitch,
-}
-
 /// The feed URL of 7TV's global set, which every guild with global 7TV emotes shares.
 pub(super) const GLOBAL_SEVEN_TV_SET: &str = "https://7tv.io/v3/emote-sets/global";
 
@@ -73,7 +63,6 @@ pub(super) struct ProviderClient {
   http: Client,
   cache: Mutex<HashMap<String, Cached>>,
   refreshing: Mutex<HashMap<String, Refresh>>,
-  twitch: Option<(String, String)>,
   /// Event stream sessions that ended, cleanly or with an error.
   pub(super) reconnects: AtomicU64,
   /// Announces 7TV sets that changed while a feed using them was cached.
@@ -88,7 +77,7 @@ impl ProviderClient {
   /// # Errors
   ///
   /// Returns an error if the shared bounded HTTP client cannot be constructed.
-  pub(super) fn new(twitch: Option<(String, String)>) -> Result<Self> {
+  pub(super) fn new() -> Result<Self> {
     Ok(Self {
       http: Client::builder()
         .timeout(Duration::from_secs(8))
@@ -97,7 +86,6 @@ impl ProviderClient {
         .build()?,
       cache: Mutex::new(HashMap::new()),
       refreshing: Mutex::new(HashMap::new()),
-      twitch,
       reconnects: AtomicU64::new(0),
       set_changes: tokio::sync::broadcast::channel(SET_CHANGE_BUFFER).0,
       #[cfg(any(test, feature = "test-util"))]
@@ -168,53 +156,18 @@ impl ProviderClient {
     globals: bool,
     timeout: Option<Duration>,
   ) -> Vec<Snapshot> {
-    let mut sources = Vec::new();
+    let mut sources = Vec::with_capacity(2);
     if policy.seven_personal
       && let Some(id) = &settings.seven_tv_set
     {
-      sources.push((Feed::SevenTv, format!("https://7tv.io/v3/emote-sets/{id}")));
-    }
-    if policy.bttv
-      && let Some(id) = &settings.bttv_twitch_id
-    {
-      sources.push((
-        Feed::BetterTtvChannel,
-        format!("https://api.betterttv.net/3/cached/users/twitch/{id}"),
-      ));
-    }
-    if policy.ffz
-      && let Some(channel) = &settings.ffz_channel
-    {
-      sources.push((
-        Feed::Ffz,
-        format!("https://api.frankerfacez.com/v1/room/{channel}"),
-      ));
+      sources.push(format!("https://7tv.io/v3/emote-sets/{id}"));
     }
     if globals && policy.seven_global {
-      sources.push((Feed::SevenTv, GLOBAL_SEVEN_TV_SET.into()));
+      sources.push(GLOBAL_SEVEN_TV_SET.into());
     }
-    if globals && policy.bttv {
-      sources.push((
-        Feed::BetterTtv,
-        "https://api.betterttv.net/3/cached/emotes/global".into(),
-      ));
-    }
-    if globals && policy.ffz {
-      sources.push((
-        Feed::Ffz,
-        "https://api.frankerfacez.com/v1/set/global".into(),
-      ));
-    }
-    if globals && policy.twitch && self.twitch.is_some() {
-      sources.push((
-        Feed::Twitch,
-        "https://api.twitch.tv/helix/chat/emotes/global".into(),
-      ));
-    }
-
-    join_all(sources.into_iter().map(|(feed, url)| async move {
+    join_all(sources.into_iter().map(|url: String| async move {
       if let Some(timeout) = timeout {
-        match tokio::time::timeout(timeout, self.cached(feed, url.clone())).await {
+        match tokio::time::timeout(timeout, self.cached(url.clone())).await {
           Ok(emotes) => emotes,
           Err(_) => self
             .cache
@@ -224,7 +177,7 @@ impl ProviderClient {
             .map_or_else(|| Arc::from([]), |entry| Arc::clone(&entry.emotes)),
         }
       } else {
-        self.cached(feed, url).await
+        self.cached(url).await
       }
     }))
     .await
@@ -238,7 +191,7 @@ impl ProviderClient {
   /// At the refresh limit, a URL without a refresh in flight gets its previous snapshot
   /// immediately, or an empty snapshot if it has never been loaded. Otherwise a background
   /// task publishes the refresh to all waiters.
-  async fn cached(self: &Arc<Self>, feed: Feed, url: String) -> Snapshot {
+  async fn cached(self: &Arc<Self>, url: String) -> Snapshot {
     let mut refresh = {
       let mut refreshing = self.refreshing.lock().await;
       let cache = self.cache.lock().await;
@@ -260,7 +213,7 @@ impl ProviderClient {
         let client = Arc::clone(self);
         // Autocomplete can time out without cancelling the shared refresh.
         tokio::spawn(async move {
-          let snapshot = client.refresh(feed, &url).await;
+          let snapshot = client.refresh(&url).await;
           client.refreshing.lock().await.remove(&url);
           sender.send_replace(Some(snapshot));
         });
@@ -279,8 +232,8 @@ impl ProviderClient {
   ///
   /// A failed first load publishes an empty snapshot. When admitting a new URL to a full
   /// cache, evicts the entry with the earliest expiry.
-  async fn refresh(&self, feed: Feed, url: &str) -> Snapshot {
-    let result = self.fetch(feed, url).await;
+  async fn refresh(&self, url: &str) -> Snapshot {
+    let result = self.fetch(url).await;
     let mut cache = self.cache.lock().await;
     let (emotes, set_id, ttl) = match result {
       Ok((emotes, set_id)) => (Arc::from(emotes), set_id, REFRESH),
@@ -293,13 +246,15 @@ impl ProviderClient {
         (stale, id, Duration::from_secs(60))
       }
     };
-    if cache.len() >= MAX_FEEDS
-      && !cache.contains_key(url)
-      && let Some(oldest) = cache
+    let eviction = if cache.len() >= MAX_FEEDS && !cache.contains_key(url) {
+      cache
         .iter()
         .min_by_key(|(_, value)| value.expires)
         .map(|(key, _)| key.clone())
-    {
+    } else {
+      None
+    };
+    if let Some(oldest) = eviction {
       cache.remove(&oldest);
     }
     cache.insert(
@@ -313,75 +268,26 @@ impl ProviderClient {
     emotes
   }
 
-  /// Fetches a feed and returns its normalized entries and optional 7TV set ID.
-  ///
-  /// Twitch requests obtain an application access token before fetching the emotes. The set
-  /// ID is extracted only for 7TV and lets the event worker subscribe to changes for the feed.
+  /// Fetches and normalizes a 7TV feed away from executor threads.
   ///
   /// # Errors
   ///
-  /// Returns an error for missing Twitch credentials, failed token or feed requests,
-  /// oversized bodies, malformed feed metadata, or failure of the blocking normalization task.
-  async fn fetch(&self, feed: Feed, url: &str) -> Result<(Vec<Emote>, Option<String>)> {
-    /// Minimal response used to associate a feed with its WebSocket subscription.
+  /// Returns an error if the request, bounded decoding, or blocking task fails.
+  async fn fetch(&self, url: &str) -> Result<(Vec<Emote>, Option<String>)> {
     #[derive(Deserialize)]
     struct SetId {
       id: Option<String>,
     }
 
-    let request = self.get(url);
-    let response = if matches!(feed, Feed::Twitch) {
-      let (id, secret) = self
-        .twitch
-        .as_ref()
-        .context("Twitch credentials are missing")?;
-      let token: TwitchToken = decode(
-        self
-          .http
-          .post(self.endpoint("https://id.twitch.tv/oauth2/token"))
-          .form(&[
-            ("client_id", id.as_str()),
-            ("client_secret", secret.as_str()),
-            ("grant_type", "client_credentials"),
-          ])
-          .send()
-          .await?,
-      )
-      .await?;
-      request
-        .header("Client-Id", id)
-        .bearer_auth(token.access_token)
-        .send()
-        .await?
-    } else {
-      request.send().await?
-    };
-    let bytes = bounded_bytes(response, MAX_PAYLOAD).await?;
-    // A feed can fill the bounded 4 MiB payload; keep JSON decoding/normalization off
-    // gateway and API executor threads. MAX_REFRESHES also bounds these blocking tasks.
+    let bytes = bounded_bytes(self.get(url).send().await?, MAX_PAYLOAD).await?;
     tokio::task::spawn_blocking(move || {
-      let id = if matches!(feed, Feed::SevenTv) {
-        serde_json::from_slice::<SetId>(&bytes)?
-          .id
-          .filter(|id| valid_seven_id(id))
-      } else {
-        None
-      };
-      Ok((parse_feed(feed, &bytes)?, id))
+      let id = serde_json::from_slice::<SetId>(&bytes)?
+        .id
+        .filter(|id| valid_seven_id(id));
+      Ok((parse_feed(&bytes)?, id))
     })
     .await?
   }
-}
-
-/// Deserializes JSON after reading the response within the provider byte limit.
-///
-/// # Errors
-///
-/// Returns HTTP, response-size, body-read, or deserialization errors from the bounded response.
-async fn decode<T: DeserializeOwned>(response: reqwest::Response) -> Result<T> {
-  Ok(serde_json::from_slice(
-    &bounded_bytes(response, MAX_PAYLOAD).await?,
-  )?)
 }
 
 /// Enforces a byte limit both on the advertised length and as body chunks arrive.
@@ -410,12 +316,6 @@ pub(super) async fn bounded_bytes(
     output.extend_from_slice(&chunk);
   }
   Ok(output)
-}
-
-/// The application access token returned by Twitch's client credentials exchange.
-#[derive(Deserialize)]
-struct TwitchToken {
-  access_token: String,
 }
 
 #[cfg(test)]

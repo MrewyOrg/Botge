@@ -1,7 +1,5 @@
 # Python baseline audit
 
-<!-- cspell:words Pylint absl -->
-
 Reviewed 2026-11-14 against the [pinned sources](README.md). Scope: all shared/agent Python helpers,
 unittest fixtures, root policy, editor configuration, hooks and CI. Evidence is source inspection
 plus scoped checks; this is not a security proof or a claim that every upstream preference is a
@@ -66,10 +64,10 @@ cache manifests. Regression tests cover these boundaries and pydoc publication f
 
 ## Verification
 
-Run `.venv/bin/python scripts/check_python.py` for lock consistency, Ruff, strict Pyright and
-offline unittest fixtures. Optionally build docs separately with
-`.venv/bin/python scripts/doc_python.py`; HTML is generated under ignored `target/pydoc/`. Verify
-cached sources separately with `python3 .agents/scripts/cache_references.py --check`.
+Run `.venv/bin/python scripts/quality/check_python.py` for lock consistency, Ruff, strict Pyright
+and offline unittest fixtures. Optionally build docs separately with
+`.venv/bin/python scripts/quality/doc_python.py`; HTML is generated under ignored `target/pydoc/`.
+Verify cached sources separately with `python3 .agents/scripts/cache_references.py --check`.
 
 Python validation now enforces at least 90% lines and branches per helper file. Coverage includes
 Python subprocesses and maps copied helper fixtures back to their source. Tests and generated files

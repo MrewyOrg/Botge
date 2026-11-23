@@ -182,26 +182,28 @@ test('digest deployment refuses a host Compose file that ignores the image pin',
 test.each(['sha256:bad', 'sha256:' + 'a'.repeat(64) + ';bad'])(
   'client rejects malformed digest %s',
   (value) => {
-    const result = spawnSync('bash', [resolve('scripts/botge-control.sh'), 'deploy', value], {
-      encoding: 'utf8',
-      env: environment
-    });
+    const result = spawnSync(
+      'bash',
+      [resolve('scripts/operations/botge-control.sh'), 'deploy', value],
+      { encoding: 'utf8', env: environment }
+    );
     assert.equal(result.status, 1);
     assert.equal(readFileSync(commands, 'utf8'), '');
   }
 );
 
 test('client forwards an immutable digest without evaluating it', () => {
-  const result = spawnSync('bash', [resolve('scripts/botge-control.sh'), 'deploy', digest], {
-    encoding: 'utf8',
-    env: environment
-  });
+  const result = spawnSync(
+    'bash',
+    [resolve('scripts/operations/botge-control.sh'), 'deploy', digest],
+    { encoding: 'utf8', env: environment }
+  );
   assert.equal(result.status, 0);
   assert.equal(readFileSync(commands, 'utf8'), `DEPLOY ${digest}\n`);
 });
 
 test.each(['up', 'stop', 'deploy'])('client sends the %s request and accepts only OK', (action) => {
-  const result = spawnSync('bash', [resolve('scripts/botge-control.sh'), action], {
+  const result = spawnSync('bash', [resolve('scripts/operations/botge-control.sh'), action], {
     encoding: 'utf8',
     env: environment
   });
@@ -212,7 +214,7 @@ test.each(['up', 'stop', 'deploy'])('client sends the %s request and accepts onl
 test.each(['BUSY', 'ERROR', 'DENIED', 'unexpected'])(
   'client reports a non-success response: %s',
   (response) => {
-    const result = spawnSync('bash', [resolve('scripts/botge-control.sh'), 'deploy'], {
+    const result = spawnSync('bash', [resolve('scripts/operations/botge-control.sh'), 'deploy'], {
       encoding: 'utf8',
       env: { ...environment, TEST_RESPONSE: response }
     });
@@ -222,16 +224,17 @@ test.each(['BUSY', 'ERROR', 'DENIED', 'unexpected'])(
 );
 
 test('client rejects unexpected arguments before opening a connection', () => {
-  const result = spawnSync('bash', [resolve('scripts/botge-control.sh'), 'deploy', 'extra'], {
-    encoding: 'utf8',
-    env: environment
-  });
+  const result = spawnSync(
+    'bash',
+    [resolve('scripts/operations/botge-control.sh'), 'deploy', 'extra'],
+    { encoding: 'utf8', env: environment }
+  );
   assert.equal(result.status, 1);
   assert.equal(readFileSync(commands, 'utf8'), '');
 });
 
 test('client reports transport errors', () => {
-  const result = spawnSync('bash', [resolve('scripts/botge-control.sh'), 'deploy'], {
+  const result = spawnSync('bash', [resolve('scripts/operations/botge-control.sh'), 'deploy'], {
     encoding: 'utf8',
     env: { ...environment, TEST_TRANSPORT_STATUS: '7' }
   });

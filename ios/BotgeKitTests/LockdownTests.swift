@@ -37,7 +37,7 @@ struct LockdownTests {
     #expect(EmoteImageURL.loadPath(for: "/7tv-cdn/emote/01ABC/2x.avif", isAnimated: false) ==
       "/7tv-cdn/emote/01ABC/2x.png")
     #expect(EmoteImageURL.requestURL(for: "/7tv-cdn/emote/01ABC/2x.avif") == nil)
-    #expect(EmoteImageURL.requestURL(for: "/bttv-cdn/emote/1/2x.AVIF") == nil)
+    #expect(EmoteImageURL.requestURL(for: "/7tv-cdn/emote/1/2x.AVIF") == nil)
   }
 
   @Test

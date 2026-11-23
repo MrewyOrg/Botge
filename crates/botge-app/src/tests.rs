@@ -13,8 +13,14 @@ async fn disabled_provider_blocks_added_emotes_and_catalog_is_empty() -> Result<
   let dir = tempfile::tempdir()?;
   let store = Arc::new(Store::open(&dir.path().join("botge.redb"))?);
   let guild = NonZeroU64::MIN;
-  assert!(store.add_emote(guild, example("Stored", "1"))?);
-  let disabled = Application::new(Providers::default(), Arc::clone(&store), None)?;
+  assert_eq!(
+    store.add_emote(
+      botge_storage::CatalogEditor::system(guild),
+      example("Stored", "1")
+    )?,
+    botge_storage::AddEmoteOutcome::Added
+  );
+  let disabled = Application::new(Providers::default(), Arc::clone(&store))?;
   let catalog = disabled.catalog(Some(guild)).await?;
   assert!(catalog.is_empty(), "unexpected catalog emotes: {catalog:?}");
   assert!(
@@ -29,7 +35,6 @@ async fn disabled_provider_blocks_added_emotes_and_catalog_is_empty() -> Result<
       ..Providers::default()
     },
     store,
-    None,
   )?;
   assert_eq!(enabled.catalog(Some(guild)).await?.len(), 1);
   let catalog = enabled.catalog(None).await?;
@@ -57,14 +62,14 @@ async fn cancels_a_loopback_event_worker_and_reports_closed_admission() -> Resul
   });
   let directory = tempfile::tempdir()?;
   let store = Arc::new(Store::open(&directory.path().join("worker.redb"))?);
-  let mut application = Application::new(Providers::default(), store, None)?;
+  let mut application = Application::new(Providers::default(), store)?;
   application.use_provider_fixture(endpoint);
   assert!(format!("{application:?}").contains("Application"));
   application.render_slot.close();
   std::assert_matches!(application.reserve_render_fixture().await, Err(_));
   let application = Arc::new(application);
   let worker = tokio::spawn(async move { application.watch_sets().await });
-  tokio::time::timeout(std::time::Duration::from_secs(2), received).await??;
+  tokio::time::timeout(Duration::from_secs(2), received).await??;
   worker.abort();
   std::assert_matches!(worker.await,Err(error) if error.is_cancelled());
   server.await??;
@@ -75,20 +80,12 @@ async fn cancels_a_loopback_event_worker_and_reports_closed_admission() -> Resul
 async fn reports_saved_state_and_blocking_task_failures() -> Result<()> {
   let directory = tempfile::tempdir()?;
   let store = Arc::new(Store::open(&directory.path().join("errors.redb"))?);
-  let application = Application::new(Providers::default(), Arc::clone(&store), None)?;
+  let application = Application::new(Providers::default(), Arc::clone(&store))?;
   store.invalidate_table("emote_borders")?;
   std::assert_matches!(application.border_for_user(NonZeroU64::MIN).await, Err(_));
-  let panicking = Application::new(
-    Providers::default(),
-    Arc::new(Store::panic_read_fixture()?),
-    None,
-  )?;
+  let panicking = Application::new(Providers::default(), Arc::new(Store::panic_read_fixture()?))?;
   std::assert_matches!(panicking.catalog(Some(NonZeroU64::MIN)).await, Err(_));
-  let panicking = Application::new(
-    Providers::default(),
-    Arc::new(Store::panic_read_fixture()?),
-    None,
-  )?;
+  let panicking = Application::new(Providers::default(), Arc::new(Store::panic_read_fixture()?))?;
   std::assert_matches!(panicking.border_for_user(NonZeroU64::MIN).await, Err(_));
   Ok(())
 }

@@ -11,28 +11,13 @@ pub enum Source {
   #[doc(alias = "7TV")]
   #[serde(rename = "7TV")]
   SevenTv,
-  /// BTTV global and channel feeds.
-  #[doc(alias = "BTTV")]
-  #[serde(rename = "BTTV")]
-  BetterTtv,
-  /// FFZ global and channel feeds.
-  #[doc(alias = "FrankerFaceZ")]
-  #[serde(rename = "FFZ")]
-  Ffz,
-  /// Twitch global emotes, enabled only with operator credentials.
-  Twitch,
 }
 
 impl Source {
   /// Returns the provider hostname and the path prefix used by the image cache.
   #[must_use]
-  pub const fn cdn(self) -> (&'static str, &'static str) {
-    match self {
-      Self::SevenTv => ("cdn.7tv.app", "7tv"),
-      Self::BetterTtv => ("cdn.betterttv.net", "bttv"),
-      Self::Ffz => ("cdn.frankerfacez.com", "ffz"),
-      Self::Twitch => ("static-cdn.jtvnw.net", "twitch"),
-    }
+  pub const fn cdn() -> (&'static str, &'static str) {
+    ("cdn.7tv.app", "7tv")
   }
 }
 
@@ -88,9 +73,9 @@ impl Emote {
   }
 
   /// Converts a CDN URL to an Activity-relative path while retaining its query.
-  fn mapped_image(&self, image: &str) -> Option<String> {
-    let url = cdn_url(image, self.source)?;
-    let (_, path) = self.source.cdn();
+  fn mapped_image(image: &str) -> Option<String> {
+    let url = cdn_url(image)?;
+    let (_, path) = Source::cdn();
     let query = url
       .query()
       .map_or_else(String::new, |query| format!("?{query}"));
@@ -139,10 +124,8 @@ pub fn browser_catalog<'a>(
   let mut names = HashSet::with_capacity(emotes.len());
   emotes
     .filter_map(|emote| {
-      let image = emote.mapped_image(&emote.image)?;
-      let preview = emote
-        .mapped_image(emote.image_at(4))
-        .filter(|preview| *preview != image);
+      let image = Emote::mapped_image(&emote.image)?;
+      let preview = Emote::mapped_image(emote.image_at(4)).filter(|preview| *preview != image);
       let unique = names.insert(emote.name.to_ascii_lowercase());
       Some(CatalogEmote {
         details: CatalogDetails {
@@ -167,14 +150,11 @@ pub fn browser_catalog<'a>(
 
 /// Guild-level feed selections and the policy for managing individual additions.
 #[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
-#[serde(default, rename_all = "camelCase", deny_unknown_fields)]
+// Older database records may include fields for feeds that are no longer supported.
+#[serde(default, rename_all = "camelCase")]
 pub struct GuildEmotes {
   /// The selected personal 7TV set, when enabled.
   pub seven_tv_set: Option<String>,
-  /// The Twitch channel whose BTTV additions are included.
-  pub bttv_twitch_id: Option<String>,
-  /// The FFZ channel name whose emotes are included.
-  pub ffz_channel: Option<String>,
   /// Whether all guild members may manage individual additions.
   pub allow_everyone: bool,
   /// Role IDs allowed to manage individual additions.
@@ -185,15 +165,6 @@ impl GuildEmotes {
   /// Checks IDs, channel names, and the role selection before these values are stored.
   pub fn valid(&self) -> bool {
     self.seven_tv_set.as_deref().is_none_or(valid_seven_id)
-      && self
-        .bttv_twitch_id
-        .as_deref()
-        .is_none_or(|id| !id.is_empty() && id.len() <= 20 && id.bytes().all(|b| b.is_ascii_digit()))
-      && self.ffz_channel.as_deref().is_none_or(|name| {
-        !name.is_empty()
-          && name.len() <= 25
-          && name.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'_')
-      })
       && self.allowed_roles.len() <= 25
       && self
         .allowed_roles
@@ -201,10 +172,10 @@ impl GuildEmotes {
         .all(|id| crate::settings::discord_id(id).is_some())
   }
 
-  /// Grants management through administrator access, the everyone switch, or a matching role.
+  /// Grants ordinary members management through the everyone switch or a matching role.
   #[must_use]
-  pub fn can_manage(&self, admin: bool, roles: &[String]) -> bool {
-    admin || self.allow_everyone || roles.iter().any(|role| self.allowed_roles.contains(role))
+  pub fn allows_member_management(&self, roles: &[String]) -> bool {
+    self.allow_everyone || roles.iter().any(|role| self.allowed_roles.contains(role))
   }
 }
 
@@ -215,22 +186,12 @@ pub fn valid_seven_id(id: &str) -> bool {
     || (id.len() == 26 && id.bytes().all(|b| b.is_ascii_alphanumeric()))
 }
 
-/// Checks an opaque provider ID before it becomes a CDN path component.
-#[must_use]
-pub fn safe_id(id: &str) -> bool {
-  !id.is_empty()
-    && id.len() <= 80
-    && id
-      .bytes()
-      .all(|b| b.is_ascii_alphanumeric() || b == b'_' || b == b'-')
-}
-
 /// Limits media downloads to the provider's HTTPS CDN and default port.
 #[must_use]
-pub fn cdn_url(input: &str, source: Source) -> Option<Url> {
+pub fn cdn_url(input: &str) -> Option<Url> {
   let url = Url::parse(input).ok()?;
   (url.scheme() == "https"
-    && url.host_str() == Some(source.cdn().0)
+    && url.host_str() == Some(Source::cdn().0)
     && url.port().is_none()
     && url.username().is_empty()
     && url.password().is_none()

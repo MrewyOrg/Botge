@@ -27,11 +27,6 @@ jobs:
       pull-requests: read
 
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v7.0.1
-        with:
-          persist-credentials: false
-
       - name: Filter paths
         uses: dorny/paths-filter@v4.0.3
         id: changes
@@ -39,10 +34,17 @@ jobs:
           filters: |
             actions:
               - '.github/workflows/actions.lock'
-              - '.github/workflows/*.yml'
+              - '.github/workflows/*.{yml,yaml}'
+              - '.github/actions/**'
+
+      - name: Checkout repository
+        if: steps.changes.outputs.actions == 'true'
+        uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
 
       - name: Verify
-        if: steps.changes.outputs['actions'] == 'true'
+        if: steps.changes.outputs.actions == 'true'
         run: |
           gh extension install github/gh-actions-lock --pin v0.4.1
           gh actions-lock --verify

@@ -1,5 +1,3 @@
-<!-- cspell:words gpasswd -->
-
 # Botge control setup
 
 Run Botge on a Debian 13 host with rootless Docker. Local or remote accounts control the stack
@@ -39,8 +37,9 @@ Setup preserves existing control config, Compose files, application settings, an
 sudo bash "$BOTGE_DOWNLOAD_DIR/botge_control/setup" "$BOTGE_CONTROL_NAME"
 ```
 
-If your installed setup script predates the `.sh` source filenames, download and run the current
-`setup.sh` first. It updates the saved setup script and keeps the installed command paths.
+If your installed setup script predates the `scripts/operations/` source folder, download and run
+the current `setup.sh` first. It updates the saved setup script and keeps the installed command
+paths, including `/opt/<control-name>/scripts/botge-control`.
 
 ## Configure and operate
 
@@ -48,6 +47,11 @@ Edit `.env` and `botge.config.json` in `/home/<control-name>/botge`. Setup insta
 Botge and nginx Compose stack and preserves existing configuration on reruns. Botge runs as `botge`
 (UID 1000) and stores redb in the `botge-data` volume. Copying legacy SQLite files does not migrate
 them to redb.
+
+To enable the Activity API, add the settings from [compose.activity.yaml](../compose.activity.yaml)
+to the installation's `compose.override.yaml`. The control handler loads that file automatically.
+Use the [API HTTPS endpoint guide](../activity/README.md#api-https-endpoint) to connect Discord's
+`/botge-api` mapping to the loopback listener on this host.
 
 The [operations wiki](https://github.com/MrewyOrg/Botge/wiki/Operations) documents start, stop,
 deploy, configuration updates, and log commands. The control handler serializes operations and waits

@@ -78,6 +78,7 @@ impl GuildAccess for TestAccess {
     match code {
       "admin" => Ok(NonZeroU64::MIN),
       "member" => Ok(NonZeroU64::MAX),
+      "manager" => Ok(NonZeroU64::MIN.saturating_add(1)),
       _ => Err(botge_app::access::AccessError::UNAUTHORIZED),
     }
   }
@@ -159,7 +160,6 @@ impl Fixture {
       application: Arc::new(Application::new(
         botge_domain::providers::Providers::default(),
         Arc::clone(&self.store),
-        None,
       )?),
       voice_changed: Arc::clone(&self.changed),
       slots: Semaphore::new(8),
@@ -186,7 +186,6 @@ impl Fixture {
         ..Default::default()
       },
       Arc::clone(&store),
-      None,
     )?;
     if let Some(origin) = origin {
       application.set_game_cache(Some(origin.clone()));
@@ -438,7 +437,6 @@ async fn maps_database_failures_and_bounds_concurrent_requests() -> anyhow::Resu
     application: Arc::new(Application::new(
       botge_domain::providers::Providers::default(),
       Arc::clone(&fixture.store),
-      None,
     )?),
     voice_changed: Arc::clone(&fixture.changed),
     slots: Semaphore::new(1),

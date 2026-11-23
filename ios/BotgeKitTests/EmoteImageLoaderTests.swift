@@ -3,7 +3,7 @@ import Foundation
 import Testing
 
 struct EmoteImageLoaderTests {
-  private static let path = "/bttv-cdn/emote/abc/2x"
+  private static let path = "/7tv-cdn/emote/abc/2x"
 
   @Test
   func `decoded images are served from memory until cleared`() async {

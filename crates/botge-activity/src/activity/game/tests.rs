@@ -430,7 +430,12 @@ async fn serves_the_round_image_and_answers_paced_guesses() -> anyhow::Result<()
   let fixture = Fixture::with_emotes(Some(upstream.origin.clone()))?;
   for index in 0..botge_app::game::MIN_POOL {
     let emote = botge_test_support::example(&format!("Emote{index}"), &format!("{index:024x}"));
-    assert!(fixture.store.add_emote(NonZeroU64::MIN, emote)?);
+    assert_eq!(
+      fixture
+        .store
+        .add_emote(botge_storage::CatalogEditor::system(NonZeroU64::MIN), emote)?,
+      botge_storage::AddEmoteOutcome::Added
+    );
   }
   let mut player = Player::seated(&fixture, "admin").await?;
   player.say(&json!({"type":"start"}))?;

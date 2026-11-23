@@ -176,6 +176,18 @@ test('removes an individually added emote and refreshes the server catalog', asy
   expect(element('#remove').hidden).toBe(false);
   expect(element('#add').hidden).toBe(true);
   expect(element('#preview-source').textContent).toBe('7TV · Added');
+
+  previewDialog().close();
+  click('#results .tile-actions');
+  const remove = [
+    ...document.querySelectorAll<HTMLButtonElement>('#emote-context-menu button')
+  ].find(
+    (button: Readonly<Pick<HTMLButtonElement, 'textContent'>>) =>
+      button.textContent === 'Remove from this server'
+  );
+  requireValue(remove, 'Missing remove action').click();
+  await waitForText('#message', 'Removed emote.');
+  expect(document.activeElement).toBe(element('#catalog-heading'));
 });
 
 test('keeps loaded discovery pages when an added emote refreshes the server catalog', async () => {
@@ -230,6 +242,7 @@ test('keeps loaded discovery pages when an added emote refreshes the server cata
   click('#more');
   await waitForText('#results', 'Second');
   const first = element('#results .tile');
+  const second = element('#results li:nth-child(2) .tile');
   first.focus();
   first.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
   const serverAction = [
@@ -239,7 +252,7 @@ test('keeps loaded discovery pages when an added emote refreshes the server cata
       button.textContent === 'Add to this server'
   );
   requireValue(serverAction, 'Missing add to server action').click();
-  first.focus();
+  element('#results .tile-actions').focus();
   await waitForText('#message', 'Added emote.');
 
   expect(discoveryCount).toBe(2);
@@ -248,8 +261,9 @@ test('keeps loaded discovery pages when an added emote refreshes the server cata
   );
   expect(names).toEqual(['First', 'Second']);
   expect(element('#results .tile').textContent).toContain('Added');
-  // The redrawn tile takes over keyboard focus from the replaced one.
-  expect(document.activeElement).toBe(element('#results .tile'));
+  expect(element('#results li:nth-child(2) .tile')).toBe(second);
+  // The same control takes focus when a tile's metadata changes.
+  expect(document.activeElement).toBe(element('#results .tile-actions'));
   click('#results .tile');
   expect(element('#add').hidden).toBe(true);
 });

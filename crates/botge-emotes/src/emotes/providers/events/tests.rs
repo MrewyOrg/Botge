@@ -19,7 +19,7 @@ use crate::emotes::providers::Cached;
 #[tokio::test]
 async fn accepts_control_frames_and_times_out_a_silent_provider() -> Result<()> {
   for close in [true, false] {
-    let client = std::sync::Arc::new(ProviderClient::new(None)?);
+    let client = std::sync::Arc::new(ProviderClient::new()?);
     client.cache.lock().await.insert(
       "set".into(),
       Cached {
@@ -63,7 +63,7 @@ async fn accepts_control_frames_and_times_out_a_silent_provider() -> Result<()> 
   reason = "Keep the sequential fixture setup, actions, and assertions in one scenario"
 )]
 async fn subscribes_invalidates_changed_snapshots_and_unsubscribes_evicted_sets() -> Result<()> {
-  let client = ProviderClient::new(None)?;
+  let client = ProviderClient::new()?;
   let id = "01234567890123456789012345";
   client.cache.lock().await.insert(
     "set".into(),
@@ -186,7 +186,7 @@ async fn keeps_watching_after_provider_disconnects_and_bad_events() -> Result<()
   async fn reconnect_after(message: &str) -> Result<()> {
     use tracing::instrument::WithSubscriber as _;
     let logs = botge_test_support::TestLogs::default();
-    let client = ProviderClient::new(None)?;
+    let client = ProviderClient::new()?;
     let id = "01234567890123456789012345";
     client.cache.lock().await.insert(
       "set".into(),
@@ -231,7 +231,7 @@ async fn keeps_watching_after_provider_disconnects_and_bad_events() -> Result<()
 async fn bounds_a_stalled_handshake_and_propagates_connection_refusal() -> Result<()> {
   let listener = TcpListener::bind("127.0.0.1:0").await?;
   let url = format!("ws://{}", listener.local_addr()?);
-  let client = ProviderClient::new(None)?;
+  let client = ProviderClient::new()?;
   let stalled = tokio::spawn(async move { client.event_session(&url).await });
   let (connection, _) = listener.accept().await?;
   tokio::time::pause();
@@ -240,13 +240,13 @@ async fn bounds_a_stalled_handshake_and_propagates_connection_refusal() -> Resul
   drop(connection);
   let url = format!("ws://{}", listener.local_addr()?);
   drop(listener);
-  std::assert_matches!(ProviderClient::new(None)?.event_session(&url).await, Err(_));
+  std::assert_matches!(ProviderClient::new()?.event_session(&url).await, Err(_));
   Ok(())
 }
 
 #[tokio::test]
 async fn announces_changed_sets_that_a_cached_feed_uses() -> Result<()> {
-  let client = ProviderClient::new(None)?;
+  let client = ProviderClient::new()?;
   let personal = "01234567890123456789012345";
   let global = "abcdefabcdefabcdefabcdef";
   let cached = |set_id: &str| Cached {

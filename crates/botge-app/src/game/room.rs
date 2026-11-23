@@ -1,5 +1,3 @@
-// cspell:words Deque
-
 //! One room's players, phases and scoring, and the snapshot each connection receives.
 
 use std::{
@@ -136,6 +134,26 @@ pub(super) struct State {
   pub(super) task: Option<JoinHandle<()>>,
 }
 
+impl State {
+  /// Moves a waiting room to loading and clears the last match's scores.
+  pub(super) fn open_match(&mut self) -> bool {
+    if !matches!(self.phase, Phase::Lobby | Phase::Final) {
+      return false;
+    }
+    self.phase = Phase::Loading;
+    self.round = 0;
+    self.rounds = 0;
+    self.notice = None;
+    self.image = None;
+    self.guesses.clear();
+    self.players.retain(|_, player| player.seats > 0);
+    for player in self.players.values_mut() {
+      player.score = 0;
+    }
+    true
+  }
+}
+
 /// One room's state and the version counter its connections watch.
 #[derive(Debug)]
 pub(super) struct Room {
@@ -196,23 +214,16 @@ impl Room {
     empty
   }
 
-  /// Moves a waiting room to loading and clears the last match's scores.
-  pub(super) fn open_match(&self) -> bool {
+  /// Starts a waiting room's match and records its cancellation handle before it can finish.
+  pub(super) fn start_match(&self, task: impl Future<Output = ()> + Send + 'static) -> bool {
     let mut state = self.lock();
-    if !matches!(state.phase, Phase::Lobby | Phase::Final) {
+    if !state.open_match() {
       return false;
     }
-    state.phase = Phase::Loading;
-    state.round = 0;
-    state.rounds = 0;
-    state.notice = None;
-    state.image = None;
-    state.guesses.clear();
-    state.players.retain(|_, player| player.seats > 0);
-    for player in state.players.values_mut() {
-      player.score = 0;
-    }
+    // Tokio's spawn never polls synchronously. A running match must take this lock to finish.
+    state.task = Some(tokio::spawn(task));
     drop(state);
+    self.publish();
     true
   }
 

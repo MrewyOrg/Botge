@@ -35,9 +35,9 @@ impl GuildAccess for Access {
     &self,
     _guild: NonZeroU64,
     credential: &Credential,
-  ) -> impl Future<Output = Result<super::super::access::Membership, ApiError>> + Send {
-    std::future::ready(Ok(super::super::access::Membership {
-      administrator: credential.token() == "admin",
+  ) -> impl Future<Output = Result<Membership, ApiError>> + Send {
+    std::future::ready(Ok(Membership {
+      administrator: matches!(credential.token(), "admin" | "identity-unavailable"),
       roles: vec![],
       available_roles: vec![],
     }))
@@ -65,15 +65,151 @@ impl GuildAccess for Access {
 }
 
 #[tokio::test]
+async fn catalog_history_rechecks_identity_and_refuses_outdated_restores() -> Result<()> {
+  use std::assert_matches;
+
+  let directory = tempfile::tempdir()?;
+  let store = Arc::new(Store::open(&directory.path().join("restore.redb"))?);
+  let app = Application::new(Providers::default(), Arc::clone(&store))?;
+  let guild = NonZeroU64::MIN;
+  let editor = CatalogEditor::system(guild);
+  let administrator = Credential::new("admin".into());
+  let member = Credential::new("member".into());
+  let unidentified = Credential::new("identity-unavailable".into());
+  assert_matches!(
+    app.catalog_history(&Access, guild, &member).await,
+    Err(ApiError(FailureKind::PermissionDenied, _))
+  );
+  assert_matches!(
+    app
+      .preview_catalog_restore(&Access, guild, &member, 0)
+      .await,
+    Err(ApiError(FailureKind::PermissionDenied, _))
+  );
+  assert_matches!(
+    app.restore_catalog(&Access, guild, &member, 0, 0).await,
+    Err(ApiError(FailureKind::PermissionDenied, _))
+  );
+  assert_matches!(
+    app
+      .restore_catalog(&Access, guild, &unidentified, 0, 0)
+      .await,
+    Err(ApiError(FailureKind::Unauthenticated, _))
+  );
+  assert_matches!(
+    app
+      .preview_catalog_restore(&Access, guild, &administrator, 0)
+      .await,
+    Err(ApiError(FailureKind::NotFound, _))
+  );
+  assert_matches!(
+    app
+      .restore_catalog(&Access, guild, &administrator, 0, 0)
+      .await,
+    Err(ApiError(FailureKind::NotFound, _))
+  );
+
+  let emote = example("Wave", "1");
+  store.add_emote(editor, emote.clone())?;
+  let history = app.catalog_history(&Access, guild, &administrator).await?;
+  assert_eq!(history.current_revision, 1);
+  let preview = app
+    .preview_catalog_restore(&Access, guild, &administrator, 0)
+    .await?;
+  assert_eq!(preview.removed, ["Wave"]);
+  assert_matches!(
+    app
+      .restore_catalog(&Access, guild, &administrator, 0, 1)
+      .await,
+    Err(ApiError(FailureKind::PermissionDenied, _))
+  );
+  assert_eq!(
+    app
+      .restore_catalog(&Access, guild, &administrator, 1, 1)
+      .await?,
+    1
+  );
+
+  let enabled = Application::new(
+    Providers {
+      seven_added: true,
+      ..Default::default()
+    },
+    Arc::clone(&store),
+  )?;
+  store.save_untracked_policy_fixture(
+    guild,
+    &GuildEmotes {
+      allow_everyone: true,
+      ..Default::default()
+    },
+  )?;
+  assert_matches!(
+    enabled
+      .restore_catalog(&Access, guild, &administrator, 0, 1)
+      .await,
+    Err(ApiError(
+      FailureKind::Conflict,
+      "The catalog changed outside its history. Save a catalog edit before restoring."
+    ))
+  );
+  assert_eq!(store.added_emotes(guild)?, [emote]);
+  store.save_guild_emotes(editor, &GuildEmotes::default())?;
+  assert_matches!(
+    enabled
+      .restore_catalog(&Access, guild, &administrator, 0, 1)
+      .await,
+    Err(ApiError(FailureKind::Conflict, _))
+  );
+  assert_eq!(
+    enabled
+      .restore_catalog(&Access, guild, &administrator, 0, 2)
+      .await?,
+    3
+  );
+  assert_eq!(store.added_emotes(guild)?, []);
+  Ok(())
+}
+
+#[tokio::test]
+async fn catalog_history_reports_worker_failures_as_service_errors() -> Result<()> {
+  use std::assert_matches;
+
+  let guild = NonZeroU64::MIN;
+  let admin = Credential::new("admin".into());
+  let fixture = || Application::new(Providers::default(), Arc::new(Store::panic_read_fixture()?));
+  assert_matches!(
+    fixture()?.catalog_history(&Access, guild, &admin).await,
+    Err(ApiError(FailureKind::Internal, _))
+  );
+  assert_matches!(
+    fixture()?
+      .preview_catalog_restore(&Access, guild, &admin, 0)
+      .await,
+    Err(ApiError(FailureKind::Internal, _))
+  );
+  assert_matches!(
+    fixture()?
+      .restore_catalog(&Access, guild, &admin, 0, 1)
+      .await,
+    Err(ApiError(FailureKind::Internal, _))
+  );
+  Ok(())
+}
+
+#[tokio::test]
 async fn rejects_id_conflicts_and_concurrent_additions_after_a_stale_catalog_read() -> Result<()> {
   let directory = tempfile::tempdir()?;
   let store = Arc::new(Store::open(&directory.path().join("catalog.redb"))?);
-  let application = Application::new(Providers::default(), Arc::clone(&store), None)?;
+  let application = Application::new(Providers::default(), Arc::clone(&store))?;
   let emote = example("Wave", "01234567890123456789012345");
-  assert!(store.add_emote(NonZeroU64::MIN, emote.clone())?);
+  assert_eq!(
+    store.add_emote(CatalogEditor::system(NonZeroU64::MIN), emote.clone())?,
+    AddEmoteOutcome::Added
+  );
   let error = application
     .add_to_catalog(
-      NonZeroU64::MIN,
+      CatalogEditor::system(NonZeroU64::MIN),
       emote.clone(),
       &Catalog::new(vec![], vec![]),
     )
@@ -84,7 +220,11 @@ async fn rejects_id_conflicts_and_concurrent_additions_after_a_stale_catalog_rea
   let mut renamed = emote.clone();
   renamed.name = "Renamed".into();
   let error = application
-    .add_to_catalog(NonZeroU64::MIN, renamed, &Catalog::new(vec![emote], vec![]))
+    .add_to_catalog(
+      CatalogEditor::system(NonZeroU64::MIN),
+      renamed,
+      &Catalog::new(vec![emote], vec![]),
+    )
     .await
     .err()
     .ok_or_else(|| anyhow::anyhow!("duplicate ID was accepted"))?;
@@ -97,10 +237,13 @@ async fn rejects_id_conflicts_and_concurrent_additions_after_a_stale_catalog_rea
 async fn explains_why_an_addition_conflicts() -> Result<()> {
   let directory = tempfile::tempdir()?;
   let store = Arc::new(Store::open(&directory.path().join("reasons.redb"))?);
-  let application = Application::new(Providers::default(), Arc::clone(&store), None)?;
+  let application = Application::new(Providers::default(), Arc::clone(&store))?;
   let guild = NonZeroU64::MIN;
   let saved = example("Wave", "01234567890123456789012345");
-  assert!(store.add_emote(guild, saved.clone())?);
+  assert_eq!(
+    store.add_emote(CatalogEditor::system(guild), saved.clone())?,
+    AddEmoteOutcome::Added
+  );
   let stale = Catalog::new(vec![], vec![]);
   let fresh = Catalog::new(vec![saved.clone()], vec![]);
   let mut same_name = example("wave", "11234567890123456789012345");
@@ -113,18 +256,23 @@ async fn explains_why_an_addition_conflicts() -> Result<()> {
     (same_name, &stale, NAME_TAKEN.1),
   ] {
     let error = application
-      .add_to_catalog(guild, emote, catalog)
+      .add_to_catalog(CatalogEditor::system(guild), emote, catalog)
       .await
       .err()
       .ok_or_else(|| anyhow::anyhow!("conflict was accepted"))?;
     assert_eq!(error.1, expected);
   }
   let full = NonZeroU64::MAX;
-  for index in 0..1000 {
-    assert!(store.add_emote(full, example(&format!("Fill{index}"), &index.to_string()))?);
-  }
+  let entries: Vec<_> = (0..1000)
+    .map(|index| example(&format!("Fill{index}"), &index.to_string()))
+    .collect();
+  store.save_untracked_emotes_fixture(full, &entries)?;
   let error = application
-    .add_to_catalog(full, example("Extra", "21234567890123456789012345"), &stale)
+    .add_to_catalog(
+      CatalogEditor::system(full),
+      example("Extra", "21234567890123456789012345"),
+      &stale,
+    )
     .await
     .err()
     .ok_or_else(|| anyhow::anyhow!("full catalog accepted an addition"))?;
@@ -146,7 +294,6 @@ async fn denies_writes_and_wakes_voice_only_after_a_valid_commit() -> Result<()>
       ..Providers::default()
     },
     Arc::clone(&store),
-    None,
   )?;
   let guild = NonZeroU64::MIN;
   let member = Credential::new("member".into());
@@ -237,7 +384,6 @@ async fn distinguishes_provider_identity_and_rechecks_member_capabilities() -> R
       ..Providers::default()
     },
     Arc::clone(&store),
-    None,
   )?;
   let guild = NonZeroU64::MIN;
   let member = Credential::new("member".into());
@@ -249,20 +395,23 @@ async fn distinguishes_provider_identity_and_rechecks_member_capabilities() -> R
   assert!(view.can_compose_discovery);
 
   let proposed = example("New", "shared-provider-id");
-  let mut other = example("Existing", "shared-provider-id");
-  other.source = botge_domain::emotes::Source::BetterTtv;
+  let other = example("Existing", "different-id");
   application
-    .add_to_catalog(guild, proposed, &Catalog::new(vec![other], vec![]))
+    .add_to_catalog(
+      CatalogEditor::system(guild),
+      proposed,
+      &Catalog::new(vec![other], vec![]),
+    )
     .await
     .map_err(|error| anyhow::anyhow!(error.1))?;
   assert_eq!(store.added_emotes(guild)?.len(), 1);
   application
-    .remove_from_catalog(guild, "shared-provider-id".into())
+    .remove_from_catalog(CatalogEditor::system(guild), "shared-provider-id".into())
     .await
     .map_err(|error| anyhow::anyhow!(error.1))?;
   assert_matches!(
     application
-      .remove_from_catalog(guild, "shared-provider-id".into())
+      .remove_from_catalog(CatalogEditor::system(guild), "shared-provider-id".into())
       .await,
     Err(ApiError(FailureKind::NotFound, _))
   );
@@ -280,7 +429,6 @@ async fn rejects_invalid_mutations_before_any_provider_or_storage_write() -> Res
       ..Providers::default()
     },
     Arc::clone(&store),
-    None,
   )?;
   let guild = NonZeroU64::MIN;
   let admin = Credential::new("admin".into());
@@ -311,7 +459,7 @@ async fn rejects_invalid_mutations_before_any_provider_or_storage_write() -> Res
     );
   }
   let invalid = GuildEmotes {
-    ffz_channel: Some("not/a/channel".into()),
+    seven_tv_set: Some("not/a/set".into()),
     ..GuildEmotes::default()
   };
   assert_matches!(
@@ -339,7 +487,7 @@ async fn rejects_invalid_mutations_before_any_provider_or_storage_write() -> Res
 async fn disabled_additions_never_offer_management_even_to_administrators() -> Result<()> {
   let directory = tempfile::tempdir()?;
   let store = Arc::new(Store::open(&directory.path().join("disabled.redb"))?);
-  let application = Application::new(Providers::default(), store, None)?;
+  let application = Application::new(Providers::default(), store)?;
   let catalog = application
     .guild_catalog(&Access, NonZeroU64::MIN, &Credential::new("admin".into()))
     .await

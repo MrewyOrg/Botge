@@ -66,15 +66,17 @@ async fn sends_name_and_size_choices_to_discord() -> Result<()> {
 
   let dir = tempfile::tempdir()?;
   let store = Arc::new(crate::storage::Store::open(&dir.path().join("botge.redb"))?);
-  store.add_emote(NonZeroU64::MIN, botge_test_support::example("Wave", "1"))?;
+  store.add_emote(
+    botge_storage::CatalogEditor::system(NonZeroU64::MIN),
+    botge_test_support::example("Wave", "1"),
+  )?;
   let mut emotes = Application::new(
     botge_domain::providers::Providers {
       seven_added: true,
-      bttv: true,
+      seven_global: true,
       ..Default::default()
     },
     store,
-    None,
   )?;
   let (sender, mut choices) = mpsc::unbounded_channel();
   let server = crate::tests::TestServer::start(
@@ -87,8 +89,8 @@ async fn sends_name_and_size_choices_to_discord() -> Result<()> {
         }),
       )
       .route(
-        "/3/cached/emotes/global",
-        get(|| async { Json(json!([{"id":"valid","code":"GlobalWave","animated":false}])) }),
+        "/v3/emote-sets/global",
+        get(|| async { Json(json!({"emotes":[{"name":"GlobalWave","flags":0,"data":botge_test_support::seven_example("GlobalWave", false, 0)}]})) }),
       ),
   )
   .await?;
@@ -144,7 +146,6 @@ async fn returns_empty_choices_for_unavailable_catalogs_and_propagates_callback_
     Arc::new(Application::new(
       botge_domain::providers::Providers::default(),
       store,
-      None,
     )?),
     None,
   );

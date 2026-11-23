@@ -4,6 +4,7 @@ paths-ignore:
   - target
   - '**/node_modules'
   - activity/dist
+  - activity/server/internal/site/dist
   - coverage
   - .venv
   - .ruff_cache

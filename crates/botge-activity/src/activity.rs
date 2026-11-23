@@ -16,6 +16,7 @@
 
 mod border;
 mod catalog;
+mod catalog_history;
 mod game;
 mod socket;
 mod voice;
@@ -286,6 +287,15 @@ fn shared_routes<A: GuildAccess>() -> Router<Arc<Activity<A>>> {
     .route("/settings", post(voice::read_settings::<A>))
     .route("/settings/voice", post(voice::save_settings::<A>))
     .route("/catalog", post(catalog::read_catalog::<A>))
+    .route("/catalog/history", post(catalog_history::list::<A>))
+    .route(
+      "/catalog/history/preview",
+      post(catalog_history::preview::<A>),
+    )
+    .route(
+      "/catalog/history/restore",
+      post(catalog_history::restore::<A>),
+    )
     .route("/emotes", post(catalog::add_emote::<A>))
     .route("/emotes/remove", post(catalog::remove_emote::<A>))
     .route("/emotes/batch", post(catalog::change_emotes::<A>))

@@ -71,14 +71,67 @@ test('uses the tile as a keyboard anchor and supports navigation and dismissal',
   expect(menu.hidden).toBe(true);
 });
 
-test('focuses the menu itself when opened by pointer, then navigates from the first action', () => {
+test('starts pointer-opened menu navigation at the first or last action', () => {
   const { tile, menu } = fixture();
   const context = createContextMenu();
-  context.open(tile, 20, 25, [
+  const actions = [
     { label: 'Compose', run: vi.fn() },
+    { label: 'Remove', run: vi.fn() },
     { label: 'Details', run: vi.fn() }
-  ]);
+  ] as const;
+  context.open(tile, 20, 25, actions);
+  menu.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, key: 'ArrowUp' }));
+  expect(document.activeElement?.textContent).toBe('Details');
+  context.open(tile, 20, 25, actions);
   expect(document.activeElement).toBe(menu);
   menu.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, key: 'ArrowDown' }));
   expect(document.activeElement?.textContent).toBe('Compose');
+});
+
+test('tracks native popover dismissal and restores focus on explicit dismissal', () => {
+  const { tile, menu } = fixture();
+  tile.setAttribute('aria-haspopup', 'menu');
+  let open = false;
+  const show = vi.fn(() => {
+    open = true;
+  });
+  const hide = vi.fn(() => {
+    open = false;
+  });
+  Object.defineProperties(menu, { showPopover: { value: show }, hidePopover: { value: hide } });
+  const matches = menu.matches.bind(menu);
+  const match = vi
+    .spyOn(menu, 'matches')
+    .mockImplementation((selector) => (selector === ':popover-open' ? open : matches(selector)));
+  try {
+    const context = createContextMenu();
+    const actions = [{ label: 'Details', run: vi.fn() }] as const;
+    context.open(tile, 0, 0, actions);
+    expect(show).toHaveBeenCalledWith({ source: tile });
+    menu.dispatchEvent(new Event('toggle'));
+    expect(tile.getAttribute('aria-expanded')).toBe('true');
+    context.dismiss();
+    expect(hide).toHaveBeenCalledOnce();
+    expect(document.activeElement).toBe(tile);
+
+    context.open(tile, 0, 0, actions);
+    open = false;
+    menu.dispatchEvent(new Event('toggle'));
+    expect(menu.hidden).toBe(true);
+    expect(tile.getAttribute('aria-expanded')).toBe('false');
+    expect(hide).toHaveBeenCalledOnce();
+  } finally {
+    match.mockRestore();
+  }
+});
+
+test('keeps the fallback menu open through a pointer down on its trigger', () => {
+  const { tile, menu } = fixture();
+  tile.setAttribute('aria-haspopup', 'menu');
+  const context = createContextMenu();
+  context.open(tile, 0, 0, [{ label: 'Details', run: vi.fn() }]);
+  tile.dispatchEvent(new Event('pointerdown', { bubbles: true }));
+  expect(menu.hidden).toBe(false);
+  document.body.dispatchEvent(new Event('pointerdown', { bubbles: true }));
+  expect(menu.hidden).toBe(true);
 });

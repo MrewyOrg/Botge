@@ -23,6 +23,21 @@
   }
 }
 
+.tile-actions {
+  position: absolute;
+  z-index: 1;
+  inset-block-start: 0.25rem;
+  inset-inline-start: 0.25rem;
+  display: grid;
+  width: 2rem;
+  min-height: 2rem;
+  place-items: center;
+  padding: 0;
+  border-radius: 50%;
+  background: var(--floating);
+  line-height: 1;
+}
+
 // One-click composer button layered over the tile corner; hidden while selecting emotes.
 .tile-compose {
   position: absolute;
@@ -59,7 +74,7 @@
   }
 }
 
-.grid:has(.tile[aria-pressed]) .tile-compose {
+.grid:has(.tile[aria-pressed]) :is(.tile-compose, .tile-actions) {
   display: none;
 }
 

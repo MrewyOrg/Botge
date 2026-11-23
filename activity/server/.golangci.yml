@@ -1,0 +1,64 @@
+version: '2'
+
+run:
+  modules-download-mode: readonly
+  timeout: 3m
+
+linters:
+  default: standard
+  enable:
+    - contextcheck
+    - depguard
+    - errorlint
+    - godoclint
+    - godot
+    - gosec
+    - lll
+    - musttag
+    - noctx
+    - nolintlint
+    - revive
+    - usestdlibvars
+  settings:
+    depguard:
+      rules:
+        activity:
+          files: ['$all']
+          allow:
+            - $gostd
+            - github.com/MrewyOrg/Botge/activity/server/
+    errcheck:
+      check-blank: true
+      check-type-assertions: true
+    godoclint:
+      enable:
+        - require-pkg-doc
+        - require-doc
+      options:
+        require-doc:
+          ignore-unexported: false
+        start-with-name:
+          include-unexported: true
+    godot:
+      scope: declarations
+    lll:
+      line-length: 100
+      tab-width: 4
+    nolintlint:
+      require-explanation: true
+      require-specific: true
+  exclusions:
+    rules:
+      # Test and fuzz names identify cases. Test helper docs are reviewed for nontrivial setup.
+      - path: '_test\.go$'
+        linters: [godoclint]
+      # These tests execute locally built binaries or Docker with argument slices, and
+      # send requests only to locally allocated listener addresses.
+      - path: 'cmd/activity-server/(image|main)_test\.go$'
+        linters: [gosec]
+        text: 'G(204|702|704):'
+
+formatters:
+  enable:
+    - gci
+    - gofumpt

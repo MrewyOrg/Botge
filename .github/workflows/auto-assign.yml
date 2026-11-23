@@ -1,5 +1,3 @@
-# cspell:words pozil
-
 name: Auto-assign
 on:
   pull_request_target:

@@ -4,10 +4,7 @@
     // Personal 7TV emotes come from the guild's configured set. Added emotes are saved individually.
     "use7TVGlobalEmotes": false,
     "use7TVPersonalEmotes": false,
-    "use7TVAddedEmotes": false,
-    "useBTTVEmotes": false,
-    "useFFZEmotes": false,
-    "useTwitchEmotes": false
+    "use7TVAddedEmotes": false
   },
   "$schema": "botge.config.schema.json"
 }

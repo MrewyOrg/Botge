@@ -1,24 +1,22 @@
 # Rust bot architecture
 
 The production image builds one [Rust binary](../crates/botge/Cargo.toml). Discord commands and the
-Activity API share the same emote catalog. The [Activity and Worker](../activity/README.md) are
-TypeScript, and the [iOS app](../ios/README.md) is SwiftUI.
+Activity API share the same emote catalog. The [Activity](../activity/README.md) uses TypeScript in
+the browser and Go at the origin. The [iOS app](../ios/README.md) uses SwiftUI.
 
 ## Diagram exports
 
-The PNG diagrams describe the current workspace and service flows. The revised architecture,
-request-flow and development-workflow diagrams have editable Mermaid counterparts in
-[`diagrams/`](diagrams/). The workspace guide defines the complete dependency policy:
+The editable Mermaid diagrams in [`diagrams/`](diagrams/) track the workspace, request and release
+flows. The linked PNGs are existing exports. The workspace guide defines the full dependency policy:
 
-- [Workspace architecture](architecture.png) ([Mermaid](diagrams/architecture.mmd)): adapters,
+- [Workspace architecture](diagrams/architecture.mmd) ([PNG](architecture.png)): adapters,
   application operations, domain records, providers, and persistence.
-- [Request and data flow](request-flow.png) ([Mermaid](diagrams/request-flow.mmd)): Discord
-  compositions and authenticated Activity voice settings.
-- [Deployment topology](deployment.png): Compose services, persistent data, and the optional API
-  tunnel.
-- [Development and release workflow](development-workflow.png)
-  ([Mermaid](diagrams/development-workflow.mmd)): local hooks, language checks, and approved
-  deployment.
+- [Request and data flow](diagrams/request-flow.mmd) ([PNG](request-flow.png)): Discord compositions
+  and authenticated Activity voice settings.
+- [VM deployment topology](deployment.png): Compose services, persistent data, and optional API
+  ingress.
+- [Development and release workflow](diagrams/development-workflow.mmd)
+  ([PNG](development-workflow.png)): local hooks, language checks, and approved deployment.
 - [Startup and shutdown](startup.png): initialization, optional services, and gateway readiness.
 - [Discord interactions](discord-interactions.png): extensible command, autocomplete, modal, and
   message handling.
@@ -121,7 +119,7 @@ sequenceDiagram
         Proxy-->>Browser: Keep token in memory and authenticate SDK
     end
     Browser->>Proxy: Send voice settings and bearer token
-    Proxy->>API: Forward signed request through the API tunnel
+    Proxy->>API: Forward signed request through the API HTTPS endpoint
     API->>API: Verify proxy signature and decode request
     API->>App: Save voice settings
     App->>Discord: Identify token holder and check current guild/channel permissions
@@ -143,9 +141,13 @@ sequenceDiagram
     Proxy-->>Browser: Return the response
 ```
 
-The diagram shows a voice settings save. Discord maps `/` to the Worker, which verifies the signed
-HTML request and sends it with a strict same-origin Content-Security-Policy, and `/botge-api` to the
-bot's API tunnel. The API verifies signatures independently and accepts a one-use code only on
+Discord routes `/` to the Go origin on Cloud Run and `/botge-api` to the Rust bot on the VM through
+a [public HTTPS endpoint](../activity/README.md#api-https-endpoint). The Go origin verifies
+signatures on HTML and asset requests and sends HTML with a strict Content Security Policy. The
+browser reaches the bot through Discord's API mapping. The iOS app uses the same HTTPS endpoint with
+bearer-only requests under `/app/v1`.
+
+The diagram shows a voice settings save. The API verifies signatures and accepts a one-use code on
 `/auth`; every other route needs the bearer token. Botge asks Discord who owns a token when it
 exchanges the code and again every five minutes, so a revoked token stops working within that
 window; membership and roles are checked on every request. Guilds and members come from the gateway
@@ -202,15 +204,15 @@ sequenceDiagram
 
 ## Emote catalog and rendering
 
-Each guild catalog combines individually added emotes, configured provider sets, and global feeds in
-that order. Only enabled providers contribute entries. A single 7TV WebSocket invalidates affected
-snapshots after changes. Timed refreshes and a reconnect refresh cover missed events. Autocomplete
-can use cached results when a provider is slow. The shared refresh continues in the background so
-later requests can use the updated snapshot. Requests retain immutable provider snapshots rather
-than cloning their records; an in-flight request keeps its previous view across a refresh. Bounded
-provider JSON normalization and shortcut searches run on blocking workers. Added emotes and guild
-settings use separate redb tables. The add transaction checks duplicate IDs and names, and the API
-checks guild membership and roles before writing.
+Each guild catalog combines individually added 7TV emotes, the guild-selected 7TV set, and the
+global 7TV set in that order. Each source within 7TV remains opt-in. A single 7TV WebSocket
+invalidates affected snapshots after changes. Timed refreshes and a reconnect refresh cover missed
+events. Autocomplete can use cached results when a provider is slow. The shared refresh continues in
+the background so later requests can use the updated snapshot. Requests retain immutable provider
+snapshots rather than cloning their records; an in-flight request keeps its previous view across a
+refresh. Bounded provider JSON normalization and shortcut searches run on blocking workers. Added
+emotes and guild settings use separate redb tables. The add transaction checks duplicate IDs and
+names, and the API checks guild membership and roles before writing.
 
 Discord defers emote interactions while it resolves names and reads media. Downloads use provider
 CDN allowlists and the nginx cache where available. The renderer admits up to five requests at once,
@@ -218,6 +220,23 @@ caps file sizes, and runs FFmpeg on local image files. Columns follow the Activi
 proportions. The renderer synchronizes each overlaying group before compositing so all layers retain
 their timing. Animated compositions export WebP with variable frame delays and use the longest
 source animation's duration.
+
+### Managed catalog history
+
+The Activity and iOS Server settings show catalog history to current guild administrators. Every
+committed addition, removal, or emote policy change creates a revision in the same redb transaction
+as the change. A bulk action records each committed item in order. A guild's first change records
+its prior managed state as a starting revision. Botge retains up to 32 revisions per guild.
+
+Choose a revision and preview the emote additions, removals, changed details and policy changes.
+Confirming the preview creates a new revision and reloads open guild catalogs. If a different edit
+commits after the preview, Botge asks the administrator to preview the restore again. Restore
+preserves the saved emote order and respects the operator's switch for individual additions. Live
+7TV set contents are fetched independently, even when a restore changes which set the guild uses.
+
+The proxy and bearer routes share the same implementation. Send `guildId` to
+`POST /catalog/history`, add `revision` for `POST /catalog/history/preview`, and pass the preview's
+`currentRevision` as `expectedRevision` to `POST /catalog/history/restore`.
 
 ## Checks and deployment
 

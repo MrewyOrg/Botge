@@ -74,8 +74,8 @@ runs:
         path: ${{ runner.temp }}/botge-tools
         key: >-
           rust-tools-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('rust-toolchain.toml',
-          'scripts/install-test-ffmpeg.sh') }}-${{ inputs.tools }}-${{ env.CARGO_LLVM_COV_VERSION
-          }}-${{ env.CARGO_HACK_VERSION }}-${{ env.CARGO_UDEPS_VERSION }}
+          'scripts/rust/install-test-ffmpeg.sh') }}-${{ inputs.tools }}-${{
+          env.CARGO_LLVM_COV_VERSION }}-${{ env.CARGO_HACK_VERSION }}-${{ env.CARGO_UDEPS_VERSION }}
 
     - name: Install pinned Rust test tools
       if: inputs.tools != '' && steps.tools.outputs.cache-hit != 'true'
@@ -90,7 +90,7 @@ runs:
             cargo-hack) version=$CARGO_HACK_VERSION ;;
             cargo-udeps) version=$CARGO_UDEPS_VERSION ;;
             ffmpeg)
-              sh scripts/install-test-ffmpeg.sh "$root/bin"
+              sh scripts/rust/install-test-ffmpeg.sh "$root/bin"
               continue
               ;;
             *)

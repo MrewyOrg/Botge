@@ -1,5 +1,3 @@
-// cspell:words moby
-
 // See https://aka.ms/devcontainer.json for the configuration format.
 
 {
@@ -25,7 +23,7 @@
     }
   },
 
-  "postCreateCommand": "bash scripts/setup-devcontainer.sh",
+  "postCreateCommand": "bash scripts/setup/setup-devcontainer.sh",
 
   "customizations": {
     "codespaces": { "openFiles": ["README.md", "Cargo.toml", "crates/botge/src/main.rs"] },
@@ -56,7 +54,6 @@
         "EditorConfig.EditorConfig",
         "esbenp.prettier-vscode",
         "joshbolduc.commitlint",
-        "streetsidesoftware.code-spell-checker",
 
         // Git and GitHub
         "eamodio.gitlens",

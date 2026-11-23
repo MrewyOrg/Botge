@@ -26,7 +26,6 @@ async fn returns_friendly_errors_for_missing_and_ambiguous_input() -> Result<()>
   let emotes = Arc::new(Application::new(
     botge_domain::providers::Providers::default(),
     store,
-    None,
   )?);
   let commands = Commands::new(emotes, None);
   assert!(
@@ -119,7 +118,10 @@ async fn sends_provider_variants_and_compositions_and_rejects_concurrent_renderi
     &directory.path().join("botge.redb"),
   )?);
   let guild = NonZeroU64::MIN;
-  store.add_emote(guild, botge_test_support::example("Wave", "1"))?;
+  store.add_emote(
+    botge_storage::CatalogEditor::system(guild),
+    botge_test_support::example("Wave", "1"),
+  )?;
   store.save_emote_border(guild, Some(0x00ff_7700))?;
   let mut emotes = Application::new(
     botge_domain::providers::Providers {
@@ -127,7 +129,6 @@ async fn sends_provider_variants_and_compositions_and_rejects_concurrent_renderi
       ..Default::default()
     },
     Arc::clone(&store),
-    None,
   )?;
   emotes.use_provider_fixture(server.origin.clone());
   let commands = Commands::new(Arc::new(emotes), Some(server.origin.clone()));
@@ -239,7 +240,6 @@ async fn rejects_failed_acknowledgements_and_unreadable_shortcut_catalogs() -> R
     Arc::new(Application::new(
       botge_domain::providers::Providers::default(),
       Arc::clone(&store),
-      None,
     )?),
     None,
   );

@@ -40,28 +40,19 @@ struct ServerSettingsTests {
   @Test
   func `emote policies are normalized and validated like the server`() {
     let policy = EmotePolicy(
-      sevenTVSet: " 01234567890123456789ABCDEF ",
-      betterTTVTwitchID: "",
-      frankerFaceZChannel: " Some_Channel "
+      sevenTVSet: " 01234567890123456789ABCDEF "
     )
     #expect(policy.normalized.sevenTVSet == "01234567890123456789ABCDEF")
-    #expect(policy.normalized.betterTTVTwitchID == nil)
-    #expect(policy.normalized.frankerFaceZChannel == "some_channel")
     #expect(policy.isValid)
     #expect(!EmotePolicy(sevenTVSet: "short").isSevenTVSetValid)
-    #expect(!EmotePolicy(betterTTVTwitchID: "12a").isBetterTTVTwitchIDValid)
-    #expect(!EmotePolicy(betterTTVTwitchID: String(repeating: "1", count: 21)).isValid)
-    #expect(!EmotePolicy(frankerFaceZChannel: "bad-name").isFrankerFaceZChannelValid)
-    #expect(!EmotePolicy(frankerFaceZChannel: String(repeating: "a", count: 26)).isValid)
     #expect(!EmotePolicy(allowedRoleIDs: (0 ... 25).map(String.init)).isValid)
   }
 
   @Test
   func `policy options decode flattened fields and keep unavailable roles`() throws {
-    let json = #"{"sevenTvSet":null,"bttvTwitchId":"42","ffzChannel":null,"allowEveryone":true,"#
+    let json = #"{"sevenTvSet":null,"allowEveryone":true,"#
       + #""allowedRoles":["7","9"],"roles":[{"id":"7","name":"Mods"},{"id":"8","name":"VIP"}]}"#
     let options = try JSONDecoder().decode(EmotePolicyOptions.self, from: Data(json.utf8))
-    #expect(options.policy.betterTTVTwitchID == "42")
     #expect(options.policy.allowsEveryone)
     #expect(options.choices.map(\.id) == ["7", "8", "9"])
     #expect(options == EmotePolicyOptions(policy: options.policy, roles: options.roles))

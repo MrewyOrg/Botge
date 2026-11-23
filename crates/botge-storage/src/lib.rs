@@ -7,7 +7,7 @@
 //! are treated as version 1 and stamped on their next open. A version this build does not
 //! support is rejected before any other row is read or written.
 
-use std::{num::NonZeroU64, path::Path};
+use std::{num::NonZeroU64, ops::ControlFlow, path::Path};
 
 use anyhow::{Context as _, Result};
 use redb::{Database, ReadableDatabase as _, ReadableTable as _, TableDefinition};
@@ -17,6 +17,12 @@ use botge_domain::{
   emotes::{Emote, GuildEmotes},
   settings::VoiceSettings,
 };
+
+use botge_domain::catalog_history::CatalogEdit;
+
+mod catalog_history;
+#[doc(inline)]
+pub use catalog_history::{CatalogEditor, RestoreOutcome, RestoreScope};
 
 const VOICE_SETTINGS: TableDefinition<'static, NonZeroU64, &str> =
   TableDefinition::new("voice_settings");
@@ -34,6 +40,19 @@ const SCHEMA_KEY: &str = "schema_version";
 /// incompatibly. Older builds ignore the marker, so an image rollback still opens the file.
 const SCHEMA_VERSION: u64 = 1;
 
+/// The outcome decided against the saved catalog in one write transaction.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum AddEmoteOutcome {
+  /// The addition was committed.
+  Added,
+  /// The catalog already contains this emote ID.
+  DuplicateId,
+  /// A different entry already uses this name, ignoring ASCII case.
+  DuplicateName,
+  /// The catalog reached its saved-entry limit.
+  Full,
+}
+
 /// Shares a redb handle across workers. Writes use database transactions through `&self`.
 ///
 /// Voice settings, provider selections, and individual additions use guild IDs as keys.
@@ -47,9 +66,9 @@ pub struct Store(Database);
 /// # Errors
 ///
 /// Returns an error if the backup cannot be opened read-only, an expected table is missing
-/// or incompatible, a row cannot be read, or a stored JSON value cannot be decoded. A recorded
-/// schema version this build does not support is also rejected; a backup without the marker
-/// predates it and is accepted.
+/// or incompatible, a row cannot be read, or a stored record cannot be decoded into its live type.
+/// A recorded schema version this build does not support is also rejected; a backup without the
+/// marker predates it and is accepted.
 ///
 /// # Panics
 ///
@@ -64,17 +83,33 @@ pub fn verify_backup(path: &Path) -> Result<()> {
     Err(error) => return Err(error.into()),
   };
   check_schema(saved)?;
-  for definition in [VOICE_SETTINGS, GUILD_EMOTES, ADDED_EMOTES] {
-    for row in transaction.open_table(definition)?.iter()? {
-      let (_, value) = row?;
-      drop(serde_json::from_str::<serde_json::Value>(value.value())?);
-    }
-  }
+  verify_rows::<VoiceSettings>(&transaction.open_table(VOICE_SETTINGS)?)
+    .context("could not verify voice settings")?;
+  verify_rows::<GuildEmotes>(&transaction.open_table(GUILD_EMOTES)?)
+    .context("could not verify guild emote settings")?;
+  catalog_history::verify(&transaction).context("could not verify catalog history")?;
+  verify_rows::<Vec<Emote>>(&transaction.open_table(ADDED_EMOTES)?)
+    .context("could not verify added emotes")?;
   transaction
     .open_table(EMOTE_BORDERS)?
     .iter()?
     .try_for_each(|row| row.map(drop))
     .map_err(Into::into)
+}
+
+/// Decodes each saved row with the same type as the live database reader.
+///
+/// # Errors
+///
+/// Returns an error if a row cannot be read or decoded.
+fn verify_rows<T: DeserializeOwned>(
+  table: &impl redb::ReadableTable<NonZeroU64, &'static str>,
+) -> Result<()> {
+  for row in table.iter()? {
+    let (_, value) = row?;
+    drop(serde_json::from_str::<T>(value.value())?);
+  }
+  Ok(())
 }
 
 impl Store {
@@ -115,6 +150,7 @@ impl Store {
     transaction.open_table(GUILD_EMOTES)?;
     transaction.open_table(ADDED_EMOTES)?;
     transaction.open_table(EMOTE_BORDERS)?;
+    catalog_history::initialize(&transaction)?;
     transaction.commit().map(|()| Self(db)).map_err(Into::into)
   }
 
@@ -226,9 +262,15 @@ impl Store {
   ///
   /// Returns an error for invalid policy values, serialization failure, or a failed write
   /// transaction. Invalid settings leave the existing row unchanged.
-  pub fn save_guild_emotes(&self, guild: NonZeroU64, settings: &GuildEmotes) -> Result<()> {
+  pub fn save_guild_emotes(&self, editor: CatalogEditor, settings: &GuildEmotes) -> Result<()> {
     anyhow::ensure!(settings.valid(), "invalid guild emote settings");
-    self.save_json(GUILD_EMOTES, guild, settings)
+    self.edit_catalog(editor, |catalog| {
+      if catalog.settings == *settings {
+        return ControlFlow::Break(());
+      }
+      catalog.settings = settings.clone();
+      ControlFlow::Continue(((), CatalogEdit::Settings))
+    })
   }
 
   /// Lists the guilds whose saved policy selects `set_id` as their personal 7TV set.
@@ -259,7 +301,7 @@ impl Store {
     read_json(&transaction.open_table(ADDED_EMOTES)?, guild)
   }
 
-  /// Returns `false` without writing if the addition conflicts or the guild list is full.
+  /// Adds the emote or returns the reason the write transaction rejected it.
   ///
   /// Conflicts include a duplicate ID or a case-insensitive name match in the guild's saved
   /// additions. The transaction checks and appends under the same write lock.
@@ -267,18 +309,27 @@ impl Store {
   /// # Errors
   ///
   /// Returns an error if the saved list cannot be read, serialized, or committed.
-  /// Duplicate or full-list rejection is reported as `Ok(false)`, not an error.
-  pub fn add_emote(&self, guild: NonZeroU64, emote: Emote) -> Result<bool> {
-    self.change_added(guild, move |entries| {
-      if entries.len() >= 1000
-        || entries
-          .iter()
-          .any(|entry| entry.id == emote.id || entry.name.eq_ignore_ascii_case(&emote.name))
-      {
-        return false;
+  pub fn add_emote(&self, editor: CatalogEditor, emote: Emote) -> Result<AddEmoteOutcome> {
+    self.edit_catalog(editor, move |catalog| {
+      let entries = &mut catalog.additions;
+      if entries.iter().any(|entry| entry.id == emote.id) {
+        return ControlFlow::Break(AddEmoteOutcome::DuplicateId);
       }
+      if entries
+        .iter()
+        .any(|entry| entry.name.eq_ignore_ascii_case(&emote.name))
+      {
+        return ControlFlow::Break(AddEmoteOutcome::DuplicateName);
+      }
+      if entries.len() >= 1000 {
+        return ControlFlow::Break(AddEmoteOutcome::Full);
+      }
+      let edit = CatalogEdit::Added {
+        emote_id: emote.id.clone(),
+        name: emote.name.clone(),
+      };
       entries.push(emote);
-      true
+      ControlFlow::Continue((AddEmoteOutcome::Added, edit))
     })
   }
 
@@ -288,11 +339,18 @@ impl Store {
   ///
   /// Returns an error if the saved list cannot be read, serialized, or committed.
   /// An absent ID is reported as `Ok(false)`.
-  pub fn remove_emote(&self, guild: NonZeroU64, id: &str) -> Result<bool> {
-    self.change_added(guild, |entries| {
-      let before = entries.len();
+  pub fn remove_emote(&self, editor: CatalogEditor, id: &str) -> Result<bool> {
+    self.edit_catalog(editor, |catalog| {
+      let entries = &mut catalog.additions;
+      let Some(removed) = entries.iter().find(|entry| entry.id == id) else {
+        return ControlFlow::Break(false);
+      };
+      let edit = CatalogEdit::Removed {
+        emote_id: id.to_owned(),
+        name: removed.name.clone(),
+      };
       entries.retain(|entry| entry.id != id);
-      entries.len() != before
+      ControlFlow::Continue((true, edit))
     })
   }
 
@@ -313,31 +371,6 @@ impl Store {
       .open_table(definition)?
       .insert(key, value.as_str())?;
     transaction.commit().map_err(Into::into)
-  }
-
-  /// Reads, edits, and commits the guild's list in one transaction to prevent lost updates.
-  ///
-  /// # Errors
-  ///
-  /// Returns an error if reading, serializing, or committing the list fails.
-  /// If `change` returns `false`, the transaction is dropped without committing.
-  fn change_added(
-    &self,
-    guild: NonZeroU64,
-    change: impl FnOnce(&mut Vec<Emote>) -> bool,
-  ) -> Result<bool> {
-    let transaction = self.0.begin_write()?;
-    {
-      let mut table = transaction.open_table(ADDED_EMOTES)?;
-      let mut entries = read_json(&table, guild)?;
-      if !change(&mut entries) {
-        return Ok(false);
-      }
-      let value = serde_json::to_string(&entries)?;
-      let _previous = table.insert(guild, value.as_str())?;
-    }
-    transaction.commit()?;
-    Ok(true)
   }
 }
 

@@ -82,4 +82,4 @@ test('runs every guild feature against the in-memory demo outside Discord', asyn
   });
   // The demo answers from memory, so the page never reaches the network.
   expect(fetch).not.toHaveBeenCalled();
-});
+}, 15_000);

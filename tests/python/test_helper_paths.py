@@ -340,7 +340,7 @@ class HelperPaths(unittest.TestCase):
                             with self.assertRaises(SystemExit):
                                 check_python.main()
             for name in ('empty', 'duplicate'):
-                sources = root / name / 'scripts'
+                sources = root / name / 'scripts/quality'
                 sources.mkdir(parents=True)
                 if name == 'duplicate':
                     (sources / 'same.py').touch()

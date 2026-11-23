@@ -33,7 +33,7 @@ const COMMANDS: [&str; 4] = [
 
 /// How a composition request ended.
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
-pub enum Outcome {
+pub(super) enum Outcome {
   /// An image was produced.
   Image,
   /// The input was rejected or named an unavailable emote.
