@@ -30,7 +30,7 @@ hex = '0.4'
 jsonc-parser = { version = '0.34', features = ['serde'] }
 log = '0.4'
 mimalloc = '0.1.52'
-redb = '4.5'
+redb = '5.0'
 reqwest = { version = '0.13', default-features = false, features = [
   'json',
   'rustls',
