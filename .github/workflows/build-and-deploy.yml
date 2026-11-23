@@ -92,7 +92,7 @@ jobs:
     name: Build candidate
     needs: [validate, security, filter-paths]
     if: needs.filter-paths.outputs.build == 'true' && !github.event.pull_request.draft
-    uses: docker/github-builder/.github/workflows/build.yml@1037c7b9c980b1eb201d37bb9f1fa6caaa96af60
+    uses: docker/github-builder/.github/workflows/build.yml@74e66e074b95238e22e4d3cd2a3000ed65abca79
     permissions:
       contents: read
       id-token: write
@@ -128,7 +128,7 @@ jobs:
         platform: [linux/amd64, linux/arm64]
     steps:
       - name: Scan the immutable candidate with Docker Scout
-        uses: docker/scout-action@v1.29.0
+        uses: docker/scout-action@v1.30.0
         with:
           command: cves
           image: registry://mrewy/botge@${{ needs.build.outputs.digest }}

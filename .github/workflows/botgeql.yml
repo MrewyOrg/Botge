@@ -460,7 +460,7 @@ jobs:
 
       - name: Set up locked Python package manager
         if: needs.changes.outputs.python == 'true'
-        uses: astral-sh/setup-uv@v10.3.3
+        uses: astral-sh/setup-uv@v10.4.0
         with:
           version-file: pyproject.toml
           enable-cache: true
