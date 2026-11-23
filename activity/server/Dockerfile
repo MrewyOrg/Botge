@@ -1,5 +1,5 @@
 # check=error=true
-FROM --platform=$BUILDPLATFORM dhi.io/node:26.13.1-debian13-dev@sha256:a06c9ce7ac94ecf31b85b6b82baa685479ca3fe4e28a61fdafc9676f7d313c0c AS site
+FROM --platform=$BUILDPLATFORM dhi.io/node:26.13.1-debian13-dev@sha256:db6f2b88d1cfd7277818e8f1806120279647924d7f0bdede2e2378c1216532a8 AS site
 WORKDIR /workspace
 COPY .nvmrc .npmrc package.json package-lock.json ./
 COPY .husky/install.sh .husky/
@@ -16,7 +16,7 @@ COPY activity/scripts/stage-server-site.ts activity/scripts/
 COPY scripts/activity/stage-activity-server.sh scripts/activity/
 RUN --network=none sh scripts/activity/stage-activity-server.sh
 
-FROM --platform=$BUILDPLATFORM dhi.io/golang:1.27.4-debian13-dev@sha256:a5ae848409581006068480c4920b114b7d8a2b879d1207e268828225386683cd AS build
+FROM --platform=$BUILDPLATFORM dhi.io/golang:1.27.4-debian13-dev@sha256:7d8f3144cc30660df92ab80390cdcb48b424c82786151786c48334905fc4dbbc AS build
 ARG TARGETOS
 ARG TARGETARCH
 ENV CGO_ENABLED=0 GOTOOLCHAIN=local GOWORK=off

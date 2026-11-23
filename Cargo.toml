@@ -7,7 +7,7 @@ resolver = '3'
 version = '6.1.0'
 edition = '2024'
 # Stable release that builds the production image; checks keep the pinned nightly.
-rust-version = '1.99.1'
+rust-version = '1.100.0'
 license = 'MIT'
 repository = 'https://github.com/MrewyOrg/Botge'
 publish = false

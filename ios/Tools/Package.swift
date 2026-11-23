@@ -10,7 +10,7 @@ let package = Package(
   name: "BotgeTools",
   platforms: [.macOS(.v15)],
   dependencies: [
-    .package(url: "https://github.com/yonaskolb/XcodeGen.git", exact: "2.47.0"),
+    .package(url: "https://github.com/yonaskolb/XcodeGen.git", exact: "2.48.0"),
     .package(url: "https://github.com/nicklockwood/SwiftFormat.git", exact: "0.64.7"),
     .package(url: "https://github.com/SimplyDanny/SwiftLintPlugins.git", exact: "0.65.1")
   ]

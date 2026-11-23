@@ -1,6 +1,6 @@
 [toolchain]
 # Shared nightly pin. CI and Docker select smaller component sets from this channel.
-channel = 'nightly-2026-11-10'
+channel = 'nightly-2026-11-23'
 profile = 'default'
 # LLVM tools support coverage; Miri and standard library sources support interpreted tests.
 components = ['llvm-tools-preview', 'miri', 'rust-src']

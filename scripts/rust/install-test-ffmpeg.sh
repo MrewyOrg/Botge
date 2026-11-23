@@ -11,11 +11,11 @@ architecture=$(uname -m)
 case "${system}:${architecture}" in
   Linux:x86_64)
     platform=linux64
-    checksum=416081d93cb6cdcac9fade4f76d94321964253860b85b80404b5b9fb38dc3499
+    checksum=63648ca32d6f831b6829f60d9fef3c9745f4dc4ad33d9ddd98ba2b5bca87e9e3
     ;;
   Linux:aarch64)
     platform=linuxarm64
-    checksum=e0ea66cc042994d33ff9d65ac50a8c71d1011132ec1f08ecef6495ab3df90e80
+    checksum=5fb88bdc315e808b07a607bedcbcaf609408508295aa2afd4beed810af8878f9
     ;;
   *)
     printf '%s\n' 'The pinned FFmpeg installer supports Linux AMD64 and ARM64.' >&2
@@ -24,8 +24,8 @@ case "${system}:${architecture}" in
 esac
 
 # Use matching tools with the animated WebP demuxer and encoder required by the Rust tests.
-build="ffmpeg-n9.0.2-57-gd838f9f9ae-${platform}-lgpl-9.0"
-release=https://github.com/FFmpeg-Builds/FFmpeg-Builds/releases/download/autobuild-2026-11-12-15-40
+build="ffmpeg-n9.0.2-62-gac1c6e003f-${platform}-lgpl-9.0"
+release=https://github.com/FFmpeg-Builds/FFmpeg-Builds/releases/download/autobuild-2026-11-23-12-43
 directory=$(mktemp -d)
 trap 'rm -rf "$directory"' EXIT
 archive="${directory}/ffmpeg.tar.xz"

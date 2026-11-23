@@ -60,7 +60,7 @@ runs:
       shell: bash
       run: |
         {
-          printf '%s\n' 'CARGO_LLVM_COV_VERSION=0.9.1'
+          printf '%s\n' 'CARGO_LLVM_COV_VERSION=0.9.2'
           printf '%s\n' 'CARGO_HACK_VERSION=0.6.46'
           printf '%s\n' 'CARGO_UDEPS_VERSION=0.1.61'
         } >> "$GITHUB_ENV"

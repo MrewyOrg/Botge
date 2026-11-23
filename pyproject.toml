@@ -5,12 +5,12 @@ version = '0.0.0'
 requires-python = '==3.15.*'
 
 [dependency-groups]
-dev = ['ruff==0.17.5', 'pyright==1.1.414', 'coverage==7.17.3']
+dev = ['ruff==0.17.6', 'pyright==1.1.414', 'coverage==7.17.5']
 
 [tool.ruff]
 target-version = 'py315'
 line-length = 100
-required-version = '==0.17.5'
+required-version = '==0.17.6'
 extend-exclude = ['.agents/references/cache', 'target']
 
 [tool.ruff.lint]
@@ -49,4 +49,4 @@ venv = '.venv'
 
 [tool.uv]
 package = false
-required-version = '==0.13.8'
+required-version = '==0.13.9'

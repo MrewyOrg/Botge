@@ -4,7 +4,7 @@
 name: Botge
 
 options:
-  minimumXcodeGenVersion: 2.47.0
+  minimumXcodeGenVersion: 2.48.0
   deploymentTarget:
     iOS: '27.0'
   xcodeVersion: '27.2'

@@ -125,7 +125,7 @@ four library subguides. Evidence for measured resource choices is in
   versions. Production edges and fixture features are guarded by the architecture test.
 - **M-LATEST-EDITION.** The workspace declares Rust edition 2024. The formatter separately pins
   style edition 2027.
-- **M-MSRV.** The documented stable floor is 1.99.1 and the development nightly is pinned
+- **M-MSRV.** The documented stable floor is 1.100.0 and the development nightly is pinned
   separately. This private workspace supports the declared production toolchain.
 - **Safety subguide.** The first-party unsafe prohibition and lint policy apply to every member. See
   the Rust Reference review below.
