@@ -1,0 +1,105 @@
+name: Reuse validation results
+
+on:
+  workflow_call:
+    inputs:
+      checks:
+        description: JSON with named path patterns and checks that declare a job and proof step.
+        required: true
+        type: string
+      common-paths:
+        description: Additional input path pattern shared by every check in this caller.
+        required: true
+        type: string
+    outputs:
+      checks:
+        description: Comma-delimited check IDs with verified passing results.
+        value: ${{ jobs.lookup.outputs.checks }}
+
+permissions: {}
+
+jobs:
+  lookup:
+    name: Find passing checks with unchanged inputs
+    if: >-
+      github.event_name == 'pull_request' && github.run_attempt == '1' &&
+      github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      actions: read
+      contents: read
+    outputs:
+      checks: ${{ steps.lookup.outputs.checks }}
+    steps:
+      - name: Verify prior validation results
+        id: lookup
+        continue-on-error: true
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          HEAD_REF: ${{ github.event.pull_request.head.ref }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          CHECKS: ${{ inputs.checks }}
+          COMMON_PATHS: ${{ inputs.common-paths }}
+        run: |
+          repo="repos/$GITHUB_REPOSITORY"
+          workflow=${GITHUB_WORKFLOW_REF%@*}
+          workflow=${workflow##*/}
+
+          # Use results from the same base, PR, and calling workflow.
+          gh api "$repo/git/commits/$GITHUB_SHA" --jq '.parents | map(.sha)' |
+            jq -e --arg base "$BASE_SHA" --arg head "$HEAD_SHA" '. == [$base, $head]' >/dev/null
+          runs=$(gh api --method GET "$repo/actions/workflows/$workflow/runs" \
+            -f event=pull_request -f branch="$HEAD_REF" -F per_page=30)
+          candidates=$(jq -c --argjson current "$GITHUB_RUN_NUMBER" --argjson pr "$PR_NUMBER" \
+            --arg base "$BASE_SHA" --arg repo "$GITHUB_REPOSITORY" '
+              [.workflow_runs[] | select(.run_number < $current and .head_repository.full_name == $repo)
+              | select(any(.pull_requests[]; .number == $pr and .base.sha == $base))]
+              | sort_by(.run_number) | reverse | .[:10][]
+            ' <<< "$runs")
+
+          remaining=$(jq -c '.paths as $paths | [.checks[] | . + {paths:$paths[.inputs]}]' <<< "$CHECKS")
+          reused=,
+          while IFS= read -r candidate; do
+            [[ -n "$candidate" && "$remaining" != '[]' ]] || break
+            run=$(jq -er '.id' <<< "$candidate")
+            prior=$(jq -er '.head_sha | select(test("^[a-f0-9]{40}$"))' <<< "$candidate")
+            jobs=$(gh api "$repo/actions/runs/$run/jobs?filter=latest&per_page=100")
+            results=$(jq -c --argjson checks "$remaining" '
+              [.jobs[]] as $jobs | [$checks[] as $check |
+              [$jobs[] | select((.name | split(" / ") | last) == $check.job)] as $matched |
+              if ($matched | length) != 1 then empty
+              elif $matched[0].conclusion == "skipped" then $check + {result:"skipped"}
+              elif $matched[0].conclusion == "success" then
+                [$matched[0].steps[] | select(.name == $check.step) | .conclusion] as $proof |
+                if $proof == ["success"] or $proof == ["skipped"] then
+                  $check + {result:$proof[0]}
+                else empty end
+              else empty end]
+            ' <<< "$jobs")
+            remaining=$(jq -c '[.[] | select(.result == "skipped") | del(.result)]' <<< "$results")
+            if ! jq -e 'any(.[]; .result == "success")' <<< "$results" >/dev/null; then
+              continue
+            fi
+
+            # GitHub caps the comparison at 300 paths. Treat a full response as uncertain.
+            changed=$(gh api "$repo/compare/$prior...$HEAD_SHA" | jq -ec --arg prior "$prior" '
+              select((.status == "ahead" or .status == "identical") and .merge_base_commit.sha == $prior)
+              | .files | select(type == "array" and length < 300)
+              | [.[] | (.filename, .previous_filename // empty)]
+            ')
+            matches=$(jq -r --argjson paths "$changed" --arg common "$COMMON_PATHS" '
+              .[] | select(.result == "success") as $check |
+              select(all($paths[]; test($check.paths) or test($common) or
+                test("^\\.github/workflows/(reuse-validation\\.yml|actions\\.lock)$") | not)) | $check.id
+            ' <<< "$results")
+            while IFS= read -r check; do
+              [[ -n "$check" ]] || break
+              reused+="$check,"
+              printf 'Reusing %s validation from run %s.\n' "$check" "$run"
+            done <<< "$matches"
+          done <<< "$candidates"
+          printf 'checks=%s\n' "$reused" >> "$GITHUB_OUTPUT"

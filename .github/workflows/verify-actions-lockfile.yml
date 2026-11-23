@@ -16,9 +16,22 @@ jobs:
 
     permissions: {}
 
+  reuse:
+    needs: check-pr-target
+    uses: $/.github/workflows/reuse-validation.yml
+    permissions:
+      actions: read
+      contents: read
+    with:
+      common-paths: '^\.github/workflows/verify-actions-lockfile\.yml$'
+      checks: >-
+        {"paths":{"lockfile":"^[.]github/(workflows/|actions/)"},"checks":[
+        {"id":"lockfile","inputs":"lockfile","job":"Verify actions lockfile","step":"Verify"}]}
+
   verify-actions-lockfile:
     name: Verify actions lockfile
-    needs: check-pr-target
+    needs: [check-pr-target, reuse]
+    if: always() && !cancelled() && needs.check-pr-target.result == 'success'
     runs-on: ubuntu-latest
     timeout-minutes: 20
 
@@ -27,7 +40,12 @@ jobs:
       pull-requests: read
 
     steps:
+      - name: Report reused validation
+        if: contains(needs.reuse.outputs.checks, ',lockfile,')
+        run: echo 'An earlier passing run verified the same inputs.'
+
       - name: Filter paths
+        if: ${{ !contains(needs.reuse.outputs.checks, ',lockfile,') }}
         uses: dorny/paths-filter@v4.0.3
         id: changes
         with:

@@ -45,6 +45,7 @@ workflows:
         - 'actions/checkout@v7.0.1'
         - 'dorny/paths-filter@v4.0.3'
         - 'open-policy-agent/setup-regal@v2.0.0'
+    '.github/workflows/reuse-validation.yml': []
     '.github/workflows/verify-actions-lockfile.yml':
         - 'actions/checkout@v7.0.1'
         - 'dorny/paths-filter@v4.0.3'

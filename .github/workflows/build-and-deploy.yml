@@ -19,6 +19,7 @@ jobs:
     if: ${{ !cancelled() }}
     uses: $/.github/workflows/botgeql.yml
     permissions:
+      actions: read
       contents: read
       pull-requests: read
     with:
@@ -623,7 +624,12 @@ jobs:
           ' <<< "$service")
           image=$(gcloud run revisions describe "$revision" --project="$PROJECT" --region="$REGION" \
             --format='value(spec.containers[0].image)')
-          test "$image" = "$ACTIVITY_IMAGE@$ACTIVITY_DIGEST"
+          # Cloud Run resolves the deployed index to its platform manifest and records that digest.
+          manifest=$(docker buildx imagetools inspect "$ACTIVITY_IMAGE@$ACTIVITY_DIGEST" --raw | jq -er '
+            [.manifests[] | select(.platform.os == "linux" and .platform.architecture == "amd64")
+            | .digest] | select(length == 1) | .[0]
+          ')
+          test "$image" = "$ACTIVITY_IMAGE@$manifest"
           url=$(jq -er '.status.url' <<< "$service")
           printf 'Deployed Activity %s as %s at %s\n\nDeployed merge commit %s\n' \
             "$image" "$revision" "$url" "$GITHUB_SHA" >> "$GITHUB_STEP_SUMMARY"

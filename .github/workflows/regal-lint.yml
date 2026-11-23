@@ -16,9 +16,22 @@ jobs:
 
     permissions: {}
 
+  reuse:
+    needs: check-pr-target
+    uses: $/.github/workflows/reuse-validation.yml
+    permissions:
+      actions: read
+      contents: read
+    with:
+      common-paths: '^\.github/workflows/regal-lint\.yml$'
+      checks: >-
+        {"paths":{"regal":"^([.]regal/)|[.]rego$"},"checks":[
+        {"id":"regal","inputs":"regal","job":"Regal lint","step":"Regal lint"}]}
+
   regal-lint:
     name: Regal lint
-    needs: check-pr-target
+    needs: [check-pr-target, reuse]
+    if: always() && !cancelled() && needs.check-pr-target.result == 'success'
     runs-on: ubuntu-latest
     timeout-minutes: 20
 
@@ -27,12 +40,18 @@ jobs:
       pull-requests: read
 
     steps:
+      - name: Report reused validation
+        if: contains(needs.reuse.outputs.checks, ',regal,')
+        run: echo 'An earlier passing run verified the same inputs.'
+
       - name: Checkout repository
+        if: ${{ !contains(needs.reuse.outputs.checks, ',regal,') }}
         uses: actions/checkout@v7.0.1
         with:
           persist-credentials: false
 
       - name: Filter paths
+        if: ${{ !contains(needs.reuse.outputs.checks, ',regal,') }}
         uses: dorny/paths-filter@v4.0.3
         id: changes
         with:
