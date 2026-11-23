@@ -17,7 +17,7 @@ use std::{
 #[cfg(not(test))]
 use crate::CatalogEditor;
 
-use redb::{StorageBackend, backends::InMemoryBackend};
+use redb::{BackendError, StorageBackend, backends::InMemoryBackend};
 
 #[cfg(test)]
 use super::super::*;
@@ -54,23 +54,23 @@ impl FaultBackend {
 }
 
 impl StorageBackend for FaultBackend {
-  fn len(&self) -> io::Result<u64> {
+  fn len(&self) -> std::result::Result<u64, BackendError> {
     self.check()?;
     self.memory.len()
   }
-  fn read(&self, offset: u64, out: &mut [u8]) -> io::Result<()> {
+  fn read(&self, offset: u64, out: &mut [u8]) -> std::result::Result<(), BackendError> {
     self.check()?;
     self.memory.read(offset, out)
   }
-  fn set_len(&self, len: u64) -> io::Result<()> {
+  fn set_len(&self, len: u64) -> std::result::Result<(), BackendError> {
     self.check()?;
     self.memory.set_len(len)
   }
-  fn sync_data(&self) -> io::Result<()> {
+  fn sync_data(&self) -> std::result::Result<(), BackendError> {
     self.check()?;
     self.memory.sync_data()
   }
-  fn write(&self, offset: u64, data: &[u8]) -> io::Result<()> {
+  fn write(&self, offset: u64, data: &[u8]) -> std::result::Result<(), BackendError> {
     self.check()?;
     self.memory.write(offset, data)
   }
