@@ -1,0 +1,37 @@
+---
+title: Botge · Discord event handling
+---
+flowchart LR
+    event(["Discord gateway event"]) --> handler["<b>botge-discord</b><br/>Events handler<br/>logs reply failures"]
+
+    handler -->|slash command| known{{"Known command?"}}
+    known -->|"/clear-messages"| openModal["Check caller and bot<br/>Manage Messages, open<br/>confirmation modal"]
+    known -->|"/emote-compose,<br/>/emote-shortcuts"| defer["Defer reply"]
+    defer --> answer["Resolve names through botge-app;<br/>render or find shortcuts"]
+    answer --> edit(["Edit reply: text or attachment;<br/>text when over the upload limit"])
+
+    handler -->|autocomplete| choices["Rank catalog names and scales<br/>2 s catalog wait, 25 choices"]
+    choices --> respond(["Return choices"])
+
+    handler -->|modal submit| confirm["Verify confirmation,<br/>delete unpinned messages"]
+    confirm --> report(["Report deleted count"])
+
+    handler -->|"message (+prefix opt-in)"| filter{{"Human regular message<br/>starting with +name?"}}
+    filter -->|yes| prefix["Parse names and optional :scale,<br/>render through botge-app"]
+    prefix --> replyMsg(["Reply without pinging the author"])
+    filter -->|no| ignore(["Ignore"])
+
+    handler -->|other interactions| ignore
+
+    classDef entry fill:#1a1f3d,stroke:#8b93ff,color:#eef0ff,stroke-width:2px,rx:10,ry:10
+    classDef core fill:#0f2a28,stroke:#3dd6b5,color:#e6fbf6,stroke-width:2px,rx:10,ry:10
+    classDef media fill:#26173a,stroke:#c38bff,color:#f6eeff,stroke-width:2px,rx:10,ry:10
+    classDef base fill:#161b24,stroke:#7d8ba3,color:#e9edf4,stroke-width:2px,rx:10,ry:10
+    classDef gate fill:#1b212c,stroke:#f0b54a,color:#fff5e3,stroke-width:2px,rx:10,ry:10
+    classDef deny fill:#2a1720,stroke:#ff7a90,color:#ffeef1,stroke-width:2px,rx:10,ry:10
+    class event,edit,respond,report,replyMsg entry
+    class handler core
+    class known,filter gate
+    class defer,openModal,confirm,choices base
+    class answer,prefix media
+    class ignore deny

@@ -187,9 +187,42 @@ jobs:
               - '.github/actionlint.*'
               - 'scripts/quality/lint_workflows.py'
 
+  reuse:
+    needs: changes
+    uses: $/.github/workflows/reuse-validation.yml
+    permissions:
+      actions: read
+      contents: read
+    with:
+      common-paths: '^\.github/workflows/botgeql\.yml$'
+      checks: |
+        {
+          "paths": {
+            "all": ".",
+            "ios": "^(ios/|scripts/ios/|LICENSE[.]txt$|docs/(TERMS|PRIVACY)[.]md$)",
+            "rust": "^(crates/|scripts/rust/|[.]cargo/|[.]github/actions/rust-setup/|Cargo[.](toml|lock)$|clippy[.]toml$|rust[^/]*[.]toml$|botge[^/]*config|[.]env[.]example$|Dockerfile|LICENSE[.]txt$)|[.]rs$",
+            "go": "^(activity/|assets/|scripts/activity/|[.]husky/install[.]sh$|[.]github/codeql/|[.]github/workflows/codeql[.]yml$|LICENSE[.]txt$)|(^|/)([.]npmrc|[.]nvmrc|[.]env[^/]*|package(-lock)?[.]json|tsconfig[^/]*[.]json|vite[.]config[.][^/]*)$",
+            "typescript": "^(activity/|assets/|scripts/|tests/|botge_control/|[.]husky/|[.]vscode/|[.]devcontainer/|[.]htmlvalidate|knip[.]jsonc$|compose[^/]*|botge[^/]*config|Dockerfile|[.]github/)|[.](ts|tsx|html|scss|css)$|(^|/)([.]npmrc|[.]nvmrc|[.]env[^/]*|package(-lock)?[.]json|tsconfig[^/]*[.]json|tsdoc[.]json)$",
+            "tooling": "^(scripts/|tests/|botge_control/|ios/|activity/|crates/|[.]github/|[.]agents/|[.]husky/|[.]shellcheckrc$|[.]python-version$|pyproject[.]toml$|uv[.]lock$|compose[^/]*|Dockerfile|Cargo[.](toml|lock)$)|[.](sh|bash|bats|jq|py|swift)$"
+          },
+          "checks": [
+            {"id":"formatting","inputs":"all","job":"Documentation and TypeScript","step":"Check formatting and documentation"},
+            {"id":"ts-static","inputs":"typescript","job":"Documentation and TypeScript","step":"Types, lint, and unused code"},
+            {"id":"markup","inputs":"typescript","job":"Documentation and TypeScript","step":"Validate Activity HTML and SCSS"},
+            {"id":"ts-coverage","inputs":"typescript","job":"Documentation and TypeScript","step":"Test TypeScript and enforce coverage"},
+            {"id":"rust-static","inputs":"rust","job":"Rust static checks","step":"Check production build on stable Rust"},
+            {"id":"rust-coverage","inputs":"rust","job":"Rust tests and coverage","step":"Check Rust tests and coverage"},
+            {"id":"rust-miri","inputs":"rust","job":"Rust Miri","step":"Interpret pure Rust tests with Miri"},
+            {"id":"rust-dependencies","inputs":"rust","job":"Rust features and dependencies","step":"Check Rust feature combinations and unused dependencies"},
+            {"id":"go","inputs":"go","job":"Go Activity server","step":"Check the origin and enforce per-file statement coverage"},
+            {"id":"ios","inputs":"ios","job":"iOS lint, tests and coverage","step":"Analyze, test and enforce coverage from one instrumented build"},
+            {"id":"tooling","inputs":"tooling","job":"Shell, Python, and workflow checks","step":"Record completed tooling checks"}
+          ]
+        }
+
   documentation-and-typescript:
     name: Documentation and TypeScript
-    needs: [check-pr-target, changes]
+    needs: [check-pr-target, changes, reuse]
     if: >-
       always() && !cancelled() && (needs.check-pr-target.result == 'success' ||
       needs.check-pr-target.result == 'skipped')
@@ -217,6 +250,7 @@ jobs:
         run: npm ci --prefer-offline --no-audit
 
       - name: Check formatting and documentation
+        if: ${{ !contains(needs.reuse.outputs.checks, ',formatting,') }}
         run: |
           npx prettier . --check
           npm run markdownlint
@@ -236,11 +270,15 @@ jobs:
           npx commitlint --from="$BASE_SHA" --to="$HEAD_SHA" --verbose
 
       - name: Types, lint, and unused code
-        if: needs.changes.outputs.static == 'true'
+        if:
+          ${{ !contains(needs.reuse.outputs.checks, ',ts-static,') && (needs.changes.outputs.static
+          == 'true') }}
         run: npm run check:static
 
       - name: Validate Activity HTML and SCSS
-        if: needs.changes.outputs.markup == 'true'
+        if:
+          ${{ !contains(needs.reuse.outputs.checks, ',markup,') && (needs.changes.outputs.markup ==
+          'true') }}
         env:
           VITE_ENABLE_7TV_DISCOVERY: 'true'
           VITE_ENABLE_ACTIVITY_ADDS: 'true'
@@ -249,13 +287,15 @@ jobs:
         run: npm run check:markup -w activity
 
       - name: Test TypeScript and enforce coverage
-        if: needs.changes.outputs.tooling == 'true' || needs.changes.outputs.activity == 'true'
+        if:
+          ${{ !contains(needs.reuse.outputs.checks, ',ts-coverage,') &&
+          (needs.changes.outputs.tooling == 'true' || needs.changes.outputs.activity == 'true') }}
         run: npm run test:coverage
 
   # The Rust scopes run in parallel. Each job keeps its own build cache through the shared setup.
   rust-static:
     name: Rust static checks
-    needs: changes
+    needs: [changes, reuse]
     if: always() && !cancelled() && needs.changes.outputs.rust == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 30
@@ -263,12 +303,18 @@ jobs:
       CARGO_INCREMENTAL: '0'
       OPUS_BUNDLED: '1'
     steps:
+      - name: Report reused validation
+        if: contains(needs.reuse.outputs.checks, ',rust-static,')
+        run: echo 'An earlier passing run verified the same inputs.'
+
       - name: Checkout repository
+        if: ${{ !contains(needs.reuse.outputs.checks, ',rust-static,') }}
         uses: actions/checkout@v7.0.1
         with:
           persist-credentials: false
 
       - name: Set up Rust
+        if: ${{ !contains(needs.reuse.outputs.checks, ',rust-static,') }}
         uses: $/.github/actions/rust-setup
         with:
           cache-name: static
@@ -278,10 +324,12 @@ jobs:
           components: clippy,rustfmt
 
       - name: Check Rust formatting, lints, and documentation
+        if: ${{ !contains(needs.reuse.outputs.checks, ',rust-static,') }}
         run: sh scripts/rust/check-rust.sh static
 
       # The production image builds with this stable release; keep nightly-only code out of it.
       - name: Check production build on stable Rust
+        if: ${{ !contains(needs.reuse.outputs.checks, ',rust-static,') }}
         run: |
           toolchain=$(sed -n "s/^rust-version = '\(.*\)'$/\1/p" Cargo.toml)
           test -n "$toolchain"
@@ -290,7 +338,7 @@ jobs:
 
   rust-coverage:
     name: Rust tests and coverage
-    needs: changes
+    needs: [changes, reuse]
     if: always() && !cancelled() && needs.changes.outputs.rust == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 30
@@ -298,12 +346,18 @@ jobs:
       CARGO_INCREMENTAL: '0'
       OPUS_BUNDLED: '1'
     steps:
+      - name: Report reused validation
+        if: contains(needs.reuse.outputs.checks, ',rust-coverage,')
+        run: echo 'An earlier passing run verified the same inputs.'
+
       - name: Checkout repository
+        if: ${{ !contains(needs.reuse.outputs.checks, ',rust-coverage,') }}
         uses: actions/checkout@v7.0.1
         with:
           persist-credentials: false
 
       - name: Set up Rust
+        if: ${{ !contains(needs.reuse.outputs.checks, ',rust-coverage,') }}
         uses: $/.github/actions/rust-setup
         with:
           cache-name: coverage
@@ -312,11 +366,12 @@ jobs:
           tools: cargo-llvm-cov ffmpeg
 
       - name: Check Rust tests and coverage
+        if: ${{ !contains(needs.reuse.outputs.checks, ',rust-coverage,') }}
         run: sh scripts/rust/check-rust.sh coverage
 
   rust-miri:
     name: Rust Miri
-    needs: changes
+    needs: [changes, reuse]
     if: always() && !cancelled() && needs.changes.outputs.rust == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 30
@@ -324,12 +379,18 @@ jobs:
       CARGO_INCREMENTAL: '0'
       OPUS_BUNDLED: '1'
     steps:
+      - name: Report reused validation
+        if: contains(needs.reuse.outputs.checks, ',rust-miri,')
+        run: echo 'An earlier passing run verified the same inputs.'
+
       - name: Checkout repository
+        if: ${{ !contains(needs.reuse.outputs.checks, ',rust-miri,') }}
         uses: actions/checkout@v7.0.1
         with:
           persist-credentials: false
 
       - name: Set up Rust
+        if: ${{ !contains(needs.reuse.outputs.checks, ',rust-miri,') }}
         uses: $/.github/actions/rust-setup
         with:
           cache-name: miri
@@ -339,14 +400,16 @@ jobs:
           components: miri,rust-src
 
       - name: Prepare Miri standard library
+        if: ${{ !contains(needs.reuse.outputs.checks, ',rust-miri,') }}
         run: cargo miri setup
 
       - name: Interpret pure Rust tests with Miri
+        if: ${{ !contains(needs.reuse.outputs.checks, ',rust-miri,') }}
         run: sh scripts/rust/check-rust.sh miri
 
   rust-dependencies:
     name: Rust features and dependencies
-    needs: changes
+    needs: [changes, reuse]
     if: always() && !cancelled() && needs.changes.outputs.rust == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 30
@@ -354,12 +417,18 @@ jobs:
       CARGO_INCREMENTAL: '0'
       OPUS_BUNDLED: '1'
     steps:
+      - name: Report reused validation
+        if: contains(needs.reuse.outputs.checks, ',rust-dependencies,')
+        run: echo 'An earlier passing run verified the same inputs.'
+
       - name: Checkout repository
+        if: ${{ !contains(needs.reuse.outputs.checks, ',rust-dependencies,') }}
         uses: actions/checkout@v7.0.1
         with:
           persist-credentials: false
 
       - name: Set up Rust
+        if: ${{ !contains(needs.reuse.outputs.checks, ',rust-dependencies,') }}
         uses: $/.github/actions/rust-setup
         with:
           cache-name: dependencies
@@ -367,11 +436,12 @@ jobs:
           tools: cargo-hack cargo-udeps
 
       - name: Check Rust feature combinations and unused dependencies
+        if: ${{ !contains(needs.reuse.outputs.checks, ',rust-dependencies,') }}
         run: sh scripts/rust/check-rust.sh dependencies
 
   go-activity:
     name: Go Activity server
-    needs: changes
+    needs: [changes, reuse]
     if: always() && !cancelled() && needs.changes.outputs.go == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -403,6 +473,7 @@ jobs:
           sh scripts/activity/stage-activity-server.sh
 
       - name: Install the pinned Go linter
+        if: ${{ !contains(needs.reuse.outputs.checks, ',go,') }}
         run: |
           version=2.15.0
           archive="golangci-lint-${version}-linux-amd64.tar.gz"
@@ -416,7 +487,12 @@ jobs:
           printf '%s\n' "$RUNNER_TEMP/golangci-lint-${version}-linux-amd64" >> "$GITHUB_PATH"
 
       - name: Check the origin and enforce per-file statement coverage
+        if: ${{ !contains(needs.reuse.outputs.checks, ',go,') }}
         run: sh scripts/activity/check-activity-server.sh
+
+      - name: Check current Go advisories after reusing coverage
+        if: contains(needs.reuse.outputs.checks, ',go,')
+        run: sh scripts/activity/check-activity-server.sh --vulnerabilities-only
 
       - name: Build the production Activity origin image
         if: ${{ !inputs.qualify-activity-image-in-release }}
@@ -440,20 +516,26 @@ jobs:
   # never use its paid larger variant.
   ios:
     name: iOS lint, tests and coverage
-    needs: changes
+    needs: [changes, reuse]
     if: always() && !cancelled() && needs.changes.outputs.ios == 'true'
-    runs-on: xcode-27
+    runs-on: ${{ contains(needs.reuse.outputs.checks, ',ios,') && 'ubuntu-latest' || 'xcode-27' }}
     timeout-minutes: 60
     env:
       BOTGE_IOS_DESTINATION: platform=iOS Simulator,name=iPhone 17e,OS=latest
     steps:
+      - name: Report reused validation
+        if: contains(needs.reuse.outputs.checks, ',ios,')
+        run: echo 'An earlier passing run verified the same inputs.'
+
       - name: Checkout repository
+        if: ${{ !contains(needs.reuse.outputs.checks, ',ios,') }}
         uses: actions/checkout@v7.0.1
         with:
           persist-credentials: false
 
       # The app targets iOS 27, so use the newest installed Xcode 27.
       - name: Select Xcode 27
+        if: ${{ !contains(needs.reuse.outputs.checks, ',ios,') }}
         id: xcode
         run: |
           xcode=$(find /Applications -maxdepth 1 -name 'Xcode_27*.app' | sort -V | tail -n 1)
@@ -465,6 +547,7 @@ jobs:
           printf 'fingerprint=%s\n' "$fingerprint" >> "$GITHUB_OUTPUT"
 
       - name: Restore pinned iOS tools
+        if: ${{ !contains(needs.reuse.outputs.checks, ',ios,') }}
         uses: actions/cache/restore@v6.1.0
         id: ios-tools
         with:
@@ -475,21 +558,26 @@ jobs:
             'scripts/ios/setup-ios-tools.sh') }}
 
       - name: Build pinned iOS tools
+        if: ${{ !contains(needs.reuse.outputs.checks, ',ios,') }}
         env:
           BOTGE_IOS_USE_CACHED_TOOLS: ${{ steps.ios-tools.outputs.cache-hit }}
         run: sh scripts/ios/setup-ios-tools.sh
 
       - name: Save built iOS tools before validation
-        if: steps.ios-tools.outputs.cache-hit != 'true'
+        if:
+          ${{ !contains(needs.reuse.outputs.checks, ',ios,') && steps.ios-tools.outputs.cache-hit !=
+          'true' }}
         uses: actions/cache/save@v6.1.0
         with:
           path: ios/Tools/.build
           key: ${{ steps.ios-tools.outputs.cache-primary-key }}
 
       - name: Check Swift formatting and lints
+        if: ${{ !contains(needs.reuse.outputs.checks, ',ios,') }}
         run: sh scripts/ios/check-ios.sh lint
 
       - name: Analyze, test and enforce coverage from one instrumented build
+        if: ${{ !contains(needs.reuse.outputs.checks, ',ios,') }}
         run: sh scripts/ios/check-ios.sh ci
 
   botgeql:
@@ -540,7 +628,7 @@ jobs:
 
   tooling-lint:
     name: Shell, Python, and workflow checks
-    needs: [check-pr-target, changes]
+    needs: [check-pr-target, changes, reuse]
     if: >-
       always() && !cancelled() && (needs.check-pr-target.result == 'success' ||
       needs.check-pr-target.result == 'skipped')
@@ -552,26 +640,37 @@ jobs:
           CHANGE_DETECTION_RESULT: ${{ needs.changes.result }}
         run: test "$CHANGE_DETECTION_RESULT" = success
 
+      - name: Report reused validation
+        if: contains(needs.reuse.outputs.checks, ',tooling,')
+        run: echo 'An earlier passing run verified the same inputs.'
+
       - name: Checkout repository
-        if: >-
-          needs.changes.outputs.shell == 'true' || needs.changes.outputs.workflows == 'true' ||
-          needs.changes.outputs.python == 'true' || needs.changes.outputs.ios == 'true'
+        if:
+          ${{ !contains(needs.reuse.outputs.checks, ',tooling,') && (needs.changes.outputs.shell ==
+          'true' || needs.changes.outputs.workflows == 'true' || needs.changes.outputs.python ==
+          'true' || needs.changes.outputs.ios == 'true') }}
         uses: actions/checkout@v7.0.1
         with:
           persist-credentials: false
 
       - name: Set up Python tools
-        if: needs.changes.outputs.python == 'true' || needs.changes.outputs.ios == 'true'
+        if:
+          ${{ !contains(needs.reuse.outputs.checks, ',tooling,') && (needs.changes.outputs.python ==
+          'true' || needs.changes.outputs.ios == 'true') }}
         uses: actions/setup-python@v7.1.0
         with:
           python-version-file: .python-version
 
       - name: Check Swift documentation tags on Linux
-        if: needs.changes.outputs.ios == 'true'
+        if:
+          ${{ !contains(needs.reuse.outputs.checks, ',tooling,') && (needs.changes.outputs.ios ==
+          'true') }}
         run: python scripts/ios/check_swift_docs.py
 
       - name: Set up locked Python package manager
-        if: needs.changes.outputs.python == 'true'
+        if:
+          ${{ !contains(needs.reuse.outputs.checks, ',tooling,') && (needs.changes.outputs.python ==
+          'true') }}
         uses: astral-sh/setup-uv@v10.3.3
         with:
           version-file: pyproject.toml
@@ -582,15 +681,21 @@ jobs:
             .python-version
 
       - name: Install pinned Python tools
-        if: needs.changes.outputs.python == 'true'
+        if:
+          ${{ !contains(needs.reuse.outputs.checks, ',tooling,') && (needs.changes.outputs.python ==
+          'true') }}
         run: uv sync --locked --no-python-downloads
 
       - name: Check Python helpers
-        if: needs.changes.outputs.python == 'true'
+        if:
+          ${{ !contains(needs.reuse.outputs.checks, ',tooling,') && (needs.changes.outputs.python ==
+          'true') }}
         run: .venv/bin/python scripts/quality/check_python.py
 
       - name: Install ShellCheck
-        if: needs.changes.outputs.shell == 'true' || needs.changes.outputs.workflows == 'true'
+        if:
+          ${{ !contains(needs.reuse.outputs.checks, ',tooling,') && (needs.changes.outputs.shell ==
+          'true' || needs.changes.outputs.workflows == 'true') }}
         shell: bash
         run: |
           if ! command -v shellcheck > /dev/null 2>&1; then
@@ -599,7 +704,9 @@ jobs:
           fi
 
       - name: Restore actionlint
-        if: needs.changes.outputs.workflows == 'true'
+        if:
+          ${{ !contains(needs.reuse.outputs.checks, ',tooling,') && (needs.changes.outputs.workflows
+          == 'true') }}
         uses: actions/cache@v6.1.0
         id: actionlint-cache
         with:
@@ -608,30 +715,44 @@ jobs:
 
       - name: Install actionlint
         if:
-          needs.changes.outputs.workflows == 'true' && steps.actionlint-cache.outputs.cache-hit !=
-          'true'
+          ${{ !contains(needs.reuse.outputs.checks, ',tooling,') && (needs.changes.outputs.workflows
+          == 'true' && steps.actionlint-cache.outputs.cache-hit != 'true') }}
         run: |
           mkdir -p "$RUNNER_TEMP/botge-linters"
           GOBIN="$RUNNER_TEMP/botge-linters" go install github.com/rhysd/actionlint/cmd/actionlint@v1.7.12
 
       - name: Add actionlint to PATH
-        if: needs.changes.outputs.workflows == 'true'
+        if:
+          ${{ !contains(needs.reuse.outputs.checks, ',tooling,') && (needs.changes.outputs.workflows
+          == 'true') }}
         run: printf '%s\n' "$RUNNER_TEMP/botge-linters" >> "$GITHUB_PATH"
 
       - name: Check shell scripts
-        if: needs.changes.outputs.shell == 'true'
+        if:
+          ${{ !contains(needs.reuse.outputs.checks, ',tooling,') && (needs.changes.outputs.shell ==
+          'true') }}
         run: bash scripts/quality/lint-shell.sh
 
       - name: Install shell test tools
-        if: needs.changes.outputs.shell == 'true'
+        if:
+          ${{ !contains(needs.reuse.outputs.checks, ',tooling,') && (needs.changes.outputs.shell ==
+          'true') }}
         run: |
           sudo apt-get -o Acquire::Retries=2 update --error-on=any
           sudo apt-get -o Acquire::Retries=2 install -y --no-install-recommends bats jq kcov
 
       - name: Test shell scripts and enforce coverage
-        if: needs.changes.outputs.shell == 'true'
+        if:
+          ${{ !contains(needs.reuse.outputs.checks, ',tooling,') && (needs.changes.outputs.shell ==
+          'true') }}
         run: python3 scripts/quality/run_shell_tests.py
 
       - name: Check workflows and inline shell
-        if: needs.changes.outputs.workflows == 'true'
+        if:
+          ${{ !contains(needs.reuse.outputs.checks, ',tooling,') && (needs.changes.outputs.workflows
+          == 'true') }}
         run: python3 scripts/quality/lint_workflows.py
+
+      - name: Record completed tooling checks
+        if: ${{ !contains(needs.reuse.outputs.checks, ',tooling,') }}
+        run: echo 'Tooling checks passed for applicable inputs.'

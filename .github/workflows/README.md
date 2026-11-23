@@ -21,10 +21,10 @@ can keep requiring the same check name. The Rust jobs share the
 lockfile pins this repository's copy. It installs the nightly with each job's components, restores a
 build cache named per job, and provides only the pinned test tools that job needs.
 
-Change detection compares the complete PR against its base. Formatting, documentation, and commit
-checks always run; other stages run when their inputs change. Editing BotgeQL exercises every stage.
-Required jobs remain present when optional stages are skipped. Failed change detection fails
-validation. Tests use temporary data, loopback fixtures, and mocks without deployment credentials.
+Change detection compares the complete PR against its base. Commit checks run on each PR update.
+Other stages run when applicable or reuse a verified passing result. Editing BotgeQL exercises every
+stage. Failed change detection fails validation. Tests use temporary data, loopback fixtures, and
+mocks without deployment credentials.
 
 Python checks run in the Shell and workflow lint job, using cached uv to install the locked tools;
 the [helper guide](../../scripts/README.md) owns them. Each Rust job adds only the components it
@@ -36,6 +36,14 @@ selected Xcode build and Swift package inputs. A PR cache can help later runs on
 SwiftLint's analyzer reads the log of one clean, coverage-instrumented build, and the serial
 simulator suite tests those same products. See [Apple's build and test actions][xcode-test-actions]
 and [GitHub's cache scope rules][cache-scope].
+
+The [reuse workflow](reuse-validation.yml) lets BotgeQL, Regal, and Actions lockfile checks reuse a
+passing result from the same PR and base commit when the check's inputs agree. The current check
+still completes under its normal name. Reused iOS results run a short Linux job that records the
+pass. The lookup requires the original check step to have executed and passed. It falls back to a
+fresh check when inputs or the base change, the previous check failed or is pending, the lookup is
+inconclusive, or someone manually reruns the workflow. Current Go advisories, dependency audits,
+CodeQL uploads, and release image qualification still run for the current revision.
 
 [xcode-test-actions]:
   https://developer.apple.com/documentation/xcode/configuring-your-xcode-cloud-workflow-s-actions
@@ -162,10 +170,11 @@ separate VM deployment continues to use `GCLOUD_SERVICE_ACCOUNT`.
 The first approved deployment creates the service. A Google Cloud administrator must then grant
 `roles/run.invoker` to `allUsers` on that service so Discord can reach it. Keep the Cloud Run
 invoker check enabled. Subsequent deployments preserve this IAM policy. Cloud Run starts the
-revision using the internal `/healthz` probe and sends traffic to the ready revision. Each run
-records the deployed digest, revision, and URL. Use that URL's hostname for Discord's `/` mapping.
-The Activity verifier requires Discord's signature to serve content. Keep `/botge-api` pointed to
-the [Rust bot's HTTPS endpoint](../../activity/README.md#api-https-endpoint).
+revision using the internal `/healthz` probe and sends traffic to the ready revision. Cloud Run
+records the index's `linux/amd64` manifest digest, so each run checks the serving revision against
+that manifest and records its digest, revision, and URL. Use that URL's hostname for Discord's `/`
+mapping. The Activity verifier requires Discord's signature to serve content. Keep `/botge-api`
+pointed to the [Rust bot's HTTPS endpoint](../../activity/README.md#api-https-endpoint).
 
 Follow the [cost policy](../../docs/PRODUCTION.md#cost-policy) before approving a deployment. Keep
 tagged candidates within the shared Artifact Registry free allowance and preserve deployed and

@@ -69,6 +69,17 @@ SH
   [ ! -e "$(cat "$CALLS.imports")" ]
 }
 
+@test "Go vulnerability refresh checks the sources and binary without repeating coverage" {
+  stub_go
+  run call_sh "$REPO/scripts/activity/check-activity-server.sh" --vulnerabilities-only
+  [ "$status" -eq 0 ]
+  called 'go -C activity/server build -trimpath -mod=readonly'
+  called "tool govulncheck -C $REPO/activity/server ./..."
+  called 'tool govulncheck -mode binary'
+  never_called 'tool go-test-coverage'
+  never_called 'golangci-lint'
+}
+
 @test "Rust entry points preserve static, dependency, benchmark, and Miri checks" {
   record cargo
   stub rustup << 'SH'

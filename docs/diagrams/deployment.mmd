@@ -1,0 +1,68 @@
+---
+title: Botge · Production topology
+---
+flowchart TB
+    subgraph clients["Clients"]
+        direction LR
+        discordApp(["Discord client"])
+        iphone(["Botge iPhone app"])
+    end
+
+    subgraph discordCloud["Discord"]
+        direction LR
+        proxy["Activity proxy<br/>URL mappings"]
+        gatewayApi["Gateway, REST,<br/>OAuth and voice"]
+    end
+
+    subgraph gcp["Google Cloud"]
+        direction LR
+        cloudRun["<b>Cloud Run</b><br/>Go Activity origin,<br/>scales to zero"]
+        subgraph vm["Compute Engine VM · rootless Docker"]
+            direction TB
+            funnel["Public HTTPS endpoint<br/>Tailscale Funnel → 127.0.0.1:3080"]
+            subgraph compose["Compose project"]
+                direction LR
+                botge["<b>botge</b><br/>Rust binary and FFmpeg<br/>read-only root, /tmp tmpfs"]
+                nginx["<b>nginx</b><br/>7TV media cache"]
+            end
+            volume[("botge-data volume<br/>botge.redb")]
+            cache[("nginx/cache<br/>on the host")]
+            control["botge_control<br/>digest deploys over IAP"]
+        end
+    end
+
+    subgraph external["Upstream services"]
+        direction LR
+        seventv["<b>7TV</b><br/>7tv.io API and events,<br/>cdn.7tv.app"]
+        dockerHub[("Docker Hub<br/>mrewy/botge digests")]
+        registry[("Artifact Registry<br/>Activity image digests")]
+    end
+
+    discordApp --> proxy
+    proxy -->|"/"| cloudRun
+    proxy -->|"/botge-api"| funnel
+    proxy -->|"/7tv-api, /7tv-cdn"| seventv
+    iphone -->|"/app/v1 bearer"| funnel
+    funnel --> botge
+    botge <-->|gateway and REST| gatewayApi
+    botge --> nginx
+    nginx --> seventv
+    botge -->|catalog and events| seventv
+    botge --- volume
+    nginx --- cache
+    control -.->|compose up by digest| compose
+    dockerHub -.->|image| compose
+    registry -.->|image| cloudRun
+
+    classDef entry fill:#1a1f3d,stroke:#8b93ff,color:#eef0ff,stroke-width:2px,rx:10,ry:10
+    classDef core fill:#0f2a28,stroke:#3dd6b5,color:#e6fbf6,stroke-width:2px,rx:10,ry:10
+    classDef data fill:#2b2212,stroke:#f0b54a,color:#fff5e3,stroke-width:2px,rx:10,ry:10
+    classDef media fill:#26173a,stroke:#c38bff,color:#f6eeff,stroke-width:2px,rx:10,ry:10
+    classDef cloud fill:#122238,stroke:#5aa7ff,color:#e8f2ff,stroke-width:2px,rx:10,ry:10
+    classDef base fill:#161b24,stroke:#7d8ba3,color:#e9edf4,stroke-width:2px,rx:10,ry:10
+    class discordApp,iphone,proxy,gatewayApi entry
+    class botge core
+    class nginx,seventv media
+    class volume,cache,registry,dockerHub data
+    class cloudRun,funnel cloud
+    class control base

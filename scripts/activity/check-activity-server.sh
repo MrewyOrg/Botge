@@ -11,6 +11,22 @@ trap 'rm -rf -- "${scratch}"' EXIT
 mkdir -p "${reports}" "${scratch}/subprocess"
 export BOTGE_GO_COVERDIR="${scratch}/subprocess"
 
+build_binary() {
+  CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go -C "${server}" build -trimpath -mod=readonly \
+    -o "${scratch}/activity-server" ./cmd/activity-server
+}
+
+check_vulnerabilities() {
+  go -C "${server}/tools" tool govulncheck -C "${PWD}/${server}" ./...
+  go -C "${server}/tools" tool govulncheck -mode binary "${scratch}/activity-server"
+}
+
+if [ "${1:-}" = '--vulnerabilities-only' ]; then
+  build_binary
+  check_vulnerabilities
+  exit 0
+fi
+
 (cd "${server}" && golangci-lint config verify)
 for module in "${server}" "${server}/tools"; do
   go -C "${module}" mod tidy -diff
@@ -23,8 +39,7 @@ go -C "${server}" list -mod=readonly -f '{{range .GoFiles}}{{$.Dir}}/{{.}}{{"\n"
   > "${scratch}/sources.txt"
 go -C "${server}/tools" test -mod=readonly ./fielddocs
 go -C "${server}/tools" run -mod=readonly ./fielddocs < "${scratch}/sources.txt"
-CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go -C "${server}" build -trimpath -mod=readonly \
-  -o "${scratch}/activity-server" ./cmd/activity-server
+build_binary
 go -C "${server}" list -deps -json -mod=readonly ./cmd/activity-server > "${scratch}/imports.json"
 node --input-type=module - "${scratch}/imports.json" << 'JS'
 import { readFileSync } from 'node:fs';
@@ -47,5 +62,4 @@ cat "${reports}/report.txt"
 if [ "${checker_status}" -ne 0 ]; then
   exit "${checker_status}"
 fi
-go -C "${server}/tools" tool govulncheck -C "${PWD}/${server}" ./...
-go -C "${server}/tools" tool govulncheck -mode binary "${scratch}/activity-server"
+check_vulnerabilities

@@ -4,27 +4,41 @@ The production image builds one [Rust binary](../crates/botge/Cargo.toml). Disco
 Activity API share the same emote catalog. The [Activity](../activity/README.md) uses TypeScript in
 the browser and Go at the origin. The [iOS app](../ios/README.md) uses SwiftUI.
 
-## Diagram exports
+## Diagrams
 
-The editable Mermaid diagrams in [`diagrams/`](diagrams/) track the workspace, request and release
-flows. The linked PNGs are existing exports. The workspace guide defines the full dependency policy:
+Each PNG is rendered from its Mermaid source in [`diagrams/`](diagrams/) with the shared dark theme
+in [`mermaid.config.json`](diagrams/mermaid.config.json). Edit the source, then re-render. The
+[workspace guide](../crates/README.md) defines the full dependency policy.
 
-- [Workspace architecture](diagrams/architecture.mmd) ([PNG](architecture.png)): adapters,
-  application operations, domain records, providers, and persistence.
-- [Request and data flow](diagrams/request-flow.mmd) ([PNG](request-flow.png)): Discord compositions
-  and authenticated Activity voice settings.
-- [VM deployment topology](deployment.png): Compose services, persistent data, and optional API
-  ingress.
-- [Development and release workflow](diagrams/development-workflow.mmd)
-  ([PNG](development-workflow.png)): local hooks, language checks, and approved deployment.
-- [Startup and shutdown](startup.png): initialization, optional services, and gateway readiness.
-- [Discord interactions](discord-interactions.png): extensible command, autocomplete, modal, and
-  message handling.
+- [Rust workspace](architecture.png) ([source](diagrams/architecture.mmd)): crates, allowed
+  dependency edges and capabilities.
+- [Request and data flow](request-flow.png) ([source](diagrams/request-flow.mmd)): compositions, the
+  Activity page and a settings save.
+- [Production topology](deployment.png) ([source](diagrams/deployment.mmd)): VM services, Cloud Run,
+  Discord URL mappings and 7TV.
+- [Development and release workflow](development-workflow.png)
+  ([source](diagrams/development-workflow.mmd)): hooks, PR checks, approval and both deploy paths.
+- [Startup and shutdown](startup.png) ([source](diagrams/startup.mmd)): maintenance flags,
+  initialization, readiness and exit.
+- [Discord event handling](discord-interactions.png) ([source](diagrams/discord-interactions.mmd)):
+  commands, autocomplete, modals and prefix messages.
 
-Diagrams show architectural boundaries rather than an exhaustive feature list. New ports reuse the
-command and interaction handlers; only implemented handlers are active. The request-flow diagram
-illustrates emote rendering and an Activity voice-settings save. Personal border requests identify
-the caller without requiring guild authorization.
+Render every diagram from the repository root with the installed Chrome. `--ignore-scripts` skips
+Puppeteer's browser download, and the Puppeteer configuration widens the layout viewport:
+
+```sh
+export PUPPETEER_SKIP_DOWNLOAD=true
+export PUPPETEER_EXECUTABLE_PATH="/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
+for source in docs/diagrams/*.mmd; do
+  npm exec --yes --ignore-scripts --package=@mermaid-js/mermaid-cli@12.2.0 -- mmdc \
+    --puppeteerConfigFile docs/diagrams/puppeteer.config.json \
+    --configFile docs/diagrams/mermaid.config.json --backgroundColor '#0e1117' --scale 2 \
+    --input "$source" --output "docs/$(basename "$source" .mmd).png"
+done
+```
+
+Diagrams show architectural boundaries rather than every feature. Only implemented handlers are
+active. Personal border requests identify the caller without requiring guild authorization.
 
 ## Startup and dependencies
 
@@ -44,8 +58,8 @@ flowchart TD
     Commands --> App
     App --> Catalog["Resolve emotes"]
     App --> Renderer["Render images with FFmpeg"]
-    Catalog --> Providers["Provider feeds and 7TV events"]
-    Renderer --> Cache["Provider image cache"]
+    Catalog --> Feeds["7TV snapshots and events"]
+    Renderer --> Cache["nginx 7TV media cache"]
 ```
 
 The root Cargo manifest is a virtual workspace. The executable lives in
