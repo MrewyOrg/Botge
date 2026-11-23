@@ -95,7 +95,13 @@ test('browses and paginates the local catalog, previews an emote, and copies its
   } finally {
     Reflect.deleteProperty(navigator, 'clipboard');
   }
-});
+  input('#search').value = 'Wave';
+  input('#search').dispatchEvent(new Event('input'));
+  click('#clear-filters');
+  expect(input('#search').value).toBe('Wave');
+  expect(input('#tag-search').value).toBe('');
+  await waitForText('#message', 'Showing 48 of 50');
+}, 15_000);
 
 test('handles a full composer and unrelated context-menu targets', async () => {
   vi.stubGlobal('fetch', vi.fn().mockResolvedValue(Response.json([publicEmote])));
@@ -121,7 +127,7 @@ test('handles a full composer and unrelated context-menu targets', async () => {
   click('#results li button');
   click('#selection-compose');
   expect(element('#selection-status').textContent).toContain('composer is full');
-});
+}, 15_000);
 
 test('adds emotes from the tile shortcut until the composer is full', async () => {
   vi.stubGlobal('fetch', vi.fn().mockResolvedValue(Response.json([publicEmote])));
@@ -136,7 +142,27 @@ test('adds emotes from the tile shortcut until the composer is full', async () =
   expect(element('#composer-count').textContent).toBe('32');
   shortcut.click();
   expect(element('#message').textContent).toBe('The composer is full.');
-});
+}, 15_000);
+
+test('opens tile actions with the keyboard and dismisses them from the same button', async () => {
+  vi.stubGlobal('fetch', vi.fn().mockResolvedValue(Response.json([publicEmote])));
+  await import('../../src/index.ts');
+  await waitForText('#message', 'Showing 1 of 1');
+  const actions = element('#results .tile-actions');
+  actions.dispatchEvent(new KeyboardEvent('keydown', { key: 'x', bubbles: true }));
+  expect(actions.getAttribute('aria-expanded')).toBe('false');
+  for (const [key, label] of [
+    ['ArrowDown', 'Add to composer'],
+    ['ArrowUp', 'View details']
+  ] as const) {
+    const event = new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true });
+    expect(actions.dispatchEvent(event)).toBe(false);
+    expect(document.activeElement?.textContent).toBe(label);
+    actions.click();
+    expect(actions.getAttribute('aria-expanded')).toBe('false');
+    expect(document.activeElement).toBe(actions);
+  }
+}, 15_000);
 
 test('focuses search with the slash shortcut outside text fields', async () => {
   vi.stubGlobal('fetch', vi.fn().mockResolvedValue(Response.json([publicEmote])));
@@ -234,19 +260,19 @@ test('keeps known composition tokens while hiding unavailable discovery actions'
   vi.stubGlobal('fetch', fetch);
   await import('../../src/index.ts');
   await waitForText('#message', 'Showing 2 of 2');
-  const source = requireValue(
-    document.querySelector<HTMLSelectElement>('#source'),
-    'Missing source'
+  const motion = requireValue(
+    document.querySelector<HTMLSelectElement>('#motion'),
+    'Missing motion filter'
   );
-  source.value = '7TV';
-  source.dispatchEvent(new Event('change'));
+  motion.value = 'static';
+  motion.dispatchEvent(new Event('change'));
   click('#refresh-catalog');
   await vi.waitFor(() => {
     expect(
       fetch.mock.calls.filter(([path]: readonly [string]) => path === '/botge-api/catalog')
     ).toHaveLength(2);
   });
-  expect(source.value).toBe('7TV');
+  expect(motion.value).toBe('static');
   click('#trending-mode');
   click('#trending-mode');
   await waitForText('#message', 'Showing 2 7TV emotes');

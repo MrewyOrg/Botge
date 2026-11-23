@@ -162,7 +162,7 @@ async fn serves_a_guild_catalog_and_allows_only_authorized_adds_and_removals() -
     fixture
       .post(
         "/settings/emotes",
-        &json!({"guildId":"1","code":"admin","emotes":{"ffzChannel":"x/y"}}),
+        &json!({"guildId":"1","code":"admin","emotes":{"sevenTvSet":"x/y"}}),
         true
       )
       .await?
@@ -241,10 +241,12 @@ async fn a_delegated_emote_manager_can_remove_emotes_but_cannot_change_settings(
   let upstream = crate::tests::TestServer::start(Router::new()).await?;
   let fixture = Fixture::with_emotes(Some(upstream.origin.clone()))?;
   let id = "01234567890123456789012345";
-  assert!(
-    fixture
-      .store
-      .add_emote(NonZeroU64::MIN, botge_test_support::example("Wave", id))?
+  assert_eq!(
+    fixture.store.add_emote(
+      botge_storage::CatalogEditor::system(NonZeroU64::MIN),
+      botge_test_support::example("Wave", id)
+    )?,
+    botge_storage::AddEmoteOutcome::Added
   );
 
   let remove = json!({"guildId":"1","code":"manager","emoteId":id});
@@ -274,6 +276,18 @@ async fn a_delegated_emote_manager_can_remove_emotes_but_cannot_change_settings(
   assert_eq!(
     fixture.post("/emotes/remove", &remove, true).await?.0,
     StatusCode::OK
+  );
+  let (_, history) = fixture
+    .post(
+      "/catalog/history",
+      &json!({"guildId":"1","code":"admin"}),
+      true,
+    )
+    .await?;
+  assert_eq!(history.pointer("/revisions/0/actorId"), Some(&json!("2")));
+  assert_eq!(
+    history.pointer("/revisions/0/edit/name"),
+    Some(&json!("Wave"))
   );
   let added = fixture.store.added_emotes(NonZeroU64::MIN)?;
   assert!(added.is_empty(), "unexpected added emotes: {added:?}");
@@ -381,7 +395,7 @@ async fn compresses_large_catalogs_for_clients_that_accept_gzip() -> anyhow::Res
   let fixture = Fixture::with_emotes(Some("http://127.0.0.1:9".parse()?))?;
   for index in 0..30 {
     fixture.store.add_emote(
-      NonZeroU64::MIN,
+      botge_storage::CatalogEditor::system(NonZeroU64::MIN),
       botge_test_support::example(&format!("Wave{index}"), &index.to_string()),
     )?;
   }
@@ -404,5 +418,129 @@ async fn compresses_large_catalogs_for_clients_that_accept_gzip() -> anyhow::Res
       .await?,
     None
   );
+  Ok(())
+}
+
+#[tokio::test]
+async fn lists_previews_and_restores_revisions_only_for_current_administrators()
+-> anyhow::Result<()> {
+  let fixture = Fixture::with_emotes(None)?;
+  let path = "/catalog/history";
+  let admin = json!({"guildId":"1","code":"admin"});
+  let member = json!({"guildId":"1","code":"member"});
+  assert_eq!(
+    fixture.post(path, &member, true).await?.0,
+    StatusCode::FORBIDDEN
+  );
+  assert_eq!(
+    fixture.post(path, &admin, false).await?.0,
+    StatusCode::UNAUTHORIZED
+  );
+  let (status, history) = fixture.post(path, &admin, true).await?;
+  assert_eq!(status, StatusCode::OK);
+  assert_eq!(history.get("revisions"), Some(&json!([])));
+
+  let edit = json!({"guildId":"1","code":"admin","emotes":{"allowEveryone":true}});
+  assert_eq!(
+    fixture.post("/settings/emotes", &edit, true).await?.0,
+    StatusCode::OK
+  );
+
+  let preview = "/catalog/history/preview";
+  let requested = json!({"guildId":"1","code":"admin","revision":0});
+  let (status, diff) = fixture.post(preview, &requested, true).await?;
+  assert_eq!(status, StatusCode::OK);
+  assert_eq!(diff.get("currentRevision"), Some(&json!(1)));
+  assert_eq!(
+    diff.pointer("/currentSettings/allowEveryone"),
+    Some(&json!(true))
+  );
+  assert_eq!(
+    diff.pointer("/restoredSettings/allowEveryone"),
+    Some(&json!(false))
+  );
+  let missing = json!({"guildId":"1","code":"admin","revision":83});
+  assert_eq!(
+    fixture.post(preview, &missing, true).await?.0,
+    StatusCode::NOT_FOUND
+  );
+
+  let restore = "/catalog/history/restore";
+  let denied = json!({"guildId":"1","code":"member","revision":0,"expectedRevision":1});
+  assert_eq!(
+    fixture.post(restore, &denied, true).await?.0,
+    StatusCode::FORBIDDEN
+  );
+  let stale = json!({"guildId":"1","code":"admin","revision":0,"expectedRevision":0});
+  assert_eq!(
+    fixture.post(restore, &stale, true).await?.0,
+    StatusCode::CONFLICT
+  );
+  let missing = json!({"guildId":"1","code":"admin","revision":83,"expectedRevision":1});
+  assert_eq!(
+    fixture.post(restore, &missing, true).await?.0,
+    StatusCode::NOT_FOUND
+  );
+  let confirm = json!({"guildId":"1","code":"admin","revision":0,"expectedRevision":1});
+  let (status, result) = fixture.post(restore, &confirm, true).await?;
+  assert_eq!(status, StatusCode::OK);
+  assert_eq!(result, json!({"currentRevision":2}));
+  let (_, history) = fixture.post(path, &admin, true).await?;
+  assert_eq!(
+    history.pointer("/revisions/0/edit"),
+    Some(&json!({"type":"restored","revision":0}))
+  );
+  assert!(
+    history
+      .pointer("/revisions/0/actorId")
+      .is_some_and(Value::is_string)
+  );
+  assert!(!fixture.store.guild_emotes(NonZeroU64::MIN)?.allow_everyone);
+  let unchanged = json!({"guildId":"1","code":"admin","revision":0,"expectedRevision":2});
+  assert_eq!(
+    fixture.post(restore, &unchanged, true).await?,
+    (StatusCode::OK, json!({"currentRevision":2}))
+  );
+  Ok(())
+}
+
+#[tokio::test]
+async fn catalog_history_rejects_invalid_guilds_and_preserves_operator_policy() -> anyhow::Result<()>
+{
+  let fixture = Fixture::new()?;
+  let guild = NonZeroU64::MIN;
+  for (route, request) in [
+    ("/catalog/history", json!({"guildId":"0","code":"admin"})),
+    (
+      "/catalog/history/preview",
+      json!({"guildId":"0","code":"admin","revision":0}),
+    ),
+    (
+      "/catalog/history/restore",
+      json!({"guildId":"0","code":"admin","revision":0,"expectedRevision":1}),
+    ),
+  ] {
+    assert_eq!(
+      fixture.post(route, &request, true).await?.0,
+      StatusCode::BAD_REQUEST
+    );
+  }
+  let emote = botge_test_support::example("Wave", "01234567890123456789012345");
+  fixture
+    .store
+    .add_emote(botge_storage::CatalogEditor::system(guild), emote.clone())?;
+  let restore = json!({"guildId":"1","code":"admin","revision":0,"expectedRevision":1});
+  let (status, error) = fixture
+    .post("/catalog/history/restore", &restore, true)
+    .await?;
+  assert_eq!(status, StatusCode::FORBIDDEN);
+  assert_eq!(
+    error.get("message"),
+    Some(&json!(
+      "This revision changes added emotes, which are disabled by the operator."
+    ))
+  );
+  assert_eq!(fixture.store.added_emotes(guild)?, [emote]);
+  assert_eq!(fixture.store.catalog_history(guild)?.current_revision, 1);
   Ok(())
 }

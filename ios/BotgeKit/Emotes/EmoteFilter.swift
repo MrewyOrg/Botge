@@ -7,8 +7,6 @@ public struct EmoteFilter: Equatable, Sendable {
 
   /// Text the emote name must contain, ignoring case.
   public var query = ""
-  /// The provider to show, or `nil` for all.
-  public var source: EmoteSource?
   /// Animated, still, or both.
   public var motion: MotionFilter = .any
   /// Overlay, regular, or both.
@@ -20,7 +18,7 @@ public struct EmoteFilter: Equatable, Sendable {
 
   /// How many filters besides the search text are active, for the filter button badge.
   public var activeCount: Int {
-    [source != nil, motion != .any, overlay != .any, showsOnlyAdded, !tagTerms.isEmpty]
+    [motion != .any, overlay != .any, showsOnlyAdded, !tagTerms.isEmpty]
       .count { $0 }
   }
 
@@ -44,7 +42,6 @@ public struct EmoteFilter: Equatable, Sendable {
     let terms = tagTerms
     let labels = emote.filterTags.map { $0.lowercased() }
     return (search.isEmpty || emote.name.lowercased().contains(search))
-      && (source == nil || emote.source == source)
       && (motion == .any || emote.isAnimated == (motion == .animated))
       && (overlay == .any || emote.isOverlay == (overlay == .overlaying))
       && (!showsOnlyAdded || emote.isAdded)

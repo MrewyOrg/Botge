@@ -6,8 +6,7 @@ import { requireValue } from '../validation.ts';
  * Connects the filter toggle, count badge, and clear action to the secondary filter fields.
  *
  * @remarks
- * Fields inside a hidden label, such as the platform filter in discovery modes, do not apply and
- * are not counted. Clearing resets only the secondary fields; the search box is left unchanged.
+ * Clearing resets only the secondary fields and keeps the search text.
  * Pressing `/` outside text fields and dialogs focuses the search box.
  *
  * @returns Controls that recount active filters and connect the clear action.
@@ -45,11 +44,19 @@ export function createFilterPanel(): {
   const fields: readonly (HTMLInputElement | HTMLSelectElement)[] = [
     ...panel.querySelectorAll<HTMLInputElement | HTMLSelectElement>('input, select')
   ];
+  const motion = requireValue(
+    panel.querySelector<HTMLSelectElement>('#motion'),
+    'Missing motion filter.'
+  );
+  if (
+    typeof window.matchMedia === 'function'
+    && window.matchMedia('(prefers-reduced-motion: reduce)').matches
+  )
+    motion.value = 'static';
 
   function update(): void {
     let active = 0;
-    for (const field of fields)
-      if (field.value.trim() !== '' && field.parentElement?.hidden !== true) active += 1;
+    for (const field of fields) if (field.value.trim() !== '') active += 1;
     count.textContent = String(active);
     count.hidden = active === 0;
     clear.disabled = active === 0;

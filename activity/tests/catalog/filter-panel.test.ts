@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { beforeEach, expect, test, vi } from 'vitest';
+import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 
 import html from '../../index.html?raw';
 import { createFilterPanel } from '../../src/catalog/filter-panel.ts';
@@ -17,10 +17,6 @@ function field(selector: string): HTMLInputElement | HTMLSelectElement {
   );
 }
 
-function source(): HTMLSelectElement {
-  return requireValue(document.querySelector<HTMLSelectElement>('#source'), 'Missing source');
-}
-
 function clearAction(): HTMLButtonElement {
   return requireValue(
     document.querySelector<HTMLButtonElement>('#clear-filters'),
@@ -32,7 +28,11 @@ beforeEach(() => {
   document.body.innerHTML = new DOMParser().parseFromString(html, 'text/html').body.innerHTML;
 });
 
-test('expands the secondary filters and counts only applicable active fields', () => {
+afterEach(() => {
+  vi.unstubAllGlobals();
+});
+
+test('expands the secondary filters and counts active fields', () => {
   const filters = createFilterPanel();
   expect(element('#advanced-filters').hidden).toBe(true);
   expect(element('#filter-count').hidden).toBe(true);
@@ -44,13 +44,6 @@ test('expands the secondary filters and counts only applicable active fields', (
 
   field('#motion').value = 'animated';
   field('#tag-search').value = 'dance';
-  source().add(new Option('7TV', '7TV'));
-  source().value = '7TV';
-  filters.update();
-  expect(element('#filter-count').textContent).toBe('3');
-
-  // Discovery modes hide the platform filter, so it no longer applies.
-  element('#source-filter').hidden = true;
   filters.update();
   expect(element('#filter-count').textContent).toBe('2');
   expect(clearAction().disabled).toBe(false);
@@ -78,4 +71,16 @@ test('clears the secondary fields but keeps the search text', () => {
   expect(field('#overlay-filter').value).toBe('');
   expect(field('#search').value).toBe('wave');
   expect(element('#filter-count').hidden).toBe(true);
+});
+
+test('starts with static emotes for reduced motion and allows clearing the filter', () => {
+  const matchMedia = vi.fn(() => ({ matches: true }) as const);
+  vi.stubGlobal('matchMedia', matchMedia);
+  createFilterPanel();
+
+  expect(matchMedia).toHaveBeenCalledWith('(prefers-reduced-motion: reduce)');
+  expect(field('#motion').value).toBe('static');
+  expect(element('#filter-count').textContent).toBe('1');
+  clearAction().click();
+  expect(field('#motion').value).toBe('');
 });

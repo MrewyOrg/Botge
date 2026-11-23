@@ -1,5 +1,3 @@
-// cspell:words replacen
-
 //! Provider fetching, shared snapshots and bounded rendering, independent of persistence.
 
 pub mod catalog;
@@ -8,7 +6,7 @@ pub mod rendering;
 
 use anyhow::Result;
 use botge_domain::{
-  emotes::{Emote, GuildEmotes, Source, cdn_url, safe_id, valid_seven_id},
+  emotes::{Emote, GuildEmotes, Source, cdn_url, valid_seven_id},
   providers::Providers,
 };
 use catalog::Catalog;
@@ -37,10 +35,10 @@ impl Emotes {
   /// # Errors
   ///
   /// Returns an error if the shared HTTP client cannot be initialized.
-  pub fn new(policy: Providers, twitch: Option<(String, String)>) -> Result<Self> {
+  pub fn new(policy: Providers) -> Result<Self> {
     Ok(Self {
       policy,
-      client: Arc::new(ProviderClient::new(twitch)?),
+      client: Arc::new(ProviderClient::new()?),
       events: std::borrow::Cow::Borrowed("wss://events.7tv.io/v3"),
     })
   }

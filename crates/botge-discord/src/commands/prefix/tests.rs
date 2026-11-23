@@ -26,7 +26,6 @@ async fn replies_with_input_errors_without_rendering_or_pinging_the_author() -> 
     Arc::new(botge_app::Application::new(
       botge_domain::providers::Providers::default(),
       store,
-      None,
     )?),
     None,
   );

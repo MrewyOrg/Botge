@@ -37,7 +37,7 @@ struct ServerSettingsAPITests {
 
   @Test
   func `emote policies load, save and stop invalid input before sending`() async throws {
-    let policy = #"{"sevenTvSet":null,"bttvTwitchId":null,"ffzChannel":"chan","#
+    let policy = #"{"sevenTvSet":null,"#
       + #""allowEveryone":false,"allowedRoles":["7"],"roles":[{"id":"7","name":"Mods"}]}"#
     let transport = StubTransport([Self.reply(policy), Self.reply(policy)])
     let api = try TestAPI.signedIn(transport)
@@ -45,10 +45,10 @@ struct ServerSettingsAPITests {
     #expect(loaded.policy.allowedRoleIDs == ["7"])
 
     var draft = loaded.policy
-    draft.frankerFaceZChannel = " Chan "
+    draft.sevenTVSet = " 01234567890123456789ABCDEF "
     _ = try await api.saveEmotePolicy(draft, guild: "1")
     let sent = try #require(Self.body(transport.requests[1])["emotes"] as? [String: Any])
-    #expect(sent["ffzChannel"] as? String == "chan")
+    #expect(sent["sevenTvSet"] as? String == "01234567890123456789ABCDEF")
     #expect(sent["allowedRoles"] as? [String] == ["7"])
     #expect(transport.requests.compactMap { $0.url?.path() }.last
       == "/botge-api/app/v1/settings/emotes")
@@ -57,6 +57,33 @@ struct ServerSettingsAPITests {
     await #expect(throws: APIError.rejected("Check the emote sources and roles.")) {
       try await api.saveEmotePolicy(draft, guild: "1")
     }
+  }
+
+  @Test
+  func `catalog restore confirms the revision that was previewed`() async throws {
+    let history = #"{ "currentRevision":3,"revisions":[{"revision":1,"recordedAt":100,"#
+      + #""actorId":"18446744073709551615","edit":{"type":"baseline"}}]}"#
+    let preview = #"{ "currentRevision":3,"targetRevision":1,"added":["Wave"],"removed":[],"#
+      + #""updated":[],"orderChanged":false,"#
+      + #""currentSettings":{"allowEveryone":false,"allowedRoles":[]},"#
+      + #""restoredSettings":{"allowEveryone":true,"allowedRoles":[]}}"#
+    let transport = StubTransport([
+      Self.reply(history),
+      Self.reply(preview),
+      Self.reply(#"{"currentRevision":4}"#)
+    ])
+    let api = try TestAPI.signedIn(transport)
+    let entries = try await api.catalogHistory(guild: "1")
+    #expect(entries.revisions.first?.actorID == "18446744073709551615")
+    let changes = try await api.previewCatalogRestore(revision: 1, guild: "1")
+    #expect(changes.hasChanges)
+    #expect(changes.added == ["Wave"])
+    #expect(try await api.restoreCatalog(changes, guild: "1") == 4)
+    let sent = try Self.body(transport.requests[2])
+    #expect(sent["guildId"] as? String == "1")
+    #expect(sent["revision"] as? Int == 1)
+    #expect(sent["expectedRevision"] as? Int == 3)
+    #expect(try Self.body(transport.requests[1])["expectedRevision"] == nil)
   }
 
   @Test

@@ -85,7 +85,7 @@ test('closes on a backdrop click but not on clicks or drags that start inside', 
   };
 
   preview.show(publicEmote);
-  expect(document.activeElement).toBe(dialog);
+  expect(document.activeElement).toBe(dialog.querySelector('[autofocus]'));
   press(dialog, [150, 150]);
   press(element('#preview-title'), [150, 150], [20, 20]);
   press(dialog, [150, 150], [20, 20]);

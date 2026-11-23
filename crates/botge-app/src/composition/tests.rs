@@ -51,7 +51,6 @@ impl Fixture {
         ..Default::default()
       },
       std::sync::Arc::clone(&store),
-      None,
     )?;
     application.use_provider_fixture(server.origin.clone());
     Ok(Self {
@@ -100,14 +99,19 @@ async fn refreshes_legacy_variants_without_changing_saved_names_or_overlay_flags
   let mut legacy = example("Saved alias", SEVEN_ID);
   legacy.added = true;
   legacy.overlaying = true;
-  assert!(store.add_emote(NonZeroU64::MIN, legacy.clone())?);
+  assert_eq!(
+    store.add_emote(
+      botge_storage::CatalogEditor::system(NonZeroU64::MIN),
+      legacy.clone()
+    )?,
+    botge_storage::AddEmoteOutcome::Added
+  );
   let mut emotes = Application::new(
     botge_domain::providers::Providers {
       seven_added: true,
       ..Default::default()
     },
     Arc::clone(&store),
-    None,
   )?;
   emotes.use_provider_fixture(server.origin.clone());
   let application = emotes;
@@ -216,7 +220,13 @@ async fn resolves_published_and_provider_records_without_refreshing_legacy_metad
   );
 
   let stored = botge_test_support::example("Stored", botge_test_support::SEVEN_ID);
-  assert!(fixture.store.add_emote(NonZeroU64::MIN, stored)?);
+  assert_eq!(
+    fixture.store.add_emote(
+      botge_storage::CatalogEditor::system(NonZeroU64::MIN),
+      stored
+    )?,
+    botge_storage::AddEmoteOutcome::Added
+  );
   fixture
     .store
     .save_emote_border(NonZeroU64::MIN, Some(0x0012_3456))?;
@@ -270,8 +280,18 @@ async fn shares_admission_between_requests_and_resolves_distinct_stored_names() 
   wave.sizes.insert(2, wave.image.clone());
   let mut hat = botge_test_support::example("Hat", "hat");
   hat.sizes.insert(2, hat.image.clone());
-  assert!(fixture.store.add_emote(NonZeroU64::MIN, wave)?);
-  assert!(fixture.store.add_emote(NonZeroU64::MIN, hat)?);
+  assert_eq!(
+    fixture
+      .store
+      .add_emote(botge_storage::CatalogEditor::system(NonZeroU64::MIN), wave)?,
+    botge_storage::AddEmoteOutcome::Added
+  );
+  assert_eq!(
+    fixture
+      .store
+      .add_emote(botge_storage::CatalogEditor::system(NonZeroU64::MIN), hat)?,
+    botge_storage::AddEmoteOutcome::Added
+  );
   // Renders below the limit run together; only a full set of slots turns a request away.
   let others = fixture
     .application

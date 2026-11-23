@@ -29,21 +29,6 @@
           "type": "boolean",
           "default": false,
           "description": "Enable individually added 7TV emotes and direct 7TV emote references."
-        },
-        "useBTTVEmotes": {
-          "type": "boolean",
-          "default": false,
-          "description": "Enable BetterTTV global, channel, and shared emotes."
-        },
-        "useFFZEmotes": {
-          "type": "boolean",
-          "default": false,
-          "description": "Enable FrankerFaceZ global and channel emotes."
-        },
-        "useTwitchEmotes": {
-          "type": "boolean",
-          "default": false,
-          "description": "Enable Twitch global emotes. Requires Twitch API credentials."
         }
       },
       "default": {}

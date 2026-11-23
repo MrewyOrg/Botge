@@ -10,6 +10,9 @@ import { isRecord } from './validation.ts';
 type ActivityFields = {
   'catalog': undefined;
   'catalog/watch': undefined;
+  'catalog/history': undefined;
+  'catalog/history/preview': { readonly revision: number };
+  'catalog/history/restore': { readonly revision: number; readonly expectedRevision: number };
   'emotes': { readonly emoteId: string };
   'emotes/remove': { readonly emoteId: string };
   'emotes/batch': { readonly action: 'add' | 'remove'; readonly emoteIds: readonly string[] };

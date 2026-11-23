@@ -141,8 +141,6 @@ export function createEmotePreview(options: PreviewOptions): EmotePreview {
         'The composer is full. Remove an input to add more.'
       : '';
     preview.showModal();
-    // Start on the dialog itself, not its close button, so no control looks preselected.
-    preview.focus();
   }
 
   async function copyName(): Promise<void> {
@@ -188,14 +186,16 @@ export function createEmotePreview(options: PreviewOptions): EmotePreview {
       || event.clientY > box.bottom
     );
   }
-  let pressedOutside = false;
-  preview.addEventListener('pointerdown', (event: Pointer) => {
-    pressedOutside = outside(event);
-  });
-  preview.addEventListener('click', (event: Pointer) => {
-    if (pressedOutside && outside(event)) preview.close();
-    pressedOutside = false;
-  });
+  if (!Reflect.has(preview, 'closedBy')) {
+    let pressedOutside = false;
+    preview.addEventListener('pointerdown', (event: Pointer) => {
+      pressedOutside = outside(event);
+    });
+    preview.addEventListener('click', (event: Pointer) => {
+      if (pressedOutside && outside(event)) preview.close();
+      pressedOutside = false;
+    });
+  }
 
   return {
     connectChanges(changeEmote): void {

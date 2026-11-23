@@ -68,7 +68,7 @@ fn application() -> Result<(tempfile::TempDir, Arc<Store>, Arc<Application>)> {
     seven_added: true,
     ..Providers::default()
   };
-  let application = Arc::new(Application::new(policy, Arc::clone(&store), None)?);
+  let application = Arc::new(Application::new(policy, Arc::clone(&store))?);
   Ok((directory, store, application))
 }
 
@@ -169,7 +169,10 @@ async fn announces_saved_changes_only_to_the_guild_that_changed() -> Result<()> 
   assert!(!notified(&mut first).await);
   // Removing a saved addition is announced too.
   let id = "01234567890123456789012345";
-  store.add_emote(guild(2)?, botge_test_support::example("Wave", id))?;
+  store.add_emote(
+    botge_storage::CatalogEditor::system(guild(2)?),
+    botge_test_support::example("Wave", id),
+  )?;
   application
     .remove_emote(
       &Access,
@@ -189,7 +192,7 @@ async fn relays_seven_tv_set_edits_to_the_guilds_that_use_them() -> Result<()> {
   let (_directory, store, application) = application()?;
   let set = "01234567890123456789012345";
   store.save_guild_emotes(
-    guild(1)?,
+    botge_storage::CatalogEditor::system(guild(1)?),
     &GuildEmotes {
       seven_tv_set: Some(set.into()),
       ..GuildEmotes::default()

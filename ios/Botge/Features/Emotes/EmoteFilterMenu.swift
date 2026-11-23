@@ -5,20 +5,11 @@ import SwiftUI
 struct EmoteFilterMenu: View {
   /// The filters being edited.
   @Binding var filter: EmoteFilter
-  /// Whether the filters apply to the server catalog; 7TV rankings have one source and no
-  /// added state.
+  /// Whether the catalog supports filtering individually added emotes.
   let isServerCatalog: Bool
 
   var body: some View {
     Menu {
-      if isServerCatalog {
-        Picker("Source", selection: $filter.source) {
-          Text("All Sources").tag(EmoteSource?.none)
-          ForEach(EmoteSource.allCases, id: \.self) { source in
-            Text(source.rawValue).tag(EmoteSource?.some(source))
-          }
-        }
-      }
       Picker("Motion", selection: $filter.motion) {
         Text("Animated and Still").tag(MotionFilter.any)
         Text("Animated").tag(MotionFilter.animated)

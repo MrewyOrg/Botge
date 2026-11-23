@@ -2,7 +2,7 @@
 
 import type { BrowserEmote } from './catalog.ts';
 import type { createComposer } from '../composer/composer.ts';
-import { createContextMenu } from '../context-menu.ts';
+import { createContextMenu, type MenuTrigger } from '../context-menu.ts';
 import type { createEmoteAccess } from './emote-access.ts';
 import type { createEmotePreview } from './emote-preview.ts';
 import { type createEmoteSelection, emoteKey } from './emote-selection.ts';
@@ -71,6 +71,40 @@ export function createEmoteTiles(options: TileOptions): {
     selection.refresh();
   }
 
+  function openActions(
+    emote: BrowserEmote,
+    trigger: MenuTrigger,
+    x: number,
+    y: number,
+    focusLast = false
+  ): void {
+    const actions: { readonly label: string; readonly run: () => void }[] = [];
+    if (emote.composeToken !== undefined && !composer.full())
+      actions.push({
+        label: 'Add to composer',
+        run(): void {
+          compose(emote);
+        }
+      });
+    const start = change;
+    for (const removing of [false, true] as const) {
+      if (!access.canChange(emote, removing) || access.isBusy()) continue;
+      actions.push({
+        label: removing ? 'Remove from this server' : 'Add to this server',
+        run(): void {
+          start(emote, removing, report);
+        }
+      });
+    }
+    actions.push({
+      label: 'View details',
+      run(): void {
+        preview.show(emote);
+      }
+    });
+    menu.open(trigger, x, y, actions, focusLast);
+  }
+
   function make(emote: BrowserEmote, showComposerShortcut = true): HTMLLIElement {
     const item = document.createElement('li');
     const button = document.createElement('button');
@@ -123,6 +157,27 @@ export function createEmoteTiles(options: TileOptions): {
       });
       item.append(shortcut);
     }
+    const actions = document.createElement('button');
+    actions.type = 'button';
+    actions.className = 'tile-actions';
+    actions.textContent = '⋯';
+    actions.setAttribute('aria-label', `Actions for ${emote.name}`);
+    actions.setAttribute('aria-haspopup', 'menu');
+    actions.setAttribute('aria-expanded', 'false');
+    actions.setAttribute('aria-controls', 'emote-context-menu');
+    actions.addEventListener('click', () => {
+      if (actions.getAttribute('aria-expanded') === 'true') menu.dismiss();
+      else openActions(emote, actions, 0, 0);
+    });
+    actions.addEventListener(
+      'keydown',
+      (event: Readonly<Pick<KeyboardEvent, 'key' | 'preventDefault'>>) => {
+        if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp') return;
+        event.preventDefault();
+        openActions(emote, actions, 0, 0, event.key === 'ArrowUp');
+      }
+    );
+    item.append(actions);
     return item;
   }
 
@@ -141,31 +196,7 @@ export function createEmoteTiles(options: TileOptions): {
       const emote = tile === null ? undefined : tileEmotes.get(tile);
       if (tile === null || emote === undefined) return;
       event.preventDefault();
-      const actions: { label: string; run: () => void }[] = [];
-      if (emote.composeToken !== undefined && !composer.full())
-        actions.push({
-          label: 'Add to composer',
-          run(): void {
-            compose(emote);
-          }
-        });
-      const start = change;
-      for (const removing of [false, true] as const) {
-        if (!access.canChange(emote, removing) || access.isBusy()) continue;
-        actions.push({
-          label: removing ? 'Remove from this server' : 'Add to this server',
-          run(): void {
-            start(emote, removing, report);
-          }
-        });
-      }
-      actions.push({
-        label: 'View details',
-        run(): void {
-          preview.show(emote);
-        }
-      });
-      menu.open(tile, event.clientX, event.clientY, actions);
+      openActions(emote, tile, event.clientX, event.clientY);
     }
   );
 

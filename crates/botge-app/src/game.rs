@@ -23,6 +23,7 @@ use serde::Serialize;
 use tokio::sync::watch;
 use url::Url;
 
+#[doc(inline)]
 pub use self::room::{Guess, Score, SharedGuess, Snapshot};
 use self::{
   play::{Rounds, run_match},
@@ -111,18 +112,16 @@ impl Seat {
   ///
   /// Returns `false` while a match is already loading or running. The match loads the
   /// guild's emotes in the background and reports a failure through the snapshot's notice.
+  ///
+  /// # Panics
+  ///
+  /// Panics if a match is started outside a Tokio runtime.
   #[must_use]
   pub fn start(&self) -> bool {
-    if !self.room.open_match() {
-      return false;
-    }
-    let task = tokio::spawn(run_match(
+    self.room.start_match(run_match(
       Arc::clone(&self.application),
       Arc::clone(&self.room),
-    ));
-    self.room.lock().task = Some(task);
-    self.room.publish();
-    true
+    ))
   }
 
   /// Checks this player's guess against the open round.

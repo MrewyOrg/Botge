@@ -14,6 +14,9 @@ use std::{
   },
 };
 
+#[cfg(not(test))]
+use crate::CatalogEditor;
+
 use redb::{StorageBackend, backends::InMemoryBackend};
 
 #[cfg(test)]
@@ -83,10 +86,16 @@ fn fixture() -> Result<(Store, Arc<AtomicIsize>)> {
     })?;
   let store = Store::initialize(database)?;
   store.save_voice_settings(NonZeroU64::MIN, &VoiceSettings::default())?;
-  store.save_guild_emotes(NonZeroU64::MIN, &GuildEmotes::default())?;
+  store.save_guild_emotes(
+    CatalogEditor::system(NonZeroU64::MIN),
+    &GuildEmotes {
+      allow_everyone: true,
+      ..GuildEmotes::default()
+    },
+  )?;
   store.save_emote_border(NonZeroU64::MIN, Some(1))?;
   store.add_emote(
-    NonZeroU64::MIN,
+    CatalogEditor::system(NonZeroU64::MIN),
     botge_test_support::example("Saved", "saved"),
   )?;
   Ok((store, remaining))
@@ -104,10 +113,19 @@ impl Store {
 #[test]
 fn propagates_read_write_and_commit_failures() -> Result<()> {
   let guild = NonZeroU64::MIN;
-  for operation in 0..11 {
+  for operation in 0..17 {
     let mut failures = 0;
     for cutoff in 0..32 {
       let (store, remaining) = fixture()?;
+      if operation == 16 {
+        for index in 0..catalog_history::RETAINED_REVISIONS {
+          let name = format!("Retained{index}");
+          store.add_emote(
+            CatalogEditor::system(guild),
+            botge_test_support::example(&name, &name),
+          )?;
+        }
+      }
       remaining.store(cutoff, Ordering::SeqCst);
       let result = match operation {
         0 => store.emote_border(guild).map(|_| ()),
@@ -117,12 +135,36 @@ fn propagates_read_write_and_commit_failures() -> Result<()> {
         4 => store.save_voice_settings(guild, &VoiceSettings::default()),
         5 => store.all_voice_settings().map(|_| ()),
         6 => store.guild_emotes(guild).map(|_| ()),
-        7 => store.save_guild_emotes(guild, &GuildEmotes::default()),
+        7 => store.save_guild_emotes(CatalogEditor::system(guild), &GuildEmotes::default()),
         8 => store.added_emotes(guild).map(|_| ()),
         9 => store
-          .add_emote(guild, botge_test_support::example("Next", "next"))
+          .add_emote(
+            CatalogEditor::system(guild),
+            botge_test_support::example("Next", "next"),
+          )
           .map(|_| ()),
-        10 => store.remove_emote(guild, "saved").map(|_| ()),
+        10 => store
+          .remove_emote(CatalogEditor::system(guild), "saved")
+          .map(|_| ()),
+        11 => store.catalog_history(guild).map(drop),
+        12 => store.preview_restore(guild, 0).map(drop),
+        13 => store
+          .restore_catalog(CatalogEditor::system(guild), 0, 2, RestoreScope::All)
+          .map(drop),
+        14 => store
+          .0
+          .begin_read()
+          .map_err(Into::into)
+          .and_then(|read| catalog_history::verify(&read)),
+        15 => store
+          .add_emote(
+            CatalogEditor::system(NonZeroU64::MAX),
+            botge_test_support::example("New guild", "new"),
+          )
+          .map(drop),
+        16 => store
+          .remove_emote(CatalogEditor::system(guild), "saved")
+          .map(drop),
         _ => anyhow::bail!("unexpected storage operation"),
       };
       if result.is_err() {
@@ -134,10 +176,17 @@ fn propagates_read_write_and_commit_failures() -> Result<()> {
           store.added_emotes(guild).map(|_| ()),
           store.emote_border(guild).map(|_| ()),
           store.all_voice_settings().map(|_| ()),
+          store.catalog_history(guild).map(drop),
+          store.preview_restore(guild, 0).map(drop),
+          store
+            .restore_catalog(CatalogEditor::system(guild), 0, 2, RestoreScope::All)
+            .map(drop),
           store.save_voice_settings(guild, &VoiceSettings::default()),
-          store.save_guild_emotes(guild, &GuildEmotes::default()),
+          store.save_guild_emotes(CatalogEditor::system(guild), &GuildEmotes::default()),
           store.save_emote_border(guild, Some(3)),
-          store.remove_emote(guild, "saved").map(|_| ()),
+          store
+            .remove_emote(CatalogEditor::system(guild), "saved")
+            .map(|_| ()),
         ];
         assert!(attempts.iter().any(Result::is_err));
       }

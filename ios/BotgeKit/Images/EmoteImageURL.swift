@@ -2,8 +2,8 @@ public import Foundation
 
 /// Maps catalog image paths such as `/7tv-cdn/emote/ID/2x.webp` to provider CDN URLs.
 ///
-/// The Activity loads these paths through Discord's URL mappings; the app requests the provider
-/// directly. Only the four provider prefixes are accepted, mirroring the Activity's allowlist.
+/// The Activity loads these paths through Discord's URL mapping. The app requests the 7TV CDN
+/// directly and accepts only that catalog prefix.
 public enum EmoteImageURL {
   /// A catalog path splits into the provider prefix and the CDN path.
   private static let pathParts = 2
@@ -30,8 +30,7 @@ public enum EmoteImageURL {
   /// The catalog path in the format the app loads: GIF for animated 7TV emotes, else PNG.
   ///
   /// 7TV publishes animated emotes as GIF and still ones as PNG next to WebP and AVIF. In Lockdown
-  /// Mode ImageIO decodes WebP roughly twenty times slower than GIF, so the app avoids it. Other
-  /// providers' paths are returned unchanged.
+  /// Mode ImageIO decodes WebP roughly twenty times slower than GIF, so the app avoids it.
   ///
   /// - Parameters:
   ///   - path: A catalog image path such as `/7tv-cdn/emote/ID/2x.webp`.

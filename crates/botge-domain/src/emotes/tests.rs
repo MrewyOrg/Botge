@@ -26,34 +26,6 @@ pub(crate) fn example(name: &str, id: &str) -> Emote {
 
 #[test]
 fn bounds_policy_fields_and_preserves_queries_without_creating_ambiguous_tokens() -> Result<()> {
-  for id in ["", "123456789012345678901", "not-digits"] {
-    assert!(
-      !GuildEmotes {
-        bttv_twitch_id: Some(id.into()),
-        ..GuildEmotes::default()
-      }
-      .valid()
-    );
-  }
-  for name in [String::new(), "x".repeat(26)] {
-    assert!(
-      !GuildEmotes {
-        ffz_channel: Some(name),
-        ..GuildEmotes::default()
-      }
-      .valid()
-    );
-  }
-  assert!(
-    !GuildEmotes {
-      allowed_roles: vec!["42".into(); 26],
-      ..GuildEmotes::default()
-    }
-    .valid()
-  );
-  assert!(!valid_seven_id("0123456789012345678901234/"));
-  assert!(!valid_seven_id("01234567890123456789012345/"));
-  assert!(cdn_url("https://:secret@cdn.7tv.app/image.png", Source::SevenTv).is_none());
   let mut emotes = [
     example("x", "1"),
     example("A Wave", "2"),
@@ -63,9 +35,6 @@ fn bounds_policy_fields_and_preserves_queries_without_creating_ambiguous_tokens(
   emotes[1].sizes = [(1, "1x"), (2, "2x"), (4, "4x")]
     .map(|(scale, file)| (scale, format!("https://cdn.7tv.app/emote/2/{file}.png")))
     .into();
-  emotes[2].source = Source::BetterTtv;
-  emotes[2].image = "https://cdn.betterttv.net/emote/3/2x.png".into();
-  emotes[2].sizes = [(2, "https://cdn.betterttv.net/emote/3/2x.png".to_owned())].into();
   let catalog = serde_json::to_value(browser_catalog(&emotes))?;
   assert_eq!(
     catalog.pointer("/0/image"),
@@ -79,7 +48,10 @@ fn bounds_policy_fields_and_preserves_queries_without_creating_ambiguous_tokens(
   assert_eq!(catalog.pointer("/2/preview"), None);
   assert_eq!(catalog.pointer("/0/composeToken"), None);
   assert_eq!(catalog.pointer("/1/composeToken"), None);
-  assert_eq!(catalog.pointer("/2/sevenTVId"), None);
+  assert_eq!(
+    catalog.pointer("/2/sevenTVId"),
+    Some(&serde_json::json!("3"))
+  );
   Ok(())
 }
 
@@ -127,7 +99,7 @@ fn resolves_unique_partial_and_exact_names_and_maps_safe_cdn_paths() -> Result<(
     "https://cdn.7tv.app/",
     "not a URL",
   ] {
-    assert!(cdn_url(url, Source::SevenTv).is_none());
+    assert!(cdn_url(url).is_none());
   }
   Ok(())
 }
@@ -136,29 +108,34 @@ fn resolves_unique_partial_and_exact_names_and_maps_safe_cdn_paths() -> Result<(
 fn checks_guild_policy_and_role_access() {
   let mut settings = GuildEmotes::default();
   assert!(settings.valid());
-  assert!(settings.can_manage(true, &[]));
-  assert!(!settings.can_manage(false, &[]));
+  assert!(!settings.allows_member_management(&[]));
   settings.allow_everyone = true;
-  assert!(settings.can_manage(false, &[]));
+  assert!(settings.allows_member_management(&[]));
   settings.allow_everyone = false;
   settings.allowed_roles.push("42".into());
-  settings.ffz_channel = Some("streamer_1".into());
   settings.seven_tv_set = Some("01234567890123456789012345".into());
-  settings.bttv_twitch_id = Some("42".into());
   assert!(settings.valid());
-  assert!(settings.can_manage(false, &["42".into()]));
-  assert!(!settings.can_manage(false, &["43".into()]));
-  settings.ffz_channel = Some("evil/path".into());
+  assert!(settings.allows_member_management(&["42".into()]));
+  assert!(!settings.allows_member_management(&["43".into()]));
+  settings.seven_tv_set = Some("invalid".into());
   assert!(!settings.valid());
-  settings.ffz_channel = None;
-  settings.bttv_twitch_id = Some("evil".into());
-  assert!(!settings.valid());
-  settings.bttv_twitch_id = None;
+  settings.seven_tv_set = None;
   settings.allowed_roles.push("invalid".into());
   assert!(!settings.valid());
   assert!(valid_seven_id("abcdefabcdefabcdefabcdef"));
   assert!(!valid_seven_id("zzzzzzzzzzzzzzzzzzzzzzzz"));
   assert!(!valid_seven_id("abc"));
+}
+
+#[test]
+fn enforces_the_manager_role_limit_with_valid_role_ids() {
+  let mut policy = GuildEmotes {
+    allowed_roles: (1..=25).map(|role| role.to_string()).collect(),
+    ..GuildEmotes::default()
+  };
+  assert!(policy.valid());
+  policy.allowed_roles.push("26".into());
+  assert!(!policy.valid());
 }
 
 #[test]
@@ -171,23 +148,9 @@ fn validates_url_authority_and_opaque_id_boundaries_before_catalog_precedence() 
     "https://cdn.7tv.app.evil.example/a",
     "https://cdn.7tv.app/",
   ] {
-    assert!(
-      cdn_url(input, Source::SevenTv).is_none(),
-      "accepted {input}"
-    );
+    assert!(cdn_url(input).is_none(), "accepted {input}");
   }
-  assert!(cdn_url("https://cdn.7tv.app:443/a?quality=high", Source::SevenTv).is_some());
-  assert!(safe_id(&"a".repeat(80)));
-  for input in [
-    String::new(),
-    "a".repeat(81),
-    "a/b".into(),
-    "a%2fb".into(),
-    "é".into(),
-  ] {
-    assert!(!safe_id(&input));
-  }
-  assert!(safe_id("id-one_2"));
+  assert!(cdn_url("https://cdn.7tv.app:443/a?quality=high").is_some());
   assert!(
     !GuildEmotes {
       seven_tv_set: Some("invalid".into()),

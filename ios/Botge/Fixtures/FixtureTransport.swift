@@ -23,7 +23,7 @@ struct FixtureTransport: HTTPTransport {
   private static let bodies: [String: String] = [
     "settings": #"{"voice":{"channelId":null,"statusEnabled":false,"statusEmoji":null},"#
       + #""channels":\#(channels)}"#,
-    "settings/emotes/read": #"{"sevenTvSet":null,"bttvTwitchId":null,"ffzChannel":null,"#
+    "settings/emotes/read": #"{"sevenTvSet":null,"#
       + #""allowEveryone":false,"allowedRoles":[],"roles":\#(roles)}"#,
     "settings/border/read": #"{"color":""}"#,
     "game/join": #"{"ticket":"fixture","userId":"\#(FixtureGameSocket.player)"}"#,
@@ -37,8 +37,8 @@ struct FixtureTransport: HTTPTransport {
     {"message":"Server emotes loaded.","canManageEmotes":true,"canComposeDiscovery":false,\
     "emotes":[{"name":"peepoHey","source":"7TV","image":"/7tv-cdn/emote/A/2x.webp",\
     "animated":true,"overlaying":false,"tags":["wave"],"added":true,"composeToken":"peepoHey",\
-    "sevenTVId":"A"},{"name":"Kappa","source":"Twitch",\
-    "image":"/twitch-cdn/emoticons/v2/25/default/dark/2.0","animated":false,"overlaying":false,\
+    "sevenTVId":"A"},{"name":"Kappa","source":"7TV",\
+    "image":"/7tv-cdn/emote/Kappa/2x.png","animated":false,"overlaying":false,\
     "tags":[],"added":false,"composeToken":"Kappa"}]}
     """
   ]
@@ -50,6 +50,9 @@ struct FixtureTransport: HTTPTransport {
   private static let discoveryPageSize = 60
   /// Discovery pages, so scrolling loads more.
   private static let discoveryPageCount = 5
+
+  /// Supplies catalog revisions for the offline confirmation tests.
+  private let history: FixtureCatalogHistory = .init()
 
   /// One discovery page: `catJAM` first on page 1, then numbered fixtures.
   ///
@@ -88,7 +91,8 @@ struct FixtureTransport: HTTPTransport {
     guard let url = request.url,
           let body = url.lastPathComponent == "gql"
           ? Self.discoveryBody(for: request)
-          : Self.body(route: Self.route(of: url), request: request),
+          : history.body(route: Self.route(of: url), request: request)
+            ?? Self.body(route: Self.route(of: url), request: request),
           let response = HTTPURLResponse(
             url: url,
             statusCode: Self.okStatus,

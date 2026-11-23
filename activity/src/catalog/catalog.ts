@@ -31,7 +31,7 @@ export type BrowserEmote = DeepReadonly<{
 }>;
 
 function isMappedImage(path: string): boolean {
-  if (!/^\/(?:7tv|bttv|ffz|twitch)-cdn\/[^\\]+$/u.test(path)) return false;
+  if (!/^\/7tv-cdn\/[^\\]+$/u.test(path)) return false;
   const url = URL.parse(path, 'https://activity.invalid');
   return url !== null && url.pathname + url.search === path;
 }
@@ -153,7 +153,6 @@ export function tagTerms(value: string): readonly string[] {
  *
  * @param emotes - Validated catalog snapshot.
  * @param query - Name substring; surrounding whitespace is ignored.
- * @param source - Exact provider label, or an empty string for all providers.
  * @param motion - Animated or static filter value, or an empty string.
  * @param addedOnly - Requires an individually added emote when true; defaults to false.
  * @param overlay - Overlaying or regular filter value; defaults to no filter.
@@ -162,13 +161,12 @@ export function tagTerms(value: string): readonly string[] {
  *
  * @example
  * ```ts
- * filterEmotes(catalog, 'wave', '7TV', 'animated', false, 'overlaying', 'dance,greeting');
+ * filterEmotes(catalog, 'wave', 'animated', false, 'overlaying', 'dance,greeting');
  * ```
  */
 export function filterEmotes(
   emotes: readonly BrowserEmote[],
   query: string,
-  source: string,
   motion: string,
   addedOnly = false,
   overlay = '',
@@ -179,7 +177,6 @@ export function filterEmotes(
   return emotes.filter(
     (emote) =>
       emote.name.toLowerCase().includes(search)
-      && (source === '' || emote.source === source)
       && (motion === '' || emote.animated === (motion === 'animated'))
       && (!addedOnly || emote.added === true)
       && (overlay === '' || (emote.overlaying === true) === (overlay === 'overlaying'))

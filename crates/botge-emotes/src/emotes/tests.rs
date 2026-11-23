@@ -10,7 +10,7 @@ use super::*;
 
 #[tokio::test]
 async fn rejects_disabled_or_invalid_additions_without_contacting_a_provider() -> Result<()> {
-  let disabled = Emotes::new(Providers::default(), None)?;
+  let disabled = Emotes::new(Providers::default())?;
   assert!(!disabled.added_emotes_enabled());
   assert!(
     disabled
@@ -18,13 +18,10 @@ async fn rejects_disabled_or_invalid_additions_without_contacting_a_provider() -
       .await?
       .is_none()
   );
-  let mut enabled = Emotes::new(
-    Providers {
-      seven_added: true,
-      ..Providers::default()
-    },
-    None,
-  )?;
+  let mut enabled = Emotes::new(Providers {
+    seven_added: true,
+    ..Providers::default()
+  })?;
   assert!(enabled.added_emotes_enabled());
   assert!(enabled.fetch_added("invalid").await?.is_none());
   let old = enabled.events.clone();

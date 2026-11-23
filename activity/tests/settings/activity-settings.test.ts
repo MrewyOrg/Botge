@@ -3,7 +3,7 @@
 import { expect, test, vi } from 'vitest';
 
 import { requireValue } from '../../src/validation.ts';
-import { click, element, input, sdk, waitForText } from '../fixtures/activity-page.ts';
+import { click, element, input, sdk, serverEmote, waitForText } from '../fixtures/activity-page.ts';
 
 test('loads and saves voice settings through the Discord Activity API', async () => {
   vi.stubGlobal('location', new URL('https://12345.discordsays.com/'));
@@ -129,14 +129,7 @@ test('loads and saves emote settings through the route-specific API', async () =
   vi.stubEnv('VITE_ENABLE_ACTIVITY_SETTINGS', 'true');
   sdk.ready.mockResolvedValue();
   sdk.commands.authorize.mockResolvedValue({ code: 'oauth-code' });
-  const saved = {
-    sevenTvSet: null,
-    bttvTwitchId: null,
-    ffzChannel: null,
-    allowEveryone: true,
-    allowedRoles: [],
-    roles: []
-  };
+  const saved = { sevenTvSet: null, allowEveryone: true, allowedRoles: [], roles: [] };
   const fetch = vi.fn((path: string) => {
     if (path === '/botge-api/auth')
       return Response.json({ accessToken: 'session', expiresIn: 3600 });
@@ -164,15 +157,78 @@ test('loads and saves emote settings through the route-specific API', async () =
     '/botge-api/settings/emotes',
     expect.objectContaining({
       body: JSON.stringify({
-        emotes: {
-          sevenTvSet: null,
-          bttvTwitchId: null,
-          ffzChannel: null,
-          allowEveryone: true,
-          allowedRoles: []
-        },
+        emotes: { sevenTvSet: null, allowEveryone: true, allowedRoles: [] },
         guildId: sdk.guildId
       })
     }) as unknown
   );
 });
+
+test.each([true, false] as const)(
+  'restores catalog history with live catalog enabled: %s',
+  async (catalog) => {
+    vi.stubGlobal('location', new URL('https://12345.discordsays.com/'));
+    vi.stubEnv('VITE_ENABLE_ACTIVITY_SETTINGS', 'true');
+    vi.stubEnv('VITE_ENABLE_ACTIVITY_CATALOG', String(catalog));
+    sdk.ready.mockResolvedValue();
+    sdk.commands.authorize.mockResolvedValue({ code: 'oauth-code' });
+    const policy = { sevenTvSet: null, allowEveryone: false, allowedRoles: [] } as const;
+    const fetch = vi.fn((path: string) => {
+      switch (path) {
+        case '/botge-api/auth':
+          return Response.json({ accessToken: 'session', expiresIn: 3600 });
+        case '/botge-api/catalog':
+          return Response.json({
+            emotes: [serverEmote],
+            canManageEmotes: false,
+            canComposeDiscovery: false
+          });
+        case '/botge-api/catalog/history':
+          return Response.json({
+            currentRevision: 2,
+            revisions: [{ revision: 1, recordedAt: 100, actorId: null, edit: { type: 'baseline' } }]
+          });
+        case '/botge-api/catalog/history/preview':
+          return Response.json({
+            currentRevision: 2,
+            targetRevision: 1,
+            added: ['Wave'],
+            removed: [],
+            updated: [],
+            orderChanged: false,
+            currentSettings: policy,
+            restoredSettings: policy
+          });
+        case '/botge-api/catalog/history/restore':
+          return Response.json({ currentRevision: 3 });
+        default:
+          return Response.json([]);
+      }
+    });
+    vi.stubGlobal('fetch', fetch);
+
+    await import('../../src/index.ts');
+    await vi.waitFor(() => {
+      expect(element('#catalog-history').hidden).toBe(false);
+    });
+    click('#settings-link');
+    click('[name="history-refresh"]');
+    await waitForText('#catalog-history [role="status"]', 'Current revision #2.');
+    click('[name="history-preview"]');
+    await waitForText('#catalog-history ul', 'Add Wave');
+    click('[name="history-restore"]');
+    await waitForText('#catalog-history [role="status"]', 'Restore saved as revision #3.');
+    expect(fetch).toHaveBeenCalledWith(
+      '/botge-api/catalog/history/restore',
+      expect.objectContaining({
+        body: JSON.stringify({ revision: 1, expectedRevision: 2, guildId: sdk.guildId })
+      }) as unknown
+    );
+    await vi.waitFor(() => {
+      expect(
+        fetch.mock.calls.filter(([path]: readonly [string]) => path === '/botge-api/catalog')
+      ).toHaveLength(catalog ? 2 : 0);
+    });
+  },
+  15_000
+);

@@ -17,15 +17,15 @@ const motion = {
 
 test('searches names case-insensitively and combines filters', () => {
   const catalog = parseCatalog([still, motion]);
-  expect(filterEmotes(catalog, ' BOTGE ', '', '')).toEqual([
+  expect(filterEmotes(catalog, ' BOTGE ', '')).toEqual([
     { ...still, composeToken: still.name },
     { ...motion, composeToken: motion.name }
   ]);
-  expect(filterEmotes(catalog, 'wave', 'Community', 'animated')).toEqual([
+  expect(filterEmotes(catalog, 'wave', 'animated')).toEqual([
     { ...motion, composeToken: motion.name }
   ]);
-  expect(filterEmotes(catalog, '', '', 'static')).toEqual([{ ...still, composeToken: still.name }]);
-  expect(filterEmotes(catalog, 'wave', 'Original', 'animated')).toEqual([]);
+  expect(filterEmotes(catalog, '', 'static')).toEqual([{ ...still, composeToken: still.name }]);
+  expect(filterEmotes(catalog, 'wave', 'static')).toEqual([]);
 });
 
 test.each([
@@ -73,19 +73,17 @@ test('keeps a mapped preview image only in a server catalog', () => {
 });
 
 test('preserves the query string on mapped CDN URLs', () => {
-  const emote = { ...still, image: '/twitch-cdn/emoticons/v2/123/static/light/2.0?v=1' };
+  const emote = { ...still, image: '/7tv-cdn/emote/123/2x.webp?v=1' };
   expect(parseCatalog([emote], true)).toEqual([emote]);
 });
 
-test('filters individually added emotes independently of platform and motion', () => {
+test('filters individually added emotes independently of motion', () => {
   const inSet = { ...still, source: '7TV', image: '/7tv-cdn/emote/set/2x.webp', added: false };
   const added = { ...motion, source: '7TV', image: '/7tv-cdn/emote/added/2x.webp', added: true };
-  const other = { ...still, source: 'BTTV', image: '/bttv-cdn/emote/id/2x.webp' };
-  const catalog = parseCatalog([inSet, added, other], true);
+  const catalog = parseCatalog([inSet, added], true);
 
-  expect(filterEmotes(catalog, '', '7TV', '')).toEqual([inSet, added]);
-  expect(filterEmotes(catalog, '', '7TV', 'animated', true)).toEqual([added]);
-  expect(filterEmotes(catalog, '', 'BTTV', '', true)).toEqual([]);
+  expect(filterEmotes(catalog, '', '')).toEqual([inSet, added]);
+  expect(filterEmotes(catalog, '', 'animated', true)).toEqual([added]);
   expect(() => parseCatalog([{ ...added, added: 'true' }], true)).toThrow();
 });
 
@@ -107,8 +105,8 @@ test('filters overlaying emotes by provider tags and built-in labels', () => {
     still,
     { ...motion, zeroWidth: true, tags: [' Greeting ', 'Dance', null, 'Dance'] }
   ]);
-  expect(filterEmotes(catalog, '', '', '', false, 'overlaying', 'greet,animated')).toEqual([
+  expect(filterEmotes(catalog, '', '', false, 'overlaying', 'greet,animated')).toEqual([
     { ...motion, overlaying: true, tags: ['Greeting', 'Dance'], composeToken: motion.name }
   ]);
-  expect(filterEmotes(catalog, '', '', '', false, 'regular', 'dance')).toEqual([]);
+  expect(filterEmotes(catalog, '', '', false, 'regular', 'dance')).toEqual([]);
 });

@@ -7,7 +7,7 @@
 //! something changed.
 //!
 //! Changes are announced after a committed addition, removal or emote settings save, and when
-//! 7TV reports an edit to a set that a guild uses. BTTV, FFZ and Twitch send no change events.
+//! 7TV reports an edit to a set that a guild uses.
 
 use std::num::NonZeroU64;
 
@@ -143,8 +143,8 @@ impl Application {
               }
             }
             Err(error) => tracing::warn!(
-              message = error.1,
-              "Could not find the guilds using a changed 7TV set"
+              %error,
+              message = "Could not find the guilds using a changed 7TV set"
             ),
           }
         }

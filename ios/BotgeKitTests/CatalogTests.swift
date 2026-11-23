@@ -11,15 +11,15 @@ struct CatalogTests {
         "tags": ["wave", "hi"], "added": true, "composeToken": "peepoHey", "sevenTVId": "A"
       ],
       [
-        "name": "Kappa", "source": "Twitch",
-        "image": "/twitch-cdn/emoticons/v2/25/default/dark/2.0",
+        "name": "Kappa", "source": "7TV",
+        "image": "/7tv-cdn/emote/Kappa/2x.png",
         "animated": false, "overlaying": false, "tags": [String](), "added": false,
         "composeToken": "Kappa"
       ],
       [
         "name": "RainTime",
-        "source": "BTTV",
-        "image": "/bttv-cdn/emote/B/2x",
+        "source": "7TV",
+        "image": "/7tv-cdn/emote/B/2x",
         "animated": true,
         "overlaying": true
       ]
@@ -59,12 +59,12 @@ struct CatalogTests {
     #expect(first.filterTags == ["7TV", "Animated", "Regular", "Added", "wave", "hi"])
     let tagged = CatalogEmote(
       name: "x",
-      source: .betterTTV,
-      image: "/bttv-cdn/x",
+      source: .sevenTV,
+      image: "/7tv-cdn/x",
       isAnimated: false,
-      tags: ["BTTV", "Static"]
+      tags: ["7TV", "Static"]
     )
-    #expect(tagged.filterTags == ["BTTV", "Static", "Regular"])
+    #expect(tagged.filterTags == ["7TV", "Static", "Regular"])
   }
 
   @Test
@@ -77,10 +77,6 @@ struct CatalogTests {
     filter.query = "  PEEPO "
     #expect(filter.matchingEmotes(in: emotes).map(\.name) == ["peepoHey"])
     filter.query = ""
-
-    filter.source = .twitch
-    #expect(filter.matchingEmotes(in: emotes).map(\.name) == ["Kappa"])
-    filter.source = nil
 
     filter.motion = .still
     #expect(filter.matchingEmotes(in: emotes).map(\.name) == ["Kappa"])

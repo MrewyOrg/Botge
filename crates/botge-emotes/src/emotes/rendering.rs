@@ -1,5 +1,3 @@
-// cspell:words apng bgra isnan settb reinit
-
 //! Downloads bounded image inputs and renders attachments with `FFmpeg`.
 //!
 //! [`Layer`] identifies a validated remote image and its place in a composition. The
@@ -92,7 +90,7 @@ impl Layer {
   #[must_use]
   pub fn emote(emote: &Emote) -> Option<Self> {
     Some(Self {
-      url: cdn_url(&emote.image, emote.source)?,
+      url: cdn_url(&emote.image)?,
       overlay: emote.overlaying,
     })
   }
@@ -101,7 +99,7 @@ impl Layer {
   #[must_use]
   pub fn emote_at(emote: &Emote, scale: u16) -> Option<Self> {
     Some(Self {
-      url: cdn_url(emote.image_at(scale), emote.source)?,
+      url: cdn_url(emote.image_at(scale))?,
       overlay: emote.overlaying,
     })
   }
@@ -150,21 +148,14 @@ impl Layer {
 
 /// Routes known provider URLs through nginx when a cache is configured.
 fn cache_url(url: &Url, cache: Option<&Url>) -> Url {
-  for source in [
-    Source::SevenTv,
-    Source::BetterTtv,
-    Source::Ffz,
-    Source::Twitch,
-  ] {
-    let (host, path) = source.cdn();
-    if url.host_str() == Some(host)
-      && let Some(cache) = cache
-    {
-      let mut cache = cache.clone();
-      cache.set_path(&format!("/{path}{}", url.path()));
-      cache.set_query(url.query());
-      return cache;
-    }
+  let (host, path) = Source::cdn();
+  if url.host_str() == Some(host)
+    && let Some(cache) = cache
+  {
+    let mut cache = cache.clone();
+    cache.set_path(&format!("/{path}{}", url.path()));
+    cache.set_query(url.query());
+    return cache;
   }
   url.clone()
 }

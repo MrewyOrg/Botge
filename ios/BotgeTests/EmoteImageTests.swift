@@ -3,17 +3,23 @@ import BotgeKit
 import QuartzCore
 import SwiftUI
 import Testing
+import UIKit
 import ViewInspector
 
 struct EmoteImageTests {
-  /// A Twitch path the image transport answers with an animated GIF.
-  private static let animatedPath = "/twitch-cdn/emoticons/v2/G/default/dark/2.0"
-  /// A Twitch path whose image fails to load.
-  private static let missingPath = "/twitch-cdn/emoticons/v2/M/default/dark/2.0"
+  /// A 7TV path the image transport answers with an animated GIF.
+  private static let animatedPath = "/7tv-cdn/emote/G/2x.gif"
+  /// 7TV's PNG variant of the fallback used by the still image view.
+  private static let stillPath = "/7tv-cdn/emote/G/2x.png"
+  /// A 7TV path whose image fails to load.
+  private static let missingPath = "/7tv-cdn/emote/M/2x.gif"
 
-  private static func app() async -> AppModel {
-    await Fixtures.signedIn(transport: RoutedTransport([
-      "G/default/dark/2.0": [.bytes(TestImages.gif(frames: 3))]
+  private static func app() async throws -> AppModel {
+    let frame = try #require(TestImages.frame(red: 1))
+    let png = try #require(UIImage(cgImage: frame).pngData())
+    return await Fixtures.signedIn(transport: RoutedTransport([
+      "G/2x.gif": [.bytes(TestImages.gif(frames: 3))],
+      "G/2x.png": [.bytes(png)]
     ]))
   }
 
@@ -21,7 +27,8 @@ struct EmoteImageTests {
   ///
   /// - Throws: An inspection error when the view has no load task.
   private static func load(_ view: EmoteImageView, animated: Bool, app: AppModel) async throws {
-    try await view.environment(app)
+    try await view.environment(\.forcesEmoteAnimation, animated)
+      .environment(app)
       .inspect()
       .find(EmoteImageView.self)
       .group()
@@ -30,20 +37,26 @@ struct EmoteImageTests {
 
   @Test
   func `animated emotes load the first frame, then every frame, then from memory`() async throws {
-    let app = await Self.app()
+    let app = try await Self.app()
     let view = EmoteImageView(
       path: Self.animatedPath,
       isAnimated: true,
       fallbackPath: nil,
       priority: .utility
     )
-    // Simulators differ in the Auto-Play Animated Images setting, so the test turns playback on.
-    let playing = view.environment(\.forcesEmoteAnimation, true)
-    await Hosting.show(playing, model: app) {
-      await Fixtures
-        .wait { app.imageLoader.cachedImage(for: Self.animatedPath, animated: true) != nil }
+    try await Self.load(view, animated: true, app: app)
+    guard case .still? = app.imageLoader.cachedImage(for: Self.animatedPath, animated: false),
+          case let .animated(frames, _)? = app.imageLoader.cachedImage(
+            for: Self.animatedPath,
+            animated: true
+          )
+    else {
+      Issue.record("The load task did not cache both image representations")
+      return
     }
-    #expect(app.imageLoader.cachedImage(for: Self.animatedPath, animated: true) != nil)
+
+    #expect(frames.count == 3)
+    let playing = view.environment(\.forcesEmoteAnimation, true)
     await Hosting.show(playing, model: app)
     #expect(throws: Never.self) {
       try playing.environment(app).inspect().find(AnimatedEmoteView.self)
@@ -52,7 +65,7 @@ struct EmoteImageTests {
 
   @Test
   func `a playing fallback stays until the new image is ready`() async throws {
-    let app = await Self.app()
+    let app = try await Self.app()
     try await Self.load(
       EmoteImageView(
         path: Self.animatedPath,
@@ -70,6 +83,17 @@ struct EmoteImageTests {
       priority: .userInitiated
     )
     try await Self.load(preview, animated: true, app: app)
+    #expect(throws: Never.self) {
+      try preview.environment(\.forcesEmoteAnimation, true)
+        .environment(app)
+        .inspect()
+        .find(AnimatedEmoteView.self)
+    }
+    guard case .still = await app.imageLoader.image(for: Self.stillPath, animated: false) else {
+      Issue.record("The still fallback did not load")
+      return
+    }
+
     let still = EmoteImageView(
       path: Self.missingPath,
       isAnimated: false,

@@ -1,5 +1,6 @@
 //! Shared records and pure rules, independent of adapters, persistence and network clients.
 
+pub mod catalog_history;
 pub mod emotes;
 pub mod providers;
 pub mod settings;

@@ -58,13 +58,11 @@ struct ServerViewTests {
   func `sections explain invalid values`() async throws {
     let model = await Self.model()
     model.policyDraft.sevenTVSet = "bad"
-    model.policyDraft.betterTTVTwitchID = "abc"
-    model.policyDraft.frankerFaceZChannel = "no spaces allowed"
     model.voiceDraft.status = String(repeating: "a", count: VoiceSettings.maxStatusBytes + 1)
     model.voiceDraft.isStatusEnabled = true
     let sources = try EmoteSourcesSection(model: model).inspect()
     #expect(throws: Never.self) {
-      try sources.find(ViewType.Text.self) { try $0.string().contains("Twitch user ID") }
+      try sources.find(ViewType.Text.self) { try $0.string().contains("A 7TV set ID") }
     }
     #expect(throws: Never.self) {
       try VoiceSection(model: model).inspect().find(ViewType.Picker.self)

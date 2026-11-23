@@ -130,7 +130,6 @@ async fn waits_for_ready_after_the_gateway_reconnects() -> anyhow::Result<()> {
     Arc::new(botge_app::Application::new(
       botge_domain::providers::Providers::default(),
       store,
-      None,
     )?),
     None,
   );

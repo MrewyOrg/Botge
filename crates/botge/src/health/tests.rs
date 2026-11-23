@@ -14,7 +14,7 @@ use botge_test_support::TestServer;
 fn application() -> anyhow::Result<(tempfile::TempDir, Arc<Application>)> {
   let directory = tempfile::tempdir()?;
   let store = Arc::new(Store::open(&directory.path().join("botge.redb"))?);
-  let application = Application::new(botge_domain::providers::Providers::default(), store, None)?;
+  let application = Application::new(botge_domain::providers::Providers::default(), store)?;
   Ok((directory, Arc::new(application)))
 }
 

@@ -43,6 +43,15 @@ struct ServerView: View {
           VoiceSection(model: model)
           EmoteSourcesSection(model: model)
           EmoteManagersSection(model: model)
+          if let api = model.app.api {
+            NavigationLink("Catalog History") {
+              CatalogHistoryView(api: api, guild: model.guild.id) {
+                await model.load()
+              }
+            }
+            .disabled(model.hasChanges)
+            .accessibilityIdentifier("server.catalog-history")
+          }
         } else {
           Section {
             Label(

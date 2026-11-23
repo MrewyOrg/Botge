@@ -83,7 +83,7 @@ fn image() -> Image {
 fn room_in_ready_beat(answer: &str) -> Room {
   let room = Room::new((NonZeroU64::MIN, "instance".into()));
   assert!(room.sit(ALICE) && room.sit(BOB));
-  assert!(room.open_match());
+  assert!(room.lock().open_match());
   room.begin_round(1, 2, answer.into(), image());
   room
 }
@@ -99,7 +99,7 @@ fn application() -> Result<(tempfile::TempDir, Arc<Application>)> {
   let store = Arc::new(Store::open(&directory.path().join("game.redb"))?);
   Ok((
     directory,
-    Arc::new(Application::new(Providers::default(), store, None)?),
+    Arc::new(Application::new(Providers::default(), store)?),
   ))
 }
 
@@ -142,7 +142,10 @@ impl Playable {
     let store = Arc::new(Store::open(&directory.path().join("game.redb"))?);
     for index in 0..emotes {
       let emote = botge_test_support::example(&format!("Emote{index}"), &format!("{index:024x}"));
-      assert!(store.add_emote(NonZeroU64::MIN, emote)?);
+      assert_eq!(
+        store.add_emote(botge_storage::CatalogEditor::system(NonZeroU64::MIN), emote)?,
+        botge_storage::AddEmoteOutcome::Added
+      );
     }
     let mut application = Application::new(
       Providers {
@@ -150,7 +153,6 @@ impl Playable {
         ..Providers::default()
       },
       Arc::clone(&store),
-      None,
     )?;
     application.set_game_cache(Some(server.origin.clone()));
     Ok(Self {
@@ -332,11 +334,14 @@ async fn keeps_a_scored_row_for_a_player_who_left_until_the_next_match() {
   assert!(!room.leave(BOB));
   assert_eq!(room.snapshot().players.len(), 2);
   room.finish(None);
-  assert!(room.open_match());
+  assert!(room.lock().open_match());
   let lobby = room.snapshot();
   assert_eq!(lobby.phase, "loading");
   assert_eq!(lobby.players.len(), 1);
-  assert!(!room.open_match(), "a loading match cannot start again");
+  assert!(
+    !room.lock().open_match(),
+    "a loading match cannot start again"
+  );
   assert!(room.leave(ALICE));
 }
 
@@ -494,7 +499,13 @@ async fn picks_one_round_per_distinct_base_emote_with_spares() -> Result<()> {
   let mut elsewhere = botge_test_support::example("Elsewhere", &format!("{:024x}", 102));
   elsewhere.image = "https://example.com/emote.png".into();
   for unusable in [overlay, blank, elsewhere] {
-    assert!(playable.store.add_emote(NonZeroU64::MIN, unusable)?);
+    assert_eq!(
+      playable.store.add_emote(
+        botge_storage::CatalogEditor::system(NonZeroU64::MIN),
+        unusable
+      )?,
+      botge_storage::AddEmoteOutcome::Added
+    );
   }
   let (rounds, picks) = playable
     .application
@@ -663,7 +674,7 @@ async fn a_round_without_a_ready_beat_runs_its_timers_and_changes_nothing() {
 async fn plays_every_round_in_order_and_ends_on_the_final_scoreboard() {
   let room = Arc::new(Room::new((NonZeroU64::MIN, "instance".into())));
   assert!(room.sit(ALICE) && room.sit(BOB));
-  assert!(room.open_match());
+  assert!(room.lock().open_match());
   let started = Instant::now();
   let playing = tokio::spawn(run_match(Arc::new(Scripted), Arc::clone(&room)));
 
@@ -708,10 +719,8 @@ async fn plays_every_round_in_order_and_ends_on_the_final_scoreboard() {
 async fn cancels_the_match_when_its_last_player_leaves() {
   let room = Arc::new(Room::new((NonZeroU64::MIN, "instance".into())));
   assert!(room.sit(ALICE));
-  assert!(room.open_match());
-  let playing = tokio::spawn(run_match(Arc::new(Scripted), Arc::clone(&room)));
-  let match_task = playing.abort_handle();
-  room.lock().task = Some(playing);
+  assert!(room.start_match(run_match(Arc::new(Scripted), Arc::clone(&room))));
+  let match_task = room.lock().task.as_ref().unwrap().abort_handle();
   until(&room, |shown| shown.phase == "round" && shown.round == 1).await;
 
   assert!(
@@ -734,10 +743,8 @@ async fn keeps_playing_for_the_others_when_one_player_leaves() {
   const CAROL: NonZeroU64 = NonZeroU64::new(3).unwrap();
   let room = Arc::new(Room::new((NonZeroU64::MIN, "instance".into())));
   assert!(room.sit(ALICE) && room.sit(BOB) && room.sit(CAROL));
-  assert!(room.open_match());
-  let playing = tokio::spawn(run_match(Arc::new(Scripted), Arc::clone(&room)));
-  let match_task = playing.abort_handle();
-  room.lock().task = Some(playing);
+  assert!(room.start_match(run_match(Arc::new(Scripted), Arc::clone(&room))));
+  let match_task = room.lock().task.as_ref().unwrap().abort_handle();
   until(&room, |shown| shown.phase == "round" && shown.round == 1).await;
   assert_eq!(room.guess(BOB, "Emote0"), Guess::Correct);
 
@@ -765,6 +772,6 @@ async fn keeps_playing_for_the_others_when_one_player_leaves() {
   assert_eq!(scores, [("2", 4), ("1", 0)]);
 
   // The next match drops the player who left.
-  assert!(room.open_match());
+  assert!(room.lock().open_match());
   assert_eq!(ids(&room.snapshot()), ["1"]);
 }

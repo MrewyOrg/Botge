@@ -8,6 +8,7 @@
     <meta charset="utf-8" />
     <meta content="width=device-width, initial-scale=1" name="viewport" />
     <title>Botge Catalog</title>
+    <link type="image/png" href="./src/assets/favicon.png" rel="icon" sizes="48x48" />
     <meta content="#0e0e10" name="theme-color" />
     <meta
       content="Browse, compose and manage Botge emotes, and play the emote guessing game."
@@ -87,11 +88,6 @@
               <label class="tags">
                 Tags<input id="tag-search" type="search" placeholder="Tags, separated by commas" />
               </label>
-              <label id="source-filter"
-                >Platform<select id="source">
-                  <option value="">All platforms</option>
-                </select></label
-              >
               <label
                 >Motion<select id="motion">
                   <option value="">All emotes</option>
@@ -216,11 +212,6 @@
               <fieldset aria-labelledby="emote-settings-heading" disabled>
                 <label>7TV emote set ID <input maxlength="26" name="seven-tv-set" /></label>
                 <label
-                  >BTTV channel's Twitch user ID
-                  <input inputmode="numeric" maxlength="20" name="bttv-twitch-id"
-                /></label>
-                <label>FFZ Twitch channel name <input maxlength="25" name="ffz-channel" /></label>
-                <label
                   ><input type="checkbox" name="allow-everyone" /> Allow all members to add and
                   remove emotes</label
                 >
@@ -230,6 +221,20 @@
                 <button type="submit" class="primary">Save emote settings</button>
               </fieldset>
             </form>
+            <p role="status"></p>
+          </details>
+          <details id="catalog-history" class="composer settings-panel" hidden>
+            <summary>Catalog history</summary>
+            <label
+              >Saved revision
+              <select aria-label="Saved catalog revision"></select
+            ></label>
+            <button type="button" name="history-refresh">Refresh history</button>
+            <button type="button" name="history-preview">Preview restore</button>
+            <ul aria-label="Restore changes"></ul>
+            <button type="button" class="primary" hidden name="history-restore">
+              Restore this revision
+            </button>
             <p role="status"></p>
           </details>
         </section>
@@ -277,9 +282,9 @@
         hidden
         role="menu"
       ></div>
-      <dialog id="preview" aria-labelledby="preview-title" tabindex="-1">
+      <dialog id="preview" aria-labelledby="preview-title" closedby="any">
         <form method="dialog"
-          ><button type="submit" class="close" aria-label="Close preview">×</button></form
+          ><button type="submit" class="close" aria-label="Close preview" autofocus>×</button></form
         >
         <div id="preview-art" class="preview-art"></div>
         <p id="preview-source" class="eyebrow"></p>

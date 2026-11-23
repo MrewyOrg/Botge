@@ -78,25 +78,24 @@ const TRENDING: readonly PoolEmote[] = POOL.flatMap((_, index) => {
 const PAGE_SIZE = 24 as const;
 
 /** Which placeholder artworks appear as provider feed emotes in the server catalog. */
-const FEED_SOURCES: ReadonlyMap<string, string> = new Map([
-  ['grin', '7TV'],
-  ['think', '7TV'],
-  ['laugh', 'BTTV'],
-  ['cool', 'BTTV'],
-  ['sleepy', 'FFZ'],
-  ['shock', 'FFZ'],
-  ['cry', 'Twitch']
+const FEED_ART: ReadonlySet<string> = new Set([
+  'grin',
+  'think',
+  'laugh',
+  'cool',
+  'sleepy',
+  'shock',
+  'cry'
 ] as const);
 
 /** Provider feed emotes; none of the feed artworks are overlays. */
 const FEEDS: readonly BrowserEmote[] = BASES.flatMap((base) => {
-  const source = FEED_SOURCES.get(base.slug);
-  return source === undefined ?
+  return !FEED_ART.has(base.slug) ?
       []
     : [
         {
           name: title(base.slug),
-          source,
+          source: '7TV' as const,
           image: art(base.slug),
           animated: base.animated,
           composeToken: title(base.slug),
@@ -160,8 +159,6 @@ export function createDemoServer(latency = 250): DemoServer {
   };
   let emotes: EmoteSettings = {
     sevenTvSet: '01DEMOSETPLACEHOLDER000000',
-    bttvTwitchId: '12345678',
-    ffzChannel: 'botgedemo',
     allowEveryone: false,
     allowedRoles: [ROLES[0].id]
   };
@@ -205,6 +202,10 @@ export function createDemoServer(latency = 250): DemoServer {
         const removing = operation[2].action === 'remove';
         return operation[2].emoteIds.map((emoteId) => ({ emoteId, ...change(emoteId, removing) }));
       }
+      case 'catalog/history':
+      case 'catalog/history/preview':
+      case 'catalog/history/restore':
+        return { message: 'Catalog history is available on a connected Botge server.' };
       case 'catalog/watch':
         // The demo catalog changes only through this page, so there is nothing to watch.
         return { message: 'The demo catalog has no live updates.' };
