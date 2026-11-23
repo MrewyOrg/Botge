@@ -1,48 +1,58 @@
 ---
-title: Botge development and release workflow
-config:
-  theme: base
-  fontFamily: "Arial, sans-serif"
-  markdownAutoWrap: false
-  flowchart:
-    htmlLabels: false
-    wrappingWidth: 340
-    nodeSpacing: 32
-    rankSpacing: 25
-    padding: 8
-  themeVariables:
-    darkMode: true
-    background: "#041221"
-    primaryColor: "#0b2536"
-    primaryBorderColor: "#46d4e7"
-    primaryTextColor: "#f4fbff"
-    clusterBkg: "#071a2c"
-    clusterBorder: "#30657c"
-    textColor: "#f4fbff"
-    lineColor: "#6ad5ff"
-    fontFamily: "Arial, sans-serif"
+title: Botge · Development and release workflow
 ---
 flowchart TB
-    subgraph local[Local development]
-        edit["Edit source, tooling, or docs"] --> staged["pre-commit runs lint-staged<br/>Build the Activity when staged changes affect it"]
-        staged --> message["commit-msg runs Commitlint"] --> pr["Push branch and open PR"]
-        tools["Language formatters and linters"] -.-> staged
+    subgraph local["Local development"]
+        direction TB
+        edit["Edit Rust, TypeScript, Go,<br/>Swift, Python or docs"] --> staged["pre-commit: lint-staged;<br/>build the Activity when its inputs change"]
+        staged --> message["commit-msg: Commitlint"] --> pr(["Push dev and open a PR to main"])
     end
-    subgraph checks[PR checks]
-        quality["BotgeQL<br/>Change-scoped language, tooling and coverage checks"]
-        codeql["CodeQL<br/>Actions, Go, Python, Rust, TypeScript"]
-        deps["Dependency review<br/>npm and Cargo security audits"]
+
+    subgraph checks["PR checks"]
+        direction LR
+        quality["<b>BotgeQL</b><br/>Change-scoped Rust, TypeScript, Go,<br/>iOS, Python, shell and workflow checks<br/>with per-file coverage gates"]
+        reuse["Reuse a passing result when<br/>the PR base and inputs are unchanged"]
+        codeql["<b>CodeQL</b><br/>Actions, Go, Python,<br/>Rust, TypeScript"]
+        deps["<b>Dependency review</b><br/>npm and Cargo audits"]
+        reuse -.-> quality
     end
-    subgraph release[Release from dev to main]
-        changed{"Image inputs changed?"}
-        changed -->|Rust| rust["Build AMD64 and ARM64<br/>Scan SBOMs and smoke-test images"] --> hub["Publish candidate to Docker Hub"] --> approval
-        changed -->|Activity| go["Build AMD64<br/>Validate SBOM and smoke-test image"] --> artifact["Retain tested archive in GitHub Actions"] --> approval
-        changed -->|No| approval["Production environment approval"]
-        approval -->|Rust changed| vm["Deploy digest through IAP and Compose<br/>Verify gateway and digest"] --> merge
-        approval -->|Activity changed| run["Verify archive, publish and attest in Artifact Registry<br/>Deploy and verify Cloud Run revision"] --> merge
-        approval -->|No images changed| record["Record the current deployment"] --> merge["Merge after all required checks pass"]
+
+    subgraph release["Release: dev to main"]
+        direction TB
+        changed{{"Image inputs changed?"}}
+        changed -->|Rust| rust["Build AMD64 and ARM64,<br/>scan SBOMs, smoke-test,<br/>publish candidate to Docker Hub"]
+        changed -->|Activity| go["Build the Go origin image,<br/>validate SBOM, smoke-test,<br/>retain the tested archive"]
+        changed -->|neither| approval
+        rust --> approval(["production approval"])
+        go --> approval
+        approval -->|Rust| vm["Deploy the digest over IAP,<br/>verify gateway and digest,<br/>tag it latest"]
+        approval -->|Activity| run["Publish and attest in Artifact Registry,<br/>deploy to Cloud Run,<br/>verify the serving manifest"]
+        approval -->|neither| record["Record the current deployment"]
+        vm --> merge(["Merge after required checks<br/>and the production deployment"])
+        run --> merge
+        record --> merge
     end
+
     pr --> quality & codeql & deps
     quality & deps --> changed
     codeql --> merge
-    merge -.-> note["Docker cleanup is manual.<br/>Find version notes in GitHub Releases."]
+    merge -.-> after["Signed tag, GitHub release and wiki update.<br/>Docker cleanup stays manual."]
+
+    classDef entry fill:#1a1f3d,stroke:#8b93ff,color:#eef0ff,stroke-width:2px,rx:10,ry:10
+    classDef core fill:#0f2a28,stroke:#3dd6b5,color:#e6fbf6,stroke-width:2px,rx:10,ry:10
+    classDef data fill:#2b2212,stroke:#f0b54a,color:#fff5e3,stroke-width:2px,rx:10,ry:10
+    classDef cloud fill:#122238,stroke:#5aa7ff,color:#e8f2ff,stroke-width:2px,rx:10,ry:10
+    classDef base fill:#161b24,stroke:#7d8ba3,color:#e9edf4,stroke-width:2px,rx:10,ry:10
+    classDef gate fill:#1b212c,stroke:#f0b54a,color:#fff5e3,stroke-width:2px,rx:10,ry:10
+    classDef deny fill:#2a1720,stroke:#ff7a90,color:#ffeef1,stroke-width:2px,rx:10,ry:10
+    classDef muted fill:#12161e,stroke:#2b3341,color:#9aa7bd,rx:10,ry:10
+    class edit,staged,message base
+    class pr,merge entry
+    class quality,codeql,deps core
+    class reuse muted
+    class changed gate
+    class approval deny
+    class rust,go base
+    class vm,run cloud
+    class record base
+    class after muted

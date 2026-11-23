@@ -1,0 +1,42 @@
+---
+title: Botge · Startup and shutdown
+---
+flowchart TB
+    start(["Start botge"]) --> flags{{"Maintenance flag?"}}
+    flags -->|"--version, --healthcheck,<br/>--verify-database"| maint(["Run it and exit<br/>without credentials or storage"])
+    flags -->|none| env["Initialize tracing,<br/>read and validate .env"]
+    env --> store[("Create data directory,<br/>open botge.redb")]
+    store --> services["Load botge.config.json,<br/>build application and commands"]
+    services --> health["Bind health listener :3081"]
+    health --> client["Create Serenity client with Songbird<br/>GUILDS, GUILD_MEMBERS, voice states<br/>+ message intents when +prefix is on"]
+    client --> configured{{"Activity credentials<br/>configured?"}}
+    configured -->|yes| bindApi["Validate proxy key, fetch bot identity,<br/>bind Axum API (+ /app/v1 when enabled)"]
+    configured -->|no| workers
+    bindApi --> workers["Spawn voice reconciliation<br/>and optional 7TV set watcher"]
+    workers --> race["Run until the first exits: gateway,<br/>Activity API, health listener or signal"]
+    race --> stop["Abort workers,<br/>shut down Discord shards"]
+    stop --> exit(["Exit with that result"])
+
+    subgraph events["Gateway events"]
+        direction TB
+        ready["Ready"] --> markReady["Mark ready, wake voice worker"]
+        markReady --> register{{"Command registration<br/>enabled?"}}
+        register -->|yes| once["Register global commands once"]
+        resumed["Resumed"] --> markReady2["Mark ready, wake voice worker"]
+        reconnect["Shard reconnecting"] --> unready["Clear readiness;<br/>liveness stays healthy"]
+    end
+    race -.->|while running| events
+
+    classDef entry fill:#1a1f3d,stroke:#8b93ff,color:#eef0ff,stroke-width:2px,rx:10,ry:10
+    classDef core fill:#0f2a28,stroke:#3dd6b5,color:#e6fbf6,stroke-width:2px,rx:10,ry:10
+    classDef data fill:#2b2212,stroke:#f0b54a,color:#fff5e3,stroke-width:2px,rx:10,ry:10
+    classDef base fill:#161b24,stroke:#7d8ba3,color:#e9edf4,stroke-width:2px,rx:10,ry:10
+    classDef gate fill:#1b212c,stroke:#f0b54a,color:#fff5e3,stroke-width:2px,rx:10,ry:10
+    classDef deny fill:#2a1720,stroke:#ff7a90,color:#ffeef1,stroke-width:2px,rx:10,ry:10
+    class start,exit,maint entry
+    class flags,configured,register gate
+    class store data
+    class env,services,health,client,bindApi,workers,stop base
+    class race core
+    class ready,resumed,markReady,markReady2,once core
+    class reconnect,unready deny

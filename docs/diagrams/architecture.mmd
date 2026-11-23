@@ -1,17 +1,48 @@
-%%{init: {"theme":"dark"}}%%
+---
+title: Botge · Rust workspace
+---
 flowchart TB
-    bot["botge · executable<br/>Configuration, startup wiring, health :3081<br/>Constructs storage and application services"]
-    discord["botge-discord<br/>Gateway, commands, OAuth, guild access"]
-    activity["botge-activity<br/>Axum routes, proxy signatures, HTTP responses"]
-    voice["botge-voice<br/>Songbird and voice/status reconciliation"]
-    app["botge-app<br/>Authorization, saved state, composition admission"]
-    storage["botge-storage<br/>Synchronous redb transactions"]
-    emotes["botge-emotes<br/>Providers, immutable catalogs, bounded FFmpeg rendering"]
-    domain["botge-domain<br/>Shared records, IDs, validation, matching rules<br/>Types also used by the application and adapters"]
-    bot -. startup wiring .-> discord & activity & voice
-    discord --> app
+    bot["<b>botge</b><br/>Executable: configuration, wiring<br/>of every crate, health listener :3081"]
+
+    subgraph adapters["Adapters"]
+        direction LR
+        discord["<b>botge-discord</b><br/>Gateway events, commands,<br/>OAuth, guild access"]
+        activity["<b>botge-activity</b><br/>Axum routes, proxy signatures,<br/>/app/v1 bearer routes"]
+        voice["<b>botge-voice</b><br/>Songbird voice and<br/>status reconciliation"]
+    end
+
+    app["<b>botge-app</b><br/>Authorization, saved state,<br/>catalog history, Guess rooms,<br/>composition admission"]
+
+    subgraph services["Services"]
+        direction LR
+        storage[("<b>botge-storage</b><br/>Synchronous redb transactions")]
+        emotes["<b>botge-emotes</b><br/>7TV snapshots and events,<br/>bounded FFmpeg rendering"]
+    end
+
+    domain["<b>botge-domain</b><br/>Shared records, canonical IDs,<br/>validation, matching rules"]
+
+    bot -. wires .-> adapters
+    discord -->|implements GuildAccess| app
     activity --> app
-    voice -->|settings source| app
-    app --> storage & emotes
+    voice -->|VoiceSettingsSource| app
+    app --> storage
+    app --> emotes
     storage --> domain
     emotes --> domain
+
+    rule["Adapters never open redb.<br/>Emotes never reads storage.<br/>Discord and Activity stay independent.<br/>tests/architecture.rs enforces these edges."]
+    domain ~~~ rule
+
+    classDef exe fill:#1a1f3d,stroke:#8b93ff,color:#eef0ff,stroke-width:2px,rx:10,ry:10
+    classDef core fill:#0f2a28,stroke:#3dd6b5,color:#e6fbf6,stroke-width:2px,rx:10,ry:10
+    classDef data fill:#2b2212,stroke:#f0b54a,color:#fff5e3,stroke-width:2px,rx:10,ry:10
+    classDef media fill:#26173a,stroke:#c38bff,color:#f6eeff,stroke-width:2px,rx:10,ry:10
+    classDef base fill:#161b24,stroke:#7d8ba3,color:#e9edf4,stroke-width:2px,rx:10,ry:10
+    classDef muted fill:#12161e,stroke:#2b3341,color:#9aa7bd,rx:10,ry:10
+    class bot exe
+    class discord,activity,voice base
+    class app core
+    class storage data
+    class emotes media
+    class domain base
+    class rule muted

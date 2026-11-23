@@ -1,27 +1,47 @@
-%%{init: {"theme":"dark"}}%%
+---
+title: Botge · Request and data flow
+---
 flowchart TB
-    subgraph Commands["Discord commands"]
+    subgraph commands["Discord commands: /emote-compose or +prefix"]
         direction LR
-        user["User"] --> gateway["Discord gateway"] --> discord["botge-discord<br/>Slash / prefix commands"]
-        discord --> compose["botge-app<br/>Resolve input; hold shared render permit"]
-        saved["botge-storage<br/>Guild state and personal border"] --> compose
-        snapshots["botge-emotes<br/>Enabled provider snapshots"] --> compose
-        compose --> render["botge-emotes<br/>Original download or bounded FFmpeg render"]
-        render --> reply["Return through botge-app and botge-discord"] --> attachment["Discord text / attachment"]
+        user(["User"]) --> gateway["Discord gateway"] --> discord["<b>botge-discord</b><br/>Defer and parse input"]
+        discord --> compose["<b>botge-app</b><br/>Resolve names,<br/>hold a render permit"]
+        saved[("<b>botge-storage</b><br/>Added emotes, 7TV set,<br/>personal border")] --> compose
+        snapshots["<b>botge-emotes</b><br/>Immutable 7TV snapshots"] --> compose
+        compose --> render["<b>botge-emotes</b><br/>Download through nginx,<br/>FFmpeg WebP render"]
+        render --> reply(["Text or attachment reply"])
     end
-    subgraph Content["Activity launch and assets"]
+
+    subgraph page["Activity page"]
         direction LR
-        launch["Discord Activity"] --> root["Discord proxy<br/>/ mapping"] --> go["Go origin on Cloud Run<br/>Verify signatures and serve embedded assets"]
+        launch(["Discord Activity"]) -->|"/"| origin["<b>Go origin</b> on Cloud Run<br/>Verify proxy signature,<br/>serve embedded assets"]
     end
-    subgraph Settings["Activity voice settings"]
+
+    subgraph settings["Activity settings: voice example"]
         direction LR
-        browser["Activity browser"] --> proxy["Discord proxy<br/>/botge-api"] --> ingress["Public HTTPS endpoint<br/>Tunnel or reverse proxy"]
-        ingress --> api["Rust bot on the VM<br/>Proxy signature and request validation"]
-        api --> authorize["botge-app<br/>Authenticate and authorize"]
-        authorize <-->|current identity and guild access| access["botge-discord<br/>GuildAccess implementation"]
-        authorize -->|authorized| commit["botge-storage<br/>Commit voice preference"]
-        commit --> notify["Notify AFTER commit"] --> reconcile["botge-voice<br/>Read via app; reconcile with Discord"]
-        authorize -->|denied| reject["HTTP error; no write"]
-        response["Responses return through botge-app and botge-activity.<br/>Voice reconciliation runs asynchronously after commit."]
+        browser(["Activity browser"]) -->|"/botge-api"| ingress["Public HTTPS endpoint<br/>to VM loopback :3080"]
+        ingress --> api["<b>botge-activity</b><br/>Verify signature,<br/>decode request"]
+        api --> authorize["<b>botge-app</b><br/>Authenticate and authorize"]
+        authorize <-->|"identity and guild access"| access["<b>botge-discord</b><br/>GuildAccess"]
+        authorize -->|allowed| commit[("<b>botge-storage</b><br/>Commit settings<br/>and catalog revision")]
+        commit -->|"notify after commit"| reconcile["<b>botge-voice</b><br/>Reconcile with Discord"]
+        authorize -->|denied| reject(["Sanitized error, no write"])
     end
-    auth["/auth exchanges a one-use code; later requests use a bearer token.<br/>Personal borders use user identity; guild operations check current guild permissions."]
+
+    commands ~~~ page ~~~ settings
+
+    classDef entry fill:#1a1f3d,stroke:#8b93ff,color:#eef0ff,stroke-width:2px,rx:10,ry:10
+    classDef core fill:#0f2a28,stroke:#3dd6b5,color:#e6fbf6,stroke-width:2px,rx:10,ry:10
+    classDef data fill:#2b2212,stroke:#f0b54a,color:#fff5e3,stroke-width:2px,rx:10,ry:10
+    classDef media fill:#26173a,stroke:#c38bff,color:#f6eeff,stroke-width:2px,rx:10,ry:10
+    classDef cloud fill:#122238,stroke:#5aa7ff,color:#e8f2ff,stroke-width:2px,rx:10,ry:10
+    classDef base fill:#161b24,stroke:#7d8ba3,color:#e9edf4,stroke-width:2px,rx:10,ry:10
+    classDef deny fill:#2a1720,stroke:#ff7a90,color:#ffeef1,stroke-width:2px,rx:10,ry:10
+    class user,gateway,launch,browser,reply entry
+    class discord,api,access base
+    class compose,authorize core
+    class saved,commit data
+    class snapshots,render media
+    class origin,ingress cloud
+    class reconcile base
+    class reject deny
