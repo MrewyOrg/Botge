@@ -9,7 +9,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from doctor import Command, Result, diagnose, ffmpeg_supported, run, xcode_supported
+from doctor import Command, Result, diagnose, diagnose_go, ffmpeg_supported, run, xcode_supported
 
 
 def prerequisites(root: Path) -> dict[Command, Result]:
@@ -39,7 +39,12 @@ class DoctorTests(unittest.TestCase):
         """Both entry points handle CLI arguments before running checks or reading pins."""
         root = Path(__file__).resolve().parents[2]
         with tempfile.TemporaryDirectory() as temporary:
-            for script in ('doctor.py', 'check_python.py', 'doc_python.py'):
+            for script in (
+                'setup/doctor.py',
+                'quality/check_python.py',
+                'quality/doc_python.py',
+                'quality/run_shell_tests.py',
+            ):
                 for argument, code in (('--help', 0), ('--unknown', 2)):
                     with self.subTest(script=script, argument=argument):
                         result = subprocess.run(  # noqa: S603 - Local entry points and fixed arguments.
@@ -102,7 +107,7 @@ class DoctorTests(unittest.TestCase):
             self.assertTrue(ffmpeg_supported('ffmpeg version 10.0.0'))
             self.assertFalse(ffmpeg_supported('unrecognized build'))
 
-    def test_runner_handles_absence_timeout_and_disables_rustup_installation(self) -> None:
+    def test_runner_handles_absence_timeout_and_disables_toolchain_installation(self) -> None:
         """Missing or hung tools produce diagnostics; probes never trigger a toolchain download."""
         with patch('doctor.shutil.which', return_value=None):
             self.assertEqual(run(('cargo', '--version')).returncode, 127)
@@ -118,6 +123,7 @@ class DoctorTests(unittest.TestCase):
         ):
             self.assertEqual(run(('cargo', '--version')), Result(0, 'fixture'))
             self.assertEqual(execute.call_args.kwargs['env']['RUSTUP_AUTO_INSTALL'], '0')
+            self.assertEqual(execute.call_args.kwargs['env']['GOTOOLCHAIN'], 'local')
             self.assertEqual(execute.call_args.kwargs['timeout'], 20)
             self.assertNotIn('shell', execute.call_args.kwargs)
 
@@ -156,6 +162,37 @@ class DoctorTests(unittest.TestCase):
                 )
             self.assertNotIn('FAIL', output.getvalue())
             self.assertFalse(xcode_supported('unrecognized'))
+
+    def test_go_checks_the_patch_and_reports_each_missing_tool(self) -> None:
+        """The Go check validates the patch pin and reports tools after a version mismatch."""
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            pin = root / 'activity' / 'server' / '.go-version'
+            pin.parent.mkdir(parents=True)
+            pin.write_text('1.27.4\n')
+            responses: dict[Command, Result] = {
+                ('go', 'version'): Result(0, 'go version go1.27.3 darwin/arm64'),
+                ('gopls', 'version'): Result(127, 'missing'),
+            }
+
+            def runner(args: Command) -> Result:
+                return responses.get(args, Result(0, 'fixture'))
+
+            output = io.StringIO()
+            with contextlib.redirect_stdout(output):
+                self.assertFalse(diagnose_go(root, runner))
+            self.assertIn('FAIL Go 1.27.4', output.getvalue())
+            self.assertIn('FAIL gopls', output.getvalue())
+            self.assertIn('PASS govulncheck', output.getvalue())
+
+            responses[('go', 'version')] = Result(0, 'go version go1.27.4 darwin/arm64')
+            responses[('gopls', 'version')] = Result(0, 'fixture')
+            with contextlib.redirect_stdout(io.StringIO()):
+                self.assertTrue(diagnose_go(root, runner))
+                pin.write_text('1.27\n')
+                self.assertFalse(diagnose_go(root, runner))
+                pin.unlink()
+                self.assertFalse(diagnose_go(root, runner))
 
 
 if __name__ == '__main__':

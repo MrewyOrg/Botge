@@ -1,5 +1,3 @@
-# cspell:words syft
-
 package docker
 
 # METADATA

@@ -1,16 +1,49 @@
 import assert from 'node:assert/strict';
+import { mkdir, mkdtemp, realpath, rm, symlink, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join, resolve } from 'node:path';
 
 import { ESLint } from 'eslint';
-import { expect, test } from 'vitest';
+import { afterAll, beforeAll, expect, test } from 'vitest';
 
 import config from '../../eslint.config.ts';
 
-const eslint = new ESLint({ overrideConfig: [...config], overrideConfigFile: true });
 const rule = '@typescript-eslint/prefer-readonly-parameter-types';
+let directory: string | undefined;
+let eslint: ESLint;
+
+beforeAll(async () => {
+  const workspace = await realpath(await mkdtemp(join(tmpdir(), 'botge-eslint-')));
+  directory = workspace;
+  await mkdir(join(workspace, 'node_modules'));
+  await symlink(
+    resolve(import.meta.dirname, '../../node_modules/ts-essentials'),
+    join(workspace, 'node_modules/ts-essentials'),
+    'dir'
+  );
+  await writeFile(join(workspace, 'fixture.ts'), 'export {};\n');
+  await writeFile(
+    join(workspace, 'tsconfig.json'),
+    JSON.stringify({ compilerOptions: { strict: true, types: [] }, files: ['fixture.ts'] } as const)
+  );
+  eslint = new ESLint({
+    cwd: workspace,
+    overrideConfig: [
+      ...config,
+      { files: ['**/*.ts'], languageOptions: { parserOptions: { tsconfigRootDir: workspace } } }
+    ],
+    overrideConfigFile: true
+  });
+  // Initialize the type-aware parser before timing individual rule checks.
+  await eslint.lintText('export {};', { filePath: 'fixture.ts' });
+}, 75_000);
+
+afterAll(async () => {
+  if (directory !== undefined) await rm(directory, { recursive: true, force: true });
+});
 
 async function assertRule(code: string, ruleId: string, expected: number): Promise<void> {
-  // Use an existing file in the root TypeScript project for type-aware linting.
-  const [result] = await eslint.lintText(code, { filePath: 'eslint.config.ts' });
+  const [result] = await eslint.lintText(code, { filePath: 'fixture.ts' });
   assert.ok(result, 'Expected a lint result');
   assert.equal(result.fatalErrorCount, 0);
   assert.equal(
@@ -110,7 +143,7 @@ for (const { name, code, ruleId, expected } of [
 }
 
 test('global language options keep typed linting scoped to TypeScript', async () => {
-  const source: unknown = await eslint.calculateConfigForFile('eslint.config.ts');
+  const source: unknown = await eslint.calculateConfigForFile('fixture.ts');
   const javascript: unknown = await eslint.calculateConfigForFile('policy-check.js');
   expect(source).toMatchObject({
     languageOptions: { sourceType: 'module', parserOptions: { projectService: true } }

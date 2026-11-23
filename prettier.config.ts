@@ -9,6 +9,7 @@ const config: Readonly<Config> = {
   experimentalTernaries: true,
   htmlWhitespaceSensitivity: 'strict',
   objectWrap: 'collapse',
+  overrides: [{ files: '**/*.bats', options: { variant: 8 } }],
   plugins: [prettierPluginNginx, prettierPluginSh, prettierPluginToml],
   printWidth: 100,
   proseWrap: 'always',

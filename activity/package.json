@@ -14,14 +14,13 @@
   },
   "type": "module",
   "scripts": {
-    "build": "vite build --base=./ --target=esnext",
-    "build:demo": "vite build --mode demo --base=./ --target=esnext --outDir dist-demo && node scripts/prepare-demo-site.ts dist-demo",
+    "build": "vite build",
     "check:markup": "npm run build && html-validate --preset standard --max-warnings 0 index.html dist/index.html",
     "dev": "vite --host 127.0.0.1",
     "dev:demo": "vite --host 127.0.0.1 --mode demo",
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",
-    "typecheck": "tsc --build"
+    "typecheck": "tsc --project tsconfig.json"
   },
   "dependencies": {
     "@discord/embedded-app-sdk": "^2.5.0"
@@ -30,6 +29,7 @@
     "@vitest/coverage-v8": "^5.1.0",
     "html-validate": "^11.21.1",
     "jsdom": "^31.0.1",
+    "parse5": "^8.1.1",
     "sass": "^1.108.2",
     "vite": "^8.3.8",
     "vitest": "^5.1.0"

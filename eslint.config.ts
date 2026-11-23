@@ -1,3 +1,5 @@
+import { builtinModules } from 'node:module';
+
 import js from '@eslint/js';
 import html from '@html-eslint/eslint-plugin';
 import tsdoc from 'eslint-plugin-tsdoc';
@@ -10,7 +12,7 @@ const globalConfig: readonly Readonly<Config>[] = defineConfig([
     languageOptions: { ecmaVersion: 'latest', sourceType: 'module' }
   },
   { name: 'globalLinterOptions', linterOptions: { noInlineConfig: true } },
-  globalIgnores(['activity/dist/', 'activity/dist-demo/', 'target/', 'coverage/'], 'globalIgnores')
+  globalIgnores(['activity/dist/', 'target/', 'coverage/'], 'globalIgnores')
 ]);
 
 const config: readonly Readonly<Config>[] = defineConfig([
@@ -161,6 +163,37 @@ const config: readonly Readonly<Config>[] = defineConfig([
       // The rule has no per-attribute exceptions. The color picker, theme color and keyboard hints
       // degrade gracefully, and Discord's embedded browsers support them.
       'html/use-baseline': 'off'
+    }
+  },
+  {
+    name: 'activity-browser',
+    files: ['activity/src/**/*.ts'],
+    rules: {
+      // The shared Activity type check also includes Node scripts and tests.
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              group: ['node:*', ...builtinModules],
+              message: 'Use browser APIs in Activity source.'
+            }
+          ]
+        }
+      ],
+      'no-restricted-globals': [
+        'error',
+        'Buffer',
+        'process',
+        'global',
+        'require',
+        'module',
+        'exports',
+        '__dirname',
+        '__filename',
+        'setImmediate',
+        'clearImmediate'
+      ]
     }
   },
   {

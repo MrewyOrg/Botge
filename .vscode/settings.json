@@ -57,7 +57,6 @@
     "**/.github/codeql/database/**": true,
     "**/.github/codeql/output/**": true,
     "**/.husky/_/**": true,
-    "**/.wrangler/**": true,
     "**/*.tsbuildinfo": true,
     "**/coverage/**": true,
     "**/data/**": true,
@@ -77,7 +76,6 @@
     "**/.github/codeql/database/**": true,
     "**/.github/codeql/output/**": true,
     "**/.husky/_/**": true,
-    "**/.wrangler/**": true,
     "**/*.tsbuildinfo": true,
     "**/coverage/**": true,
     "**/data/**": true,
@@ -194,9 +192,6 @@
   // Markdownlint
   "markdownlint.configFile": ".markdownlint-cli2.jsonc",
   "markdownlint.run": "onSave",
-
-  // Spell checking
-  "cSpell.mergeCSpellSettings": false,
 
   // Commitlint
   "commitlint.config.file": "commitlint.config.ts",

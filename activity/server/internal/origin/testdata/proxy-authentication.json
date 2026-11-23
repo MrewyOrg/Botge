@@ -1,0 +1,125 @@
+{
+  "publicKey": "64c30815ff26d5c4aff8e11274a38ed6dd0553049da4c10372a9575b7a776909",
+  "now": 1700000000,
+  "vectors": [
+    {
+      "name": "hex signature",
+      "accepted": true,
+      "timestamp": "1700000000",
+      "payload": "eyJjcmVhdGVkX2F0IjoxNzAwMDAwMDAwLCJleHBpcmVzX2F0IjoxNzAwMDAwMDYwfQ==",
+      "signature": "55b788bc103054b4f8744fea7f69d9ff5576e248e2594eda2b74e5c1bd261054c78d01e8f893e0d9a034b414297ff44839b89fb4ee5ee417c4e60cd2d456800c"
+    },
+    {
+      "name": "standard base64 signature",
+      "accepted": true,
+      "timestamp": "1700000000",
+      "payload": "eyJjcmVhdGVkX2F0IjoxNzAwMDAwMDAwLCJleHBpcmVzX2F0IjoxNzAwMDAwMDYwfQ==",
+      "signature": "VbeIvBAwVLT4dE/qf2nZ/1V24kjiWU7aK3Tlwb0mEFTHjQHo+JPg2aA0tBQpf/RIObiftO5e5BfE5gzS1FaADA=="
+    },
+    {
+      "name": "URL-safe signature and signed unknown fields",
+      "accepted": true,
+      "timestamp": "1700000000",
+      "payload": "eyJjcmVhdGVkX2F0IjoxNzAwMDAwMDAwLCJleHBpcmVzX2F0IjoxNzAwMDAwMDYwLCJ1bmtub3duIjoiw7_Dv34ifQ",
+      "signature": "sOcSjGsRUpZiyZUpPbpHWoKvDzfOukQcCGtP8tnu0sK5Titch6DoP27P_9yyg97rvACXqpqb1FQZ0_yTj9TIDQ"
+    },
+    {
+      "name": "exact future skew boundary",
+      "accepted": true,
+      "timestamp": "1700000030",
+      "payload": "eyJjcmVhdGVkX2F0IjoxNzAwMDAwMDMwLCJleHBpcmVzX2F0IjoxNzAwMDAwMDMxfQ==",
+      "signature": "8daa093cf5ea2410f65b9fd846fe654d9e1dbcedd500d2a902f1b90e56c09a9974d329dc10b3cafe330aa397e99739225e23567d34a5ad945f9af9d4cf4ff909"
+    },
+    {
+      "name": "future creation beyond skew",
+      "accepted": false,
+      "timestamp": "1700000031",
+      "payload": "eyJjcmVhdGVkX2F0IjoxNzAwMDAwMDMxLCJleHBpcmVzX2F0IjoxNzAwMDAwMDYwfQ==",
+      "signature": "d1f7103ec6d2081e6c33f6c0b77d2b2bf80bc5a0fc033f0941ef37604c6291920d02933d744f97ceb9cfea28fd4b8814f0b8c43f44bfa90a3f3be3879bcaa203"
+    },
+    {
+      "name": "expiry equals creation",
+      "accepted": false,
+      "timestamp": "1700000020",
+      "payload": "eyJjcmVhdGVkX2F0IjoxNzAwMDAwMDIwLCJleHBpcmVzX2F0IjoxNzAwMDAwMDIwfQ==",
+      "signature": "017432ec2cc715405067a4b38fb5a52e45b17937bd81515aafad3daad09e5c93fb198db15c337db6bc11f00bb3b379bcbb16ec6ede3accd2145adb9d87eed204"
+    },
+    {
+      "name": "expires on the current second",
+      "accepted": false,
+      "timestamp": "1699999990",
+      "payload": "eyJjcmVhdGVkX2F0IjoxNjk5OTk5OTkwLCJleHBpcmVzX2F0IjoxNzAwMDAwMDAwfQ==",
+      "signature": "683eece94c1a8f3cb47f8efe1a0a6eb5c4dca711cb2902ca23f0a8ad5a4ead228ed02c42c8837960e6ec5bf3d7d41cd7043201585035421910ca9e4603bb9807"
+    },
+    {
+      "name": "canonical timestamp required",
+      "accepted": false,
+      "timestamp": "01700000000",
+      "payload": "eyJjcmVhdGVkX2F0IjoxNzAwMDAwMDAwLCJleHBpcmVzX2F0IjoxNzAwMDAwMDYwfQ==",
+      "signature": "55b788bc103054b4f8744fea7f69d9ff5576e248e2594eda2b74e5c1bd261054c78d01e8f893e0d9a034b414297ff44839b89fb4ee5ee417c4e60cd2d456800c"
+    },
+    {
+      "name": "fractional creation",
+      "accepted": false,
+      "timestamp": "1700000000",
+      "payload": "eyJjcmVhdGVkX2F0IjoxNzAwMDAwMDAwLjUsImV4cGlyZXNfYXQiOjE3MDAwMDAwNjB9",
+      "signature": "8331b574d88432bd4df3cc18b593fff2df517d9b62c58f3ec8d29092cecf2d472098f4df36c5975aeeb66d1e5a6f3ca902318d79600f40c7feff429a6e1d6307"
+    },
+    {
+      "name": "unsafe expiry",
+      "accepted": false,
+      "timestamp": "1700000000",
+      "payload": "eyJjcmVhdGVkX2F0IjoxNzAwMDAwMDAwLCJleHBpcmVzX2F0Ijo5MDA3MTk5MjU0NzQwOTkyfQ==",
+      "signature": "650410e72abecf5ac3497f8e649fe63a7e257a2679d723da5a6f6c271a9cb4e4b6e43b878cdd62efdf66ed7a911f71139bf9f2dceaae939d1cc4a18d30572807"
+    },
+    {
+      "name": "missing expiry",
+      "accepted": false,
+      "timestamp": "1700000000",
+      "payload": "eyJjcmVhdGVkX2F0IjoxNzAwMDAwMDAwfQ==",
+      "signature": "8282d6ac6b01e0bc8925fbc2bc5abe0a3e12c3b5d68146e5da71082eb46d741274a6ca44c987760050934fb647a3bcbb81fe187dd100b73ef6dab323a0081009"
+    },
+    {
+      "name": "null creation",
+      "accepted": false,
+      "timestamp": "1700000000",
+      "payload": "eyJjcmVhdGVkX2F0IjpudWxsLCJleHBpcmVzX2F0IjoxNzAwMDAwMDYwfQ==",
+      "signature": "a1b7c9a0add4c177a961cb537863ccc126e68be9836230f90ec224b84354bc0b84802cd32f8c700d56d0f8eea951447a59b931c08befbf9d39c81b40f1993c06"
+    },
+    {
+      "name": "wrong case creation",
+      "accepted": false,
+      "timestamp": "1700000000",
+      "payload": "eyJDcmVhdGVkX2F0IjoxNzAwMDAwMDAwLCJleHBpcmVzX2F0IjoxNzAwMDAwMDYwfQ==",
+      "signature": "979e1c53ba8e1dabb98e973f3357cdee02f2058d7bff07ca206a16bd8dc78b669d17c5ba161644f7fa7240f5b9c2880474c48f2d6bf839749a02adb9e53eab05"
+    },
+    {
+      "name": "string expiry",
+      "accepted": false,
+      "timestamp": "1700000000",
+      "payload": "eyJjcmVhdGVkX2F0IjoxNzAwMDAwMDAwLCJleHBpcmVzX2F0IjoiMTcwMDAwMDA2MCJ9",
+      "signature": "a16fed5f6a342b4dd7f7e3df4990fbcb689dd04ee9fbe330d09917a50a455d3c67a4b5594f08ff77ad1f6d5b69707f23ed0c7eab08f433bdc2167b44bcc7cc0c"
+    },
+    {
+      "name": "non-object",
+      "accepted": false,
+      "timestamp": "1700000000",
+      "payload": "bnVsbA==",
+      "signature": "4214a6d9f841802203c8320a2dc9dc067f0795851ffc3f7d67e741fd1b6f2853abb4acc19b85cdf361c45a68353e6dad30e068ba4d045172ea30a98b5d7deb02"
+    },
+    {
+      "name": "trailing second JSON value",
+      "accepted": false,
+      "timestamp": "1700000000",
+      "payload": "eyJjcmVhdGVkX2F0IjoxNzAwMDAwMDAwLCJleHBpcmVzX2F0IjoxNzAwMDAwMDYwfXt9",
+      "signature": "57c09917616333d13d3d9eca69334b0ac102c7cac20817fe6dab70bb20bc8959db2092a44ddce8f0df509f28fdeb302e5fe1ecab595ee09451a1ddb747780506"
+    },
+    {
+      "name": "malformed JSON",
+      "accepted": false,
+      "timestamp": "1700000000",
+      "payload": "ew==",
+      "signature": "6ecf0fcd1fe0cd19c7e5590dcc8ee8d474892ffa0dceb124c83735407d0ed49d359c60f717c361fe888e644e0705146a7cc22b47c0c76a9e36075e66c18d9a0c"
+    }
+  ]
+}

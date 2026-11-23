@@ -1,5 +1,4 @@
 # check=error=true
-# cspell:words lavfi pkgconf xerror
 
 FROM dhi.io/alpine-base:3.24-dev@sha256:266554e75cb00f88effe4048ba78b6f628d6a5ca67ac9e9727ae37a4a1299ce5 AS runtime-tools
 WORKDIR /app

@@ -131,7 +131,7 @@ def record_benchmarks(path: Path, runs: int) -> None:
     }
     for index in range(runs):
         print(f'Benchmark run {index + 1}/{runs}', flush=True)
-        output = command('sh', 'scripts/check-rust.sh', 'bench')
+        output = command('sh', 'scripts/rust/check-rust.sh', 'bench')
         matches = re.findall(
             r'^test (\S+)\s+\.\.\. bench:\s+([\d,.]+) ns/iter', output, re.MULTILINE
         )

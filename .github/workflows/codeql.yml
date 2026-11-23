@@ -50,6 +50,7 @@ jobs:
       matrix:
         include:
           - language: actions
+          - language: go
           - language: python
           - language: rust
           - language: typescript
@@ -65,6 +66,26 @@ jobs:
         uses: actions/setup-python@v7.1.0
         with:
           python-version-file: .python-version
+
+      - name: Set up the pinned Go toolchain for extraction
+        if: matrix.language == 'go'
+        uses: actions/setup-go@v7.1.0
+        with:
+          go-version-file: activity/server/.go-version
+          cache-dependency-path: activity/server/tools/go.sum
+
+      - name: Set up Node for Go extraction
+        if: matrix.language == 'go'
+        uses: actions/setup-node@v7.1.0
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Build and stage the production Activity for extraction
+        if: matrix.language == 'go'
+        run: |
+          npm ci --prefer-offline --no-audit
+          sh scripts/activity/stage-activity-server.sh
 
       - name: Restore Rust extractor dependencies
         if: matrix.language == 'rust'
@@ -84,9 +105,18 @@ jobs:
         uses: github/codeql-action/init@v4.39.3
         with:
           languages: ${{ matrix.language }}
-          build-mode: none
+          build-mode: ${{ matrix.language == 'go' && 'manual' || 'none' }}
+          source-root: ${{ matrix.language == 'go' && 'activity/server' || '.' }}
           config-file: .github/codeql/codeql-config.yml
           queries: security-and-quality
+
+      - name: Build the Go Activity server for extraction
+        if: matrix.language == 'go'
+        working-directory: activity/server
+        env:
+          GOTOOLCHAIN: local
+          GOWORK: 'off'
+        run: go build -a -mod=readonly -o "${RUNNER_TEMP}/" ./...
 
       - name: CodeQL analysis
         uses: github/codeql-action/analyze@v4.39.3

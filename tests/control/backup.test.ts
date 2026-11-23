@@ -45,7 +45,7 @@ afterEach(() => {
 
 test('offline backup stops, verifies, records checksum, and restarts the original container', () => {
   const destination = join(directory, 'backup');
-  const result = spawnSync('bash', [resolve('scripts/backup-compose.sh'), destination], {
+  const result = spawnSync('bash', [resolve('scripts/operations/backup-compose.sh'), destination], {
     env: environment,
     encoding: 'utf8'
   });
@@ -59,7 +59,7 @@ test('offline backup stops, verifies, records checksum, and restarts the origina
 
 test('verification failure still restarts Botge and never records a successful checksum', () => {
   const destination = join(directory, 'backup');
-  const result = spawnSync('bash', [resolve('scripts/backup-compose.sh'), destination], {
+  const result = spawnSync('bash', [resolve('scripts/operations/backup-compose.sh'), destination], {
     env: { ...environment, TEST_VERIFY_STATUS: '1' },
     encoding: 'utf8'
   });
@@ -69,7 +69,7 @@ test('verification failure still restarts Botge and never records a successful c
 });
 
 test('existing backup directories are refused before stopping the bot', () => {
-  const result = spawnSync('bash', [resolve('scripts/backup-compose.sh'), directory], {
+  const result = spawnSync('bash', [resolve('scripts/operations/backup-compose.sh'), directory], {
     env: environment,
     encoding: 'utf8'
   });
@@ -85,10 +85,11 @@ test.each([
   'nonstandard running data directories are refused before stopping or copying',
   (config) => {
     const destination = join(directory, 'backup');
-    const result = spawnSync('bash', [resolve('scripts/backup-compose.sh'), destination], {
-      env: { ...environment, TEST_CONTAINER_CONFIG: JSON.stringify(config) },
-      encoding: 'utf8'
-    });
+    const result = spawnSync(
+      'bash',
+      [resolve('scripts/operations/backup-compose.sh'), destination],
+      { env: { ...environment, TEST_CONTAINER_CONFIG: JSON.stringify(config) }, encoding: 'utf8' }
+    );
     assert.equal(result.status, 1);
     assert.ok(result.stderr.includes('Botge was not stopped'));
     const calls = readFileSync(join(directory, 'commands'), 'utf8');
@@ -101,7 +102,7 @@ test.each([
 test('backup uses the running data directory rather than the caller environment', () => {
   const result = spawnSync(
     'bash',
-    [resolve('scripts/backup-compose.sh'), join(directory, 'backup')],
+    [resolve('scripts/operations/backup-compose.sh'), join(directory, 'backup')],
     {
       env: {
         ...environment,

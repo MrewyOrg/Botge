@@ -1,5 +1,19 @@
 {
-  // Browser and Node code need different global types, so each has its own project.
-  "files": [],
-  "references": [{ "path": "./tsconfig.app.json" }, { "path": "./tsconfig.node.json" }]
+  "extends": "../tsconfig.base.json",
+  "include": [
+    "src/**/*.ts",
+    "scripts/**/*.ts",
+    "tests/**/*.ts",
+    "vite.config.ts",
+    "vitest.config.ts"
+  ],
+  "compilerOptions": {
+    "composite": false,
+    "declaration": true,
+    "incremental": true,
+    "noEmit": true,
+    "lib": ["ESNext", "DOM"],
+    "types": ["vite/client"],
+    "tsBuildInfoFile": "../node_modules/.cache/botge/activity.tsbuildinfo"
+  }
 }

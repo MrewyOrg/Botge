@@ -36,7 +36,14 @@ pythonVersion = '3.15'
 typeCheckingMode = 'strict'
 reportImplicitOverride = 'error'
 reportUnnecessaryTypeIgnoreComment = 'error'
-extraPaths = ['scripts', '.agents/scripts', 'tests/python']
+extraPaths = [
+  'scripts/ios',
+  'scripts/operations',
+  'scripts/quality',
+  'scripts/setup',
+  '.agents/scripts',
+  'tests/python'
+]
 venvPath = '.'
 venv = '.venv'
 

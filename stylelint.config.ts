@@ -7,7 +7,7 @@ import type { Config } from 'stylelint';
  */
 const config: Config = {
   extends: ['stylelint-config-standard-scss'],
-  ignoreFiles: ['**/node_modules/**', 'activity/dist/**', 'activity/dist-demo/**', 'coverage/**'],
+  ignoreFiles: ['**/node_modules/**', 'activity/dist/**', 'coverage/**'],
   // The partials compile into one stylesheet, so custom properties and keyframes defined in any of
   // them are known in all of them.
   referenceFiles: [{ files: ['activity/src/**/*.scss'], customSyntax: scss }],
