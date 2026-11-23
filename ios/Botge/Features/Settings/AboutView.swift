@@ -35,7 +35,7 @@ struct AboutView: View {
     .navigationTitle("About & Legal")
   }
 
-  /// The version and build, such as `6.0.0 (1)`.
+  /// The version and build, such as `6.1.0 (1)`.
   ///
   /// - Parameter value: Looks up an Info.plist value by key.
   /// - Returns: The version text, with `?` for a missing value.
