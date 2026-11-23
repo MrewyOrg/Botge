@@ -10,7 +10,7 @@
     "workerd": false
   },
   "devDependencies": {
-    "wrangler": "^4.164.0"
+    "wrangler": "^4.165.0"
   },
   "engines": {
     "node": ">=26.13.0",
