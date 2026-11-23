@@ -102,7 +102,7 @@ jobs:
             codeql-rust-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('rust-toolchain.toml') }}-
 
       - name: Initialize CodeQL
-        uses: github/codeql-action/init@v4.39.3
+        uses: github/codeql-action/init@v4.39.4
         with:
           languages: ${{ matrix.language }}
           build-mode: ${{ matrix.language == 'go' && 'manual' || 'none' }}
@@ -119,6 +119,6 @@ jobs:
         run: go build -a -mod=readonly -o "${RUNNER_TEMP}/" ./...
 
       - name: CodeQL analysis
-        uses: github/codeql-action/analyze@v4.39.3
+        uses: github/codeql-action/analyze@v4.39.4
         with:
           category: '/language:${{ matrix.language }}'
