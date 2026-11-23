@@ -13,12 +13,23 @@ test('commit messages require a meaningful subject and an explicit scope', () =>
   });
 });
 
-test('commit checks skip only commits signed off by Dependabot', () => {
+test('commit checks skip only commits signed off or merged from Dependabot', () => {
   const [ignore] = commitlint.ignores ?? [];
   const body = `chore(deps): bump a pinned workflow\n\nUpdates it from ${'a'.repeat(40)} to ${'b'.repeat(40)}`;
   expect(ignore?.(`${body}\n\nSigned-off-by: dependabot[bot] <support@github.com>`)).toBe(true);
+  expect(
+    ignore?.(
+      'chore(deps): bump the docker-images group across 2 directories with 5 updates (#294)\n\nBumps the docker-images group with 2 updates.'
+    )
+  ).toBe(true);
+  expect(
+    ignore?.(
+      'chore(deps-dev): bump the npm-dependencies group across 1 directory with 5 updates (#292)\n\nBumps the npm-dependencies group with 5 updates.'
+    )
+  ).toBe(true);
   expect(ignore?.(`${body}\n\nSigned-off-by: Someone <someone@example.com>`)).toBe(false);
   expect(ignore?.(`${body} dependabot[bot]`)).toBe(false);
+  expect(ignore?.('chore(deps): bump dependencies\n\nManual update.')).toBe(false);
 });
 
 test('staged Rust and Go format only the selected files', () => {

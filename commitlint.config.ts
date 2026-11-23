@@ -3,12 +3,18 @@ import { RuleConfigSeverity, type UserConfig } from '@commitlint/types';
 /** Dependabot signs off every commit it writes; nobody else uses this identity. */
 const DEPENDABOT_SIGN_OFF = /^Signed-off-by: dependabot\[bot\] <support@github\.com>$/mu;
 
+/** GitHub merge commits for Dependabot PRs reuse the PR title and body without the sign-off. */
+const DEPENDABOT_MERGE_COMMIT = /^chore\(deps(?:-dev)?\): bump .+ \(#\d+\)\r?\n\r?\nBumps /u;
+
 const userConfig: Readonly<UserConfig> = {
   extends: ['@commitlint/config-conventional'],
   formatter: '@commitlint/format',
   // Dependabot writes its own messages. Lines naming long dependencies or commit hashes without a
   // link exceed the length rules, and Dependabot cannot be told to wrap them.
-  ignores: [(message: string): boolean => DEPENDABOT_SIGN_OFF.test(message)],
+  ignores: [
+    (message: string): boolean =>
+      DEPENDABOT_SIGN_OFF.test(message) || DEPENDABOT_MERGE_COMMIT.test(message)
+  ],
   rules: {
     'scope-empty': [RuleConfigSeverity.Error, 'never'],
     'scope-case': [RuleConfigSeverity.Error, 'always', 'kebab-case'],
