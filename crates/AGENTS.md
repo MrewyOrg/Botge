@@ -1,5 +1,3 @@
-<!-- cspell:words CONV SYSCALLS -->
-
 # Rust guidance
 
 These rules add to the [root guidance](../AGENTS.md) for the Rust workspace. rustfmt, Clippy (`all`,

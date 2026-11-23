@@ -42,8 +42,9 @@ You need macOS with Xcode 27 (open it once to install the iOS 27 simulator).
 
 ### Server and Discord setup
 
-- Start the bot with `BOTGE_APP_API=true`. The app routes use the same port and tunnel as the
-  Activity API.
+- Start the bot with `BOTGE_APP_API=true`. The app calls `/app/v1` directly on the bot's
+  [API HTTPS endpoint](../activity/README.md#api-https-endpoint). Administrators can inspect and
+  restore catalog revisions under **Server → Catalog History**.
 - In the Discord Developer Portal, under OAuth2, add the redirect
   `discord-<APP_ID>:/authorize/callback` and turn on **Public Client**. The app holds no client
   secret and logs in with PKCE. The Activity's secret-based login keeps working.

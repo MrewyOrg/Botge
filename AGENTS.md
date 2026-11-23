@@ -1,7 +1,7 @@
 # Botge guidance
 
-Rust Discord bot; the Activity and Cloudflare Worker are TypeScript and the iOS app is SwiftUI. Find
-code through the [source map](#source-map); read [architecture](docs/ARCHITECTURE.md) when a change
+The Discord bot uses Rust, the Activity uses TypeScript and Go, and the iOS app uses SwiftUI. Find
+code through the [source map](#source-map). Read [architecture](docs/ARCHITECTURE.md) when a change
 crosses crates. User and hosting guides belong in the
 [wiki](https://github.com/MrewyOrg/Botge/wiki).
 
@@ -44,7 +44,7 @@ and guideline checklists.
 The [test guide](tests/README.md) owns check commands, coverage gates, prerequisites and which
 checks a change needs. Run targeted tests for the changed code; run whole suites or coverage gates
 only when asked, since CI runs them. Report failures and checks you could not run. Python helpers
-follow the [helper guide](scripts/README.md); run `.venv/bin/python scripts/doctor.py` after
+follow the [helper guide](scripts/README.md); run `.venv/bin/python scripts/setup/doctor.py` after
 environment changes.
 
 ## Pull requests and issues
@@ -75,8 +75,10 @@ the MrewyOrg project "Botge" (#2) with Status and Phase. Auto-assign sets assign
   off production dependencies. Rust rules: [crates/AGENTS.md](crates/AGENTS.md).
 - `ios/`: SwiftUI app ([guide](ios/README.md), [rules](ios/AGENTS.md)); `BotgeKit` holds auth, API
   and image logic and calls the bearer-only `/app/v1` routes that `BOTGE_APP_API=true` enables.
-- `activity/`: browser and Worker code ([guide](activity/README.md)); root Vitest runs Activity and
-  tooling tests.
+- `activity/`: browser code ([guide](activity/README.md)). Root Vitest runs Activity and tooling
+  tests.
+- `activity/server/`: signed Go Activity origin ([rules](activity/server/AGENTS.md)); the test guide
+  owns staging and coverage commands.
 - `scripts/` and `.agents/scripts/`: Python and shell helpers ([helper guide](scripts/README.md)).
 - `Dockerfile`, `compose.yaml` (bot and nginx), `compose.build.yaml` (local build) and
   `compose.activity.yaml` (loopback API); read the [control guide](botge_control/README.md) before

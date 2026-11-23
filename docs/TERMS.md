@@ -60,25 +60,11 @@ discovery displays provider-hosted images and lets authorized members save refer
 - **7TV**: Its terms retain uploader ownership and grant service-related rights to 7TV. No blanket
   license for Botge to modify and publish all emotes elsewhere was found. Obtain appropriate rights
   and clarify provider permission for this use. [Terms](https://7tv.app/tos).
-- **BetterTTV (BTTV)**: Its terms provide a copyright complaint process, but no express blanket
-  license for arbitrary off-platform modification and redistribution was found. Do not treat public
-  availability as permission. [Terms](https://betterttv.com/terms).
-- **FrankerFaceZ (FFZ)**: Its terms expressly require permission from both FFZ and the original
-  owner for downloading, hosting, modifying, or redistributing hosted content. API access by
-  applications unrelated to Twitch also needs permission. Treat this integration as requiring
-  explicit clearance. [Terms](https://www.frankerfacez.com/terms).
-- **Twitch emotes**: Published trademark guidance requires express permission for emote use and
-  warns of third-party rights. Global emotes are excluded from the developer agreement's definition
-  of Program Materials. Do not interpret API access as a blanket artwork license.
-  [Guidelines](https://www.twitch.tv/p/nl-nl/legal/trademark/),
-  [agreement](https://legal.twitch.com/legal/developer-agreement).
 
-These findings distinguish an express restriction from a permission that could not be confirmed;
-they do not establish that every individual use is unlawful. Own or properly licensed artwork and
-applicable legal exceptions can change the result. Resizing, stretching, recoloring, overlaying, or
-combining images does not automatically supply authorization or make a use exempt from copyright.
-Attribution alone cannot replace a required license. Link-only output is not an automatic exception
-to provider API terms either.
+Own or properly licensed artwork and applicable legal exceptions can change the result. Resizing,
+stretching, recoloring, overlaying, or combining images does not automatically supply authorization
+or make a use exempt from copyright. Attribution alone cannot replace a required license. Link-only
+output is not an automatic exception to provider API terms either.
 
 FFmpeg's software license does not license the media it processes. Image/container distributors must
 also retain applicable notices and satisfy the actual FFmpeg build's LGPL/GPL and dependency

@@ -59,9 +59,9 @@ The [test guide](../tests/README.md) owns check commands and coverage gates.
 
 Reviewed against stable [Serenity 0.12.5](https://docs.rs/serenity/0.12.5/serenity/) on 2026-11-15.
 Gateway callbacks, typed interactions and IDs, command contexts/integration types, response
-builders, attachments, pagination and permission calculations use supported APIs. Botge does not
-need the legacy command framework or a gateway cache to refresh authorization on every Activity
-request.
+builders, attachments, pagination and permission calculations use supported APIs. Botge checks guild
+access on every authenticated Activity request using gateway state and a bounded REST fallback for
+member records missing from the cache.
 
 Voice status uses `Http::edit_voice_status` with a typed serialized body. In this SDK version,
 `EditChannel::status` performs the status update and then a separate channel PATCH; retaining the

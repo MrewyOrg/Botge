@@ -44,7 +44,7 @@ Measure such changes on an iPhone with Lockdown Mode on.
   checked, every declaration is documented. Test functions are exempt, as in Rust.
 - **Parameter and Returns tags.** Following Google, functions document parameters and results with
   `- Parameter(s):` and `- Returns:` unless the comment names the parameter in backticks or the
-  summary starts with "Returns" or "Whether". `scripts/check_swift_docs.py` enforces this.
+  summary starts with "Returns" or "Whether". `scripts/ios/check_swift_docs.py` enforces this.
 - **`random()` factories.** `PKCE.random()` and `GameRoomCode.random()` follow the standard
   library's `random(in:)` naming rather than the `make` prefix; other factories start with `make`.
 - **One type per file.** SwiftLint's `one_declaration_per_file` applies; small private helpers move
