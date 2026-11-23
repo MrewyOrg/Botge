@@ -190,8 +190,8 @@ SH
   done
   called 'linux64-lgpl'
   called 'linuxarm64-lgpl'
-  called '416081d93cb6cdcac9fade4f76d94321964253860b85b80404b5b9fb38dc3499'
-  called 'e0ea66cc042994d33ff9d65ac50a8c71d1011132ec1f08ecef6495ab3df90e80'
+  called '63648ca32d6f831b6829f60d9fef3c9745f4dc4ad33d9ddd98ba2b5bca87e9e3'
+  called '5fb88bdc315e808b07a607bedcbcaf609408508295aa2afd4beed810af8878f9'
 }
 
 @test "FFmpeg refuses invalid arguments, unsupported architectures, and bad downloads" {
