@@ -1,5 +1,5 @@
 # check=error=true
-FROM --platform=$BUILDPLATFORM dhi.io/node:26.13.0-debian13-dev@sha256:c4566c7cf80e9ab58a1985d2290c323b21827b1a8159ddb9f6c70b0b15716966 AS site
+FROM --platform=$BUILDPLATFORM dhi.io/node:26.13.1-debian13-dev@sha256:db6f2b88d1cfd7277818e8f1806120279647924d7f0bdede2e2378c1216532a8 AS site
 WORKDIR /workspace
 COPY .nvmrc .npmrc package.json package-lock.json ./
 COPY .husky/install.sh .husky/
@@ -16,7 +16,7 @@ COPY activity/scripts/stage-server-site.ts activity/scripts/
 COPY scripts/activity/stage-activity-server.sh scripts/activity/
 RUN --network=none sh scripts/activity/stage-activity-server.sh
 
-FROM --platform=$BUILDPLATFORM dhi.io/golang:1.27.4-debian13-dev@sha256:2f58c6928a851f0b6059f1a63514828a788a748d88b218a1bc9ae23c3b540140 AS build
+FROM --platform=$BUILDPLATFORM dhi.io/golang:1.27.4-debian13-dev@sha256:7d8f3144cc30660df92ab80390cdcb48b424c82786151786c48334905fc4dbbc AS build
 ARG TARGETOS
 ARG TARGETARCH
 ENV CGO_ENABLED=0 GOTOOLCHAIN=local GOWORK=off
@@ -30,7 +30,7 @@ RUN --network=none test "$(go env GOVERSION)" = "go$(cat .go-version)" \
   && GOOS="${TARGETOS}" GOARCH="${TARGETARCH}" \
     go build -trimpath -mod=readonly -o /out/activity-server ./cmd/activity-server
 
-FROM dhi.io/static:20250419-debian13@sha256:4749130e822c145dbdf9ca11ec0cc2f694b5fe687fd74268a2b62160e6726f39
+FROM dhi.io/static:20250419-debian13@sha256:1295ce0b300e0972ee6034f75f2161a629c12d760526f2e029528416dec2f96e
 LABEL org.opencontainers.image.source="https://github.com/MrewyOrg/Botge" \
   org.opencontainers.image.title="Botge Activity Origin" \
   org.opencontainers.image.licenses="MIT"

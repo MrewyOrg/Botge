@@ -1,5 +1,5 @@
 # check=error=true
-FROM dhi.io/debian-base:trixie-dev@sha256:f90fd43cdf3dd94840b4dc3a2a39fd2a08578e40e7895535e2e20a1275ba6013
+FROM dhi.io/debian-base:trixie-dev@sha256:3107d81acc72300d2474f26fdc72cfa9ea8e31315ff033d4b9ec109308696e35
 USER 0:0
 RUN apt-get update \
   && apt-get install -y --no-install-recommends bats jq kcov \

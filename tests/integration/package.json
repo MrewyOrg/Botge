@@ -14,9 +14,9 @@
   },
   "devDependencies": {
     "@types/node": "^26.6.6",
-    "testcontainers": "^12.2.1",
+    "testcontainers": "^12.2.2",
     "typescript": "npm:@typescript/typescript6@^6.0.2",
-    "vitest": "^5.1.0"
+    "vitest": "^5.1.1"
   },
   "engines": {
     "node": ">=26.13.0",

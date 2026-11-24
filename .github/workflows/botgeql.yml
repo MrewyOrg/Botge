@@ -498,7 +498,7 @@ jobs:
         if: ${{ !inputs.qualify-activity-image-in-release }}
         run: |
           docker buildx create --name activity-origin --driver docker-container --driver-opt \
-            image=moby/buildkit:v0.35.0@sha256:aa632b921ef07411d2cb77292cd34213d4f7b384001d6fceef1e1f25bf9752bb
+            image=moby/buildkit:v0.35.1@sha256:baf6138eb8c37644800c7c913fba051e840ebb9ba13eaf92d92ef9a1712d0b4c
           docker buildx build --builder activity-origin --platform linux/amd64 --load \
             --policy reset=true,filename=activity/server/Dockerfile.rego,strict=true \
             --tag botge-activity-origin:ci \
@@ -671,7 +671,7 @@ jobs:
         if:
           ${{ !contains(needs.reuse.outputs.checks, ',tooling,') && (needs.changes.outputs.python ==
           'true') }}
-        uses: astral-sh/setup-uv@v10.3.3
+        uses: astral-sh/setup-uv@v10.4.0
         with:
           version-file: pyproject.toml
           enable-cache: true
