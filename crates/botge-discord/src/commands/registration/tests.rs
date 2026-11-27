@@ -59,6 +59,28 @@ fn adds_bounded_quantum_options_only_when_configured() -> Result<()> {
   Ok(())
 }
 
+#[test]
+fn adds_chemistry_options_only_when_configured() -> Result<()> {
+  let commands = serde_json::to_value(definitions(&[
+    NAMES[0],
+    NAMES[1],
+    NAMES[2],
+    chemistry::NAME,
+  ]))?;
+  assert_eq!(commands.as_array().map(Vec::len), Some(4));
+  let chem = commands.pointer("/3").cloned().unwrap_or_default();
+  assert_eq!(chem.get("name"), Some(&json!(chemistry::NAME)));
+  assert_eq!(chem.pointer("/options/0/name"), Some(&json!("reactant_a")));
+  assert_eq!(chem.pointer("/options/0/autocomplete"), Some(&json!(true)));
+  assert_eq!(chem.pointer("/options/1/name"), Some(&json!("reactant_b")));
+  assert_eq!(chem.pointer("/options/2/name"), Some(&json!("condition")));
+  assert_eq!(chem.pointer("/options/2/autocomplete"), Some(&json!(true)));
+  assert_eq!(chem.pointer("/options/2/choices"), Some(&json!([])));
+  assert_eq!(chem.pointer("/options/3/name"), Some(&json!("size")));
+  assert_eq!(chem.pointer("/options/4/name"), Some(&json!("diagram")));
+  Ok(())
+}
+
 #[tokio::test]
 async fn registers_emote_commands_and_removes_retired_commands_while_preserving_launch()
 -> Result<()> {

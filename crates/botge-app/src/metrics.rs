@@ -24,12 +24,13 @@ const RENDER_BUCKETS: [(u64, &str); 9] = [
 ];
 
 /// Discord command labels; any other name is recorded as `other`.
-const COMMANDS: [&str; 5] = [
+const COMMANDS: [&str; 6] = [
   "emote-compose",
   "emote-shortcuts",
   "clear-messages",
   "prefix-compose",
   "quantum-emote",
+  "react-emote",
 ];
 
 /// How a composition request ended.
@@ -91,12 +92,47 @@ impl QuantumOutcome {
   }
 }
 
+/// How a `/react-emote` call ended, before any emote rendering.
+#[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
+pub enum ChemistryOutcome {
+  /// The sidecar reported a chemical reaction and projected a valid pair.
+  Reacted,
+  /// The two substrates do not react under the chosen condition.
+  NoReaction,
+  /// The catalog had fewer than two base or two overlay emotes; the sidecar was not called.
+  TooFew,
+  /// Too many chemistry requests were already waiting on the sidecar.
+  Busy,
+  /// The sidecar could not be reached, timed out, or returned 5xx.
+  Unavailable,
+  /// The sidecar rejected the request.
+  Refused,
+  /// The sidecar's answer failed validation.
+  Invalid,
+}
+
+impl ChemistryOutcome {
+  /// The exposition label value.
+  const fn label(self) -> &'static str {
+    match self {
+      Self::Reacted => "reacted",
+      Self::NoReaction => "no_reaction",
+      Self::TooFew => "too_few",
+      Self::Busy => "busy",
+      Self::Unavailable => "unavailable",
+      Self::Refused => "refused",
+      Self::Invalid => "invalid",
+    }
+  }
+}
+
 /// Counter state guarded by one lock; no lock is held across an await.
 #[derive(Clone, Debug, Default)]
 struct State {
   commands: BTreeMap<&'static str, u64>,
   compositions: BTreeMap<Outcome, u64>,
   quantum: BTreeMap<QuantumOutcome, u64>,
+  chemistry: BTreeMap<ChemistryOutcome, u64>,
   requests: BTreeMap<(String, u16), u64>,
   render_buckets: [u64; RENDER_BUCKETS.len()],
   render_count: u64,
@@ -135,6 +171,11 @@ impl Metrics {
   /// Counts how one `/quantum-emote` draw ended.
   pub fn quantum(&self, outcome: QuantumOutcome) {
     self.update(|state| *state.quantum.entry(outcome).or_default() += 1);
+  }
+
+  /// Counts how one `/react-emote` call ended.
+  pub fn chemistry(&self, outcome: ChemistryOutcome) {
+    self.update(|state| *state.chemistry.entry(outcome).or_default() += 1);
   }
 
   /// Counts a composition outcome. Image outcomes also record their duration.
@@ -199,6 +240,18 @@ impl Metrics {
       let outcome = outcome.label();
       lines.push(format!(
         "botge_quantum_samples_total{{outcome=\"{outcome}\"}} {count}"
+      ));
+    }
+    family(
+      &mut lines,
+      "chemistry_reactions_total",
+      "counter",
+      "Organic chemistry emote reactions by outcome.",
+    );
+    for (outcome, count) in &state.chemistry {
+      let outcome = outcome.label();
+      lines.push(format!(
+        "botge_chemistry_reactions_total{{outcome=\"{outcome}\"}} {count}"
       ));
     }
     family(

@@ -298,6 +298,7 @@ async fn aborts_queued_provider_work_and_reports_startup_and_shutdown_failures()
       activity: None,
       cache: None,
       quantum: None,
+      chemistry: None,
       register_commands: false,
       prefix_compose: false,
       health_address: if busy {
@@ -411,6 +412,38 @@ fn enables_quantum_only_with_a_valid_sidecar_url() {
 }
 
 #[test]
+fn enables_chemistry_only_with_a_valid_sidecar_url() {
+  let read = |pairs: &[(&str, &str)]| {
+    let mut env = HashMap::from([("DISCORD_TOKEN", "fixture")]);
+    env.extend(pairs.iter().copied());
+    Options::read(&|key| env.get(key).map(ToString::to_string)).map(|options| options.chemistry)
+  };
+  assert_matches!(read(&[]), Ok(None));
+  assert_matches!(
+    read(&[("BOTGE_CHEMISTRY_URL", " "), ("BOTGE_CHEMISTRY_SECRET", "")]),
+    Ok(None)
+  );
+  assert_matches!(
+    read(&[("BOTGE_CHEMISTRY_URL", "http://chemistry:3091")]),
+    Ok(Some(_))
+  );
+  assert_matches!(
+    read(&[
+      ("BOTGE_CHEMISTRY_URL", "http://chemistry:3091"),
+      ("BOTGE_CHEMISTRY_SECRET", "fixture")
+    ]),
+    Ok(Some(_))
+  );
+  for invalid in [
+    &[("BOTGE_CHEMISTRY_URL", "chemistry:3091")][..],
+    &[("BOTGE_CHEMISTRY_URL", "not a url")],
+    &[("BOTGE_CHEMISTRY_SECRET", "fixture")],
+  ] {
+    assert!(read(invalid).is_err(), "{invalid:?}");
+  }
+}
+
+#[test]
 fn only_requests_message_content_when_prefix_compose_is_enabled() {
   let default =
     GatewayIntents::GUILDS | GatewayIntents::GUILD_MEMBERS | GatewayIntents::GUILD_VOICE_STATES;
@@ -515,6 +548,7 @@ async fn starts_gateway_and_http_reconciles_voice_and_handles_shutdown() -> Resu
     data: dir.path().into(),
     cache: Some(http.origin.clone()),
     quantum: Some(QuantumClient::new(&http.origin, None)?),
+    chemistry: None,
     register_commands: true,
     prefix_compose: true,
     health_address: "127.0.0.1:0".parse()?,
@@ -735,6 +769,7 @@ async fn rejects_activity_configuration_and_discord_identity_before_gateway_star
       data: directory.path().join(format!("stage-{stage}")),
       cache: None,
       quantum: None,
+      chemistry: None,
       register_commands: false,
       prefix_compose: false,
       health_address: "127.0.0.1:0".parse()?,

@@ -252,6 +252,7 @@ dependencies = [
  "base64 0.23.1",
  "botge-activity",
  "botge-app",
+ "botge-chemistry",
  "botge-discord",
  "botge-domain",
  "botge-emotes",
@@ -327,12 +328,30 @@ dependencies = [
 ]
 
 [[package]]
+name = "botge-chemistry"
+version = "7.0.0"
+dependencies = [
+ "anyhow",
+ "axum",
+ "base64 0.23.1",
+ "botge-domain",
+ "botge-test-support",
+ "mimalloc",
+ "reqwest 0.13.5",
+ "serde",
+ "serde_json",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
 name = "botge-discord"
 version = "7.0.0"
 dependencies = [
  "anyhow",
  "axum",
  "botge-app",
+ "botge-chemistry",
  "botge-domain",
  "botge-quantum",
  "botge-storage",

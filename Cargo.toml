@@ -18,6 +18,7 @@ axum = '0.8'
 base64 = '0.23'
 botge-activity = { path = 'crates/botge-activity', version = '7.0.0' }
 botge-app = { path = 'crates/botge-app', version = '7.0.0' }
+botge-chemistry = { path = 'crates/botge-chemistry', version = '7.0.0' }
 botge-discord = { path = 'crates/botge-discord', version = '7.0.0' }
 botge-domain = { path = 'crates/botge-domain', version = '7.0.0' }
 botge-emotes = { path = 'crates/botge-emotes', version = '7.0.0' }

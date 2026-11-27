@@ -94,8 +94,35 @@ fn records_outcomes_and_times_only_successful_renders() {
     Some("3")
   );
   // Every family is introduced exactly once, and no line is left empty.
-  assert_eq!(text.matches("# TYPE ").count(), 6);
+  assert_eq!(text.matches("# TYPE ").count(), 7);
   assert!(text.lines().all(|line| !line.is_empty()));
+}
+
+#[test]
+fn counts_every_chemistry_outcome_under_its_own_label() {
+  let metrics = Metrics::default();
+  metrics.command("react-emote");
+  let outcomes = [
+    (ChemistryOutcome::Reacted, "reacted"),
+    (ChemistryOutcome::NoReaction, "no_reaction"),
+    (ChemistryOutcome::TooFew, "too_few"),
+    (ChemistryOutcome::Busy, "busy"),
+    (ChemistryOutcome::Unavailable, "unavailable"),
+    (ChemistryOutcome::Refused, "refused"),
+    (ChemistryOutcome::Invalid, "invalid"),
+  ];
+  for (outcome, _) in outcomes {
+    metrics.chemistry(outcome);
+  }
+  let text = metrics.render(0);
+  assert_eq!(
+    value(&text, "botge_commands_total{command=\"react-emote\"}").as_deref(),
+    Some("1")
+  );
+  for (_, label) in outcomes {
+    let series = format!("botge_chemistry_reactions_total{{outcome=\"{label}\"}}");
+    assert_eq!(value(&text, &series).as_deref(), Some("1"), "{label}");
+  }
 }
 
 #[test]

@@ -17,6 +17,7 @@ fn dependency_policy() -> BTreeMap<&'static str, &'static [&'static str]> {
       "botge",
       &[
         "botge-app",
+        "botge-chemistry",
         "botge-domain",
         "botge-storage",
         "botge-discord",
@@ -26,6 +27,7 @@ fn dependency_policy() -> BTreeMap<&'static str, &'static [&'static str]> {
       ][..],
     ),
     ("botge-domain", &[][..]),
+    ("botge-chemistry", &["botge-domain"][..]),
     ("botge-quantum", &["botge-domain"][..]),
     ("botge-quantum-certificate", &[][..]),
     ("botge-storage", &["botge-domain"][..]),
@@ -36,7 +38,12 @@ fn dependency_policy() -> BTreeMap<&'static str, &'static [&'static str]> {
     ),
     (
       "botge-discord",
-      &["botge-app", "botge-domain", "botge-quantum"][..],
+      &[
+        "botge-app",
+        "botge-chemistry",
+        "botge-domain",
+        "botge-quantum",
+      ][..],
     ),
     ("botge-activity", &["botge-app", "botge-domain"][..]),
     ("botge-voice", &["botge-app", "botge-domain"][..]),

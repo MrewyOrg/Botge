@@ -107,6 +107,7 @@ SH
   [ "$status" -eq 0 ]
   called 'cargo miri test --locked -p botge-domain'
   called 'cargo miri test --locked -p botge-quantum'
+  called 'cargo miri test --locked -p botge-chemistry'
   called 'cargo miri test --locked -p botge-discord'
   called 'cargo miri test --locked -p botge-emotes'
   run call_sh "$script" coverage --no-clean
