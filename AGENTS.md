@@ -55,11 +55,12 @@ opening or updating a PR, validate its title with
 `npx --no-install commitlint --from="$BASE_SHA" --to=HEAD --verbose`, using the current
 target-branch SHA.
 
-Label every PR by area (`rust`, `swift`, `docker`, `github_actions`, `documentation`) and kind
-(`enhancement`, `bug`); labels trigger no workflow. Give every issue an issue type (Task, Bug or
-Feature) and labels, set the organization fields Priority and Effort through
-`repos/MrewyOrg/Botge/issues/<number>/issue-field-values` (values are option names), and add it to
-the MrewyOrg project "Botge" (#2) with Status and Phase. Auto-assign sets assignees.
+Label every PR by area (`rust`, `swift`, `go`, `docker`, `github_actions`, `documentation`, and for
+the quantum work `qsharp`, `lean` and `math`) and kind (`enhancement`, `bug`); labels trigger no
+workflow. Give every issue an issue type (Task, Bug or Feature) and labels, set the organization
+fields Priority and Effort through `repos/MrewyOrg/Botge/issues/<number>/issue-field-values` (values
+are option names), and add it to the MrewyOrg project "Botge" (#2) with Status and Phase.
+Auto-assign sets assignees.
 
 ## Source map
 
