@@ -23,7 +23,8 @@ also build on the stable `rust-version`.
 Clippy cannot judge these. Each names its rule in the cached
 [Microsoft guidelines](../.agents/references/cache/microsoft.txt) (`M-`) or
 [Rust API guidelines](../.agents/references/cache/api-guidelines.txt) (`C-`); read that one section
-when a case is unclear (`python3 .agents/scripts/cache_references.py` fetches a missing cache).
+when a case is unclear (`.venv/bin/python .agents/scripts/cache_references.py` fetches a missing
+cache).
 
 - **Names:** short, by role, consistent word order, no weasel words such as `Manager` or `Util`
   (M-SHORT-NAMES, M-WEASEL-WORDS, C-WORD-ORDER). Conversions and getters follow `as_`/`to_`/`into_`

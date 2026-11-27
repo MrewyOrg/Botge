@@ -50,6 +50,9 @@ jobs:
       workflows: ${{ steps.paths.outputs.workflows }}
       python: ${{ steps.paths.outputs.python }}
       ios: ${{ steps.paths.outputs.ios }}
+      quantum-proofs: ${{ steps.paths.outputs.quantum-proofs }}
+      qsharp: ${{ steps.paths.outputs.qsharp }}
+      latex: ${{ steps.paths.outputs.latex }}
     steps:
       - name: Checkout repository
         if: github.event_name != 'pull_request'
@@ -63,15 +66,16 @@ jobs:
         uses: dorny/paths-filter@v4.0.3
         id: paths
         with:
+          predicate-quantifier: some-with-excludes
           filters: |
             python:
               - '.agents/**/*.py'
               - 'scripts/**/*.py'
+              - 'quantum/proofs/symbolic/**/*.py'
               - 'tests/python/**/*.py'
               - 'pyproject.toml'
               - 'uv.lock'
               - '.python-version'
-              - 'scripts/quality/check_python.py'
               - '.github/workflows/botgeql.yml'
             go:
               - 'activity/server/**'
@@ -100,6 +104,7 @@ jobs:
               - '**/*.rs'
               - 'Cargo.{toml,lock}'
               - 'crates/**/Cargo.toml'
+              - 'quantum/proofs/certificate/Cargo.toml'
               - 'clippy.toml'
               - 'rust*.toml'
               - '.cargo/**'
@@ -107,6 +112,7 @@ jobs:
               - 'botge.config.schema.json'
               - '.env.example'
               - 'Dockerfile*'
+              - 'LICENSE.txt'
               - 'scripts/rust/**'
               - '.github/workflows/botgeql.yml'
               - '.github/actions/rust-setup/**'
@@ -170,15 +176,59 @@ jobs:
               - 'scripts/**/*.jq'
               - 'scripts/quality/run_shell_tests.py'
               - 'tests/shell/**'
+              - 'compose.yaml'
+              - 'botge.example.config.jsonc'
+              - '.env.example'
+              - 'nginx/botge-nginx.conf'
+              - 'botge_control/systemd/**'
               - '.github/workflows/botgeql.yml'
             ios:
               - 'ios/**'
+              - '!ios/AGENTS.md'
               - 'docs/{TERMS,PRIVACY}.md'
               - 'LICENSE.txt'
               - 'scripts/ios/{check,setup}-ios*.sh'
               - 'scripts/ios/lint-swift.sh'
               - 'scripts/ios/coverage.jq'
               - 'scripts/ios/check_swift_docs.py'
+              - '.github/workflows/botgeql.yml'
+            # Mathlib, the QDK and TeX Live are large; only quantum inputs install them.
+            quantum-proofs:
+              - 'quantum/proofs/**'
+              - 'quantum/docs/**'
+              - 'crates/botge-quantum/**'
+              - 'crates/botge-domain/**'
+              - 'crates/botge-test-support/**'
+              - 'scripts/quantum/{check_proofs,verify_tex_constants}.py'
+              - '.github/actions/rust-setup/**'
+              - '.cargo/**'
+              - 'clippy.toml'
+              - 'rust*.toml'
+              - 'Cargo.{toml,lock}'
+              - 'pyproject.toml'
+              - 'uv.lock'
+              - '.python-version'
+              - '.github/workflows/botgeql.yml'
+            qsharp:
+              - 'quantum/*.py'
+              - 'quantum/tests/**'
+              - 'quantum/src/**'
+              - 'quantum/qsharp.json'
+              - 'quantum/docs/botge-quantum.tex'
+              - 'scripts/quantum/check_qsharp.py'
+              - 'scripts/quantum/lint-qsharp.ts'
+              - '.husky/install.sh'
+              - 'package{,-lock}.json'
+              - '**/.npmrc'
+              - '.nvmrc'
+              - 'pyproject.toml'
+              - 'uv.lock'
+              - '.python-version'
+              - '.github/workflows/botgeql.yml'
+            latex:
+              - 'quantum/docs/**'
+              - '.chktexrc'
+              - 'scripts/quality/check-latex.sh'
               - '.github/workflows/botgeql.yml'
             workflows:
               - '.github/workflows/*.{yml,yaml}'
@@ -199,11 +249,14 @@ jobs:
         {
           "paths": {
             "all": ".",
-            "ios": "^(ios/|scripts/ios/|LICENSE[.]txt$|docs/(TERMS|PRIVACY)[.]md$)",
-            "rust": "^(crates/|scripts/rust/|[.]cargo/|[.]github/actions/rust-setup/|Cargo[.](toml|lock)$|clippy[.]toml$|rust[^/]*[.]toml$|botge[^/]*config|[.]env[.]example$|Dockerfile|LICENSE[.]txt$)|[.]rs$",
+            "ios": "^(ios/(?!AGENTS[.]md$)|scripts/ios/|LICENSE[.]txt$|docs/(TERMS|PRIVACY)[.]md$)",
+            "rust": "^(crates/|scripts/rust/|[.]cargo/|[.]github/actions/rust-setup/|Cargo[.](toml|lock)$|quantum/proofs/certificate/Cargo[.]toml$|clippy[.]toml$|rust[^/]*[.]toml$|botge[^/]*config|[.]env[.]example$|Dockerfile|LICENSE[.]txt$)|[.]rs$",
             "go": "^(activity/|assets/|scripts/activity/|[.]husky/install[.]sh$|[.]github/codeql/|[.]github/workflows/codeql[.]yml$|LICENSE[.]txt$)|(^|/)([.]npmrc|[.]nvmrc|[.]env[^/]*|package(-lock)?[.]json|tsconfig[^/]*[.]json|vite[.]config[.][^/]*)$",
             "typescript": "^(activity/|assets/|scripts/|tests/|botge_control/|[.]husky/|[.]vscode/|[.]devcontainer/|[.]htmlvalidate|knip[.]jsonc$|compose[^/]*|botge[^/]*config|Dockerfile|[.]github/)|[.](ts|tsx|html|scss|css)$|(^|/)([.]npmrc|[.]nvmrc|[.]env[^/]*|package(-lock)?[.]json|tsconfig[^/]*[.]json|tsdoc[.]json)$",
-            "tooling": "^(scripts/|tests/|botge_control/|ios/|activity/|crates/|[.]github/|[.]agents/|[.]husky/|[.]shellcheckrc$|[.]python-version$|pyproject[.]toml$|uv[.]lock$|compose[^/]*|Dockerfile|Cargo[.](toml|lock)$)|[.](sh|bash|bats|jq|py|swift)$"
+            "quantum-proofs": "^(quantum/(proofs|docs)/|crates/(botge-quantum|botge-domain|botge-test-support)/|scripts/quantum/(check_proofs|verify_tex_constants)[.]py$|[.]github/actions/rust-setup/|[.]cargo/|clippy[.]toml$|rust[^/]*[.]toml$|Cargo[.](toml|lock)$|pyproject[.]toml$|uv[.]lock$|[.]python-version$)",
+            "qsharp": "^(quantum/([^/]+[.]py$|tests/|src/|qsharp[.]json$|docs/botge-quantum[.]tex$)|scripts/quantum/(check_qsharp[.]py|lint-qsharp[.]ts)$|[.]husky/install[.]sh$|package(-lock)?[.]json$|[.]nvmrc$|pyproject[.]toml$|uv[.]lock$|[.]python-version$)|(^|/)[.]npmrc$",
+            "latex": "^(quantum/docs/|[.]chktexrc$|scripts/quality/check-latex[.]sh$)",
+            "tooling": "^(scripts/|tests/|botge_control/|ios/|activity/|crates/|[.]github/|[.]agents/|[.]husky/|[.]shellcheckrc$|[.]python-version$|pyproject[.]toml$|uv[.]lock$|compose[^/]*|botge[.]example[.]config[.]jsonc$|[.]env[.]example$|nginx/botge-nginx[.]conf$|Dockerfile|Cargo[.](toml|lock)$)|[.](sh|bash|bats|jq|py|swift)$"
           },
           "checks": [
             {"id":"formatting","inputs":"all","job":"Documentation and TypeScript","step":"Check formatting and documentation"},
@@ -216,6 +269,9 @@ jobs:
             {"id":"rust-dependencies","inputs":"rust","job":"Rust features and dependencies","step":"Check Rust feature combinations and unused dependencies"},
             {"id":"go","inputs":"go","job":"Go Activity server","step":"Check the origin and enforce per-file statement coverage"},
             {"id":"ios","inputs":"ios","job":"iOS lint, tests and coverage","step":"Analyze, test and enforce coverage from one instrumented build"},
+            {"id":"quantum-proofs","inputs":"quantum-proofs","job":"Quantum proofs","step":"Check Lean, symbolic, certificate and traceability proofs"},
+            {"id":"qsharp","inputs":"qsharp","job":"Q# circuit and sidecar","step":"Test the sidecar and circuit and enforce coverage"},
+            {"id":"latex","inputs":"latex","job":"LaTeX specification","step":"Lint and build the specification"},
             {"id":"tooling","inputs":"tooling","job":"Shell, Python, and workflow checks","step":"Record completed tooling checks"}
           ]
         }
@@ -283,6 +339,7 @@ jobs:
           VITE_ENABLE_7TV_DISCOVERY: 'true'
           VITE_ENABLE_ACTIVITY_ADDS: 'true'
           VITE_ENABLE_ACTIVITY_CATALOG: 'true'
+          VITE_ENABLE_ACTIVITY_GAME: 'true'
           VITE_ENABLE_ACTIVITY_SETTINGS: 'true'
         run: npm run check:markup -w activity
 
@@ -580,6 +637,211 @@ jobs:
         if: ${{ !contains(needs.reuse.outputs.checks, ',ios,') }}
         run: sh scripts/ios/check-ios.sh ci
 
+  # Proofs need Lean with Mathlib's prebuilt cache, the pinned nightly and the dev Python group.
+  quantum-proofs:
+    name: Quantum proofs
+    needs: [changes, reuse]
+    if: always() && !cancelled() && needs.changes.outputs.quantum-proofs == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      CARGO_INCREMENTAL: '0'
+    steps:
+      - name: Report reused validation
+        if: contains(needs.reuse.outputs.checks, ',quantum-proofs,')
+        run: echo 'An earlier passing run verified the same inputs.'
+
+      - name: Checkout repository
+        if: ${{ !contains(needs.reuse.outputs.checks, ',quantum-proofs,') }}
+        uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Rust
+        if: ${{ !contains(needs.reuse.outputs.checks, ',quantum-proofs,') }}
+        uses: $/.github/actions/rust-setup
+        with:
+          cache-name: quantum-proofs
+          cache-paths: |
+            target/debug
+            target/release
+          components: clippy,rustfmt
+
+      - name: Set up Python
+        if: ${{ !contains(needs.reuse.outputs.checks, ',quantum-proofs,') }}
+        uses: actions/setup-python@v7.1.0
+        with:
+          python-version-file: .python-version
+
+      - name: Set up locked Python package manager
+        if: ${{ !contains(needs.reuse.outputs.checks, ',quantum-proofs,') }}
+        uses: astral-sh/setup-uv@v10.4.0
+        with:
+          version-file: pyproject.toml
+          enable-cache: true
+          cache-dependency-glob: |
+            pyproject.toml
+            uv.lock
+            .python-version
+
+      - name: Install pinned Python tools
+        if: ${{ !contains(needs.reuse.outputs.checks, ',quantum-proofs,') }}
+        run: uv sync --locked --no-python-downloads
+
+      # elan installs the toolchain named in lean-toolchain on first use.
+      - name: Install the pinned Lean toolchain manager
+        if: ${{ !contains(needs.reuse.outputs.checks, ',quantum-proofs,') }}
+        run: |
+          version=4.4.0
+          archive=elan-x86_64-unknown-linux-gnu.tar.gz
+          cd "$RUNNER_TEMP"
+          curl --fail --silent --show-error --location --output "$archive" \
+            "https://github.com/leanprover/elan/releases/download/v${version}/${archive}"
+          printf '%s  %s\n' \
+            0e8250aa2be86c7af929ade68db617af9edc8b9ccf6eaf5ece228250d0d032e2 "$archive" |
+            sha256sum -c -
+          tar -xzf "$archive" elan-init
+          ./elan-init -y --default-toolchain none --no-modify-path
+          printf '%s\n' "$HOME/.elan/bin" >> "$GITHUB_PATH"
+
+      # Mathlib's free cache replaces a multi-hour Mathlib build; nothing is stored in Actions.
+      - name: Fetch prebuilt Mathlib
+        if: ${{ !contains(needs.reuse.outputs.checks, ',quantum-proofs,') }}
+        working-directory: quantum/proofs/lean
+        run: lake exe cache get
+
+      - name: Check Lean, symbolic, certificate and traceability proofs
+        if: ${{ !contains(needs.reuse.outputs.checks, ',quantum-proofs,') }}
+        run: .venv/bin/python scripts/quantum/check_proofs.py
+
+  qsharp:
+    name: Q# circuit and sidecar
+    needs: [changes, reuse]
+    if: always() && !cancelled() && needs.changes.outputs.qsharp == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      QDK_PYTHON_TELEMETRY: none
+    steps:
+      - name: Report reused validation
+        if: contains(needs.reuse.outputs.checks, ',qsharp,')
+        run: echo 'An earlier passing run verified the same inputs.'
+
+      - name: Checkout repository
+        if: ${{ !contains(needs.reuse.outputs.checks, ',qsharp,') }}
+        uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Node
+        if: ${{ !contains(needs.reuse.outputs.checks, ',qsharp,') }}
+        uses: actions/setup-node@v7.1.0
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      # The Q# linter in qsharp-lang must match the Python QDK version.
+      - name: Install Node dependencies
+        if: ${{ !contains(needs.reuse.outputs.checks, ',qsharp,') }}
+        run: npm ci --prefer-offline --no-audit
+
+      - name: Set up Python
+        if: ${{ !contains(needs.reuse.outputs.checks, ',qsharp,') }}
+        uses: actions/setup-python@v7.1.0
+        with:
+          python-version-file: .python-version
+
+      - name: Set up locked Python package manager
+        if: ${{ !contains(needs.reuse.outputs.checks, ',qsharp,') }}
+        uses: astral-sh/setup-uv@v10.4.0
+        with:
+          version-file: pyproject.toml
+          enable-cache: true
+          cache-dependency-glob: |
+            pyproject.toml
+            uv.lock
+            .python-version
+
+      - name: Install the QDK and sidecar dependencies
+        if: ${{ !contains(needs.reuse.outputs.checks, ',qsharp,') }}
+        run: uv sync --locked --extra quantum --no-python-downloads
+
+      - name: Lint, compile and cover the Q# circuit
+        if: ${{ !contains(needs.reuse.outputs.checks, ',qsharp,') }}
+        run: .venv/bin/python scripts/quantum/check_qsharp.py
+
+      - name: Lint and type-check the sidecar
+        if: ${{ !contains(needs.reuse.outputs.checks, ',qsharp,') }}
+        run: |
+          .venv/bin/python -m ruff check quantum/*.py quantum/tests/*.py
+          .venv/bin/python -m ruff format --check quantum/*.py quantum/tests/*.py
+          .venv/bin/python -m pyright quantum/*.py quantum/tests/*.py
+
+      - name: Test the sidecar and circuit and enforce coverage
+        if: ${{ !contains(needs.reuse.outputs.checks, ',qsharp,') }}
+        run: |
+          mkdir -p coverage/python tmp/pytest_cache
+          .venv/bin/python -m coverage run --branch --data-file=coverage/python/.coverage \
+            --source=quantum --omit='quantum/tests/*,quantum/proofs/*' \
+            -m pytest -v -o cache_dir=tmp/pytest_cache quantum --ignore=quantum/proofs
+          .venv/bin/python -m coverage report \
+            --data-file=coverage/python/.coverage --show-missing
+          .venv/bin/python -m coverage json \
+            --data-file=coverage/python/.coverage -o coverage/python/quantum.json
+          .venv/bin/python - <<'PY'
+          import json
+          from pathlib import Path
+
+          files = json.loads(Path('coverage/python/quantum.json').read_text(encoding='utf-8'))['files']
+          if not files:
+              raise SystemExit('No quantum Python files were measured')
+          failed = False
+          for path, entry in sorted(files.items()):
+              summary = entry['summary']
+              for category, total_key in (('lines', 'num_statements'), ('branches', 'num_branches')):
+                  total = summary[total_key]
+                  covered = summary[f'covered_{category}']
+                  if total > 0 and covered * 100 < total * 90:
+                      print(f'{path} {category}: {covered}/{total} below 90%')
+                      failed = True
+          raise SystemExit(1 if failed else 0)
+          PY
+
+  latex:
+    name: LaTeX specification
+    needs: [changes, reuse]
+    if: always() && !cancelled() && needs.changes.outputs.latex == 'true'
+    runs-on: ubuntu-26.04
+    timeout-minutes: 20
+    steps:
+      - name: Report reused validation
+        if: contains(needs.reuse.outputs.checks, ',latex,')
+        run: echo 'An earlier passing run verified the same inputs.'
+
+      - name: Checkout repository
+        if: ${{ !contains(needs.reuse.outputs.checks, ',latex,') }}
+        uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install TeX Live packages
+        if: ${{ !contains(needs.reuse.outputs.checks, ',latex,') }}
+        run: |
+          sudo apt-get -o Acquire::Retries=2 update --error-on=any
+          sudo apt-get -o Acquire::Retries=2 install -y --no-install-recommends \
+            chktex lacheck latexmk lmodern texlive-latex-extra texlive-latex-recommended
+          for package in aliascnt cleveref darkmode nag; do
+            kpsewhich "$package.sty" > /dev/null || {
+              printf 'TeX Live lacks %s.sty\n' "$package" >&2
+              exit 1
+            }
+          done
+
+      # The build output is discarded: TeX Live versions differ, so the committed PDF is not compared.
+      - name: Lint and build the specification
+        if: ${{ !contains(needs.reuse.outputs.checks, ',latex,') }}
+        run: sh scripts/quality/check-latex.sh
+
   botgeql:
     name: BotgeQL
     needs:
@@ -593,6 +855,9 @@ jobs:
         rust-dependencies,
         go-activity,
         ios,
+        quantum-proofs,
+        qsharp,
+        latex,
         tooling-lint
       ]
     if: always()
@@ -607,7 +872,9 @@ jobs:
             rust-static=${{ needs.rust-static.result }} rust-coverage=${{ needs.rust-coverage.result
             }} rust-miri=${{ needs.rust-miri.result }} rust-dependencies=${{
             needs.rust-dependencies.result }} go-activity=${{ needs.go-activity.result }} ios=${{
-            needs.ios.result }} tooling-lint=${{ needs.tooling-lint.result }}
+            needs.ios.result }} quantum-proofs=${{ needs.quantum-proofs.result }} qsharp=${{
+            needs.qsharp.result }} latex=${{ needs.latex.result }} tooling-lint=${{
+            needs.tooling-lint.result }}
         run: |
           status=0
           for entry in $RESULTS; do
@@ -692,15 +959,23 @@ jobs:
           'true') }}
         run: .venv/bin/python scripts/quality/check_python.py
 
-      - name: Install ShellCheck
+      - name: Install shell lint and test tools
         if:
           ${{ !contains(needs.reuse.outputs.checks, ',tooling,') && (needs.changes.outputs.shell ==
           'true' || needs.changes.outputs.workflows == 'true') }}
-        shell: bash
+        env:
+          NEED_SHELL_TESTS: ${{ needs.changes.outputs.shell }}
         run: |
+          packages=()
           if ! command -v shellcheck > /dev/null 2>&1; then
+            packages+=(shellcheck)
+          fi
+          if [ "$NEED_SHELL_TESTS" = 'true' ]; then
+            packages+=(bats jq kcov)
+          fi
+          if ((${#packages[@]} > 0)); then
             sudo apt-get -o Acquire::Retries=2 update --error-on=any
-            sudo apt-get -o Acquire::Retries=2 install -y --no-install-recommends shellcheck
+            sudo apt-get -o Acquire::Retries=2 install -y --no-install-recommends "${packages[@]}"
           fi
 
       - name: Restore actionlint
@@ -732,14 +1007,6 @@ jobs:
           ${{ !contains(needs.reuse.outputs.checks, ',tooling,') && (needs.changes.outputs.shell ==
           'true') }}
         run: bash scripts/quality/lint-shell.sh
-
-      - name: Install shell test tools
-        if:
-          ${{ !contains(needs.reuse.outputs.checks, ',tooling,') && (needs.changes.outputs.shell ==
-          'true') }}
-        run: |
-          sudo apt-get -o Acquire::Retries=2 update --error-on=any
-          sudo apt-get -o Acquire::Retries=2 install -y --no-install-recommends bats jq kcov
 
       - name: Test shell scripts and enforce coverage
         if:

@@ -21,7 +21,13 @@ def main() -> None:
     """Measure fresh data, normalize copied fixtures and fail any helper below 90%."""
     output = ROOT / 'coverage' / 'python'
     output.mkdir(parents=True, exist_ok=True)
-    sources = sorted((*ROOT.glob('scripts/**/*.py'), *ROOT.glob('.agents/scripts/*.py')))
+    sources = sorted(
+        (
+            *ROOT.glob('scripts/**/*.py'),
+            *ROOT.glob('.agents/scripts/*.py'),
+            *ROOT.glob('quantum/proofs/symbolic/*.py'),
+        )
+    )
     sys.path[:0] = sorted({str(path.parent) for path in sources})
     with tempfile.TemporaryDirectory(prefix='data-', dir=output) as temporary:
         directory = Path(temporary)
@@ -39,7 +45,7 @@ def main() -> None:
         measured.start()
         suites = [
             unittest.TestLoader().discover(str(ROOT / path))
-            for path in ('tests/python', '.agents/tests')
+            for path in ('tests/python', '.agents/tests', 'quantum/proofs/symbolic/tests')
         ]
         result = unittest.TextTestRunner(verbosity=2).run(unittest.TestSuite(suites))
         measured.stop()

@@ -182,9 +182,9 @@ mod metrics;
 #[doc(inline)]
 pub use botge_emotes::{catalog::Catalog, rendering::Layer};
 #[doc(inline)]
-pub use composition::{ComposeRequest, Composition};
+pub use composition::{ComposeRequest, Composition, DEFAULT_SCALE, Fit, SelectedRequest};
 #[doc(inline)]
-pub use metrics::Metrics;
+pub use metrics::{Metrics, QuantumOutcome};
 impl Application {
   /// Holds every render slot while a fixture verifies busy responses.
   ///

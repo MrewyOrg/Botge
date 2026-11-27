@@ -245,7 +245,7 @@ dependencies = [
 
 [[package]]
 name = "botge"
-version = "6.1.0"
+version = "7.0.0"
 dependencies = [
  "anyhow",
  "axum",
@@ -255,6 +255,7 @@ dependencies = [
  "botge-discord",
  "botge-domain",
  "botge-emotes",
+ "botge-quantum",
  "botge-storage",
  "botge-test-support",
  "botge-voice",
@@ -278,7 +279,7 @@ dependencies = [
 
 [[package]]
 name = "botge-activity"
-version = "6.1.0"
+version = "7.0.0"
 dependencies = [
  "anyhow",
  "axum",
@@ -306,7 +307,7 @@ dependencies = [
 
 [[package]]
 name = "botge-app"
-version = "6.1.0"
+version = "7.0.0"
 dependencies = [
  "anyhow",
  "axum",
@@ -327,12 +328,13 @@ dependencies = [
 
 [[package]]
 name = "botge-discord"
-version = "6.1.0"
+version = "7.0.0"
 dependencies = [
  "anyhow",
  "axum",
  "botge-app",
  "botge-domain",
+ "botge-quantum",
  "botge-storage",
  "botge-test-support",
  "futures-util",
@@ -349,7 +351,7 @@ dependencies = [
 
 [[package]]
 name = "botge-domain"
-version = "6.1.0"
+version = "7.0.0"
 dependencies = [
  "anyhow",
  "mimalloc",
@@ -360,7 +362,7 @@ dependencies = [
 
 [[package]]
 name = "botge-emotes"
-version = "6.1.0"
+version = "7.0.0"
 dependencies = [
  "anyhow",
  "axum",
@@ -379,8 +381,31 @@ dependencies = [
 ]
 
 [[package]]
+name = "botge-quantum"
+version = "7.0.0"
+dependencies = [
+ "anyhow",
+ "axum",
+ "botge-domain",
+ "botge-test-support",
+ "mimalloc",
+ "reqwest 0.13.5",
+ "serde",
+ "serde_json",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
+name = "botge-quantum-certificate"
+version = "7.0.0"
+dependencies = [
+ "botge-quantum",
+]
+
+[[package]]
 name = "botge-storage"
-version = "6.1.0"
+version = "7.0.0"
 dependencies = [
  "anyhow",
  "botge-domain",
@@ -394,7 +419,7 @@ dependencies = [
 
 [[package]]
 name = "botge-test-support"
-version = "6.1.0"
+version = "7.0.0"
 dependencies = [
  "anyhow",
  "axum",
@@ -412,7 +437,7 @@ dependencies = [
 
 [[package]]
 name = "botge-voice"
-version = "6.1.0"
+version = "7.0.0"
 dependencies = [
  "anyhow",
  "axum",

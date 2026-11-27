@@ -32,3 +32,23 @@ committed. Lint and formatter exceptions are listed in that baseline.
 The [Go baseline](go/README.md) inventories the official Go, Google and Uber references for the
 Activity origin, including their subguides. Its [audit](go/AUDIT.md) records checks, review
 questions, and local choices. Snapshots and licenses use the same ignored cache and pinned manifest.
+
+## Q# and QDK
+
+The [Q# baseline](qsharp/README.md) inventories the official Q# and QDK guides, language reference
+subguides, compiler manifest/linter specs, and VS Code settings schema. Its [audit](qsharp/AUDIT.md)
+records lint choices, code/config checks, and verification results.
+
+## LaTeX
+
+The [LaTeX baseline](latex/README.md) inventories the official LaTeX2e, `amsmath`, `mathtools`,
+`hyperref`, `l2tabuen`, `nag`, `darkmode`, ChkTeX, and LaTeX Workshop references. Its
+[audit](latex/AUDIT.md) records `.chktexrc` rules, VS Code configuration choices, and zero-warning
+PDF build checks.
+
+## Lean 4 and Mathlib
+
+The [Lean baseline](lean/README.md) inventories the Mathlib contribution guides, the standard linter
+set and syntax/environment linter specs, the Lake and `collectAxioms` references, and the VS Code
+Lean 4 settings schema. Its [audit](lean/AUDIT.md) records the strict Lake options, the MIT header
+license, the axiom audit, the admissible-domain scope of Theorem 4.3 (3), and verification commands.

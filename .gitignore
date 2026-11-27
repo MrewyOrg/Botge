@@ -27,6 +27,8 @@ node_modules/
 .venv/
 .ruff_cache/
 **/__pycache__/
+# Lake build output and fetched Mathlib packages for quantum/proofs/lean.
+**/.lake/
 # iOS: the Xcode project is generated from ios/project.yml; tools and builds are local.
 /ios/*.xcodeproj/
 /ios/Config/*.local.xcconfig

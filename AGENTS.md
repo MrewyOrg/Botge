@@ -55,11 +55,12 @@ opening or updating a PR, validate its title with
 `npx --no-install commitlint --from="$BASE_SHA" --to=HEAD --verbose`, using the current
 target-branch SHA.
 
-Label every PR by area (`rust`, `swift`, `docker`, `github_actions`, `documentation`) and kind
-(`enhancement`, `bug`); labels trigger no workflow. Give every issue an issue type (Task, Bug or
-Feature) and labels, set the organization fields Priority and Effort through
-`repos/MrewyOrg/Botge/issues/<number>/issue-field-values` (values are option names), and add it to
-the MrewyOrg project "Botge" (#2) with Status and Phase. Auto-assign sets assignees.
+Label every PR by area (`rust`, `swift`, `go`, `docker`, `github_actions`, `documentation`, and for
+the quantum work `qsharp`, `lean` and `math`) and kind (`enhancement`, `bug`); labels trigger no
+workflow. Give every issue an issue type (Task, Bug or Feature) and labels, set the organization
+fields Priority and Effort through `repos/MrewyOrg/Botge/issues/<number>/issue-field-values` (values
+are option names), and add it to the MrewyOrg project "Botge" (#2) with Status and Phase.
+Auto-assign sets assignees.
 
 ## Source map
 
@@ -71,15 +72,25 @@ the MrewyOrg project "Botge" (#2) with Status and Phase. Auto-assign sets assign
 - `crates/botge-discord`: commands, gateway and Discord access.
 - `crates/botge-activity`: Axum routes, signed proxy input and HTTP response mapping.
 - `crates/botge-voice`: Songbird reconciliation through the application settings source.
+- `crates/botge-quantum`: quantum emote register budget, pool planner and Q# sidecar client.
 - `crates/botge-test-support`: development-only loopback, media and log fixtures; keep its features
-  off production dependencies. Rust rules: [crates/AGENTS.md](crates/AGENTS.md).
+  off production dependencies.
+- Rust rules for every crate above: [crates/AGENTS.md](crates/AGENTS.md).
 - `ios/`: SwiftUI app ([guide](ios/README.md), [rules](ios/AGENTS.md)); `BotgeKit` holds auth, API
   and image logic and calls the bearer-only `/app/v1` routes that `BOTGE_APP_API=true` enables.
 - `activity/`: browser code ([guide](activity/README.md)). Root Vitest runs Activity and tooling
   tests.
 - `activity/server/`: signed Go Activity origin ([rules](activity/server/AGENTS.md)); the test guide
   owns staging and coverage commands.
+- `quantum/`: Q# entanglement circuit and CPU-only FastAPI sidecar
+  ([setup and VS Code guide](quantum/README.md), [rules](quantum/AGENTS.md),
+  [mathematical specification](quantum/docs/botge-quantum.tex)).
+- `quantum/proofs/`: proofs of the specification: `lean/` (Lean 4, `lake exe audit_axioms`),
+  `symbolic/` (SymPy/Z3) and `certificate/` (the `botge-quantum-certificate` simulator, the one
+  workspace crate outside `crates/`); `scripts/quantum/` holds `check_qsharp.py`, the `.tex`
+  constant verifier and `check_proofs.py`, which runs the Lean, symbolic, certificate and `.tex`
+  checks ([guide](quantum/README.md)).
 - `scripts/` and `.agents/scripts/`: Python and shell helpers ([helper guide](scripts/README.md)).
-- `Dockerfile`, `compose.yaml` (bot and nginx), `compose.build.yaml` (local build) and
-  `compose.activity.yaml` (loopback API); read the [control guide](botge_control/README.md) before
-  changing deployment tooling.
+- `Dockerfile`, `compose.yaml` (bot and nginx), `compose.build.yaml` (local build),
+  `compose.activity.yaml` (loopback API) and `compose.quantum.yaml` (quantum sidecar); read the
+  [control guide](botge_control/README.md) before changing deployment tooling.

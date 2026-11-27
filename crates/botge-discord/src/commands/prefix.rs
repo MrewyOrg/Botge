@@ -48,7 +48,7 @@ impl Commands {
           guild,
           NonZeroU64::new(message.author.id.get()),
           size,
-          false,
+          botge_app::Fit::Natural,
         ))
         .await
       }

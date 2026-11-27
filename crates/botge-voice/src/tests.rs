@@ -490,7 +490,9 @@ async fn skips_backing_off_guilds_on_periodic_passes_but_not_forced_ones() -> an
   Ok(())
 }
 
-#[tokio::test(start_paused = true)]
+// The status request runs on the real clock: a paused clock auto-advances while the loopback HTTP
+// request is in flight and can fire the 8 s status timeout before the fixture answers.
+#[tokio::test]
 async fn refreshes_only_status_for_a_call_that_is_already_connected() -> anyhow::Result<()> {
   use axum::{Json, Router, http::StatusCode, routing::put};
   use serde_json::{Value, json};
@@ -538,7 +540,9 @@ async fn refreshes_only_status_for_a_call_that_is_already_connected() -> anyhow:
   assert!(guilds.connected.contains(&NonZeroU64::MIN));
 
   // Without a recorded healthy media connection, the worker reconnects media. The fixture
-  // endpoint cannot connect, so the guild stays unhealthy and the status is not sent again.
+  // endpoint cannot connect, so the guild stays unhealthy and the status is not sent again. No
+  // HTTP request runs here, so pausing the clock lets the media timeout elapse at once.
+  tokio::time::pause();
   guilds.connected.clear();
   apply(
     &manager,

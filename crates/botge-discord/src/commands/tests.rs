@@ -138,6 +138,9 @@ async fn sends_provider_variants_and_compositions_and_rejects_concurrent_renderi
   let compose = inputs(
     json!([{"name":"emotes","type":3,"value":"Wave Wave"},{"name":"fullsize","type":5,"value":true},{"name":"stretch","type":5,"value":false}]),
   )?;
+  let stretched = inputs(
+    json!([{"name":"emotes","type":3,"value":"Wave Wave"},{"name":"stretch","type":5,"value":true}]),
+  )?;
   // Hold the permit directly to make the busy checks independent of render timing.
   let busy = commands.application.reserve_render_fixture().await?;
   assert!(
@@ -155,6 +158,9 @@ async fn sends_provider_variants_and_compositions_and_rejects_concurrent_renderi
   );
   assert!(
     matches!(commands.answer("emote-compose", &compose, Some(guild), None).await?, Answer::Image(image) if image.filename == "emotes.png")
+  );
+  assert!(
+    matches!(commands.answer("emote-compose", &stretched, Some(guild), None).await?, Answer::Image(image) if image.filename == "emotes.png")
   );
   assert!(
     matches!(commands.answer("emote-compose", &name, Some(guild), Some(guild)).await?,

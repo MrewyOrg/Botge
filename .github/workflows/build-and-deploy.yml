@@ -43,7 +43,7 @@ jobs:
           filters: |
             build:
               - '.github/workflows/build-and-deploy.yml'
-              - '.dockerignore'
+              - 'Dockerfile.dockerignore'
               - 'crates/**'
               - 'Cargo.lock'
               - 'Cargo.toml'

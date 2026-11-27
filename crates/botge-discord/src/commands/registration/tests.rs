@@ -15,7 +15,7 @@ use super::*;
 
 #[test]
 fn exposes_registered_commands_and_clear_permissions() -> Result<()> {
-  let commands = serde_json::to_value(definitions())?;
+  let commands = serde_json::to_value(definitions(&NAMES))?;
   for (index, expected) in NAMES.into_iter().enumerate() {
     assert_eq!(
       commands
@@ -35,6 +35,27 @@ fn exposes_registered_commands_and_clear_permissions() -> Result<()> {
     commands.pointer("/0/options/0/required"),
     Some(&Value::Bool(true))
   );
+  Ok(())
+}
+
+#[test]
+fn adds_bounded_quantum_options_only_when_configured() -> Result<()> {
+  let commands = serde_json::to_value(definitions(&[NAMES[0], NAMES[1], NAMES[2], quantum::NAME]))?;
+  assert_eq!(commands.as_array().map(Vec::len), Some(4));
+  let quantum = commands.pointer("/3").cloned().unwrap_or_default();
+  assert_eq!(quantum.get("name"), Some(&json!(quantum::NAME)));
+  assert_eq!(quantum.get("contexts"), commands.pointer("/0/contexts"));
+  for (index, name, max) in [(0, "steps", 6), (1, "size", 4)] {
+    let option = quantum
+      .pointer(&format!("/options/{index}"))
+      .cloned()
+      .unwrap_or_default();
+    assert_eq!(option.get("name"), Some(&json!(name)));
+    assert_eq!(option.get("type"), Some(&json!(4)));
+    assert_eq!(option.get("min_value"), Some(&json!(1)));
+    assert_eq!(option.get("max_value"), Some(&json!(max)));
+    assert_eq!(option.get("required"), Some(&json!(false)));
+  }
   Ok(())
 }
 
@@ -59,7 +80,8 @@ async fn registers_emote_commands_and_removes_retired_commands_while_preserving_
     command("12", "launch", 4),
     command("13", "emote", 1),
     command("14", "emote-search", 1),
-    command("15", "emote-compose", 1)
+    command("15", "emote-compose", 1),
+    command("16", "quantum-emote", 1)
   ]);
   let server = crate::tests::TestServer::start(
     Router::new()
@@ -81,10 +103,19 @@ async fn registers_emote_commands_and_removes_retired_commands_while_preserving_
       ),
   )
   .await?;
-  register(&crate::tests::http_for(&server)).await?;
-  assert_eq!(removals.try_recv()?.as_str(), "11");
-  assert_eq!(removals.try_recv()?.as_str(), "13");
-  assert_eq!(removals.try_recv()?.as_str(), "14");
+  register(
+    &crate::tests::http_for(&server),
+    &[NAMES[0], NAMES[1], NAMES[2], quantum::NAME],
+  )
+  .await?;
+  for retired in ["11", "13", "14"] {
+    assert_eq!(removals.try_recv()?.as_str(), retired);
+  }
+  assert_matches!(removals.try_recv(), Err(TryRecvError::Empty));
+  register(&crate::tests::http_for(&server), &NAMES).await?;
+  for retired in ["11", "13", "14", "16"] {
+    assert_eq!(removals.try_recv()?.as_str(), retired);
+  }
   assert_matches!(removals.try_recv(), Err(TryRecvError::Empty));
   Ok(())
 }
@@ -104,7 +135,9 @@ async fn stops_registration_when_discord_rejects_listing_creation_or_retirement(
       .route("/api/v10/applications/42/commands/11", axum::routing::delete(|| async { (StatusCode::FORBIDDEN, Json(json!({"code":50013,"message":"denied"}))) })))
       .await?;
     assert!(
-      register(&crate::tests::http_for(&server)).await.is_err(),
+      register(&crate::tests::http_for(&server), &NAMES)
+        .await
+        .is_err(),
       "stage {stage}"
     );
   }

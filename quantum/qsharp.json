@@ -1,0 +1,16 @@
+{
+  "author": "MrewyOrg",
+  "license": "MIT",
+  "targetProfile": "base",
+  "lints": [
+    { "group": "deprecations", "level": "error" },
+    { "lint": "needlessParens", "level": "error" },
+    { "lint": "divisionByZero", "level": "error" },
+    { "lint": "redundantSemicolons", "level": "error" },
+    { "lint": "discourageChainAssignment", "level": "error" },
+    { "lint": "doubleEquality", "level": "error" },
+    { "lint": "needlessOperation", "level": "error" },
+    { "lint": "ambiguousUnaryOperatorAfterIf", "level": "error" },
+    { "lint": "avoidNamespaceBlock", "level": "error" }
+  ]
+}

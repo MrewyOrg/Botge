@@ -7,6 +7,8 @@ paths-ignore:
   - activity/server/internal/site/dist
   - coverage
   - .venv
+  - quantum/proofs/lean/.lake
+  - ios/Tools/.build
   - .ruff_cache
   - .agents/references/cache
   - .github/codeql/database

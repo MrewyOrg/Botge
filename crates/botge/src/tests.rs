@@ -297,6 +297,7 @@ async fn aborts_queued_provider_work_and_reports_startup_and_shutdown_failures()
       data: directory.path().into(),
       activity: None,
       cache: None,
+      quantum: None,
       register_commands: false,
       prefix_compose: false,
       health_address: if busy {
@@ -374,6 +375,39 @@ fn loads_runtime_configuration_and_rejects_partial_activity_credentials() -> Res
   env.insert("LOCAL_CACHE_BASE", "invalid");
   assert!(Options::read(&|key| env.get(key).map(ToString::to_string)).is_err());
   Ok(())
+}
+
+#[test]
+fn enables_quantum_only_with_a_valid_sidecar_url() {
+  let read = |pairs: &[(&str, &str)]| {
+    let mut env = HashMap::from([("DISCORD_TOKEN", "fixture")]);
+    env.extend(pairs.iter().copied());
+    Options::read(&|key| env.get(key).map(ToString::to_string)).map(|options| options.quantum)
+  };
+  assert_matches!(read(&[]), Ok(None));
+  // Compose passes both variables through, blank when the operator leaves them unset.
+  assert_matches!(
+    read(&[("BOTGE_QUANTUM_URL", " "), ("BOTGE_QUANTUM_SECRET", "")]),
+    Ok(None)
+  );
+  assert_matches!(
+    read(&[("BOTGE_QUANTUM_URL", "http://quantum:3090")]),
+    Ok(Some(_))
+  );
+  assert_matches!(
+    read(&[
+      ("BOTGE_QUANTUM_URL", "http://quantum:3090"),
+      ("BOTGE_QUANTUM_SECRET", "fixture")
+    ]),
+    Ok(Some(_))
+  );
+  for invalid in [
+    &[("BOTGE_QUANTUM_URL", "quantum:3090")][..],
+    &[("BOTGE_QUANTUM_URL", "not a url")],
+    &[("BOTGE_QUANTUM_SECRET", "fixture")],
+  ] {
+    assert!(read(invalid).is_err(), "{invalid:?}");
+  }
 }
 
 #[test]
@@ -480,6 +514,7 @@ async fn starts_gateway_and_http_reconciles_voice_and_handles_shutdown() -> Resu
     token: "fixture".into(),
     data: dir.path().into(),
     cache: Some(http.origin.clone()),
+    quantum: Some(QuantumClient::new(&http.origin, None)?),
     register_commands: true,
     prefix_compose: true,
     health_address: "127.0.0.1:0".parse()?,
@@ -699,6 +734,7 @@ async fn rejects_activity_configuration_and_discord_identity_before_gateway_star
       token: "fixture".into(),
       data: directory.path().join(format!("stage-{stage}")),
       cache: None,
+      quantum: None,
       register_commands: false,
       prefix_compose: false,
       health_address: "127.0.0.1:0".parse()?,

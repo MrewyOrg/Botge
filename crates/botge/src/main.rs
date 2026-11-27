@@ -71,6 +71,7 @@ use tokio::{
 use tracing_subscriber::EnvFilter;
 
 use botge_app::Application;
+use botge_quantum::{QuantumClient, Secret};
 
 use crate::{
   discord::{DiscordAccess, Events},
@@ -84,6 +85,8 @@ struct Options {
   data: PathBuf,
   activity: Option<ActivityOptions>,
   cache: Option<Url>,
+  /// Client for the optional Q# sidecar that enables `/quantum-emote`.
+  quantum: Option<QuantumClient>,
   register_commands: bool,
   prefix_compose: bool,
   health_address: SocketAddr,
@@ -105,13 +108,15 @@ impl Options {
   /// The bot token is required. Supplying Activity credentials also requires an application
   /// ID and enables the Activity listener, which defaults to the loopback address on port 3080.
   /// Command registration, the message prefix, and the iOS app API are enabled only by the
-  /// literal value `true`.
+  /// literal value `true`. A non-blank `BOTGE_QUANTUM_URL` enables `/quantum-emote`, optionally
+  /// with `BOTGE_QUANTUM_SECRET`.
   /// The lookup is borrowed so cold startup parsing shares one implementation across providers.
   ///
   /// # Errors
   ///
   /// Returns an error for a missing bot token, incomplete Activity credentials, a noncanonical
-  /// application ID, or invalid configured listener addresses or cache URL.
+  /// application ID, invalid configured listener addresses, cache or quantum sidecar URL, or a
+  /// quantum secret without a sidecar URL.
   fn read(get: &dyn Fn(&str) -> Option<String>) -> Result<Self> {
     let token = get("DISCORD_TOKEN")
       .filter(|value| !value.trim().is_empty())
@@ -154,6 +159,7 @@ impl Options {
         .map(|value| Url::parse(&value))
         .transpose()
         .context("invalid LOCAL_CACHE_BASE")?,
+      quantum: quantum_client(get)?,
       register_commands: get("BOTGE_REGISTER_COMMANDS").as_deref() == Some("true"),
       prefix_compose: get("BOTGE_ENABLE_PREFIX_COMPOSE").as_deref() == Some("true"),
       health_address: SocketAddr::new(
@@ -166,6 +172,29 @@ impl Options {
       ),
     })
   }
+}
+
+/// Builds the quantum sidecar client when `BOTGE_QUANTUM_URL` is set and not blank.
+///
+/// The sidecar is optional at runtime: an offline sidecar only fails `/quantum-emote` requests.
+///
+/// # Errors
+///
+/// Returns an error for an unparsable or non-HTTP sidecar URL, a non-blank
+/// `BOTGE_QUANTUM_SECRET` without a URL, or a client that cannot be built.
+fn quantum_client(get: &dyn Fn(&str) -> Option<String>) -> Result<Option<QuantumClient>> {
+  let secret = get("BOTGE_QUANTUM_SECRET").as_deref().and_then(Secret::new);
+  let Some(url) = get("BOTGE_QUANTUM_URL").filter(|url| !url.trim().is_empty()) else {
+    anyhow::ensure!(
+      secret.is_none(),
+      "BOTGE_QUANTUM_SECRET requires BOTGE_QUANTUM_URL"
+    );
+    return Ok(None);
+  };
+  let url = Url::parse(url.trim()).context("invalid BOTGE_QUANTUM_URL")?;
+  Ok(Some(
+    QuantumClient::new(&url, secret).context("invalid BOTGE_QUANTUM_URL")?,
+  ))
 }
 
 /// Selects one process-wide TLS provider before any client or background task is created.
@@ -265,7 +294,11 @@ async fn run(
   let mut application = Application::new(config.general, Arc::clone(&store))?;
   application.set_game_cache(options.cache.clone());
   let application = Arc::new(application);
-  let commands = commands::Commands::new(Arc::clone(&application), options.cache);
+  // Without a sidecar URL, `/quantum-emote` is neither registered nor answered.
+  let commands = options.quantum.into_iter().fold(
+    commands::Commands::new(Arc::clone(&application), options.cache),
+    commands::Commands::with_quantum,
+  );
   let watch_sets = config.general.watches_seven_tv_sets();
   let voice_changed = Arc::new(Notify::new());
   let (ready, voice_ready) = watch::channel(false);

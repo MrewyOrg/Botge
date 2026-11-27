@@ -1,0 +1,15 @@
+[package]
+name = 'botge-quantum-certificate'
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+description = 'Statevector simulator behind the 414-configuration certificate of the quantum emote circuit'
+license.workspace = true
+repository.workspace = true
+publish.workspace = true
+
+[dev-dependencies]
+botge-quantum.workspace = true
+
+[lints]
+workspace = true

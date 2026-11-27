@@ -12,7 +12,11 @@ const globalConfig: readonly Readonly<Config>[] = defineConfig([
     languageOptions: { ecmaVersion: 'latest', sourceType: 'module' }
   },
   { name: 'globalLinterOptions', linterOptions: { noInlineConfig: true } },
-  globalIgnores(['activity/dist/', 'target/', 'coverage/'], 'globalIgnores')
+  // Git-ignored downloads: cached reference snapshots and Lake's Mathlib and widget packages.
+  globalIgnores(
+    ['activity/dist/', 'target/', 'coverage/', '.agents/references/cache/', '**/.lake/'],
+    'globalIgnores'
+  )
 ]);
 
 const config: readonly Readonly<Config>[] = defineConfig([

@@ -9,7 +9,16 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from doctor import Command, Result, diagnose, diagnose_go, ffmpeg_supported, run, xcode_supported
+from doctor import (
+    Command,
+    Result,
+    diagnose,
+    diagnose_go,
+    diagnose_proofs,
+    ffmpeg_supported,
+    run,
+    xcode_supported,
+)
 
 
 def prerequisites(root: Path) -> dict[Command, Result]:
@@ -193,6 +202,39 @@ class DoctorTests(unittest.TestCase):
                 self.assertFalse(diagnose_go(root, runner))
                 pin.unlink()
                 self.assertFalse(diagnose_go(root, runner))
+
+    def test_proof_checks_require_the_pinned_lean_toolchain(self) -> None:
+        """The proof check reports a missing pin, an absent toolchain and a missing Lake."""
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            pin = root / 'quantum' / 'proofs' / 'lean' / 'lean-toolchain'
+            responses: dict[Command, Result] = {
+                ('elan', 'toolchain', 'list'): Result(0, 'leanprover/lean4:v4.35.0'),
+                ('lake', '--version'): Result(127, 'missing'),
+            }
+
+            def runner(args: Command) -> Result:
+                return responses.get(args, Result(0, 'fixture'))
+
+            output = io.StringIO()
+            with contextlib.redirect_stdout(output):
+                self.assertFalse(diagnose_proofs(root, runner))
+            self.assertIn('FAIL Lean prerequisite configuration', output.getvalue())
+
+            pin.parent.mkdir(parents=True)
+            pin.write_text('leanprover/lean4:v4.36.0\n')
+            output = io.StringIO()
+            with contextlib.redirect_stdout(output):
+                self.assertFalse(diagnose_proofs(root, runner))
+            self.assertIn('FAIL Lean leanprover/lean4:v4.36.0', output.getvalue())
+            self.assertIn('FAIL Lake', output.getvalue())
+
+            responses[('elan', 'toolchain', 'list')] = Result(
+                0, 'leanprover/lean4:v4.35.0\nleanprover/lean4:v4.36.0 (default)'
+            )
+            responses[('lake', '--version')] = Result(0, 'Lake version 5.0.0')
+            with contextlib.redirect_stdout(io.StringIO()):
+                self.assertTrue(diagnose_proofs(root, runner))
 
 
 if __name__ == '__main__':

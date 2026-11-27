@@ -14,14 +14,14 @@ in [`mermaid.config.json`](diagrams/mermaid.config.json). Edit the source, then 
   dependency edges and capabilities.
 - [Request and data flow](request-flow.png) ([source](diagrams/request-flow.mmd)): compositions, the
   Activity page and a settings save.
-- [Production topology](deployment.png) ([source](diagrams/deployment.mmd)): VM services, Cloud Run,
-  Discord URL mappings and 7TV.
+- [Production topology](deployment.png) ([source](diagrams/deployment.mmd)): VM services, the
+  optional quantum sidecar, Cloud Run, Discord URL mappings and 7TV.
 - [Development and release workflow](development-workflow.png)
   ([source](diagrams/development-workflow.mmd)): hooks, PR checks, approval and both deploy paths.
 - [Startup and shutdown](startup.png) ([source](diagrams/startup.mmd)): maintenance flags,
   initialization, readiness and exit.
 - [Discord event handling](discord-interactions.png) ([source](diagrams/discord-interactions.mmd)):
-  commands, autocomplete, modals and prefix messages.
+  commands, `/quantum-emote`, autocomplete, modals and prefix messages.
 
 Render every diagram from the repository root with the installed Chrome. `--ignore-scripts` skips
 Puppeteer's browser download, and the Puppeteer configuration widens the layout viewport:
@@ -72,7 +72,13 @@ The larger services separate their internal responsibilities into child modules:
 
 - [`commands.rs`](../crates/botge-discord/src/commands.rs) dispatches to
   [`commands/`](../crates/botge-discord/src/commands/): composition, message prefixes, autocomplete,
-  shortcuts, registration, and cleanup.
+  shortcuts, registration, cleanup, and `/quantum-emote`.
+- [`quantum.rs`](../crates/botge-discord/src/commands/quantum.rs) registers only when
+  `BOTGE_QUANTUM_URL` is set. It defers, slices the catalog with
+  [`botge-quantum`](../crates/botge-quantum/src/lib.rs), asks the Q# sidecar
+  ([quantum guide](../quantum/README.md)) for one accepted shot outside the render permit, and
+  renders the drawn pair through `Application::compose_selected`. A failure deletes the deferred
+  reply and explains itself ephemerally; nothing is retried or replaced by classical randomness.
 - [`activity.rs`](../crates/botge-activity/src/activity.rs) shares authentication and state across
   the voice, catalog, personal border, and guessing game routes in
   [`activity/`](../crates/botge-activity/src/activity/).

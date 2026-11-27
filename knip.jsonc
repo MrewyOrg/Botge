@@ -2,7 +2,7 @@
   "$schema": "./node_modules/knip/schema.json",
   // Invoked by the shell wrapper for npm's prepare lifecycle.
   "ignoreDependencies": ["husky"],
-  // Supplied by the pinned Rust and Go toolchains.
-  "ignoreBinaries": ["rustfmt", "gofmt"],
+  // Supplied by the pinned Rust, Go, shell, Rego, and TeX toolchains.
+  "ignoreBinaries": ["rustfmt", "gofmt", "shellcheck", "regal", "chktex"],
   "workspaces": { ".": { "ignore": ["tests/integration/**"] } }
 }

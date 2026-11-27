@@ -80,6 +80,7 @@ runtime memory headroom.
 | Decoded inputs      | 4 Mi pixels per image; 16 Mi combined.                             |
 | Guessing game       | 32 rooms of 25 players, 256 connections, one 2 MiB image per room. |
 | Rendered attachment | At most 20 MiB.                                                    |
+| Quantum sidecar     | Four concurrent requests, 3 s deadline; 256 MiB container limit.   |
 
 Discord command rendering uses temporary files, a five-second FFprobe timeout per input, and a
 25-second FFmpeg budget within a 40-second overall command deadline. Provider image downloads use

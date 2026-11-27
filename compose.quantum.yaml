@@ -1,0 +1,37 @@
+services:
+  quantum:
+    build:
+      context: .
+      dockerfile: quantum/Dockerfile
+    mem_limit: 256m
+    restart: unless-stopped
+    init: true
+    read_only: true
+    tmpfs:
+      - /tmp:size=32m,mode=1777,noexec,nosuid
+    logging:
+      driver: local
+      options:
+        max-size: '10m'
+        max-file: '3'
+    environment:
+      - QDK_PYTHON_TELEMETRY=none
+      - BOTGE_QUANTUM_SECRET=${BOTGE_QUANTUM_SECRET:-}
+    healthcheck:
+      test:
+        [
+          'CMD',
+          '/app/.venv/bin/python',
+          '-c',
+          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:3090/healthz', timeout=2)"
+        ]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+      start_period: 15s
+
+  botge:
+    environment:
+      # Optional sidecar URL; botge starts normally even if quantum is offline.
+      - BOTGE_QUANTUM_URL=http://quantum:3090
+      - BOTGE_QUANTUM_SECRET=${BOTGE_QUANTUM_SECRET:-}

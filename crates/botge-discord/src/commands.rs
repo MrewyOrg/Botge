@@ -2,12 +2,14 @@
 //!
 //! `compose` resolves and renders inputs, `prefix` handles attached `+emote` messages,
 //! `autocomplete` and `shortcuts` perform name matching, and `registration` owns the
-//! command definitions. `clear` contains the separate message-cleanup workflow.
+//! command definitions. `clear` contains the separate message-cleanup workflow, and `quantum`
+//! the `/quantum-emote` command that exists only with a configured sidecar.
 
 mod autocomplete;
 mod clear;
 mod compose;
 mod prefix;
+mod quantum;
 mod registration;
 mod shortcuts;
 
@@ -22,11 +24,12 @@ use serenity::{
 };
 
 use botge_app::Application;
+use botge_quantum::QuantumClient;
 
 use compose::render_reply;
-pub(crate) use registration::register;
 use shortcuts::shortcuts;
 
+/// Commands registered in every deployment; `/quantum-emote` follows them when configured.
 const NAMES: [&str; 3] = ["emote-compose", "emote-shortcuts", clear::NAME];
 
 /// Dispatches Discord interactions and shares one render slot across reply paths.
@@ -34,6 +37,7 @@ const NAMES: [&str; 3] = ["emote-compose", "emote-shortcuts", clear::NAME];
 pub struct Commands {
   application: Arc<Application>,
   cache: Option<Url>,
+  quantum: Option<QuantumClient>,
 }
 
 use botge_app::Composition as Answer;
@@ -42,7 +46,34 @@ impl Commands {
   /// Shares the catalog and optional cache URL across slash and message replies.
   #[must_use]
   pub const fn new(application: Arc<Application>, cache: Option<Url>) -> Self {
-    Self { application, cache }
+    Self {
+      application,
+      cache,
+      quantum: None,
+    }
+  }
+
+  /// Enables `/quantum-emote`, which draws through `client`'s sidecar.
+  #[must_use]
+  pub fn with_quantum(mut self, client: QuantumClient) -> Self {
+    self.quantum = Some(client);
+    self
+  }
+
+  /// Names of the commands this process registers and answers, in registration order.
+  fn names(&self) -> impl Iterator<Item = &'static str> {
+    NAMES
+      .into_iter()
+      .chain(self.quantum.as_ref().map(|_| quantum::NAME))
+  }
+
+  /// Updates Botge's global commands, including `/quantum-emote` only when it is configured.
+  ///
+  /// # Errors
+  ///
+  /// Returns the Discord failures described by [`registration::register`].
+  pub(crate) async fn register(&self, http: &Http) -> Result<()> {
+    registration::register(http, &self.names().collect::<Vec<_>>()).await
   }
 
   /// Defers emote replies while rendering. The clear command opens its confirmation modal directly.
@@ -50,9 +81,10 @@ impl Commands {
   /// # Errors
   ///
   /// Returns Discord HTTP errors while acknowledging, opening a confirmation, or editing a reply.
-  /// Rendering and input failures are converted to reply text by `render_reply`.
+  /// Rendering and input failures are converted to reply text by `render_reply`; quantum draw
+  /// failures are sent as ephemeral followups.
   pub async fn respond(&self, http: &Http, command: CommandInteraction) -> Result<()> {
-    if !NAMES.contains(&command.data.name.as_str()) {
+    if !self.names().any(|name| name == command.data.name) {
       return Ok(());
     }
     self.application.metrics().command(&command.data.name);
@@ -60,6 +92,11 @@ impl Commands {
       return clear::open(http, &command).await;
     }
     command.defer(http).await?;
+    if let Some(client) = &self.quantum
+      && command.data.name == quantum::NAME
+    {
+      return self.respond_quantum(http, &command, client).await;
+    }
     let guild = command
       .guild_id
       .and_then(|guild| NonZeroU64::new(guild.get()));
@@ -129,9 +166,12 @@ impl Commands {
           }
           _ => flag(options, "fullsize").then_some(4),
         };
-        self
-          .compose(input, guild, user, size, flag(options, "stretch"))
-          .await
+        let fit = if flag(options, "stretch") {
+          botge_app::Fit::Stretch
+        } else {
+          botge_app::Fit::Natural
+        };
+        self.compose(input, guild, user, size, fit).await
       }
       _ => Ok(Answer::Text("This command is unavailable.".into())),
     }

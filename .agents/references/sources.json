@@ -828,6 +828,950 @@
       "file": "GO-VULN-LICENSE.txt",
       "url": "https://raw.githubusercontent.com/golang/vuln/ef4cb2f7cae47fe3e21fc596455f694951867b29/LICENSE",
       "sha256": "911f8f5782931320f5b8d1160a76365b83aea6447ee6c04fa6d5591467db9dad"
+    },
+    {
+      "file": "QSHARP-DOCS-LICENSE.txt",
+      "url": "https://raw.githubusercontent.com/MicrosoftDocs/quantum-docs/bdf5d69c09b37b5446e86fda32f060e6beec864c/LICENSE",
+      "sha256": "7183ef9749eb9b75e710a81a4c812a9405cc184f087500581a973e5929ac3f5e",
+      "revision": "bdf5d69c09b37b5446e86fda32f060e6beec864c",
+      "repository": "MicrosoftDocs/quantum-docs",
+      "license": "CC-BY-4.0; code examples MIT"
+    },
+    {
+      "file": "QSHARP-DOCS-CODE-LICENSE.txt",
+      "url": "https://raw.githubusercontent.com/MicrosoftDocs/quantum-docs/bdf5d69c09b37b5446e86fda32f060e6beec864c/LICENSE-CODE",
+      "sha256": "91f7258203fd43ba6d6f7f72b644eaedee9e3430f035c053beb6f34052f045e2",
+      "revision": "bdf5d69c09b37b5446e86fda32f060e6beec864c",
+      "repository": "MicrosoftDocs/quantum-docs",
+      "license": "CC-BY-4.0; code examples MIT"
+    },
+    {
+      "file": "qsharp-overview.md",
+      "url": "https://raw.githubusercontent.com/MicrosoftDocs/quantum-docs/bdf5d69c09b37b5446e86fda32f060e6beec864c/articles/qsharp-overview.md",
+      "sha256": "2aeb67350ad296bb6fab8ea7cf2c4dafc408208f455a5cdde99890ab39033ced",
+      "revision": "bdf5d69c09b37b5446e86fda32f060e6beec864c",
+      "repository": "MicrosoftDocs/quantum-docs",
+      "license": "CC-BY-4.0; code examples MIT"
+    },
+    {
+      "file": "qsharp-quickstart.md",
+      "url": "https://raw.githubusercontent.com/MicrosoftDocs/quantum-docs/bdf5d69c09b37b5446e86fda32f060e6beec864c/articles/qsharp-quickstart.md",
+      "sha256": "1b98221ffcee49a4677687095469e7e032cab3123011e956b1fc4bd3af98f088",
+      "revision": "bdf5d69c09b37b5446e86fda32f060e6beec864c",
+      "repository": "MicrosoftDocs/quantum-docs",
+      "license": "CC-BY-4.0; code examples MIT"
+    },
+    {
+      "file": "qsharp-ways-to-work.md",
+      "url": "https://raw.githubusercontent.com/MicrosoftDocs/quantum-docs/bdf5d69c09b37b5446e86fda32f060e6beec864c/articles/qsharp-ways-to-work.md",
+      "sha256": "66756263c91741ba7fd4cf4e00676dc5039329c38f9bdde0e1a7daf36988b4bb",
+      "revision": "bdf5d69c09b37b5446e86fda32f060e6beec864c",
+      "repository": "MicrosoftDocs/quantum-docs",
+      "license": "CC-BY-4.0; code examples MIT"
+    },
+    {
+      "file": "qsharp-projects.md",
+      "url": "https://raw.githubusercontent.com/MicrosoftDocs/quantum-docs/bdf5d69c09b37b5446e86fda32f060e6beec864c/articles/how-to-work-with-qsharp-projects.md",
+      "sha256": "96abcddffc8b7192a7cd473e5ecbb9710d925e9c80720b13326f834b25b08ca3",
+      "revision": "bdf5d69c09b37b5446e86fda32f060e6beec864c",
+      "repository": "MicrosoftDocs/quantum-docs",
+      "license": "CC-BY-4.0; code examples MIT"
+    },
+    {
+      "file": "qsharp-callables-python.md",
+      "url": "https://raw.githubusercontent.com/MicrosoftDocs/quantum-docs/bdf5d69c09b37b5446e86fda32f060e6beec864c/articles/how-to-use-qsharp-callables-python.md",
+      "sha256": "2f0e7cd95326bcb1b3c50569e02b39da0d948fbad9bbbfeb20138234fdfed4de",
+      "revision": "bdf5d69c09b37b5446e86fda32f060e6beec864c",
+      "repository": "MicrosoftDocs/quantum-docs",
+      "license": "CC-BY-4.0; code examples MIT"
+    },
+    {
+      "file": "qsharp-visualize-circuits.md",
+      "url": "https://raw.githubusercontent.com/MicrosoftDocs/quantum-docs/bdf5d69c09b37b5446e86fda32f060e6beec864c/articles/how-to-visualize-circuits.md",
+      "sha256": "c48754cd2970df3c5aee353abd34cdce726a557505763685f847b3d987294656",
+      "revision": "bdf5d69c09b37b5446e86fda32f060e6beec864c",
+      "repository": "MicrosoftDocs/quantum-docs",
+      "license": "CC-BY-4.0; code examples MIT"
+    },
+    {
+      "file": "qsharp-circuit-diagrams-overview.md",
+      "url": "https://raw.githubusercontent.com/MicrosoftDocs/quantum-docs/bdf5d69c09b37b5446e86fda32f060e6beec864c/articles/circuit-diagrams-qdk-overview.md",
+      "sha256": "7be84285be2773187bdf7c07a3ccfbcbfaae3a488793da19082166b9a7e4f62d",
+      "revision": "bdf5d69c09b37b5446e86fda32f060e6beec864c",
+      "repository": "MicrosoftDocs/quantum-docs",
+      "license": "CC-BY-4.0; code examples MIT"
+    },
+    {
+      "file": "qsharp-target-profiles.md",
+      "url": "https://raw.githubusercontent.com/MicrosoftDocs/quantum-docs/bdf5d69c09b37b5446e86fda32f060e6beec864c/articles/quantum-computing-target-profiles.md",
+      "sha256": "bd2a9152b3f9250c88ecf240d49ca12e043ed15990dc041c374ae7534b2efcee",
+      "revision": "bdf5d69c09b37b5446e86fda32f060e6beec864c",
+      "repository": "MicrosoftDocs/quantum-docs",
+      "license": "CC-BY-4.0; code examples MIT"
+    },
+    {
+      "file": "qsharp-test-quantum-code.md",
+      "url": "https://raw.githubusercontent.com/MicrosoftDocs/quantum-docs/bdf5d69c09b37b5446e86fda32f060e6beec864c/articles/test-quantum-code.md",
+      "sha256": "7b74b0c0221ed7a980af9e2f65555469a6ec528c195e8a91651e307cc1b75f36",
+      "revision": "bdf5d69c09b37b5446e86fda32f060e6beec864c",
+      "repository": "MicrosoftDocs/quantum-docs",
+      "license": "CC-BY-4.0; code examples MIT"
+    },
+    {
+      "file": "qsharp-debug-quantum-code.md",
+      "url": "https://raw.githubusercontent.com/MicrosoftDocs/quantum-docs/bdf5d69c09b37b5446e86fda32f060e6beec864c/articles/debug-quantum-code.md",
+      "sha256": "f6355a1bf064d41b01dede2c122ac385a0f48fa5ac43af951059e8ab9276681d",
+      "revision": "bdf5d69c09b37b5446e86fda32f060e6beec864c",
+      "repository": "MicrosoftDocs/quantum-docs",
+      "license": "CC-BY-4.0; code examples MIT"
+    },
+    {
+      "file": "qsharp-simulators-overview.md",
+      "url": "https://raw.githubusercontent.com/MicrosoftDocs/quantum-docs/bdf5d69c09b37b5446e86fda32f060e6beec864c/articles/simulators-overview-qdk.md",
+      "sha256": "13e3ef39a4870e23ebc2bfddad9645711c03830d40288cfca2e8146a9b590042",
+      "revision": "bdf5d69c09b37b5446e86fda32f060e6beec864c",
+      "repository": "MicrosoftDocs/quantum-docs",
+      "license": "CC-BY-4.0; code examples MIT"
+    },
+    {
+      "file": "qsharp-simulator-vscode.md",
+      "url": "https://raw.githubusercontent.com/MicrosoftDocs/quantum-docs/bdf5d69c09b37b5446e86fda32f060e6beec864c/articles/qdk-simulator-vscode.md",
+      "sha256": "053db8be8e4976eded02bf7c5cadbe772e953791a8a3413a37b8a869af415a8f",
+      "revision": "bdf5d69c09b37b5446e86fda32f060e6beec864c",
+      "repository": "MicrosoftDocs/quantum-docs",
+      "license": "CC-BY-4.0; code examples MIT"
+    },
+    {
+      "file": "qsharp-vscode-reference.md",
+      "url": "https://raw.githubusercontent.com/MicrosoftDocs/quantum-docs/bdf5d69c09b37b5446e86fda32f060e6beec864c/articles/vscode-qdk-reference.md",
+      "sha256": "de1580ecef60277aab70cb384e527ab8fae6028eb51a62b1863d1713bc34eb63",
+      "revision": "bdf5d69c09b37b5446e86fda32f060e6beec864c",
+      "repository": "MicrosoftDocs/quantum-docs",
+      "license": "CC-BY-4.0; code examples MIT"
+    },
+    {
+      "file": "qsharp-lang-program-index.md",
+      "url": "https://raw.githubusercontent.com/MicrosoftDocs/quantum-docs/bdf5d69c09b37b5446e86fda32f060e6beec864c/articles/user-guide/language/ProgramStructure/index.md",
+      "sha256": "05f794b6433d74ef256d2dd7a4a88978fd4435b66044fd13079eddaf353db6c6",
+      "revision": "bdf5d69c09b37b5446e86fda32f060e6beec864c",
+      "repository": "MicrosoftDocs/quantum-docs",
+      "license": "CC-BY-4.0; code examples MIT"
+    },
+    {
+      "file": "qsharp-lang-program-attributes.md",
+      "url": "https://raw.githubusercontent.com/MicrosoftDocs/quantum-docs/bdf5d69c09b37b5446e86fda32f060e6beec864c/articles/user-guide/language/ProgramStructure/attributes.md",
+      "sha256": "c83b6f348fb4a3a87156c4bd14f3e3108bd51d588220f35b036a7db540528296",
+      "revision": "bdf5d69c09b37b5446e86fda32f060e6beec864c",
+      "repository": "MicrosoftDocs/quantum-docs",
+      "license": "CC-BY-4.0; code examples MIT"
+    },
+    {
+      "file": "qsharp-lang-program-callables.md",
+      "url": "https://raw.githubusercontent.com/MicrosoftDocs/quantum-docs/bdf5d69c09b37b5446e86fda32f060e6beec864c/articles/user-guide/language/ProgramStructure/callabledeclarations.md",
+      "sha256": "e0942c29ae6722cffa0812fc08216e34c7228eecf672716c3867227be3b038cd",
+      "revision": "bdf5d69c09b37b5446e86fda32f060e6beec864c",
+      "repository": "MicrosoftDocs/quantum-docs",
+      "license": "CC-BY-4.0; code examples MIT"
+    },
+    {
+      "file": "qsharp-lang-program-comments.md",
+      "url": "https://raw.githubusercontent.com/MicrosoftDocs/quantum-docs/bdf5d69c09b37b5446e86fda32f060e6beec864c/articles/user-guide/language/ProgramStructure/comments.md",
+      "sha256": "c27d2fe97d71d64c68c7fe138117aceaf48c117d2a8ab2cb45748de4f16ec036",
+      "revision": "bdf5d69c09b37b5446e86fda32f060e6beec864c",
+      "repository": "MicrosoftDocs/quantum-docs",
+      "license": "CC-BY-4.0; code examples MIT"
+    },
+    {
+      "file": "qsharp-lang-program-namespaces.md",
+      "url": "https://raw.githubusercontent.com/MicrosoftDocs/quantum-docs/bdf5d69c09b37b5446e86fda32f060e6beec864c/articles/user-guide/language/ProgramStructure/namespaces.md",
+      "sha256": "17ced60bb2e03c84eb126546806a567aaafb64deda8c4cb02ea8f148176a2b0a",
+      "revision": "bdf5d69c09b37b5446e86fda32f060e6beec864c",
+      "repository": "MicrosoftDocs/quantum-docs",
+      "license": "CC-BY-4.0; code examples MIT"
+    },
+    {
+      "file": "qsharp-lang-program-specializations.md",
+      "url": "https://raw.githubusercontent.com/MicrosoftDocs/quantum-docs/bdf5d69c09b37b5446e86fda32f060e6beec864c/articles/user-guide/language/ProgramStructure/specializationdeclarations.md",
+      "sha256": "49a9c1712166fe9b794e4c25e1a4d5c35a344647c0e9d344fae804558861fb2d",
+      "revision": "bdf5d69c09b37b5446e86fda32f060e6beec864c",
+      "repository": "MicrosoftDocs/quantum-docs",
+      "license": "CC-BY-4.0; code examples MIT"
+    },
+    {
+      "file": "qsharp-lang-program-types.md",
+      "url": "https://raw.githubusercontent.com/MicrosoftDocs/quantum-docs/bdf5d69c09b37b5446e86fda32f060e6beec864c/articles/user-guide/language/ProgramStructure/typedeclarations.md",
+      "sha256": "27c35608f2e99736ce6a0750c10eb4a5c54eccb21c4fe73fae5b1df946f0b1ce",
+      "revision": "bdf5d69c09b37b5446e86fda32f060e6beec864c",
+      "repository": "MicrosoftDocs/quantum-docs",
+      "license": "CC-BY-4.0; code examples MIT"
+    },
+    {
+      "file": "qsharp-lang-stmt-index.md",
+      "url": "https://raw.githubusercontent.com/MicrosoftDocs/quantum-docs/bdf5d69c09b37b5446e86fda32f060e6beec864c/articles/user-guide/language/Statements/index.md",
+      "sha256": "c99fc2ab78f3aadc5db1e37d30a8611acc51ce1fe514cfd48c167efdbd4d5053",
+      "revision": "bdf5d69c09b37b5446e86fda32f060e6beec864c",
+      "repository": "MicrosoftDocs/quantum-docs",
+      "license": "CC-BY-4.0; code examples MIT"
+    },
+    {
+      "file": "qsharp-lang-stmt-bindingscopes.md",
+      "url": "https://raw.githubusercontent.com/MicrosoftDocs/quantum-docs/bdf5d69c09b37b5446e86fda32f060e6beec864c/articles/user-guide/language/Statements/bindingscopes.md",
+      "sha256": "8df65c2d085d8f0242e0176935f365f175b431ebafafc594aed682bb45ae19db",
+      "revision": "bdf5d69c09b37b5446e86fda32f060e6beec864c",
+      "repository": "MicrosoftDocs/quantum-docs",
+      "license": "CC-BY-4.0; code examples MIT"
+    },
+    {
+      "file": "qsharp-lang-stmt-memory.md",
+      "url": "https://raw.githubusercontent.com/MicrosoftDocs/quantum-docs/bdf5d69c09b37b5446e86fda32f060e6beec864c/articles/user-guide/language/Statements/quantummemorymanagement.md",
+      "sha256": "38019b333ad75158dce6a779f2b182a0e31b97a5be7d38ecc48cbab89e2fa2d0",
+      "revision": "bdf5d69c09b37b5446e86fda32f060e6beec864c",
+      "repository": "MicrosoftDocs/quantum-docs",
+      "license": "CC-BY-4.0; code examples MIT"
+    },
+    {
+      "file": "qsharp-lang-stmt-vars.md",
+      "url": "https://raw.githubusercontent.com/MicrosoftDocs/quantum-docs/bdf5d69c09b37b5446e86fda32f060e6beec864c/articles/user-guide/language/Statements/variabledeclarationsandreassignments.md",
+      "sha256": "f3870d69b5c2b43edeab24caf48c1c0e14ecd9f60cede0e138536954d0bcb4bf",
+      "revision": "bdf5d69c09b37b5446e86fda32f060e6beec864c",
+      "repository": "MicrosoftDocs/quantum-docs",
+      "license": "CC-BY-4.0; code examples MIT"
+    },
+    {
+      "file": "qsharp-lang-type-index.md",
+      "url": "https://raw.githubusercontent.com/MicrosoftDocs/quantum-docs/bdf5d69c09b37b5446e86fda32f060e6beec864c/articles/user-guide/language/TypeSystem/index.md",
+      "sha256": "44b4640b9d8a7cdd05f198e8b745a654101166ec5bb6425328f7de47f4629ea3",
+      "revision": "bdf5d69c09b37b5446e86fda32f060e6beec864c",
+      "repository": "MicrosoftDocs/quantum-docs",
+      "license": "CC-BY-4.0; code examples MIT"
+    },
+    {
+      "file": "qsharp-lang-type-immutability.md",
+      "url": "https://raw.githubusercontent.com/MicrosoftDocs/quantum-docs/bdf5d69c09b37b5446e86fda32f060e6beec864c/articles/user-guide/language/TypeSystem/immutability.md",
+      "sha256": "20428aac4827ceaacf093d65d983e77fb3fabff9e41e2291af5688e5f03d7f76",
+      "revision": "bdf5d69c09b37b5446e86fda32f060e6beec864c",
+      "repository": "MicrosoftDocs/quantum-docs",
+      "license": "CC-BY-4.0; code examples MIT"
+    },
+    {
+      "file": "qsharp-lang-type-callables.md",
+      "url": "https://raw.githubusercontent.com/MicrosoftDocs/quantum-docs/bdf5d69c09b37b5446e86fda32f060e6beec864c/articles/user-guide/language/TypeSystem/operationsandfunctions.md",
+      "sha256": "00c716f014389c1c6668e27c95ac5bda3e4f49f359c9451f6d78f6e6dbb261cd",
+      "revision": "bdf5d69c09b37b5446e86fda32f060e6beec864c",
+      "repository": "MicrosoftDocs/quantum-docs",
+      "license": "CC-BY-4.0; code examples MIT"
+    },
+    {
+      "file": "qsharp-lang-type-quantum.md",
+      "url": "https://raw.githubusercontent.com/MicrosoftDocs/quantum-docs/bdf5d69c09b37b5446e86fda32f060e6beec864c/articles/user-guide/language/TypeSystem/quantumdatatypes.md",
+      "sha256": "cca84aa06b4b0829120fb599184f98621d46428af60be79139395b5106149d3a",
+      "revision": "bdf5d69c09b37b5446e86fda32f060e6beec864c",
+      "repository": "MicrosoftDocs/quantum-docs",
+      "license": "CC-BY-4.0; code examples MIT"
+    },
+    {
+      "file": "qsharp-lang-type-singleton.md",
+      "url": "https://raw.githubusercontent.com/MicrosoftDocs/quantum-docs/bdf5d69c09b37b5446e86fda32f060e6beec864c/articles/user-guide/language/TypeSystem/singletontupleequivalence.md",
+      "sha256": "4a16b12447f24aa36d6a1560b7a8175479a4999ac9ccdbe3e1fa2d28ceddd993",
+      "revision": "bdf5d69c09b37b5446e86fda32f060e6beec864c",
+      "repository": "MicrosoftDocs/quantum-docs",
+      "license": "CC-BY-4.0; code examples MIT"
+    },
+    {
+      "file": "qsharp-lang-type-subtyping.md",
+      "url": "https://raw.githubusercontent.com/MicrosoftDocs/quantum-docs/bdf5d69c09b37b5446e86fda32f060e6beec864c/articles/user-guide/language/TypeSystem/subtypingandvariance.md",
+      "sha256": "19e9163e680b67f2af30ea2eb92f3042a816b57f8e63bd23f66ab50e80ab932a",
+      "revision": "bdf5d69c09b37b5446e86fda32f060e6beec864c",
+      "repository": "MicrosoftDocs/quantum-docs",
+      "license": "CC-BY-4.0; code examples MIT"
+    },
+    {
+      "file": "qsharp-lang-type-inference.md",
+      "url": "https://raw.githubusercontent.com/MicrosoftDocs/quantum-docs/bdf5d69c09b37b5446e86fda32f060e6beec864c/articles/user-guide/language/TypeSystem/typeinference.md",
+      "sha256": "aca5c148828699341e3520b4dd4a3dc6bad6955ce5b11ccef51f67da78766315",
+      "revision": "bdf5d69c09b37b5446e86fda32f060e6beec864c",
+      "repository": "MicrosoftDocs/quantum-docs",
+      "license": "CC-BY-4.0; code examples MIT"
+    },
+    {
+      "file": "qsharp-lang-type-params.md",
+      "url": "https://raw.githubusercontent.com/MicrosoftDocs/quantum-docs/bdf5d69c09b37b5446e86fda32f060e6beec864c/articles/user-guide/language/TypeSystem/typeparameterizations.md",
+      "sha256": "1d57aa85aee64559c49daaebe928b901c65ff63de5bea4bee29e2c47f4c64338",
+      "revision": "bdf5d69c09b37b5446e86fda32f060e6beec864c",
+      "repository": "MicrosoftDocs/quantum-docs",
+      "license": "CC-BY-4.0; code examples MIT"
+    },
+    {
+      "file": "qsharp-lang-expr-index.md",
+      "url": "https://raw.githubusercontent.com/MicrosoftDocs/quantum-docs/bdf5d69c09b37b5446e86fda32f060e6beec864c/articles/user-guide/language/Expressions/index.md",
+      "sha256": "9b60cef02a4132d28ca4f9c95ee1434594d75ef3bb88756c88eb0958bd31729a",
+      "revision": "bdf5d69c09b37b5446e86fda32f060e6beec864c",
+      "repository": "MicrosoftDocs/quantum-docs",
+      "license": "CC-BY-4.0; code examples MIT"
+    },
+    {
+      "file": "qsharp-lang-expr-arithmetic.md",
+      "url": "https://raw.githubusercontent.com/MicrosoftDocs/quantum-docs/bdf5d69c09b37b5446e86fda32f060e6beec864c/articles/user-guide/language/Expressions/arithmeticexpressions.md",
+      "sha256": "0c69182a9ea27244213a6d01e58bebb8239616554e1cea9456779cdabf61a8d1",
+      "revision": "bdf5d69c09b37b5446e86fda32f060e6beec864c",
+      "repository": "MicrosoftDocs/quantum-docs",
+      "license": "CC-BY-4.0; code examples MIT"
+    },
+    {
+      "file": "qsharp-lang-expr-bitwise.md",
+      "url": "https://raw.githubusercontent.com/MicrosoftDocs/quantum-docs/bdf5d69c09b37b5446e86fda32f060e6beec864c/articles/user-guide/language/Expressions/bitwiseexpressions.md",
+      "sha256": "ca0f11f34963993c01b2a82bb09d603c13d978c62e69443020ce825cb5d2c374",
+      "revision": "bdf5d69c09b37b5446e86fda32f060e6beec864c",
+      "repository": "MicrosoftDocs/quantum-docs",
+      "license": "CC-BY-4.0; code examples MIT"
+    },
+    {
+      "file": "qsharp-lang-expr-calls.md",
+      "url": "https://raw.githubusercontent.com/MicrosoftDocs/quantum-docs/bdf5d69c09b37b5446e86fda32f060e6beec864c/articles/user-guide/language/Expressions/callstatements.md",
+      "sha256": "cc8c27370cebe2523dac6dee261454f429adf079a8eb8f2f7ddbb66bcc36bb73",
+      "revision": "bdf5d69c09b37b5446e86fda32f060e6beec864c",
+      "repository": "MicrosoftDocs/quantum-docs",
+      "license": "CC-BY-4.0; code examples MIT"
+    },
+    {
+      "file": "qsharp-lang-expr-closures.md",
+      "url": "https://raw.githubusercontent.com/MicrosoftDocs/quantum-docs/bdf5d69c09b37b5446e86fda32f060e6beec864c/articles/user-guide/language/Expressions/closures.md",
+      "sha256": "110aef6b6f1ba1fd37e5068a55b674fd2bb8d4484398a25fe0f800ceb7041327",
+      "revision": "bdf5d69c09b37b5446e86fda32f060e6beec864c",
+      "repository": "MicrosoftDocs/quantum-docs",
+      "license": "CC-BY-4.0; code examples MIT"
+    },
+    {
+      "file": "qsharp-lang-expr-comparative.md",
+      "url": "https://raw.githubusercontent.com/MicrosoftDocs/quantum-docs/bdf5d69c09b37b5446e86fda32f060e6beec864c/articles/user-guide/language/Expressions/comparativeexpressions.md",
+      "sha256": "9829799a807dbd54996fa30d29747756602b1106185cc3a8e285a1761eca50cd",
+      "revision": "bdf5d69c09b37b5446e86fda32f060e6beec864c",
+      "repository": "MicrosoftDocs/quantum-docs",
+      "license": "CC-BY-4.0; code examples MIT"
+    },
+    {
+      "file": "qsharp-lang-expr-concat.md",
+      "url": "https://raw.githubusercontent.com/MicrosoftDocs/quantum-docs/bdf5d69c09b37b5446e86fda32f060e6beec864c/articles/user-guide/language/Expressions/concatenation.md",
+      "sha256": "459235d0a08316bc4921e3b7be708a5d9699b14cacfdde33974b894dd7eab6db",
+      "revision": "bdf5d69c09b37b5446e86fda32f060e6beec864c",
+      "repository": "MicrosoftDocs/quantum-docs",
+      "license": "CC-BY-4.0; code examples MIT"
+    },
+    {
+      "file": "qsharp-lang-expr-branching.md",
+      "url": "https://raw.githubusercontent.com/MicrosoftDocs/quantum-docs/bdf5d69c09b37b5446e86fda32f060e6beec864c/articles/user-guide/language/Expressions/conditionalbranching.md",
+      "sha256": "653f0548e2eb77e32d9928be852f33d7add32e74e3f605df2acd539b75b34565",
+      "revision": "bdf5d69c09b37b5446e86fda32f060e6beec864c",
+      "repository": "MicrosoftDocs/quantum-docs",
+      "license": "CC-BY-4.0; code examples MIT"
+    },
+    {
+      "file": "qsharp-lang-expr-cond.md",
+      "url": "https://raw.githubusercontent.com/MicrosoftDocs/quantum-docs/bdf5d69c09b37b5446e86fda32f060e6beec864c/articles/user-guide/language/Expressions/conditionalexpressions.md",
+      "sha256": "fc65365b014f041a2174ef632b28edb961caa07e8c0f999cf21d0086c62168eb",
+      "revision": "bdf5d69c09b37b5446e86fda32f060e6beec864c",
+      "repository": "MicrosoftDocs/quantum-docs",
+      "license": "CC-BY-4.0; code examples MIT"
+    },
+    {
+      "file": "qsharp-lang-expr-condloops.md",
+      "url": "https://raw.githubusercontent.com/MicrosoftDocs/quantum-docs/bdf5d69c09b37b5446e86fda32f060e6beec864c/articles/user-guide/language/Expressions/conditionalloops.md",
+      "sha256": "0b14f8e9c18de73c7f3b822b52750fde3a0e4f4692dab3c265d9fb7285f8c2cb",
+      "revision": "bdf5d69c09b37b5446e86fda32f060e6beec864c",
+      "repository": "MicrosoftDocs/quantum-docs",
+      "license": "CC-BY-4.0; code examples MIT"
+    },
+    {
+      "file": "qsharp-lang-expr-conjugations.md",
+      "url": "https://raw.githubusercontent.com/MicrosoftDocs/quantum-docs/bdf5d69c09b37b5446e86fda32f060e6beec864c/articles/user-guide/language/Expressions/conjugations.md",
+      "sha256": "aaef9487fbb593e373af2721184648f2db3dac5525bb35e111ba8826d330eb37",
+      "revision": "bdf5d69c09b37b5446e86fda32f060e6beec864c",
+      "repository": "MicrosoftDocs/quantum-docs",
+      "license": "CC-BY-4.0; code examples MIT"
+    },
+    {
+      "file": "qsharp-lang-expr-contextual.md",
+      "url": "https://raw.githubusercontent.com/MicrosoftDocs/quantum-docs/bdf5d69c09b37b5446e86fda32f060e6beec864c/articles/user-guide/language/Expressions/contextualexpressions.md",
+      "sha256": "c5bdeba4b41b655793cc293c553aeac174d404649fdd003e2f0a9cc32a5fc493",
+      "revision": "bdf5d69c09b37b5446e86fda32f060e6beec864c",
+      "repository": "MicrosoftDocs/quantum-docs",
+      "license": "CC-BY-4.0; code examples MIT"
+    },
+    {
+      "file": "qsharp-lang-expr-copyupdate.md",
+      "url": "https://raw.githubusercontent.com/MicrosoftDocs/quantum-docs/bdf5d69c09b37b5446e86fda32f060e6beec864c/articles/user-guide/language/Expressions/copyandupdateexpressions.md",
+      "sha256": "728a2734d873409f43875d483a75e5c165657068e8e59d990216c654444009c1",
+      "revision": "bdf5d69c09b37b5446e86fda32f060e6beec864c",
+      "repository": "MicrosoftDocs/quantum-docs",
+      "license": "CC-BY-4.0; code examples MIT"
+    },
+    {
+      "file": "qsharp-lang-expr-functors.md",
+      "url": "https://raw.githubusercontent.com/MicrosoftDocs/quantum-docs/bdf5d69c09b37b5446e86fda32f060e6beec864c/articles/user-guide/language/Expressions/functorapplication.md",
+      "sha256": "fdb69ff00fdac33e2629a85cde89e920190e55ac688c14859306692e884b830e",
+      "revision": "bdf5d69c09b37b5446e86fda32f060e6beec864c",
+      "repository": "MicrosoftDocs/quantum-docs",
+      "license": "CC-BY-4.0; code examples MIT"
+    },
+    {
+      "file": "qsharp-lang-expr-itemaccess.md",
+      "url": "https://raw.githubusercontent.com/MicrosoftDocs/quantum-docs/bdf5d69c09b37b5446e86fda32f060e6beec864c/articles/user-guide/language/Expressions/itemaccessexpressions.md",
+      "sha256": "d8839372a1c7fe231a1a608358268f984f13180d2c18062d5cafa083c27689b0",
+      "revision": "bdf5d69c09b37b5446e86fda32f060e6beec864c",
+      "repository": "MicrosoftDocs/quantum-docs",
+      "license": "CC-BY-4.0; code examples MIT"
+    },
+    {
+      "file": "qsharp-lang-expr-iterations.md",
+      "url": "https://raw.githubusercontent.com/MicrosoftDocs/quantum-docs/bdf5d69c09b37b5446e86fda32f060e6beec864c/articles/user-guide/language/Expressions/iterations.md",
+      "sha256": "2db1c63c8bfa7f475a9e743633a232b5f08b1a0893c84e2b024cb58cf6e252b1",
+      "revision": "bdf5d69c09b37b5446e86fda32f060e6beec864c",
+      "repository": "MicrosoftDocs/quantum-docs",
+      "license": "CC-BY-4.0; code examples MIT"
+    },
+    {
+      "file": "qsharp-lang-expr-logical.md",
+      "url": "https://raw.githubusercontent.com/MicrosoftDocs/quantum-docs/bdf5d69c09b37b5446e86fda32f060e6beec864c/articles/user-guide/language/Expressions/logicalexpressions.md",
+      "sha256": "fa59a5cfca74a33c3c8df4c938a78a0c50f01b01335642385095865c0aed004f",
+      "revision": "bdf5d69c09b37b5446e86fda32f060e6beec864c",
+      "repository": "MicrosoftDocs/quantum-docs",
+      "license": "CC-BY-4.0; code examples MIT"
+    },
+    {
+      "file": "qsharp-lang-expr-precedence.md",
+      "url": "https://raw.githubusercontent.com/MicrosoftDocs/quantum-docs/bdf5d69c09b37b5446e86fda32f060e6beec864c/articles/user-guide/language/Expressions/precedenceandassociativity.md",
+      "sha256": "6ff81f5e74a726fdf657c93e7f783acbddcd7efe7d3b48a3a20209f0162edca2",
+      "revision": "bdf5d69c09b37b5446e86fda32f060e6beec864c",
+      "repository": "MicrosoftDocs/quantum-docs",
+      "license": "CC-BY-4.0; code examples MIT"
+    },
+    {
+      "file": "qsharp-lang-expr-returns.md",
+      "url": "https://raw.githubusercontent.com/MicrosoftDocs/quantum-docs/bdf5d69c09b37b5446e86fda32f060e6beec864c/articles/user-guide/language/Expressions/returnsandtermination.md",
+      "sha256": "acca841fd2c2d916a32375ae2ac1505fb67bf5b3d79ac78938fff64e9eb589cb",
+      "revision": "bdf5d69c09b37b5446e86fda32f060e6beec864c",
+      "repository": "MicrosoftDocs/quantum-docs",
+      "license": "CC-BY-4.0; code examples MIT"
+    },
+    {
+      "file": "qsharp-lang-expr-literals.md",
+      "url": "https://raw.githubusercontent.com/MicrosoftDocs/quantum-docs/bdf5d69c09b37b5446e86fda32f060e6beec864c/articles/user-guide/language/Expressions/valueliterals.md",
+      "sha256": "8223c1370fef2434a1666d3f42c73773446c3f94a0b06528e186348f467bec7d",
+      "revision": "bdf5d69c09b37b5446e86fda32f060e6beec864c",
+      "repository": "MicrosoftDocs/quantum-docs",
+      "license": "CC-BY-4.0; code examples MIT"
+    },
+    {
+      "file": "qsharp-spec-manifest.rs",
+      "url": "https://raw.githubusercontent.com/microsoft/qsharp/0e58afc2fbb3fb8db806412b045acc0c675f8ce3/source/compiler/qsc_project/src/manifest.rs",
+      "sha256": "fd50ee41f0dea9b6068dcede0656874d5ceeba3034bc5df174e86afb613f13a5",
+      "revision": "0e58afc2fbb3fb8db806412b045acc0c675f8ce3",
+      "repository": "microsoft/qsharp",
+      "license": "MIT"
+    },
+    {
+      "file": "qsharp-spec-lints-ast.rs",
+      "url": "https://raw.githubusercontent.com/microsoft/qsharp/0e58afc2fbb3fb8db806412b045acc0c675f8ce3/source/compiler/qsc_linter/src/lints/ast.rs",
+      "sha256": "e3d107bad1228e42b278c3c2da74469846c773709a28f9be2f41702ddca692fd",
+      "revision": "0e58afc2fbb3fb8db806412b045acc0c675f8ce3",
+      "repository": "microsoft/qsharp",
+      "license": "MIT"
+    },
+    {
+      "file": "qsharp-spec-lints-hir.rs",
+      "url": "https://raw.githubusercontent.com/microsoft/qsharp/0e58afc2fbb3fb8db806412b045acc0c675f8ce3/source/compiler/qsc_linter/src/lints/hir.rs",
+      "sha256": "a0f4151b7429d0e8c6a72aea35ec9ac9381310486688e3e8a583a2cb62bf401f",
+      "revision": "0e58afc2fbb3fb8db806412b045acc0c675f8ce3",
+      "repository": "microsoft/qsharp",
+      "license": "MIT"
+    },
+    {
+      "file": "qsharp-spec-lint-groups.rs",
+      "url": "https://raw.githubusercontent.com/microsoft/qsharp/0e58afc2fbb3fb8db806412b045acc0c675f8ce3/source/compiler/qsc_linter/src/lint_groups.rs",
+      "sha256": "8435cfdcc20eea6a3fbac78cc1688e54091448f88eb54eb90edd45b99a4629ee",
+      "revision": "0e58afc2fbb3fb8db806412b045acc0c675f8ce3",
+      "repository": "microsoft/qsharp",
+      "license": "MIT"
+    },
+    {
+      "file": "qsharp-spec-test-utils.py",
+      "url": "https://raw.githubusercontent.com/microsoft/qsharp/0e58afc2fbb3fb8db806412b045acc0c675f8ce3/source/qdk_package/qdk/test_utils.py",
+      "sha256": "73ef8937235666439489776a964500a93bbb364777a453b0dc14ef061328e1a9",
+      "revision": "0e58afc2fbb3fb8db806412b045acc0c675f8ce3",
+      "repository": "microsoft/qsharp",
+      "license": "MIT"
+    },
+    {
+      "file": "qsharp-spec-telemetry.py",
+      "url": "https://raw.githubusercontent.com/microsoft/qsharp/0e58afc2fbb3fb8db806412b045acc0c675f8ce3/source/qdk_package/qdk/telemetry.py",
+      "sha256": "7849128d7ca460790e7194b9edb302c2665dc4336811bb667caff190ecf9d9ed",
+      "revision": "0e58afc2fbb3fb8db806412b045acc0c675f8ce3",
+      "repository": "microsoft/qsharp",
+      "license": "MIT"
+    },
+    {
+      "file": "qsharp-spec-vscode-package.json",
+      "url": "https://raw.githubusercontent.com/microsoft/qsharp/0e58afc2fbb3fb8db806412b045acc0c675f8ce3/source/vscode/package.json",
+      "sha256": "4eef3f8172c785a45ab280da2a335201bc6be448b542824321e8ea7282b10663",
+      "revision": "0e58afc2fbb3fb8db806412b045acc0c675f8ce3",
+      "repository": "microsoft/qsharp",
+      "license": "MIT"
+    },
+    {
+      "file": "QSHARP-MIT-LICENSE.txt",
+      "url": "https://raw.githubusercontent.com/microsoft/qsharp/0e58afc2fbb3fb8db806412b045acc0c675f8ce3/LICENSE.txt",
+      "sha256": "c2cfccb812fe482101a8f04597dfc5a9991a6b2748266c47ac91b6a5aae15383",
+      "revision": "0e58afc2fbb3fb8db806412b045acc0c675f8ce3",
+      "repository": "microsoft/qsharp",
+      "license": "MIT"
+    },
+    {
+      "file": "latex-usrguide.tex",
+      "url": "https://raw.githubusercontent.com/latex3/latex2e/0919db37a88f89e6af3809f8d3aeac198b0cdf2b/base/doc/usrguide.tex",
+      "sha256": "8cee073ee9c78e36f302145e4f527cf9ab233e3458432bc0bede8b10eff60360",
+      "revision": "0919db37a88f89e6af3809f8d3aeac198b0cdf2b",
+      "repository": "latex3/latex2e",
+      "license": "LPPL-1.3c"
+    },
+    {
+      "file": "latex-usrguide-historic.tex",
+      "url": "https://raw.githubusercontent.com/latex3/latex2e/0919db37a88f89e6af3809f8d3aeac198b0cdf2b/base/doc/usrguide-historic.tex",
+      "sha256": "29016a0f4f9fce8ccf20241211cb449d0b7276c2a4383533bb30c4c379053794",
+      "revision": "0919db37a88f89e6af3809f8d3aeac198b0cdf2b",
+      "repository": "latex3/latex2e",
+      "license": "LPPL-1.3c"
+    },
+    {
+      "file": "latex-fntguide.tex",
+      "url": "https://raw.githubusercontent.com/latex3/latex2e/0919db37a88f89e6af3809f8d3aeac198b0cdf2b/base/doc/fntguide.tex",
+      "sha256": "9c21a7f2416e238f745216a1454f5245d004453c45c0bbdf8b2b2e5d3e121740",
+      "revision": "0919db37a88f89e6af3809f8d3aeac198b0cdf2b",
+      "repository": "latex3/latex2e",
+      "license": "LPPL-1.3c"
+    },
+    {
+      "file": "latex-encguide.tex",
+      "url": "https://raw.githubusercontent.com/latex3/latex2e/0919db37a88f89e6af3809f8d3aeac198b0cdf2b/base/doc/encguide.tex",
+      "sha256": "514ebf9ce8d63fbac91fb19342d95eda05b9e4b77aaebbad50a830a099bfb5b8",
+      "revision": "0919db37a88f89e6af3809f8d3aeac198b0cdf2b",
+      "repository": "latex3/latex2e",
+      "license": "LPPL-1.3c"
+    },
+    {
+      "file": "latex-clsguide.tex",
+      "url": "https://raw.githubusercontent.com/latex3/latex2e/0919db37a88f89e6af3809f8d3aeac198b0cdf2b/base/doc/clsguide.tex",
+      "sha256": "a24d5d030f59222f20968a12605a3cd86a6e9ce2d28a5461e7e7d8e9f47b54be",
+      "revision": "0919db37a88f89e6af3809f8d3aeac198b0cdf2b",
+      "repository": "latex3/latex2e",
+      "license": "LPPL-1.3c"
+    },
+    {
+      "file": "latex-amsldoc.tex",
+      "url": "https://raw.githubusercontent.com/latex3/latex2e/0919db37a88f89e6af3809f8d3aeac198b0cdf2b/required/amsmath/amsldoc.tex",
+      "sha256": "c842a86ff194288d430697d7f501fcfece2da263ff9b66c8d32c752a8724e142",
+      "revision": "0919db37a88f89e6af3809f8d3aeac198b0cdf2b",
+      "repository": "latex3/latex2e",
+      "license": "LPPL-1.3c"
+    },
+    {
+      "file": "LATEX-2E-LICENSE.txt",
+      "url": "https://raw.githubusercontent.com/latex3/latex2e/0919db37a88f89e6af3809f8d3aeac198b0cdf2b/base/lppl.txt",
+      "sha256": "ca3227f672053cb608959d7e1d476c7a13efea11be3f6e53758a68b650c918e8",
+      "revision": "0919db37a88f89e6af3809f8d3aeac198b0cdf2b",
+      "repository": "latex3/latex2e",
+      "license": "LPPL-1.3c"
+    },
+    {
+      "file": "latex-mathtools.dtx",
+      "url": "https://raw.githubusercontent.com/latex3/mathtools/f5e89ededb560bddf257c3d0496f8b0fd9173706/mathtools.dtx",
+      "sha256": "f0a3dde01a72d5a0b34810f87704bce7ea34cd5d8ebedac5928da6b88e292cbc",
+      "revision": "f5e89ededb560bddf257c3d0496f8b0fd9173706",
+      "repository": "latex3/mathtools",
+      "license": "LPPL-1.3c"
+    },
+    {
+      "file": "LATEX-MATHTOOLS-LICENSE.txt",
+      "url": "https://raw.githubusercontent.com/latex3/mathtools/f5e89ededb560bddf257c3d0496f8b0fd9173706/LICENSE",
+      "sha256": "a4447cd61aeeae5dcde62e44fcd5c8c74682056b3f2f423352047597392f5818",
+      "revision": "f5e89ededb560bddf257c3d0496f8b0fd9173706",
+      "repository": "latex3/mathtools",
+      "license": "LPPL-1.3c"
+    },
+    {
+      "file": "latex-hyperref-doc.tex",
+      "url": "https://raw.githubusercontent.com/latex3/hyperref/2b042a8b8c3463b95b385a52e8925c0c4787af7d/doc/hyperref-doc.tex",
+      "sha256": "2c409a0ca638b51d2b60f4c58594c36bd089b9963fc1328bd79bd24ae39f71aa",
+      "revision": "2b042a8b8c3463b95b385a52e8925c0c4787af7d",
+      "repository": "latex3/hyperref",
+      "license": "LPPL-1.3c"
+    },
+    {
+      "file": "latex-hyperref-readme.md",
+      "url": "https://raw.githubusercontent.com/latex3/hyperref/2b042a8b8c3463b95b385a52e8925c0c4787af7d/README.md",
+      "sha256": "a0347e15f798ed60dbd20a41e574212a7b28d2ea387cc041b8202acf58c9d315",
+      "revision": "2b042a8b8c3463b95b385a52e8925c0c4787af7d",
+      "repository": "latex3/hyperref",
+      "license": "LPPL-1.3c"
+    },
+    {
+      "file": "latex-l2tabuen.tex",
+      "url": "https://raw.githubusercontent.com/schneeschmelze/l2tabu-english/048dc531516ed1a5762e717911d0a35d329b8977/l2tabuen.tex",
+      "sha256": "9708e05809daa7ae5be1b1d8c9dc5fe8a7dc62e0ffef0e51ddb209f94b2c5e44",
+      "revision": "048dc531516ed1a5762e717911d0a35d329b8977",
+      "repository": "schneeschmelze/l2tabu-english",
+      "license": "GFDL-1.2-or-later (embedded)"
+    },
+    {
+      "file": "latex-l2tabuen-readme.md",
+      "url": "https://raw.githubusercontent.com/schneeschmelze/l2tabu-english/048dc531516ed1a5762e717911d0a35d329b8977/README.md",
+      "sha256": "c0f1fd6733d4ffc0113e5dd4845d76504976898b460d47d35e347fac727f01df",
+      "revision": "048dc531516ed1a5762e717911d0a35d329b8977",
+      "repository": "schneeschmelze/l2tabu-english",
+      "license": "GFDL-1.2-or-later (see l2tabuen.tex)"
+    },
+    {
+      "file": "latex-nag.dtx",
+      "url": "https://mirrors.ctan.org/macros/latex/contrib/nag/nag.dtx",
+      "sha256": "0372eb273326aef636fef5957c88d34cc7daa11c3bf857861a84060a44135313",
+      "revision": "0.7 (2011-11-25)",
+      "repository": "CTAN nag",
+      "license": "LPPL-1.3a-or-later"
+    },
+    {
+      "file": "latex-nag-readme.txt",
+      "url": "https://mirrors.ctan.org/macros/latex/contrib/nag/README",
+      "sha256": "9e19f15d14f64970d3998b16ed27d0989bb4025203bb5bf42e305cb7586c2a0f",
+      "revision": "0.7 (2011-11-25)",
+      "repository": "CTAN nag",
+      "license": "LPPL-1.3a-or-later"
+    },
+    {
+      "file": "latex-darkmode.dtx",
+      "url": "https://raw.githubusercontent.com/Rdeisenroth/darkmode-latex-package/6c3329da2f113913d59e6e255aff6f158a36d4e2/darkmode.dtx",
+      "sha256": "d819c3fe4c70d45ffa0357faf77b6a9c7e872bd0e1d384f6212e48e4a95cf354",
+      "revision": "6c3329da2f113913d59e6e255aff6f158a36d4e2",
+      "repository": "Rdeisenroth/darkmode-latex-package",
+      "license": "LPPL-1.3c"
+    },
+    {
+      "file": "latex-darkmode-readme.md",
+      "url": "https://raw.githubusercontent.com/Rdeisenroth/darkmode-latex-package/6c3329da2f113913d59e6e255aff6f158a36d4e2/README.md",
+      "sha256": "a9f128e4a10a7763a701878d80da0e61397399f44932c75c633685884341b461",
+      "revision": "6c3329da2f113913d59e6e255aff6f158a36d4e2",
+      "repository": "Rdeisenroth/darkmode-latex-package",
+      "license": "LPPL-1.3c"
+    },
+    {
+      "file": "LATEX-DARKMODE-LICENSE.txt",
+      "url": "https://raw.githubusercontent.com/Rdeisenroth/darkmode-latex-package/6c3329da2f113913d59e6e255aff6f158a36d4e2/COPYING",
+      "sha256": "5f05fcf6ef25a6c31bccd2df7c0c46b23107bbeb2ce5cdba74efb5cc357f4dbb",
+      "revision": "6c3329da2f113913d59e6e255aff6f158a36d4e2",
+      "repository": "Rdeisenroth/darkmode-latex-package",
+      "license": "LPPL-1.3c"
+    },
+    {
+      "file": "latex-chktex-manual.tex",
+      "url": "https://raw.githubusercontent.com/overleaf/chktex/c9bd5e8cc2c6b7480368f3349ec547abf9ead196/ChkTeX.tex.in",
+      "sha256": "87369c9902f5a746c3dc34e22202821b0378c7f1a93ed66b44a72c8471ab7802",
+      "revision": "c9bd5e8cc2c6b7480368f3349ec547abf9ead196",
+      "repository": "overleaf/chktex",
+      "license": "GPL-2.0"
+    },
+    {
+      "file": "latex-chktexrc",
+      "url": "https://raw.githubusercontent.com/overleaf/chktex/c9bd5e8cc2c6b7480368f3349ec547abf9ead196/chktexrc",
+      "sha256": "d86c373f1c5ce7600770cbcf0f6fbd7ba533861b32590e5e643594c8d0d10591",
+      "revision": "c9bd5e8cc2c6b7480368f3349ec547abf9ead196",
+      "repository": "overleaf/chktex",
+      "license": "GPL-2.0"
+    },
+    {
+      "file": "LATEX-CHKTEX-LICENSE.txt",
+      "url": "https://raw.githubusercontent.com/overleaf/chktex/c9bd5e8cc2c6b7480368f3349ec547abf9ead196/COPYING",
+      "sha256": "316575c47f5b498f57adb93b1e5f8426b0d5b3e36f61b98412d80f4d54070606",
+      "revision": "c9bd5e8cc2c6b7480368f3349ec547abf9ead196",
+      "repository": "overleaf/chktex",
+      "license": "GPL-2.0"
+    },
+    {
+      "file": "latex-workshop-package.json",
+      "url": "https://raw.githubusercontent.com/James-Yu/LaTeX-Workshop/5b5da4f44ba18a5d37108b05f53677b881cc470c/package.json",
+      "sha256": "3abb77485a68fdf4df6313e6dcc46d872c14a7be2948056886adf92a61ab1913",
+      "revision": "5b5da4f44ba18a5d37108b05f53677b881cc470c",
+      "repository": "James-Yu/LaTeX-Workshop",
+      "license": "MIT"
+    },
+    {
+      "file": "latex-workshop-chktex.ts",
+      "url": "https://raw.githubusercontent.com/James-Yu/LaTeX-Workshop/5b5da4f44ba18a5d37108b05f53677b881cc470c/src/lint/latex-linter/chktex.ts",
+      "sha256": "767391aa905b76df977a6643919f59cc9429cb48fa80756dea9786688a244849",
+      "revision": "5b5da4f44ba18a5d37108b05f53677b881cc470c",
+      "repository": "James-Yu/LaTeX-Workshop",
+      "license": "MIT"
+    },
+    {
+      "file": "latex-workshop-lacheck.ts",
+      "url": "https://raw.githubusercontent.com/James-Yu/LaTeX-Workshop/5b5da4f44ba18a5d37108b05f53677b881cc470c/src/lint/latex-linter/lacheck.ts",
+      "sha256": "8e68ba484fc901ea7645131f2f713614e62e9e7c42be2169c8f6db495d7d23c6",
+      "revision": "5b5da4f44ba18a5d37108b05f53677b881cc470c",
+      "repository": "James-Yu/LaTeX-Workshop",
+      "license": "MIT"
+    },
+    {
+      "file": "latex-workshop-latexindent.ts",
+      "url": "https://raw.githubusercontent.com/James-Yu/LaTeX-Workshop/5b5da4f44ba18a5d37108b05f53677b881cc470c/src/lint/latex-formatter/latexindent.ts",
+      "sha256": "4bd931e58d38f577f75101c21b738ac1a90e10ec0a055cd8b8848dd70d47c4ee",
+      "revision": "5b5da4f44ba18a5d37108b05f53677b881cc470c",
+      "repository": "James-Yu/LaTeX-Workshop",
+      "license": "MIT"
+    },
+    {
+      "file": "LATEX-WORKSHOP-LICENSE.txt",
+      "url": "https://raw.githubusercontent.com/James-Yu/LaTeX-Workshop/5b5da4f44ba18a5d37108b05f53677b881cc470c/LICENSE.txt",
+      "sha256": "bdebc28d62b29a9c67936d359e7f397c50bb4c622483d01b6cad71cbbb0655ac",
+      "revision": "5b5da4f44ba18a5d37108b05f53677b881cc470c",
+      "repository": "James-Yu/LaTeX-Workshop",
+      "license": "MIT"
+    },
+    {
+      "file": "LEAN-COMMUNITY-LICENSE.txt",
+      "url": "https://raw.githubusercontent.com/leanprover-community/mathlib-landing/03622231b1fc978e731997be71a56cac0ae2598a/LICENSE",
+      "sha256": "f14dafe0cdfcb0ec91467558ff9f8375b66f30c026aee9888fa06f05390d6810",
+      "revision": "03622231b1fc978e731997be71a56cac0ae2598a",
+      "repository": "leanprover-community/mathlib-landing",
+      "license": "MIT"
+    },
+    {
+      "file": "LEAN-MATHLIB-LICENSE.txt",
+      "url": "https://raw.githubusercontent.com/leanprover-community/mathlib4/fc4f59e577feb1a4956671bc04ac18aaaf8cd842/LICENSE",
+      "sha256": "b40930bbcf80744c86c46a12bc9da056641d722716c378f5659b9e555ef833e1",
+      "revision": "fc4f59e577feb1a4956671bc04ac18aaaf8cd842",
+      "repository": "leanprover-community/mathlib4",
+      "license": "Apache-2.0"
+    },
+    {
+      "file": "LEAN-BATTERIES-LICENSE.txt",
+      "url": "https://raw.githubusercontent.com/leanprover-community/batteries/b4b25a3886a16daacaf6615c2eea7170a6e8f458/LICENSE",
+      "sha256": "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4",
+      "revision": "b4b25a3886a16daacaf6615c2eea7170a6e8f458",
+      "repository": "leanprover-community/batteries",
+      "license": "Apache-2.0"
+    },
+    {
+      "file": "LEAN-CORE-LICENSE.txt",
+      "url": "https://raw.githubusercontent.com/leanprover/lean4/611c117bfaf7b7ae1cfcf246ce6fba31e8f509e9/LICENSE",
+      "sha256": "8b28515ffffc5c0fe2807d8ae3735b00b324d9b7ce807dd63ff6ac8922fbce7e",
+      "revision": "611c117bfaf7b7ae1cfcf246ce6fba31e8f509e9",
+      "repository": "leanprover/lean4",
+      "license": "Apache-2.0"
+    },
+    {
+      "file": "LEAN-VSCODE-LICENSE.txt",
+      "url": "https://raw.githubusercontent.com/leanprover/vscode-lean4/b164f8c7186de42ae5215406c63fdbe48310f91c/LICENSE",
+      "sha256": "69849221bfb90053de2134ef5e6d540287b4b98062326492f1f96f5da685524b",
+      "revision": "b164f8c7186de42ae5215406c63fdbe48310f91c",
+      "repository": "leanprover/vscode-lean4",
+      "license": "Apache-2.0"
+    },
+    {
+      "file": "lean-community-style.md",
+      "url": "https://raw.githubusercontent.com/leanprover-community/mathlib-landing/03622231b1fc978e731997be71a56cac0ae2598a/community/templates/contribute/style.md",
+      "sha256": "c2c62003c4703bdcd7e3a08d94264287b73d82ccef6c372fe657bc52e988e32b",
+      "revision": "03622231b1fc978e731997be71a56cac0ae2598a",
+      "repository": "leanprover-community/mathlib-landing",
+      "license": "MIT"
+    },
+    {
+      "file": "lean-community-naming.md",
+      "url": "https://raw.githubusercontent.com/leanprover-community/mathlib-landing/03622231b1fc978e731997be71a56cac0ae2598a/community/templates/contribute/naming.md",
+      "sha256": "049c4fa0bad8ddd8759acc8a889b668da2e5153425014d2fb3113fc90492956f",
+      "revision": "03622231b1fc978e731997be71a56cac0ae2598a",
+      "repository": "leanprover-community/mathlib-landing",
+      "license": "MIT"
+    },
+    {
+      "file": "lean-community-doc.md",
+      "url": "https://raw.githubusercontent.com/leanprover-community/mathlib-landing/03622231b1fc978e731997be71a56cac0ae2598a/community/templates/contribute/doc.md",
+      "sha256": "75dbeaab52b173a6641a749e430b051bd82557fd319e04b746f4f7990a105f9a",
+      "revision": "03622231b1fc978e731997be71a56cac0ae2598a",
+      "repository": "leanprover-community/mathlib-landing",
+      "license": "MIT"
+    },
+    {
+      "file": "lean-community-index.md",
+      "url": "https://raw.githubusercontent.com/leanprover-community/mathlib-landing/03622231b1fc978e731997be71a56cac0ae2598a/community/templates/contribute/index.md",
+      "sha256": "593f588c4dd149d5eb8a4290396d7814e73e9525ca903df73cae5f46cad29c71",
+      "revision": "03622231b1fc978e731997be71a56cac0ae2598a",
+      "repository": "leanprover-community/mathlib-landing",
+      "license": "MIT"
+    },
+    {
+      "file": "lean-mathlib-Init.lean",
+      "url": "https://raw.githubusercontent.com/leanprover-community/mathlib4/fc4f59e577feb1a4956671bc04ac18aaaf8cd842/Mathlib/Init.lean",
+      "sha256": "17cff69e7ca7cc5add798835245b7aa0f5d32d745f183211c892857c2ad6562d",
+      "revision": "fc4f59e577feb1a4956671bc04ac18aaaf8cd842",
+      "repository": "leanprover-community/mathlib4",
+      "license": "Apache-2.0"
+    },
+    {
+      "file": "lean-mathlib-lakefile.lean",
+      "url": "https://raw.githubusercontent.com/leanprover-community/mathlib4/fc4f59e577feb1a4956671bc04ac18aaaf8cd842/lakefile.lean",
+      "sha256": "222c2981acc174ebead9bb83ce4b4dcb5f1f7089e4e67d2837c7266ff364ecd0",
+      "revision": "fc4f59e577feb1a4956671bc04ac18aaaf8cd842",
+      "repository": "leanprover-community/mathlib4",
+      "license": "Apache-2.0"
+    },
+    {
+      "file": "lean-mathlib-linter-Style.lean",
+      "url": "https://raw.githubusercontent.com/leanprover-community/mathlib4/fc4f59e577feb1a4956671bc04ac18aaaf8cd842/Mathlib/Tactic/Linter/Style.lean",
+      "sha256": "f59c736cb6093522d9a21506c4b5c0c0ea24e813f72e690d6a4df984c9adfd9b",
+      "revision": "fc4f59e577feb1a4956671bc04ac18aaaf8cd842",
+      "repository": "leanprover-community/mathlib4",
+      "license": "Apache-2.0"
+    },
+    {
+      "file": "lean-mathlib-linter-Whitespace.lean",
+      "url": "https://raw.githubusercontent.com/leanprover-community/mathlib4/fc4f59e577feb1a4956671bc04ac18aaaf8cd842/Mathlib/Tactic/Linter/Whitespace.lean",
+      "sha256": "9ae7f0df86ac06441266f17ad85baff61f23fe5d7a5716b1f7aa7bab1ab7393b",
+      "revision": "fc4f59e577feb1a4956671bc04ac18aaaf8cd842",
+      "repository": "leanprover-community/mathlib4",
+      "license": "Apache-2.0"
+    },
+    {
+      "file": "lean-mathlib-linter-EmptyLine.lean",
+      "url": "https://raw.githubusercontent.com/leanprover-community/mathlib4/fc4f59e577feb1a4956671bc04ac18aaaf8cd842/Mathlib/Tactic/Linter/EmptyLine.lean",
+      "sha256": "1844758fef79bb757e6939a3050d08b00f12f05deeb7e279c6c86a37ce9fc1a1",
+      "revision": "fc4f59e577feb1a4956671bc04ac18aaaf8cd842",
+      "repository": "leanprover-community/mathlib4",
+      "license": "Apache-2.0"
+    },
+    {
+      "file": "lean-mathlib-linter-Header.lean",
+      "url": "https://raw.githubusercontent.com/leanprover-community/mathlib4/fc4f59e577feb1a4956671bc04ac18aaaf8cd842/Mathlib/Tactic/Linter/Header.lean",
+      "sha256": "505f9c490d5713ded38cfa7aafed3147685010bcf1e25dbf54eaff79437fb29d",
+      "revision": "fc4f59e577feb1a4956671bc04ac18aaaf8cd842",
+      "repository": "leanprover-community/mathlib4",
+      "license": "Apache-2.0"
+    },
+    {
+      "file": "lean-mathlib-linter-DocString.lean",
+      "url": "https://raw.githubusercontent.com/leanprover-community/mathlib4/fc4f59e577feb1a4956671bc04ac18aaaf8cd842/Mathlib/Tactic/Linter/DocString.lean",
+      "sha256": "04ce3fc1d02a9003d38eccc9155defda5cc7e88bd4af85edd1ffccc3c6ca4b18",
+      "revision": "fc4f59e577feb1a4956671bc04ac18aaaf8cd842",
+      "repository": "leanprover-community/mathlib4",
+      "license": "Apache-2.0"
+    },
+    {
+      "file": "lean-mathlib-linter-DocPrime.lean",
+      "url": "https://raw.githubusercontent.com/leanprover-community/mathlib4/fc4f59e577feb1a4956671bc04ac18aaaf8cd842/Mathlib/Tactic/Linter/DocPrime.lean",
+      "sha256": "c5f76e2f65b737acb213dbb6bbcbfb77bdf96854894cbeacfdbd75002392449a",
+      "revision": "fc4f59e577feb1a4956671bc04ac18aaaf8cd842",
+      "repository": "leanprover-community/mathlib4",
+      "license": "Apache-2.0"
+    },
+    {
+      "file": "lean-mathlib-linter-UnusedTactic.lean",
+      "url": "https://raw.githubusercontent.com/leanprover-community/mathlib4/fc4f59e577feb1a4956671bc04ac18aaaf8cd842/Mathlib/Tactic/Linter/UnusedTactic.lean",
+      "sha256": "2893152dd087d4e9eec1d12070f3dee634426663dbf57c53ce2cfbedeb3c17d6",
+      "revision": "fc4f59e577feb1a4956671bc04ac18aaaf8cd842",
+      "repository": "leanprover-community/mathlib4",
+      "license": "Apache-2.0"
+    },
+    {
+      "file": "lean-mathlib-linter-FlexibleLinter.lean",
+      "url": "https://raw.githubusercontent.com/leanprover-community/mathlib4/fc4f59e577feb1a4956671bc04ac18aaaf8cd842/Mathlib/Tactic/Linter/FlexibleLinter.lean",
+      "sha256": "2fa22e07224c4e8c030418290738c1f1f687a91d6cf899159c597272f7220f19",
+      "revision": "fc4f59e577feb1a4956671bc04ac18aaaf8cd842",
+      "repository": "leanprover-community/mathlib4",
+      "license": "Apache-2.0"
+    },
+    {
+      "file": "lean-mathlib-linter-Multigoal.lean",
+      "url": "https://raw.githubusercontent.com/leanprover-community/mathlib4/fc4f59e577feb1a4956671bc04ac18aaaf8cd842/Mathlib/Tactic/Linter/Multigoal.lean",
+      "sha256": "7b863665c7fbd96e0f99749534e42cceb51f288d3ca2fb396ba4207703b91767",
+      "revision": "fc4f59e577feb1a4956671bc04ac18aaaf8cd842",
+      "repository": "leanprover-community/mathlib4",
+      "license": "Apache-2.0"
+    },
+    {
+      "file": "lean-mathlib-linter-Lint.lean",
+      "url": "https://raw.githubusercontent.com/leanprover-community/mathlib4/fc4f59e577feb1a4956671bc04ac18aaaf8cd842/Mathlib/Tactic/Linter/Lint.lean",
+      "sha256": "490ec143b289f20fc20ccd86e286f350ddd39d89892d8f99f3cf074ee6ec3d2f",
+      "revision": "fc4f59e577feb1a4956671bc04ac18aaaf8cd842",
+      "repository": "leanprover-community/mathlib4",
+      "license": "Apache-2.0"
+    },
+    {
+      "file": "lean-mathlib-linter-TextBased.lean",
+      "url": "https://raw.githubusercontent.com/leanprover-community/mathlib4/fc4f59e577feb1a4956671bc04ac18aaaf8cd842/Mathlib/Tactic/Linter/TextBased.lean",
+      "sha256": "0ada1dc03c714ee91a6874c2878ecf81f83a386aff6690bcb02b5dab5191bf38",
+      "revision": "fc4f59e577feb1a4956671bc04ac18aaaf8cd842",
+      "repository": "leanprover-community/mathlib4",
+      "license": "Apache-2.0"
+    },
+    {
+      "file": "lean-mathlib-linter-HashCommandLinter.lean",
+      "url": "https://raw.githubusercontent.com/leanprover-community/mathlib4/fc4f59e577feb1a4956671bc04ac18aaaf8cd842/Mathlib/Tactic/Linter/HashCommandLinter.lean",
+      "sha256": "c0dfdc292f7e225fbc0e5d4bdde809370d639c92e27006114250847985e8303c",
+      "revision": "fc4f59e577feb1a4956671bc04ac18aaaf8cd842",
+      "repository": "leanprover-community/mathlib4",
+      "license": "Apache-2.0"
+    },
+    {
+      "file": "lean-mathlib-linter-MinImports.lean",
+      "url": "https://raw.githubusercontent.com/leanprover-community/mathlib4/fc4f59e577feb1a4956671bc04ac18aaaf8cd842/Mathlib/Tactic/Linter/MinImports.lean",
+      "sha256": "721a5fb096278a7cf82150d9eaff26c0610f241c41acfd1aee666a691e80fb18",
+      "revision": "fc4f59e577feb1a4956671bc04ac18aaaf8cd842",
+      "repository": "leanprover-community/mathlib4",
+      "license": "Apache-2.0"
+    },
+    {
+      "file": "lean-batteries-runLinter.lean",
+      "url": "https://raw.githubusercontent.com/leanprover-community/batteries/b4b25a3886a16daacaf6615c2eea7170a6e8f458/scripts/runLinter.lean",
+      "sha256": "5500e0f7da7087cae0ff5860ebe1d4f1b6acb6fc44425c128224b9c31704a586",
+      "revision": "b4b25a3886a16daacaf6615c2eea7170a6e8f458",
+      "repository": "leanprover-community/batteries",
+      "license": "Apache-2.0"
+    },
+    {
+      "file": "lean-core-lake-README.md",
+      "url": "https://raw.githubusercontent.com/leanprover/lean4/611c117bfaf7b7ae1cfcf246ce6fba31e8f509e9/src/lake/README.md",
+      "sha256": "728a0b0795d630cbc64e2436d5a672cddcc553a96f844ba48f1f745ed4494d88",
+      "revision": "611c117bfaf7b7ae1cfcf246ce6fba31e8f509e9",
+      "repository": "leanprover/lean4",
+      "license": "Apache-2.0"
+    },
+    {
+      "file": "lean-core-linter-Basic.lean",
+      "url": "https://raw.githubusercontent.com/leanprover/lean4/611c117bfaf7b7ae1cfcf246ce6fba31e8f509e9/src/Lean/Linter/Basic.lean",
+      "sha256": "7cfce778451125e5a9d4d17ea1830702adf3f120d1bdb284347d547f3fbf75c0",
+      "revision": "611c117bfaf7b7ae1cfcf246ce6fba31e8f509e9",
+      "repository": "leanprover/lean4",
+      "license": "Apache-2.0"
+    },
+    {
+      "file": "lean-core-linter-UnusedVariables.lean",
+      "url": "https://raw.githubusercontent.com/leanprover/lean4/611c117bfaf7b7ae1cfcf246ce6fba31e8f509e9/src/Lean/Linter/UnusedVariables.lean",
+      "sha256": "b583c77e3d5a593a2804b1f61a42503bb598a726203eaddd93c5fe293bb4eda1",
+      "revision": "611c117bfaf7b7ae1cfcf246ce6fba31e8f509e9",
+      "repository": "leanprover/lean4",
+      "license": "Apache-2.0"
+    },
+    {
+      "file": "lean-core-CollectAxioms.lean",
+      "url": "https://raw.githubusercontent.com/leanprover/lean4/611c117bfaf7b7ae1cfcf246ce6fba31e8f509e9/src/Lean/Util/CollectAxioms.lean",
+      "sha256": "b39bd22253a76816ee6d24284e69674d0b491be343fd71f9ee9376833d1485f6",
+      "revision": "611c117bfaf7b7ae1cfcf246ce6fba31e8f509e9",
+      "repository": "leanprover/lean4",
+      "license": "Apache-2.0"
+    },
+    {
+      "file": "lean-vscode-package.json",
+      "url": "https://raw.githubusercontent.com/leanprover/vscode-lean4/b164f8c7186de42ae5215406c63fdbe48310f91c/vscode-lean4/package.json",
+      "sha256": "c6a62400c3665c37cce827aa01e8d83ce88f8977e5ab6959e28558d64580ab23",
+      "revision": "b164f8c7186de42ae5215406c63fdbe48310f91c",
+      "repository": "leanprover/vscode-lean4",
+      "license": "Apache-2.0"
     }
   ]
 }

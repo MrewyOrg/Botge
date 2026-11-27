@@ -1,0 +1,31 @@
+## Workspace ChkTeX policy for Botge LaTeX specifications.
+## chktex and LaTeX Workshop load it automatically from the repository root; passing it again
+## with `-l` would report every finding twice.
+
+QuoteStyle = Logical
+TabSize = 2
+CmdSpaceStyle = Both
+
+Silent
+{
+    \enabledarkmode \disabledarkmode
+}
+
+Linker
+{
+    \cref \Cref \crefrange \Crefrange
+}
+
+DashExcpt
+{
+    Lindemann--Weierstrass
+}
+
+UserWarnRegex
+{
+    # Disallow legacy display math delimiters, obsolete LaTeX2.09 font switches, and legacy layout hacks.
+    (?!#-1:Use! \[...\]! display! math! instead! of! $$)POSIX:\$\$
+    (?!#-1:Use! \textbf,! \textit,! or! \texttt! instead! of! legacy! font! switches)POSIX:\\(bf|it|rm|sc|sf|sl|tt)([^[:alnum:]]|$)
+    (?!#-1:Avoid! \sloppy;! tighten! wording! or! line! breaks)POSIX:\\sloppy([^[:alnum:]]|$)
+    (?!#-1:Use! amsmath! align! instead! of! eqnarray)POSIX:\\begin\{eqnarray\*?\}
+}

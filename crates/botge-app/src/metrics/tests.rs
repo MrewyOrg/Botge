@@ -94,8 +94,37 @@ fn records_outcomes_and_times_only_successful_renders() {
     Some("3")
   );
   // Every family is introduced exactly once, and no line is left empty.
-  assert_eq!(text.matches("# TYPE ").count(), 5);
+  assert_eq!(text.matches("# TYPE ").count(), 6);
   assert!(text.lines().all(|line| !line.is_empty()));
+}
+
+#[test]
+fn counts_every_quantum_outcome_under_its_own_label() {
+  let metrics = Metrics::default();
+  metrics.command("quantum-emote");
+  let outcomes = [
+    (QuantumOutcome::Sampled, "sampled"),
+    (QuantumOutcome::TooFew, "too_few"),
+    (QuantumOutcome::Busy, "busy"),
+    (QuantumOutcome::Unavailable, "unavailable"),
+    (QuantumOutcome::Refused, "refused"),
+    (QuantumOutcome::Exhausted, "exhausted"),
+    (QuantumOutcome::Invalid, "invalid"),
+  ];
+  for (outcome, _) in outcomes {
+    metrics.quantum(outcome);
+  }
+  metrics.quantum(QuantumOutcome::Sampled);
+  let text = metrics.render(0);
+  assert_eq!(
+    value(&text, "botge_commands_total{command=\"quantum-emote\"}").as_deref(),
+    Some("1")
+  );
+  for (_, label) in outcomes {
+    let series = format!("botge_quantum_samples_total{{outcome=\"{label}\"}}");
+    let expected = if label == "sampled" { "2" } else { "1" };
+    assert_eq!(value(&text, &series).as_deref(), Some(expected), "{label}");
+  }
 }
 
 #[test]

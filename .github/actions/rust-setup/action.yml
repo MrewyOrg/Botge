@@ -20,11 +20,17 @@ inputs:
     required: false
     default: ''
 
+outputs:
+  cache-hit:
+    description: Whether the build cache was restored from its exact key, so it will not be saved.
+    value: ${{ steps.build-cache.outputs.cache-hit }}
+
 runs:
   using: composite
   steps:
     - name: Restore Rust build cache
       uses: actions/cache@v6.1.0
+      id: build-cache
       with:
         path: |
           ~/.cargo/registry
@@ -33,7 +39,7 @@ runs:
         key: >-
           rust-${{ inputs.cache-name }}-${{ runner.os }}-${{ runner.arch }}-${{
           hashFiles('rust-toolchain.toml') }}-${{ hashFiles('Cargo.toml', 'crates/**/Cargo.toml',
-          'Cargo.lock') }}
+          'quantum/proofs/certificate/Cargo.toml', 'Cargo.lock') }}
         restore-keys: |
           rust-${{ inputs.cache-name }}-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('rust-toolchain.toml') }}-
 
