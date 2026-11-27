@@ -20,13 +20,16 @@ flowchart TB
     end
 
     quantum["<b>botge-quantum</b><br/>Register budget, pool planner,<br/>Q# sidecar client"]
+    chemistry["<b>botge-chemistry</b><br/>32-substrate atlas, pool planner,<br/>RDKit sidecar client"]
 
     domain["<b>botge-domain</b><br/>Shared records, canonical IDs,<br/>validation, matching rules"]
 
     bot -. wires .-> adapters
     discord -->|implements GuildAccess| app
     discord -->|/quantum-emote| quantum
+    discord -->|/react-emote| chemistry
     bot -. optional sidecar URL .-> quantum
+    bot -. optional sidecar URL .-> chemistry
     activity --> app
     voice -->|VoiceSettingsSource| app
     app --> storage
@@ -34,6 +37,7 @@ flowchart TB
     storage --> domain
     emotes --> domain
     quantum --> domain
+    chemistry --> domain
 
     rule["Adapters never open redb.<br/>Emotes never reads storage.<br/>Discord and Activity stay independent.<br/>tests/architecture.rs enforces these edges."]
     domain ~~~ rule
@@ -48,6 +52,6 @@ flowchart TB
     class discord,activity,voice base
     class app core
     class storage data
-    class emotes,quantum media
+    class emotes,quantum,chemistry media
     class domain base
     class rule muted
