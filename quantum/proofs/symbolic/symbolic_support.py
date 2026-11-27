@@ -3,8 +3,21 @@
 import importlib
 from typing import Any
 
+__all__ = [
+    'DIGITS',
+    'MAX_BASE_BITS',
+    'MAX_OVERLAY_BITS',
+    'MAX_QUBITS',
+    'Dynamic',
+    'is_zero',
+    'pauli',
+    'require',
+    'sp',
+    'z3',
+]
+
 # SymPy and Z3 ship without type information; their expressions are dynamically typed here.
-type Dynamic = Any
+Dynamic = Any
 
 sp: Dynamic = importlib.import_module('sympy')
 z3: Dynamic = importlib.import_module('z3')

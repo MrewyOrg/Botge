@@ -88,7 +88,13 @@ if id "${BOTGE_CONTROL_USER}" > /dev/null 2>&1; then
     loginctl terminate-user "${BOTGE_CONTROL_USER}"
   fi
 
-  # Ensure no processes remain before deleting the account.
+  # Wait briefly for user services to exit before deleting the account.
+  for _ in {1..10}; do
+    if ! pgrep -u "${BOTGE_CONTROL_USER}" > /dev/null; then
+      break
+    fi
+    sleep 1
+  done
   if pgrep -u "${BOTGE_CONTROL_USER}" > /dev/null; then
     echo "Processes belonging to ${BOTGE_CONTROL_USER} are still running." >&2
     echo 'Stop them before continuing.' >&2

@@ -1,8 +1,6 @@
 services:
   quantum:
-    build:
-      context: .
-      dockerfile: quantum/Dockerfile
+    image: ${BOTGE_QUANTUM_IMAGE:-mrewy/botge-quantum}
     mem_limit: 256m
     restart: unless-stopped
     init: true
