@@ -14,12 +14,15 @@ if [[ "${BOTGE_CONTROL_REQUEST}" =~ ^DEPLOY\ (sha256:[a-f0-9]{64})$ ]]; then
 elif [[ "${BOTGE_CONTROL_REQUEST}" =~ ^DEPLOY_QUANTUM\ (sha256:[a-f0-9]{64})$ ]]; then
   BOTGE_CONTROL_DIGEST="${BASH_REMATCH[1]}"
   BOTGE_CONTROL_ACTION=DEPLOY_QUANTUM
+elif [[ "${BOTGE_CONTROL_REQUEST}" =~ ^DEPLOY_CHEMISTRY\ (sha256:[a-f0-9]{64})$ ]]; then
+  BOTGE_CONTROL_DIGEST="${BASH_REMATCH[1]}"
+  BOTGE_CONTROL_ACTION=DEPLOY_CHEMISTRY
 else
   BOTGE_CONTROL_ACTION="${BOTGE_CONTROL_REQUEST}"
 fi
 
 case "${BOTGE_CONTROL_ACTION}" in
-  DEPLOY | DEPLOY_QUANTUM | UP | STOP) ;;
+  DEPLOY | DEPLOY_QUANTUM | DEPLOY_CHEMISTRY | UP | STOP) ;;
   *)
     printf 'DENIED\n'
     exit 1
@@ -74,6 +77,17 @@ if [[ -f .botge-quantum-image ]]; then
   previous_quantum_image="${BOTGE_QUANTUM_IMAGE}"
 fi
 
+previous_chemistry_image=''
+if [[ -f .botge-chemistry-image ]]; then
+  BOTGE_CHEMISTRY_IMAGE=$(cat .botge-chemistry-image)
+  if [[ ! "${BOTGE_CHEMISTRY_IMAGE}" =~ ^mrewy/botge-chemistry@sha256:[a-f0-9]{64}$ ]]; then
+    printf 'ERROR\n'
+    exit 1
+  fi
+  export BOTGE_CHEMISTRY_IMAGE
+  previous_chemistry_image="${BOTGE_CHEMISTRY_IMAGE}"
+fi
+
 # Restores the last verified image after a failed digest deployment. Its result is logged only:
 # the request still reports ERROR because the approved candidate was not deployed.
 rollback() {
@@ -97,6 +111,18 @@ rollback_quantum() {
     echo "Restored the previous quantum image ${previous_quantum_image}." >&2
   else
     echo "Could not restore the previous quantum image ${previous_quantum_image}." >&2
+  fi
+}
+
+rollback_chemistry() {
+  if [[ -z "${previous_chemistry_image}" ]]; then
+    echo 'No verified previous chemistry image to restore.' >&2
+    return
+  fi
+  if BOTGE_CHEMISTRY_IMAGE="${previous_chemistry_image}" docker compose up -d --no-deps --wait --wait-timeout 120 chemistry >&2; then
+    echo "Restored the previous chemistry image ${previous_chemistry_image}." >&2
+  else
+    echo "Could not restore the previous chemistry image ${previous_chemistry_image}." >&2
   fi
 }
 
@@ -197,6 +223,50 @@ case "${BOTGE_CONTROL_ACTION}" in
       trap 'rm -f -- "$image_file"' EXIT
       printf '%s\n' "${BOTGE_QUANTUM_IMAGE}" > "${image_file}"
       mv -- "${image_file}" .botge-quantum-image
+    fi
+    ;;
+
+  DEPLOY_CHEMISTRY)
+    if ! docker compose config --services | grep -qx chemistry; then
+      echo 'Chemistry sidecar is not configured in Compose; skipping.' >&2
+      printf 'OK\n'
+      exit 0
+    fi
+    if [[ -n "${BOTGE_CONTROL_DIGEST}" ]]; then
+      export BOTGE_CHEMISTRY_IMAGE="mrewy/botge-chemistry@${BOTGE_CONTROL_DIGEST}"
+      if ! configured_image=$(docker compose config --format json | jq -r '.services.chemistry.image // empty') \
+        || [[ "${configured_image}" != "${BOTGE_CHEMISTRY_IMAGE}" ]]; then
+        echo 'Compose must use BOTGE_CHEMISTRY_IMAGE for the chemistry image.' >&2
+        printf 'ERROR\n'
+        exit 1
+      fi
+    elif [[ -n "${previous_chemistry_image}" ]]; then
+      echo "Deploying pinned chemistry image from .botge-chemistry-image: ${previous_chemistry_image}." >&2
+    fi
+    if ! docker compose up -d --no-deps --pull always --wait --wait-timeout 120 chemistry >&2; then
+      if [[ -n "${BOTGE_CONTROL_DIGEST}" ]]; then
+        rollback_chemistry
+      fi
+      printf 'ERROR\n'
+      exit 1
+    fi
+
+    if [[ -n "${BOTGE_CONTROL_DIGEST}" ]]; then
+      container=$(docker compose ps -q chemistry)
+      if [[ -z "${container}" ]] \
+        || ! running_image=$(docker inspect --format '{{.Config.Image}}' "${container}") \
+        || ! health=$(docker inspect --format '{{.State.Health.Status}}' "${container}") \
+        || [[ "${running_image}" != "${BOTGE_CHEMISTRY_IMAGE}" || "${health}" != healthy ]]; then
+        echo 'Running chemistry image or readiness does not match the approved candidate.' >&2
+        rollback_chemistry
+        printf 'ERROR\n'
+        exit 1
+      fi
+      umask 077
+      image_file=$(mktemp "${BOTGE_DIR}/.botge-chemistry-image.XXXXXX")
+      trap 'rm -f -- "$image_file"' EXIT
+      printf '%s\n' "${BOTGE_CHEMISTRY_IMAGE}" > "${image_file}"
+      mv -- "${image_file}" .botge-chemistry-image
     fi
     ;;
 

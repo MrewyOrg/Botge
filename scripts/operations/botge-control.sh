@@ -2,7 +2,7 @@
 set -euo pipefail
 
 if (($# < 1 || $# > 2)); then
-  echo 'Usage: botge-control <up|stop|deploy|deploy-quantum> [sha256:digest]' >&2
+  echo 'Usage: botge-control <up|stop|deploy|deploy-quantum|deploy-chemistry> [sha256:digest]' >&2
   exit 1
 fi
 readonly BOTGE_CONTROL_ACTION="$1"
@@ -11,14 +11,15 @@ case "${BOTGE_CONTROL_ACTION}" in
   stop) BOTGE_CONTROL_REQUEST=STOP ;;
   deploy) BOTGE_CONTROL_REQUEST=DEPLOY ;;
   deploy-quantum) BOTGE_CONTROL_REQUEST=DEPLOY_QUANTUM ;;
+  deploy-chemistry) BOTGE_CONTROL_REQUEST=DEPLOY_CHEMISTRY ;;
   *)
     echo "Invalid action: ${BOTGE_CONTROL_ACTION}" >&2
     exit 1
     ;;
 esac
 if (($# == 2)); then
-  if [[ ("${BOTGE_CONTROL_ACTION}" != deploy && "${BOTGE_CONTROL_ACTION}" != deploy-quantum) || ! "$2" =~ ^sha256:[a-f0-9]{64}$ ]]; then
-    echo 'Only deploy and deploy-quantum accept a sha256 image digest.' >&2
+  if [[ ("${BOTGE_CONTROL_ACTION}" != deploy && "${BOTGE_CONTROL_ACTION}" != deploy-quantum && "${BOTGE_CONTROL_ACTION}" != deploy-chemistry) || ! "$2" =~ ^sha256:[a-f0-9]{64}$ ]]; then
+    echo 'Only deploy, deploy-quantum, and deploy-chemistry accept a sha256 image digest.' >&2
     exit 1
   fi
   BOTGE_CONTROL_REQUEST+=" $2"

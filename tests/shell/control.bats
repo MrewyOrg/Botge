@@ -11,6 +11,7 @@ setup() {
   export CANDIDATE="sha256:$(printf 'a%.0s' {1..64})"
   export PREVIOUS="mrewy/botge@sha256:$(printf 'b%.0s' {1..64})"
   export PREVIOUS_QUANTUM="mrewy/botge-quantum@sha256:$(printf 'c%.0s' {1..64})"
+  export PREVIOUS_CHEMISTRY="mrewy/botge-chemistry@sha256:$(printf 'd%.0s' {1..64})"
 }
 
 control_docker() {
@@ -18,14 +19,17 @@ control_docker() {
 case "$1 $2" in
   'compose config')
     if [ "${3:-}" = --services ]; then
-      printf '%s\n' ${COMPOSE_SERVICES:-nginx botge quantum}
+      printf '%s\n' ${COMPOSE_SERVICES:-nginx botge quantum chemistry}
     else
-      printf '{"services":{"botge":{"image":"%s"},"quantum":{"image":"%s"}}}\n' \
-        "${COMPOSE_IMAGE:-${BOTGE_IMAGE:-}}" "${COMPOSE_QUANTUM_IMAGE:-${BOTGE_QUANTUM_IMAGE:-}}"
+      printf '{"services":{"botge":{"image":"%s"},"quantum":{"image":"%s"},"chemistry":{"image":"%s"}}}\n' \
+        "${COMPOSE_IMAGE:-${BOTGE_IMAGE:-}}" \
+        "${COMPOSE_QUANTUM_IMAGE:-${BOTGE_QUANTUM_IMAGE:-}}" \
+        "${COMPOSE_CHEMISTRY_IMAGE:-${BOTGE_CHEMISTRY_IMAGE:-}}"
     fi
     ;;
   'compose up')
-    printf 'image=%s quantum_image=%s\n' "${BOTGE_IMAGE:-}" "${BOTGE_QUANTUM_IMAGE:-}" >> "$CALLS"
+    printf 'image=%s quantum_image=%s chemistry_image=%s\n' \
+      "${BOTGE_IMAGE:-}" "${BOTGE_QUANTUM_IMAGE:-}" "${BOTGE_CHEMISTRY_IMAGE:-}" >> "$CALLS"
     case "$*" in
       *'--pull always'*) exit "${DEPLOY_FAIL:-0}" ;;
       *'--no-deps'*) exit "${ROLLBACK_FAIL:-0}" ;;
@@ -34,20 +38,20 @@ case "$1 $2" in
     ;;
   'compose stop') exit "${STOP_FAIL:-0}" ;;
   'compose ps')
-    if [ "${4:-}" = quantum ]; then
-      printf '%s\n' "${QUANTUM_CONTAINER:-quantum-123}"
-    else
-      printf '%s\n' "${CONTAINER:-container-123}"
-    fi
+    case "${4:-}" in
+      quantum) printf '%s\n' "${QUANTUM_CONTAINER:-quantum-123}" ;;
+      chemistry) printf '%s\n' "${CHEMISTRY_CONTAINER:-chemistry-123}" ;;
+      *) printf '%s\n' "${CONTAINER:-container-123}" ;;
+    esac
     ;;
   'inspect --format')
     case "$3" in
       *Config.Image*)
-        if [ "${4:-}" = quantum-123 ]; then
-          printf '%s\n' "${RUNNING_IMAGE:-${BOTGE_QUANTUM_IMAGE:-}}"
-        else
-          printf '%s\n' "${RUNNING_IMAGE:-${BOTGE_IMAGE:-}}"
-        fi
+        case "${4:-}" in
+          quantum-123) printf '%s\n' "${RUNNING_IMAGE:-${BOTGE_QUANTUM_IMAGE:-}}" ;;
+          chemistry-123) printf '%s\n' "${RUNNING_IMAGE:-${BOTGE_CHEMISTRY_IMAGE:-}}" ;;
+          *) printf '%s\n' "${RUNNING_IMAGE:-${BOTGE_IMAGE:-}}" ;;
+        esac
         ;;
       *State.Health.Status*) printf '%s\n' "${HEALTH:-healthy}" ;;
     esac
@@ -222,6 +226,63 @@ send_request() {
   [ "$(cat "$BOTGE_DIR/.botge-quantum-image")" = "$PREVIOUS_QUANTUM" ]
 }
 
+@test "Control handler deploys, verifies, and skips optional chemistry sidecar" {
+  control_docker
+  printf 'unverified tag\n' > "$BOTGE_DIR/.botge-chemistry-image"
+  run send_request UP
+  [ "$status" -eq 1 ]
+  never_called 'compose up'
+  rm -f "$BOTGE_DIR/.botge-chemistry-image"
+
+  export COMPOSE_SERVICES='nginx botge'
+  run send_request "DEPLOY_CHEMISTRY $CANDIDATE"
+  [ "$status" -eq 0 ]
+  [[ "$output" == *'Chemistry sidecar is not configured'* ]]
+  [[ "$output" == *OK ]]
+  never_called 'compose up'
+
+  export COMPOSE_SERVICES='nginx botge chemistry'
+  export COMPOSE_CHEMISTRY_IMAGE=mrewy/botge-chemistry:latest
+  run send_request "DEPLOY_CHEMISTRY $CANDIDATE"
+  [ "$status" -eq 1 ]
+  [[ "$output" == *'Compose must use BOTGE_CHEMISTRY_IMAGE'* ]]
+  [ ! -e "$BOTGE_DIR/.botge-chemistry-image" ]
+
+  unset COMPOSE_CHEMISTRY_IMAGE
+  run send_request "DEPLOY_CHEMISTRY $CANDIDATE"
+  [ "$status" -eq 0 ]
+  [ "$output" = OK ]
+  [ "$(cat "$BOTGE_DIR/.botge-chemistry-image")" = "mrewy/botge-chemistry@$CANDIDATE" ]
+  called 'compose up -d --no-deps --pull always --wait --wait-timeout 120 chemistry'
+
+  run send_request DEPLOY_CHEMISTRY
+  [ "$status" -eq 0 ]
+  [[ "$output" == *'Deploying pinned chemistry image from .botge-chemistry-image:'* ]]
+  [[ "$output" == *OK ]]
+  [ "$(cat "$BOTGE_DIR/.botge-chemistry-image")" = "mrewy/botge-chemistry@$CANDIDATE" ]
+}
+
+@test "Failed chemistry deployments keep the saved digest and report rollback outcomes" {
+  control_docker
+  export DEPLOY_FAIL=1
+  run send_request "DEPLOY_CHEMISTRY $CANDIDATE"
+  [ "$status" -eq 1 ]
+  [[ "$output" == *'No verified previous chemistry image'* ]]
+  [ ! -e "$BOTGE_DIR/.botge-chemistry-image" ]
+
+  printf '%s\n' "$PREVIOUS_CHEMISTRY" > "$BOTGE_DIR/.botge-chemistry-image"
+  run send_request "DEPLOY_CHEMISTRY $CANDIDATE"
+  [ "$status" -eq 1 ]
+  [[ "$output" == *'Restored the previous chemistry image'* ]]
+
+  export DEPLOY_FAIL=0 HEALTH=unhealthy ROLLBACK_FAIL=1
+  run send_request "DEPLOY_CHEMISTRY $CANDIDATE"
+  [ "$status" -eq 1 ]
+  [[ "$output" == *'Running chemistry image or readiness does not match'* ]]
+  [[ "$output" == *'Could not restore the previous chemistry image'* ]]
+  [ "$(cat "$BOTGE_DIR/.botge-chemistry-image")" = "$PREVIOUS_CHEMISTRY" ]
+}
+
 @test "Control client validates requests and distinguishes transport and server failures" {
   stub socat << 'SH'
 cat >> "$CALLS"
@@ -254,6 +315,12 @@ SH
   run bash "$client" deploy-quantum "$CANDIDATE"
   [ "$status" -eq 0 ]
   grep -Fx "DEPLOY_QUANTUM $CANDIDATE" "$CALLS"
+  run bash "$client" deploy-chemistry
+  [ "$status" -eq 0 ]
+  grep -Fx 'DEPLOY_CHEMISTRY' "$CALLS"
+  run bash "$client" deploy-chemistry "$CANDIDATE"
+  [ "$status" -eq 0 ]
+  grep -Fx "DEPLOY_CHEMISTRY $CANDIDATE" "$CALLS"
   called "UNIX-CONNECT:$BOTGE_CONTROL_SOCKET"
   export SOCKET_EXIT=7
   run bash "$client" up
