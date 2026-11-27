@@ -14,17 +14,20 @@ commit hashes that it cannot wrap, and merge commits never reuse PR titles.
 Its stages run as parallel jobs: documentation and TypeScript, Rust static checks (including the
 stable `rust-version` build), Rust tests and coverage, Miri, Rust feature and unused-dependency
 checks, and iOS lint, tests and coverage on the standard `xcode-27` macOS runner with the newest
-Xcode 27, Go Activity checks, shell, workflow, Python, and Swift documentation checks, and three
-quantum stages on standard Ubuntu runners: Quantum proofs (elan pinned by checksum, Mathlib's free
-prebuilt cache, then `check_proofs.py`), the Q# circuit and sidecar (QDK extra, Q# checks, Ruff,
-Pyright and 90% sidecar coverage), and the LaTeX specification (TeX Live from apt, then
-`check-latex.sh`). Only quantum inputs trigger those three, so other PRs never install Mathlib, the
-QDK or TeX Live, and none of them stores Mathlib in the Actions cache. A final `BotgeQL` job passes
-when every applicable stage succeeds and change detection succeeds, so rulesets can keep requiring
-the same check name. The Rust jobs share the [`rust-setup`](../actions/rust-setup/action.yml)
-composite action, referenced as `$/` so the actions lockfile pins this repository's copy. It
-installs the nightly with each job's components, restores a build cache named per job, and provides
-only the pinned test tools that job needs.
+Xcode 27, Go Activity checks, shell, workflow, Python, and Swift documentation checks, three quantum
+stages on standard Ubuntu runners: Quantum proofs (elan pinned by checksum, Mathlib's free prebuilt
+cache, then `check_proofs.py`), the Q# circuit and sidecar (QDK extra, Q# checks, Ruff, Pyright and
+90% sidecar coverage), and the LaTeX specification (TeX Live from apt, then `check-latex.sh`), plus
+two chemistry stages: Chemistry proofs (elan pinned by checksum, Mathlib's prebuilt cache, the
+chemistry extra for RDKit, then `check_chemistry_proofs.py`) and the Chemistry sidecar (Ruff,
+Pyright, pytest and 90% sidecar coverage). Only quantum or chemistry inputs trigger their respective
+stages, and only `quantum/docs/` or `chemistry/docs/` inputs trigger the LaTeX specification job, so
+unrelated PRs never install Mathlib, the QDK, RDKit or TeX Live, and none of them stores Mathlib in
+the Actions cache. A final `BotgeQL` job passes when every applicable stage succeeds and change
+detection succeeds, so rulesets can keep requiring the same check name. The Rust jobs share the
+[`rust-setup`](../actions/rust-setup/action.yml) composite action, referenced as `$/` so the actions
+lockfile pins this repository's copy. It installs the nightly with each job's components, restores a
+build cache named per job, and provides only the pinned test tools that job needs.
 
 Change detection compares the complete PR against its base (using
 `predicate-quantifier: some-with-excludes` so `ios/AGENTS.md` is excluded from the `ios` filter and
@@ -65,11 +68,13 @@ branch caches. It checks out no code and has only cache-management permission. B
 individual layers, so one image-building PR can create many cache entries.
 
 Because BotgeQL runs only on PRs and that cleanup deletes their caches,
-[Warm caches](warm-caches.yml) saves the Rust build and tool caches, the uv cache (for both Ubuntu
-images its key names), actionlint and the iOS tools on `main`, where every branch can restore them.
-Each job mirrors its BotgeQL job's runner, cache key and commands. It runs when a push to `main`
-changes a cache input, weekly so idle caches outlive GitHub's seven-day eviction, and on demand; a
-job whose cache already exists skips its build. `rust-setup` reports `cache-hit` for this.
+[Warm caches](warm-caches.yml) saves the Rust build and tool caches (`static`, `coverage`, `miri`,
+`dependencies`, `quantum-proofs`, and `chemistry-proofs`), the uv cache with both the `quantum` and
+`chemistry` extras (for both Ubuntu images its key names), actionlint and the iOS tools on `main`,
+where every branch can restore them. Each job mirrors its BotgeQL job's runner, cache key and
+commands. It runs when a push to `main` changes a cache input, weekly so idle caches outlive
+GitHub's seven-day eviction, and on demand; a job whose cache already exists skips its build.
+`rust-setup` reports `cache-hit` for this.
 
 ## Security checks
 
@@ -106,26 +111,30 @@ one build and image smoke test suffice. Go lint, unit tests, coverage, and vulne
 still run when their inputs change. Candidate builds wait for validation and audits to pass. An
 updated PR cancels obsolete builds for the same candidate platform.
 
-Native AMD64 and ARM64 runners qualify the Rust bot and the optional quantum sidecar. A native AMD64
-runner qualifies the Activity server. Each runner builds a local OCI archive with an SBOM and build
-provenance, validates the attached SPDX SBOM, and smoke-tests the image from that archive. The Rust
-and quantum builds also scan their SBOMs with Scout and push their tested archives to Docker Hub by
-digest. The Activity build retains its tested archive as a GitHub Actions artifact for seven days.
-Rerun the Activity build if the archive expires before approval.
+Native AMD64 and ARM64 runners qualify the Rust bot, the optional quantum sidecar, and the optional
+chemistry sidecar. A native AMD64 runner qualifies the Activity server. Each runner builds a local
+OCI archive with an SBOM and build provenance, validates the attached SPDX SBOM, and smoke-tests the
+image from that archive. The Rust, quantum, and chemistry builds also scan their SBOMs with Scout
+and push their tested archives to Docker Hub by digest. The Activity build retains its tested
+archive as a GitHub Actions artifact for seven days. Rerun the Activity build if the archive expires
+before approval.
 
 The Docker Hub publication job assembles the multi-platform indexes under
-`mrewy/botge:pr-<number>-<merge SHA>` and `mrewy/botge-quantum:pr-<number>-<merge SHA>`, verifies
-the published SBOMs, and attests each candidate digest.
+`mrewy/botge:pr-<number>-<merge SHA>`, `mrewy/botge-quantum:pr-<number>-<merge SHA>`, and
+`mrewy/botge-chemistry:pr-<number>-<merge SHA>`, verifies the published SBOMs, and attests each
+candidate digest.
 
 Each changed image must pass qualification before `production` approval. After approval, `Deploy`
 rechecks the same-repository `dev` head, `main` target, open non-draft PR, and tested merge commit.
 For Activity changes, it downloads the archive by artifact ID and verifies its SHA-256. For Rust
 changes, it requests the digest-pinned VM update over Google Cloud IAP and tags the healthy digest
 as `latest`. For quantum changes, it requests `deploy-quantum` on the VM (skipped cleanly if the
-host has not enabled the quantum service) and tags `mrewy/botge-quantum:latest`. It then uploads any
-Activity candidate to Artifact Registry, verifies the published SBOM, attests the image and deploys
-the same digest to Cloud Run. Both deployments share the production concurrency group. Cancel
-obsolete approval requests after updating a PR.
+host has not enabled the quantum service) and tags `mrewy/botge-quantum:latest`. For chemistry
+changes, it requests `deploy-chemistry` on the VM (skipped cleanly if the host has not enabled the
+chemistry service) and tags `mrewy/botge-chemistry:latest`. It then uploads any Activity candidate
+to Artifact Registry, verifies the published SBOM, attests the image and deploys the same digest to
+Cloud Run. Both deployments share the production concurrency group. Cancel obsolete approval
+requests after updating a PR.
 
 The Dockerfile copies every workspace manifest and compiles locked dependencies against placeholder
 packages before copying application sources. Dependency artifacts live in image layers so the signed
