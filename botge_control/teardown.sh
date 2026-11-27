@@ -89,7 +89,7 @@ if id "${BOTGE_CONTROL_USER}" > /dev/null 2>&1; then
   fi
 
   # Wait briefly for user services to exit before deleting the account.
-  for _ in $(seq 1 10); do
+  for _ in {1..10}; do
     if ! pgrep -u "${BOTGE_CONTROL_USER}" > /dev/null; then
       break
     fi

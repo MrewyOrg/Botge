@@ -10,16 +10,22 @@ setup() {
   mkdir -p "$BOTGE_DIR" "$BOTGE_RUNTIME_DIR"
   export CANDIDATE="sha256:$(printf 'a%.0s' {1..64})"
   export PREVIOUS="mrewy/botge@sha256:$(printf 'b%.0s' {1..64})"
+  export PREVIOUS_QUANTUM="mrewy/botge-quantum@sha256:$(printf 'c%.0s' {1..64})"
 }
 
 control_docker() {
   stub docker << 'SH'
 case "$1 $2" in
   'compose config')
-    printf '{"services":{"botge":{"image":"%s"}}}\n' "${COMPOSE_IMAGE:-$BOTGE_IMAGE}"
+    if [[ "${3:-}" = --services ]]; then
+      printf '%s\n' ${COMPOSE_SERVICES:-nginx botge quantum}
+    else
+      printf '{"services":{"botge":{"image":"%s"},"quantum":{"image":"%s"}}}\n' \
+        "${COMPOSE_IMAGE:-${BOTGE_IMAGE:-}}" "${COMPOSE_QUANTUM_IMAGE:-${BOTGE_QUANTUM_IMAGE:-}}"
+    fi
     ;;
   'compose up')
-    printf 'image=%s\n' "${BOTGE_IMAGE:-}" >> "$CALLS"
+    printf 'image=%s quantum_image=%s\n' "${BOTGE_IMAGE:-}" "${BOTGE_QUANTUM_IMAGE:-}" >> "$CALLS"
     case "$*" in
       *'--pull always'*) exit "${DEPLOY_FAIL:-0}" ;;
       *'--no-deps'*) exit "${ROLLBACK_FAIL:-0}" ;;
@@ -27,10 +33,22 @@ case "$1 $2" in
     esac
     ;;
   'compose stop') exit "${STOP_FAIL:-0}" ;;
-  'compose ps') printf '%s\n' "${CONTAINER:-container-123}" ;;
+  'compose ps')
+    if [[ "${4:-}" = quantum ]]; then
+      printf '%s\n' "${QUANTUM_CONTAINER:-quantum-123}"
+    else
+      printf '%s\n' "${CONTAINER:-container-123}"
+    fi
+    ;;
   'inspect --format')
     case "$3" in
-      *Config.Image*) printf '%s\n' "${RUNNING_IMAGE:-$BOTGE_IMAGE}" ;;
+      *Config.Image*)
+        if [[ "${4:-}" = quantum-123 ]]; then
+          printf '%s\n' "${RUNNING_IMAGE:-${BOTGE_QUANTUM_IMAGE:-}}"
+        else
+          printf '%s\n' "${RUNNING_IMAGE:-${BOTGE_IMAGE:-}}"
+        fi
+        ;;
       *State.Health.Status*) printf '%s\n' "${HEALTH:-healthy}" ;;
     esac
     ;;
@@ -147,6 +165,63 @@ send_request() {
   [ "$(cat "$BOTGE_DIR/.botge-image")" = "$PREVIOUS" ]
 }
 
+@test "Control handler deploys, verifies, and skips optional quantum sidecar" {
+  control_docker
+  printf 'unverified tag\n' > "$BOTGE_DIR/.botge-quantum-image"
+  run send_request UP
+  [ "$status" -eq 1 ]
+  never_called 'compose up'
+  rm -f "$BOTGE_DIR/.botge-quantum-image"
+
+  export COMPOSE_SERVICES='nginx botge'
+  run send_request "DEPLOY_QUANTUM $CANDIDATE"
+  [ "$status" -eq 0 ]
+  [[ "$output" == *'Quantum sidecar is not configured'* ]]
+  [[ "$output" == *OK ]]
+  never_called 'compose up'
+
+  export COMPOSE_SERVICES='nginx botge quantum'
+  export COMPOSE_QUANTUM_IMAGE=mrewy/botge-quantum:latest
+  run send_request "DEPLOY_QUANTUM $CANDIDATE"
+  [ "$status" -eq 1 ]
+  [[ "$output" == *'Compose must use BOTGE_QUANTUM_IMAGE'* ]]
+  [ ! -e "$BOTGE_DIR/.botge-quantum-image" ]
+
+  unset COMPOSE_QUANTUM_IMAGE
+  run send_request "DEPLOY_QUANTUM $CANDIDATE"
+  [ "$status" -eq 0 ]
+  [ "$output" = OK ]
+  [ "$(cat "$BOTGE_DIR/.botge-quantum-image")" = "mrewy/botge-quantum@$CANDIDATE" ]
+  called 'compose up -d --no-deps --pull always --wait --wait-timeout 120 quantum'
+
+  run send_request DEPLOY_QUANTUM
+  [ "$status" -eq 0 ]
+  [[ "$output" == *'Deploying pinned quantum image from .botge-quantum-image:'* ]]
+  [[ "$output" == *OK ]]
+  [ "$(cat "$BOTGE_DIR/.botge-quantum-image")" = "mrewy/botge-quantum@$CANDIDATE" ]
+}
+
+@test "Failed quantum deployments keep the saved digest and report rollback outcomes" {
+  control_docker
+  export DEPLOY_FAIL=1
+  run send_request "DEPLOY_QUANTUM $CANDIDATE"
+  [ "$status" -eq 1 ]
+  [[ "$output" == *'No verified previous quantum image'* ]]
+  [ ! -e "$BOTGE_DIR/.botge-quantum-image" ]
+
+  printf '%s\n' "$PREVIOUS_QUANTUM" > "$BOTGE_DIR/.botge-quantum-image"
+  run send_request "DEPLOY_QUANTUM $CANDIDATE"
+  [ "$status" -eq 1 ]
+  [[ "$output" == *'Restored the previous quantum image'* ]]
+
+  export DEPLOY_FAIL=0 HEALTH=unhealthy ROLLBACK_FAIL=1
+  run send_request "DEPLOY_QUANTUM $CANDIDATE"
+  [ "$status" -eq 1 ]
+  [[ "$output" == *'Running quantum image or readiness does not match'* ]]
+  [[ "$output" == *'Could not restore the previous quantum image'* ]]
+  [ "$(cat "$BOTGE_DIR/.botge-quantum-image")" = "$PREVIOUS_QUANTUM" ]
+}
+
 @test "Control client validates requests and distinguishes transport and server failures" {
   stub socat << 'SH'
 cat >> "$CALLS"
@@ -173,6 +248,12 @@ SH
   run bash "$client" deploy "$CANDIDATE"
   [ "$status" -eq 0 ]
   grep -Fx "DEPLOY $CANDIDATE" "$CALLS"
+  run bash "$client" deploy-quantum
+  [ "$status" -eq 0 ]
+  grep -Fx 'DEPLOY_QUANTUM' "$CALLS"
+  run bash "$client" deploy-quantum "$CANDIDATE"
+  [ "$status" -eq 0 ]
+  grep -Fx "DEPLOY_QUANTUM $CANDIDATE" "$CALLS"
   called "UNIX-CONNECT:$BOTGE_CONTROL_SOCKET"
   export SOCKET_EXIT=7
   run bash "$client" up
