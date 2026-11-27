@@ -308,3 +308,170 @@ test('a failed rollback still reports the failed deployment', () => {
   assert.equal(result.stdout, 'ERROR\n');
   assert.ok(String(result.stderr).includes(`Could not restore the previous image ${previous}.`));
 });
+
+test('manual DEPLOY without a digest logs and uses the pinned .botge-image', () => {
+  writeFileSync(join(directory, '.botge-image'), previous + '\n');
+  stub(
+    'docker',
+    `
+printf '%s %s\\n' "$*" "\${BOTGE_IMAGE:-}" >> "$TEST_COMMANDS"
+`
+  );
+  const result = spawnSync('bash', [resolve('botge_control/bin/botge_control.sh')], {
+    input: 'DEPLOY\n',
+    encoding: 'utf8',
+    env: environment
+  });
+  assert.equal(result.status, 0);
+  assert.equal(result.stdout, 'OK\n');
+  assert.ok(result.stderr.includes(`Deploying pinned image from .botge-image: ${previous}.`));
+  assert.ok(
+    readFileSync(commands, 'utf8').includes(
+      `compose up -d --no-deps --pull always --wait --wait-timeout 120 botge ${previous}\n`
+    )
+  );
+});
+
+const previousQuantum = `mrewy/botge-quantum@sha256:${'c'.repeat(64)}`;
+
+test('client forwards deploy-quantum with and without a digest', () => {
+  const withDigest = spawnSync(
+    'bash',
+    [resolve('scripts/operations/botge-control.sh'), 'deploy-quantum', digest],
+    { encoding: 'utf8', env: environment }
+  );
+  assert.equal(withDigest.status, 0);
+  assert.equal(readFileSync(commands, 'utf8'), `DEPLOY_QUANTUM ${digest}\n`);
+
+  const withoutDigest = spawnSync(
+    'bash',
+    [resolve('scripts/operations/botge-control.sh'), 'deploy-quantum'],
+    { encoding: 'utf8', env: environment }
+  );
+  assert.equal(withoutDigest.status, 0);
+  assert.equal(readFileSync(commands, 'utf8'), 'DEPLOY_QUANTUM\n');
+});
+
+test('quantum digest deployment skips cleanly when quantum service is not configured', () => {
+  stub(
+    'docker',
+    `
+printf '%s\\n' "$*" >> "$TEST_COMMANDS"
+case "$*" in
+  'compose config --services') printf 'nginx\\nbotge\\n' ;;
+esac
+`
+  );
+  const result = spawnSync('bash', [resolve('botge_control/bin/botge_control.sh')], {
+    input: `DEPLOY_QUANTUM ${digest}\n`,
+    encoding: 'utf8',
+    env: environment
+  });
+  assert.equal(result.status, 0, result.stderr);
+  assert.equal(result.stdout, 'OK\n');
+  assert.ok(result.stderr.includes('Quantum sidecar is not configured in Compose; skipping.'));
+  assert.throws(() => readFileSync(join(directory, '.botge-quantum-image')));
+});
+
+test('quantum digest deployment verifies readiness and persists .botge-quantum-image', () => {
+  stub(
+    'docker',
+    `
+printf '%s\\n' "$*" >> "$TEST_COMMANDS"
+case "$*" in
+  'compose config --services') printf 'nginx\\nbotge\\nquantum\\n' ;;
+  'compose config --format json') printf '{"services":{"quantum":{"image":"%s"}}}' "$BOTGE_QUANTUM_IMAGE" ;;
+  'compose ps -q quantum') echo qcontainer ;;
+  'inspect --format {{.Config.Image}} qcontainer') echo "$BOTGE_QUANTUM_IMAGE" ;;
+  'inspect --format {{.State.Health.Status}} qcontainer') echo healthy ;;
+esac
+`
+  );
+  const result = spawnSync('bash', [resolve('botge_control/bin/botge_control.sh')], {
+    input: `DEPLOY_QUANTUM ${digest}\n`,
+    encoding: 'utf8',
+    env: environment
+  });
+  assert.equal(result.status, 0, result.stderr);
+  assert.equal(result.stdout, 'OK\n');
+  assert.equal(
+    readFileSync(join(directory, '.botge-quantum-image'), 'utf8'),
+    `mrewy/botge-quantum@${digest}\n`
+  );
+});
+
+test('quantum digest deployment refuses Compose without BOTGE_QUANTUM_IMAGE', () => {
+  stub(
+    'docker',
+    `
+case "$*" in
+  'compose config --services') printf 'nginx\\nbotge\\nquantum\\n' ;;
+  'compose config --format json') echo '{"services":{"quantum":{"image":"mrewy/botge-quantum:latest"}}}' ;;
+esac
+`
+  );
+  const result = spawnSync('bash', [resolve('botge_control/bin/botge_control.sh')], {
+    input: `DEPLOY_QUANTUM ${digest}\n`,
+    encoding: 'utf8',
+    env: environment
+  });
+  assert.equal(result.status, 1);
+  assert.equal(result.stdout, 'ERROR\n');
+});
+
+test('failed quantum digest deployment rolls back to previous .botge-quantum-image', () => {
+  writeFileSync(join(directory, '.botge-quantum-image'), previousQuantum + '\n');
+  stub(
+    'docker',
+    `
+printf '%s %s\\n' "$*" "$BOTGE_QUANTUM_IMAGE" >> "$TEST_COMMANDS"
+case "$*" in
+  'compose config --services') printf 'nginx\\nbotge\\nquantum\\n' ;;
+  'compose config --format json') printf '{"services":{"quantum":{"image":"%s"}}}' "$BOTGE_QUANTUM_IMAGE" ;;
+  'compose up -d --no-deps --pull always --wait --wait-timeout 120 quantum') exit 1 ;;
+esac
+`
+  );
+  const result = spawnSync('bash', [resolve('botge_control/bin/botge_control.sh')], {
+    input: `DEPLOY_QUANTUM ${digest}\n`,
+    encoding: 'utf8',
+    env: environment
+  });
+  assert.equal(result.status, 1);
+  assert.equal(result.stdout, 'ERROR\n');
+  assert.ok(result.stderr.includes(`Restored the previous quantum image ${previousQuantum}.`));
+  assert.equal(
+    readFileSync(join(directory, '.botge-quantum-image'), 'utf8'),
+    previousQuantum + '\n'
+  );
+});
+
+test('manual DEPLOY_QUANTUM without a digest logs and uses .botge-quantum-image', () => {
+  writeFileSync(join(directory, '.botge-quantum-image'), previousQuantum + '\n');
+  stub(
+    'docker',
+    `
+printf '%s %s\\n' "$*" "\${BOTGE_QUANTUM_IMAGE:-}" >> "$TEST_COMMANDS"
+case "$*" in
+  'compose config --services') printf 'nginx\\nbotge\\nquantum\\n' ;;
+esac
+`
+  );
+  const result = spawnSync('bash', [resolve('botge_control/bin/botge_control.sh')], {
+    input: 'DEPLOY_QUANTUM\n',
+    encoding: 'utf8',
+    env: environment
+  });
+  assert.equal(result.status, 0);
+  assert.equal(result.stdout, 'OK\n');
+  assert.ok(
+    result.stderr.includes(
+      `Deploying pinned quantum image from .botge-quantum-image: ${previousQuantum}.`
+    )
+  );
+  assert.ok(
+    readFileSync(commands, 'utf8').includes(
+      `compose up -d --no-deps --pull always --wait --wait-timeout 120 quantum ${previousQuantum}\n`
+    )
+  );
+});

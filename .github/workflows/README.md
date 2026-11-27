@@ -106,23 +106,26 @@ one build and image smoke test suffice. Go lint, unit tests, coverage, and vulne
 still run when their inputs change. Candidate builds wait for validation and audits to pass. An
 updated PR cancels obsolete builds for the same candidate platform.
 
-Native AMD64 and ARM64 runners qualify the Rust bot. A native AMD64 runner qualifies the Activity
-server. Each runner builds a local OCI archive with an SBOM and build provenance, validates the
-attached SPDX SBOM, and smoke-tests the image from that archive. The Rust builds also scan their
-SBOMs with Scout and push their tested archives to Docker Hub by digest. The Activity build retains
-its tested archive as a GitHub Actions artifact for seven days. Rerun the Activity build if the
-archive expires before approval.
+Native AMD64 and ARM64 runners qualify the Rust bot and the optional quantum sidecar. A native AMD64
+runner qualifies the Activity server. Each runner builds a local OCI archive with an SBOM and build
+provenance, validates the attached SPDX SBOM, and smoke-tests the image from that archive. The Rust
+and quantum builds also scan their SBOMs with Scout and push their tested archives to Docker Hub by
+digest. The Activity build retains its tested archive as a GitHub Actions artifact for seven days.
+Rerun the Activity build if the archive expires before approval.
 
-The Rust publication job assembles the platforms under `mrewy/botge:pr-<number>-<merge SHA>`,
-verifies the published SBOMs and attests the candidate digest.
+The Docker Hub publication job assembles the multi-platform indexes under
+`mrewy/botge:pr-<number>-<merge SHA>` and `mrewy/botge-quantum:pr-<number>-<merge SHA>`, verifies
+the published SBOMs, and attests each candidate digest.
 
 Each changed image must pass qualification before `production` approval. After approval, `Deploy`
 rechecks the same-repository `dev` head, `main` target, open non-draft PR, and tested merge commit.
 For Activity changes, it downloads the archive by artifact ID and verifies its SHA-256. For Rust
 changes, it requests the digest-pinned VM update over Google Cloud IAP and tags the healthy digest
-as `latest`. It then uploads any Activity candidate to Artifact Registry, verifies the published
-SBOM, attests the image and deploys the same digest to Cloud Run. Both deployments share the
-production concurrency group. Cancel obsolete approval requests after updating a PR.
+as `latest`. For quantum changes, it requests `deploy-quantum` on the VM (skipped cleanly if the
+host has not enabled the quantum service) and tags `mrewy/botge-quantum:latest`. It then uploads any
+Activity candidate to Artifact Registry, verifies the published SBOM, attests the image and deploys
+the same digest to Cloud Run. Both deployments share the production concurrency group. Cancel
+obsolete approval requests after updating a PR.
 
 The Dockerfile copies every workspace manifest and compiles locked dependencies against placeholder
 packages before copying application sources. Dependency artifacts live in image layers so the signed

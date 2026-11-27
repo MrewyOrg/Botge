@@ -29,7 +29,8 @@ BOTGE_DOWNLOAD_DIR="/opt/$BOTGE_CONTROL_NAME"
 The name determines the Linux account, systemd units, `/run/<control-name>.sock`, and
 `/opt/<control-name>`. Use 1-24 lowercase letters, digits, underscores, or hyphens, starting with a
 letter or underscore. UID `4242` is fixed in [config](config.sh); a second name alone cannot support
-another installation on the same VM.
+another installation on the same VM. Set `BOTGE_REF` (default `main`) to pin downloaded files to a
+tag or commit SHA.
 
 Setup preserves existing control config, Compose files, application settings, and secrets. To rerun:
 
@@ -57,7 +58,10 @@ The [operations wiki](https://github.com/MrewyOrg/Botge/wiki/Operations) documen
 deploy, configuration updates, and log commands. The control handler serializes operations and waits
 up to 120 seconds for Compose services. Digest deployments verify the running image and gateway
 readiness before replying `OK`. A failed digest deployment restarts the last verified image and
-replies `ERROR`; previous images are retained for rollback. See
+replies `ERROR`; previous images are retained for rollback. Digest deployments persist the approved
+image in `/home/<control-name>/botge/.botge-image` (and `.botge-quantum-image` when using
+`deploy-quantum` with [compose.quantum.yaml](../compose.quantum.yaml)); remove those files to return
+manual `deploy` or `deploy-quantum` requests to unpinned `latest`. See
 [production contracts](../docs/PRODUCTION.md) for host upgrades, backups, and recovery.
 
 ## Import an existing data folder

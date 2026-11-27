@@ -26,13 +26,19 @@ fi
 
 readonly BOTGE_CONTROL_NAME="$1"
 BOTGE_DOWNLOAD_DIR="/opt/${BOTGE_CONTROL_NAME}"
-readonly BOTGE_SOURCE=https://raw.githubusercontent.com/MrewyOrg/Botge/main
+readonly BOTGE_REF="${BOTGE_REF:-main}"
+if [[ ! "${BOTGE_REF}" =~ ^[A-Za-z0-9._/-]+$ ]] || [[ "${BOTGE_REF}" == *..* || "${BOTGE_REF}" == /* || "${BOTGE_REF}" == */ ]]; then
+  echo 'Invalid BOTGE_REF.' >&2
+  exit 1
+fi
+readonly BOTGE_SOURCE="https://raw.githubusercontent.com/MrewyOrg/Botge/${BOTGE_REF}"
 
 apt-get update
 apt-get install -y --no-upgrade \
   ca-certificates \
   curl \
   dbus-user-session \
+  jq \
   uidmap \
   socat \
   systemd-container
@@ -62,8 +68,10 @@ for file in \
   nginx/botge-nginx.conf; do
   # Keep installed command paths and preserve local control configuration.
   destination="${BOTGE_DOWNLOAD_DIR}/${file%.sh}"
+  mode=644
   if [[ "${file}" == scripts/operations/botge-control.sh ]]; then
     destination="${BOTGE_DOWNLOAD_DIR}/scripts/botge-control"
+    mode=755
   fi
   if [[ "${file}" == botge_control/config.sh && -e "${destination}" ]]; then
     continue
@@ -71,7 +79,7 @@ for file in \
 
   curl --fail --silent --show-error --location \
     "${BOTGE_SOURCE}/${file}" --output "${destination}.download"
-  install -o root -g root -m 644 \
+  install -o root -g root -m "${mode}" \
     "${destination}.download" "${destination}"
   rm -f "${destination}.download"
 done

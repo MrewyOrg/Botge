@@ -11,12 +11,15 @@ BOTGE_CONTROL_DIGEST=''
 if [[ "${BOTGE_CONTROL_REQUEST}" =~ ^DEPLOY\ (sha256:[a-f0-9]{64})$ ]]; then
   BOTGE_CONTROL_DIGEST="${BASH_REMATCH[1]}"
   BOTGE_CONTROL_ACTION=DEPLOY
+elif [[ "${BOTGE_CONTROL_REQUEST}" =~ ^DEPLOY_QUANTUM\ (sha256:[a-f0-9]{64})$ ]]; then
+  BOTGE_CONTROL_DIGEST="${BASH_REMATCH[1]}"
+  BOTGE_CONTROL_ACTION=DEPLOY_QUANTUM
 else
   BOTGE_CONTROL_ACTION="${BOTGE_CONTROL_REQUEST}"
 fi
 
 case "${BOTGE_CONTROL_ACTION}" in
-  DEPLOY | UP | STOP) ;;
+  DEPLOY | DEPLOY_QUANTUM | UP | STOP) ;;
   *)
     printf 'DENIED\n'
     exit 1
@@ -48,7 +51,7 @@ if ! flock -n 9; then
   exit 1
 fi
 
-# Keep the last verified digest across UP requests and host restarts.
+# Keep the last verified digests across UP requests and host restarts.
 previous_image=''
 if [[ -f .botge-image ]]; then
   BOTGE_IMAGE=$(cat .botge-image)
@@ -58,6 +61,17 @@ if [[ -f .botge-image ]]; then
   fi
   export BOTGE_IMAGE
   previous_image="${BOTGE_IMAGE}"
+fi
+
+previous_quantum_image=''
+if [[ -f .botge-quantum-image ]]; then
+  BOTGE_QUANTUM_IMAGE=$(cat .botge-quantum-image)
+  if [[ ! "${BOTGE_QUANTUM_IMAGE}" =~ ^mrewy/botge-quantum@sha256:[a-f0-9]{64}$ ]]; then
+    printf 'ERROR\n'
+    exit 1
+  fi
+  export BOTGE_QUANTUM_IMAGE
+  previous_quantum_image="${BOTGE_QUANTUM_IMAGE}"
 fi
 
 # Restores the last verified image after a failed digest deployment. Its result is logged only:
@@ -71,6 +85,18 @@ rollback() {
     echo "Restored the previous image ${previous_image}." >&2
   else
     echo "Could not restore the previous image ${previous_image}." >&2
+  fi
+}
+
+rollback_quantum() {
+  if [[ -z "${previous_quantum_image}" ]]; then
+    echo 'No verified previous quantum image to restore.' >&2
+    return
+  fi
+  if BOTGE_QUANTUM_IMAGE="${previous_quantum_image}" docker compose up -d --no-deps --wait --wait-timeout 120 quantum >&2; then
+    echo "Restored the previous quantum image ${previous_quantum_image}." >&2
+  else
+    echo "Could not restore the previous quantum image ${previous_quantum_image}." >&2
   fi
 }
 
@@ -99,6 +125,8 @@ case "${BOTGE_CONTROL_ACTION}" in
         printf 'ERROR\n'
         exit 1
       fi
+    elif [[ -n "${previous_image}" ]]; then
+      echo "Deploying pinned image from .botge-image: ${previous_image}." >&2
     fi
     if ! docker compose up -d --no-deps --pull always --wait --wait-timeout 120 botge >&2; then
       if [[ -n "${BOTGE_CONTROL_DIGEST}" ]]; then
@@ -126,6 +154,50 @@ case "${BOTGE_CONTROL_ACTION}" in
       mv -- "${image_file}" .botge-image
     fi
     # Retain previous images for rollback; prune only through deliberate operator maintenance.
+    ;;
+
+  DEPLOY_QUANTUM)
+    if ! docker compose config --services | grep -qx quantum; then
+      echo 'Quantum sidecar is not configured in Compose; skipping.' >&2
+      printf 'OK\n'
+      exit 0
+    fi
+    if [[ -n "${BOTGE_CONTROL_DIGEST}" ]]; then
+      export BOTGE_QUANTUM_IMAGE="mrewy/botge-quantum@${BOTGE_CONTROL_DIGEST}"
+      if ! configured_image=$(docker compose config --format json | jq -r '.services.quantum.image // empty') \
+        || [[ "${configured_image}" != "${BOTGE_QUANTUM_IMAGE}" ]]; then
+        echo 'Compose must use BOTGE_QUANTUM_IMAGE for the quantum image.' >&2
+        printf 'ERROR\n'
+        exit 1
+      fi
+    elif [[ -n "${previous_quantum_image}" ]]; then
+      echo "Deploying pinned quantum image from .botge-quantum-image: ${previous_quantum_image}." >&2
+    fi
+    if ! docker compose up -d --no-deps --pull always --wait --wait-timeout 120 quantum >&2; then
+      if [[ -n "${BOTGE_CONTROL_DIGEST}" ]]; then
+        rollback_quantum
+      fi
+      printf 'ERROR\n'
+      exit 1
+    fi
+
+    if [[ -n "${BOTGE_CONTROL_DIGEST}" ]]; then
+      container=$(docker compose ps -q quantum)
+      if [[ -z "${container}" ]] \
+        || ! running_image=$(docker inspect --format '{{.Config.Image}}' "${container}") \
+        || ! health=$(docker inspect --format '{{.State.Health.Status}}' "${container}") \
+        || [[ "${running_image}" != "${BOTGE_QUANTUM_IMAGE}" || "${health}" != healthy ]]; then
+        echo 'Running quantum image or readiness does not match the approved candidate.' >&2
+        rollback_quantum
+        printf 'ERROR\n'
+        exit 1
+      fi
+      umask 077
+      image_file=$(mktemp "${BOTGE_DIR}/.botge-quantum-image.XXXXXX")
+      trap 'rm -f -- "$image_file"' EXIT
+      printf '%s\n' "${BOTGE_QUANTUM_IMAGE}" > "${image_file}"
+      mv -- "${image_file}" .botge-quantum-image
+    fi
     ;;
 
   *)

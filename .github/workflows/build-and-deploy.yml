@@ -75,13 +75,26 @@ jobs:
               - 'package.json'
               - 'scripts/activity/stage-activity-server.sh'
               - 'tsconfig.base.json'
+            quantum:
+              - '.github/workflows/build-and-deploy.yml'
+              - '.python-version'
+              - 'LICENSE.txt'
+              - 'pyproject.toml'
+              - 'uv.lock'
+              - 'quantum/Dockerfile'
+              - 'quantum/Dockerfile.dockerignore'
+              - 'quantum/Dockerfile.rego'
+              - 'quantum/qsharp.json'
+              - 'quantum/server.py'
+              - 'quantum/src/BotgeQuantum.qs'
       - name: Select native candidate builds
         id: candidates
         env:
           BUILD_BOT: ${{ steps.changes.outputs.build }}
           BUILD_ACTIVITY: ${{ steps.changes.outputs.activity-origin }}
+          BUILD_QUANTUM: ${{ steps.changes.outputs.quantum }}
         run: |
-          matrix=$(jq -cn --arg bot "$BUILD_BOT" --arg activity "$BUILD_ACTIVITY" '
+          matrix=$(jq -cn --arg bot "$BUILD_BOT" --arg activity "$BUILD_ACTIVITY" --arg quantum "$BUILD_QUANTUM" '
             {include: [
               (select($bot == "true") |
                 {id: "bot-amd64", name: "Rust bot AMD64", runner: "ubuntu-24.04",
@@ -90,12 +103,18 @@ jobs:
                  arch: "arm64", file: "Dockerfile", repository: "docker.io/mrewy/botge"}),
               (select($activity == "true") |
                 {id: "activity-amd64", name: "Activity server AMD64", runner: "ubuntu-24.04",
-                 arch: "amd64", file: "activity/server/Dockerfile"})
+                 arch: "amd64", file: "activity/server/Dockerfile"}),
+              (select($quantum == "true") |
+                {id: "quantum-amd64", name: "Quantum sidecar AMD64", runner: "ubuntu-24.04",
+                 arch: "amd64", file: "quantum/Dockerfile", repository: "docker.io/mrewy/botge-quantum"},
+                {id: "quantum-arm64", name: "Quantum sidecar ARM64", runner: "ubuntu-24.04-arm",
+                 arch: "arm64", file: "quantum/Dockerfile", repository: "docker.io/mrewy/botge-quantum"})
             ]}')
           printf 'matrix=%s\n' "$matrix" >> "$GITHUB_OUTPUT"
     outputs:
       build: ${{ steps.changes.outputs.build }}
       activity-origin: ${{ steps.changes.outputs.activity-origin }}
+      quantum: ${{ steps.changes.outputs.quantum }}
       candidates: ${{ steps.candidates.outputs.matrix }}
 
   security:
@@ -109,8 +128,9 @@ jobs:
     needs: [validate, security, filter-paths]
     if: >-
       (needs.filter-paths.outputs.build == 'true' || needs.filter-paths.outputs.activity-origin ==
-      'true') && !github.event.pull_request.draft && github.event.pull_request.head.ref == 'dev' &&
-      github.event.pull_request.head.repo.full_name == github.repository
+      'true' || needs.filter-paths.outputs.quantum == 'true') && !github.event.pull_request.draft &&
+      github.event.pull_request.head.ref == 'dev' && github.event.pull_request.head.repo.full_name
+      == github.repository
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 40
     permissions:
@@ -125,6 +145,8 @@ jobs:
     outputs:
       bot-amd64: ${{ steps.store.outputs.bot-amd64 }}
       bot-arm64: ${{ steps.store.outputs.bot-arm64 }}
+      quantum-amd64: ${{ steps.store.outputs.quantum-amd64 }}
+      quantum-arm64: ${{ steps.store.outputs.quantum-arm64 }}
       activity-amd64: ${{ steps.activity-handoff.outputs.digest }}
       activity-archive-sha256: ${{ steps.activity-handoff.outputs.archive-sha256 }}
       activity-artifact-id: ${{ steps.activity-artifact.outputs.artifact-id }}
@@ -286,10 +308,39 @@ jobs:
           docker load --input "$runtime_archive"
 
       - name: Smoke-test the Rust executable
-        if: matrix.id != 'activity-amd64'
+        if: startsWith(matrix.id, 'bot-')
         run: |
           docker run --rm --pull=never --network=none --entrypoint /app/botge \
             "$SMOKE_IMAGE" --version | grep -E '^Botge [0-9]+[.][0-9]+[.][0-9]+'
+
+      - name: Smoke-test the Quantum sidecar
+        if: startsWith(matrix.id, 'quantum-')
+        run: |
+          container=$(docker run -d --pull=never --network=none --memory=256m --read-only \
+            --tmpfs /tmp:size=32m,mode=1777,noexec,nosuid "$SMOKE_IMAGE")
+          trap 'docker rm -f "$container" >/dev/null 2>&1 || true' EXIT
+          docker exec "$container" /app/.venv/bin/python -c '
+          import json, time, urllib.request
+          for _ in range(30):
+              try:
+                  with urllib.request.urlopen("http://127.0.0.1:3090/healthz", timeout=2) as r:
+                      assert json.load(r) == {"status": "ok", "backend": "cpu"}
+                      break
+              except Exception:
+                  time.sleep(0.5)
+          else:
+              raise SystemExit("quantum /healthz did not become ready")
+          req = urllib.request.Request(
+              "http://127.0.0.1:3090/v1/entangle",
+              data=json.dumps({"base_pool_size": 4, "overlay_pool_size": 4, "steps": 2}).encode(),
+              headers={"Content-Type": "application/json"},
+              method="POST",
+          )
+          with urllib.request.urlopen(req, timeout=5) as r:
+              body = json.load(r)
+          assert body["mode"] == "entangle" and body["qubits"] == 4
+          assert 0 <= body["base_index"] < 4 and 0 <= body["overlay_index"] < 4
+          '
 
       - name: Install the pinned Go toolchain
         if: matrix.id == 'activity-amd64'
@@ -344,7 +395,7 @@ jobs:
           compression-level: 0
           retention-days: 7
 
-      - name: Store the tested Rust OCI archive by digest
+      - name: Store the tested Docker Hub OCI archive by digest
         if: matrix.id != 'activity-amd64'
         id: store
         run: |
@@ -354,9 +405,10 @@ jobs:
           printf '%s=%s\n' "$CANDIDATE_ID" "$digest" >> "$GITHUB_OUTPUT"
 
   publish:
-    name: Publish the qualified Rust candidate
+    name: Publish qualified Docker Hub candidates
     needs: [build, filter-paths]
-    if: needs.filter-paths.outputs.build == 'true'
+    if: >-
+      needs.filter-paths.outputs.build == 'true' || needs.filter-paths.outputs.quantum == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     permissions:
@@ -365,6 +417,7 @@ jobs:
       attestations: write
     outputs:
       digest: ${{ steps.candidates.outputs.bot-digest }}
+      quantum-digest: ${{ steps.quantum-candidates.outputs.quantum-digest }}
     steps:
       - name: Log in to Docker Hub to publish candidate tags
         uses: docker/login-action@v4.8.0
@@ -373,6 +426,7 @@ jobs:
           password: ${{ secrets.DOCKER_PASSWORD }}
 
       - name: Assemble the Rust candidate index and verify its published SBOMs
+        if: needs.filter-paths.outputs.build == 'true'
         id: candidates
         env:
           PR_NUMBER: ${{ github.event.number }}
@@ -399,15 +453,56 @@ jobs:
           done
           printf 'bot-digest=%s\n' "$bot_digest" >> "$GITHUB_OUTPUT"
           printf 'Qualified Rust bot mrewy/botge@%s\n\n' "$bot_digest" >> "$GITHUB_STEP_SUMMARY"
-          printf 'Tested merge commit %s\n' "$GITHUB_SHA" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Sign the qualified Rust candidate provenance
+        if: needs.filter-paths.outputs.build == 'true'
         uses: actions/attest@v4.2.2
         with:
           subject-name: docker.io/mrewy/botge
           subject-digest: ${{ steps.candidates.outputs.bot-digest }}
           push-to-registry: true
           create-storage-record: false
+
+      - name: Assemble the Quantum candidate index and verify its published SBOMs
+        if: needs.filter-paths.outputs.quantum == 'true'
+        id: quantum-candidates
+        env:
+          PR_NUMBER: ${{ github.event.number }}
+          QUANTUM_AMD64: ${{ needs.build.outputs.quantum-amd64 }}
+          QUANTUM_ARM64: ${{ needs.build.outputs.quantum-arm64 }}
+        run: |
+          require_digest() {
+            [[ "$1" =~ ^sha256:[a-f0-9]{64}$ ]] || {
+              echo 'A qualified build did not return a valid digest.' >&2
+              return 1
+            }
+          }
+          require_digest "$QUANTUM_AMD64"
+          require_digest "$QUANTUM_ARM64"
+          docker buildx imagetools create --tag "mrewy/botge-quantum:pr-$PR_NUMBER-$GITHUB_SHA" \
+            --metadata-file "$RUNNER_TEMP/quantum-index.json" \
+            "mrewy/botge-quantum@$QUANTUM_AMD64" "mrewy/botge-quantum@$QUANTUM_ARM64"
+          quantum_digest=$(jq -er '."containerimage.descriptor".digest' "$RUNNER_TEMP/quantum-index.json")
+          require_digest "$quantum_digest"
+          for arch in amd64 arm64; do
+            docker buildx imagetools inspect "mrewy/botge-quantum@$quantum_digest" \
+              --format "{{json (index .SBOM \"linux/$arch\").SPDX}}" |
+              jq -e '.SPDXID == "SPDXRef-DOCUMENT"' > /dev/null
+          done
+          printf 'quantum-digest=%s\n' "$quantum_digest" >> "$GITHUB_OUTPUT"
+          printf 'Qualified Quantum sidecar mrewy/botge-quantum@%s\n\n' "$quantum_digest" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Sign the qualified Quantum candidate provenance
+        if: needs.filter-paths.outputs.quantum == 'true'
+        uses: actions/attest@v4.2.2
+        with:
+          subject-name: docker.io/mrewy/botge-quantum
+          subject-digest: ${{ steps.quantum-candidates.outputs.quantum-digest }}
+          push-to-registry: true
+          create-storage-record: false
+
+      - name: Summarize tested merge commit
+        run: printf 'Tested merge commit %s\n' "$GITHUB_SHA" >> "$GITHUB_STEP_SUMMARY"
 
   deploy:
     name: Deploy
@@ -416,10 +511,12 @@ jobs:
       always() && !cancelled() && !github.event.pull_request.draft && needs.validate.result ==
       'success' && needs.security.result == 'success' && needs.filter-paths.result == 'success' &&
       (((needs.filter-paths.outputs.build == 'true' || needs.filter-paths.outputs.activity-origin ==
-      'true') && needs.build.result == 'success') || (needs.filter-paths.outputs.build == 'false' &&
-      needs.filter-paths.outputs.activity-origin == 'false' && needs.build.result == 'skipped')) &&
-      ((needs.filter-paths.outputs.build == 'true' && needs.publish.result == 'success') ||
-      (needs.filter-paths.outputs.build == 'false' && needs.publish.result == 'skipped'))
+      'true' || needs.filter-paths.outputs.quantum == 'true') && needs.build.result == 'success') ||
+      (needs.filter-paths.outputs.build == 'false' && needs.filter-paths.outputs.activity-origin ==
+      'false' && needs.filter-paths.outputs.quantum == 'false' && needs.build.result == 'skipped'))
+      && (((needs.filter-paths.outputs.build == 'true' || needs.filter-paths.outputs.quantum ==
+      'true') && needs.publish.result == 'success') || (needs.filter-paths.outputs.build == 'false'
+      && needs.filter-paths.outputs.quantum == 'false' && needs.publish.result == 'skipped'))
     runs-on: ubuntu-latest
     timeout-minutes: 20
     environment: production
@@ -505,15 +602,21 @@ jobs:
         if: needs.filter-paths.outputs.build != 'true'
         run: echo 'Retained the current bot image.' >> "$GITHUB_STEP_SUMMARY"
 
+      - name: Record an unchanged quantum image
+        if: needs.filter-paths.outputs.quantum != 'true'
+        run: echo 'Retained the current quantum image.' >> "$GITHUB_STEP_SUMMARY"
+
       - name: Checkout the tested candidate
-        if: needs.filter-paths.outputs.build == 'true'
+        if:
+          needs.filter-paths.outputs.build == 'true' || needs.filter-paths.outputs.quantum == 'true'
         uses: actions/checkout@v7.0.1
         with:
           ref: ${{ github.sha }}
           persist-credentials: false
 
       - name: Authenticate to Google Cloud
-        if: needs.filter-paths.outputs.build == 'true'
+        if:
+          needs.filter-paths.outputs.build == 'true' || needs.filter-paths.outputs.quantum == 'true'
         uses: google-github-actions/auth@v3.0.0
         with:
           workload_identity_provider: ${{ secrets.GCLOUD_WORKLOAD_IDENTITY_PROVIDER }}
@@ -521,7 +624,8 @@ jobs:
           project_id: ${{ secrets.GCLOUD_PROJECT_ID }}
 
       - name: Set up Google Cloud
-        if: needs.filter-paths.outputs.build == 'true'
+        if:
+          needs.filter-paths.outputs.build == 'true' || needs.filter-paths.outputs.quantum == 'true'
         uses: google-github-actions/setup-gcloud@v3.0.1
 
       - name: Deploy Botge
@@ -559,6 +663,43 @@ jobs:
           trap 'rm -rf "$DOCKER_CONFIG"' EXIT
           printf '%s' "$DOCKER_PASSWORD" | docker login --username "$DOCKER_USERNAME" --password-stdin
           docker buildx imagetools create --tag mrewy/botge:latest "mrewy/botge@$IMAGE_DIGEST"
+
+      - name: Deploy Quantum sidecar
+        if: needs.filter-paths.outputs.quantum == 'true'
+        env:
+          GCLOUD_INSTANCE: ${{ secrets.GCLOUD_INSTANCE }}
+          GCLOUD_PROJECT_ID: ${{ secrets.GCLOUD_PROJECT_ID }}
+          GCLOUD_ZONE: ${{ secrets.GCLOUD_ZONE }}
+          BOTGE_CONTROL_SOCKET: ${{ secrets.BOTGE_CONTROL_SOCKET }}
+          QUANTUM_DIGEST: ${{ needs.publish.outputs.quantum-digest }}
+        run: |
+          [[ "$QUANTUM_DIGEST" =~ ^sha256:[a-f0-9]{64}$ ]] || {
+            echo 'The build did not return a valid quantum image digest.' >&2
+            exit 1
+          }
+          gcloud compute ssh "$GCLOUD_INSTANCE" \
+            --project="$GCLOUD_PROJECT_ID" \
+            --zone="$GCLOUD_ZONE" \
+            --tunnel-through-iap \
+            --quiet \
+            --command="BOTGE_CONTROL_SOCKET=$(printf '%q' "$BOTGE_CONTROL_SOCKET") bash -s -- deploy-quantum $(printf '%q' "$QUANTUM_DIGEST")" \
+              < scripts/operations/botge-control.sh
+          printf 'Reconciled quantum sidecar mrewy/botge-quantum@%s (skipped on host if quantum service is not configured)\n\nDeployed merge commit %s\n' \
+            "$QUANTUM_DIGEST" "$GITHUB_SHA" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Tag the healthy quantum digest as latest
+        if: needs.filter-paths.outputs.quantum == 'true'
+        env:
+          QUANTUM_DIGEST: ${{ needs.publish.outputs.quantum-digest }}
+          DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
+          DOCKER_PASSWORD: ${{ secrets.DOCKER_PASSWORD }}
+        run: |
+          DOCKER_CONFIG="$(mktemp -d "$RUNNER_TEMP/docker-auth-quantum.XXXXXX")"
+          export DOCKER_CONFIG
+          trap 'rm -rf "$DOCKER_CONFIG"' EXIT
+          printf '%s' "$DOCKER_PASSWORD" | docker login --username "$DOCKER_USERNAME" --password-stdin
+          docker buildx imagetools create --tag mrewy/botge-quantum:latest \
+            "mrewy/botge-quantum@$QUANTUM_DIGEST"
 
       - name: Authenticate the approved Activity deployment to Google Cloud
         if: needs.filter-paths.outputs.activity-origin == 'true'
