@@ -1,9 +1,11 @@
 """Exercise the chemistry proof scripts without Lean, Cargo, or sidecar HTTP calls."""
 
+import re
 import runpy
 import subprocess
 import sys
 import tempfile
+import types
 import unittest
 from pathlib import Path
 from unittest.mock import patch
@@ -13,6 +15,162 @@ import verify_chemistry_tex as chem_tex
 
 REPO = Path(__file__).resolve().parents[2]
 CHEM_SCRIPTS = REPO / 'scripts' / 'chemistry'
+REAL_RUST_ATLAS = REPO / 'crates' / 'botge-chemistry' / 'src' / 'atlas.rs'
+
+_CANONICAL_SMILES: dict[str, str] = {
+    'CC(=C)C=C': 'C=CC(=C)C',
+    'C1=CC=CCC1': 'C1=CCCC=C1',
+    'O=C1OC(=O)C=C1': 'O=C1C=CC(=O)O1',
+    'COC(=O)C=C': 'C=CC(=O)OC',
+    'CC(=O)C=C': 'C=CC(C)=O',
+    'CC(=O)C': 'CC(C)=O',
+    'CC(=O)CC(=O)C': 'CC(=O)CC(C)=O',
+}
+
+_FORMULAS_BY_CANONICAL: dict[str, str] = {
+    'C=CC=C': 'C4H6',
+    'C=CC(=C)C': 'C5H8',
+    'C1=CCCC=C1': 'C6H8',
+    'C1=CCC=C1': 'C5H6',
+    'O=C1C=CC(=O)O1': 'C4H2O3',
+    'C=CC(=O)OC': 'C4H6O2',
+    'C=CC#N': 'C3H3N',
+    'C=CC(C)=O': 'C4H6O',
+    'CC(=O)O': 'C2H4O2',
+    'CCC(=O)O': 'C3H6O2',
+    'O=C(O)c1ccccc1': 'C7H6O2',
+    'CO': 'CH4O',
+    'CCO': 'C2H6O',
+    'OCc1ccccc1': 'C7H8O',
+    'CN': 'CH5N',
+    'CCN': 'C2H7N',
+    'Nc1ccccc1': 'C6H7N',
+    'C1CCNC1': 'C4H9N',
+    'CC=O': 'C2H4O',
+    'CCC=O': 'C3H6O',
+    'O=Cc1ccccc1': 'C7H6O',
+    'CC(C)=O': 'C3H6O',
+    'CC(=O)Cl': 'C2H3ClO',
+    'O=C(Cl)c1ccccc1': 'C7H5ClO',
+    'CCCCBr': 'C4H9Br',
+    'BrCc1ccccc1': 'C7H7Br',
+    'Brc1ccccc1': 'C6H5Br',
+    'COc1ccc(Br)cc1': 'C7H7BrO',
+    'OB(O)c1ccccc1': 'C6H7BO2',
+    'Cc1ccc(B(O)O)cc1': 'C7H9BO2',
+    'CC(=O)CC(C)=O': 'C5H8O2',
+    'COC(=O)CC(=O)OC': 'C5H8O4',
+}
+
+_RUST_MASK_NAMES: dict[str, str] = {
+    'heat': 'COMPAT_HEAT',
+    'acid': 'COMPAT_ACID',
+    'base': 'COMPAT_BASE',
+    'palladium': 'COMPAT_PALLADIUM',
+}
+
+
+def _load_real_rust_masks() -> dict[str, list[int]]:
+    """Read the 32-bit compatibility masks from the Rust atlas source."""
+    text = REAL_RUST_ATLAS.read_text(encoding='utf-8')
+    masks: dict[str, list[int]] = {}
+    for cond, const_name in _RUST_MASK_NAMES.items():
+        match = re.search(
+            rf'const\s+{const_name}:\s*\[u32;[^\]]+\]\s*=\s*\[([^\]]+)\]',
+            text,
+        )
+        if match is None:
+            msg = f'Missing {const_name} in {REAL_RUST_ATLAS}'
+            raise AssertionError(msg)
+        masks[cond] = [
+            int(token.replace('_', ''), 16)
+            for token in re.findall(r'0x[0-9a-fA-F_]+', match.group(1))
+        ]
+    return masks
+
+
+def _fake_rdkit_modules() -> dict[str, types.ModuleType]:
+    """Build lightweight stubs for RDKit-backed modules so CI without `rdkit` passes."""
+    counts = {
+        'diels_alder': 32,
+        'fischer_esterification': 18,
+        'imine_condensation': 36,
+        'amide_coupling': 16,
+        'williamson_sn2': 12,
+        'aldol_condensation': 32,
+        'michael_addition': 12,
+        'suzuki_miyaura': 8,
+    }
+
+    def _verify_matrix() -> dict[str, object]:
+        return {
+            'explicit_counts': dict(counts),
+            'auto_counts': dict(counts),
+            'non_reactive_explicit': 3930,
+            'non_reactive_auto': 858,
+            'max_png_bytes': 8743,
+        }
+
+    def _mol_from_smiles(smiles: str) -> str:
+        return smiles
+
+    def _mol_to_smiles(mol: str, **_kwargs: bool) -> str:
+        return _CANONICAL_SMILES.get(mol, mol)
+
+    def _calc_mol_formula(mol: str) -> str:
+        return _FORMULAS_BY_CANONICAL[_CANONICAL_SMILES.get(mol, mol)]
+
+    verify_matrix_mod = types.ModuleType('verify_matrix')
+    verify_matrix_mod.__dict__['verify_matrix'] = _verify_matrix
+
+    rdkit_mod = types.ModuleType('rdkit')
+    chem_mod = types.ModuleType('rdkit.Chem')
+    desc_mod = types.ModuleType('rdkit.Chem.rdMolDescriptors')
+    chem_mod.__dict__['MolFromSmiles'] = _mol_from_smiles
+    chem_mod.__dict__['MolToSmiles'] = _mol_to_smiles
+    desc_mod.__dict__['CalcMolFormula'] = _calc_mol_formula
+    chem_mod.__dict__['rdMolDescriptors'] = desc_mod
+    rdkit_mod.__dict__['Chem'] = chem_mod
+
+    masks = _load_real_rust_masks()
+
+    class _ReactedOutcome:
+        pass
+
+    class _PoolTarget:
+        def __init__(
+            self,
+            base: object,
+            overlay: object,
+            *,
+            include_diagram: bool = False,
+        ) -> None:
+            self.base = base
+            self.overlay = overlay
+            self.include_diagram = include_diagram
+
+    class _ChemistryEngine:
+        def react(
+            self,
+            a: int,
+            b: int,
+            cond: str,
+            _target: _PoolTarget,
+        ) -> _ReactedOutcome | None:
+            return _ReactedOutcome() if (masks[cond][a] >> b) & 1 else None
+
+    engine_mod = types.ModuleType('engine')
+    engine_mod.__dict__['ReactedOutcome'] = _ReactedOutcome
+    engine_mod.__dict__['PoolTarget'] = _PoolTarget
+    engine_mod.__dict__['ChemistryEngine'] = _ChemistryEngine
+
+    return {
+        'verify_matrix': verify_matrix_mod,
+        'rdkit': rdkit_mod,
+        'rdkit.Chem': chem_mod,
+        'rdkit.Chem.rdMolDescriptors': desc_mod,
+        'engine': engine_mod,
+    }
 
 
 class ChemistryProofScriptTests(unittest.TestCase):
@@ -20,8 +178,9 @@ class ChemistryProofScriptTests(unittest.TestCase):
 
     def test_verify_tex_constants_passes_repo_spec(self) -> None:
         """Committed `botge-chemistry.tex` passes scope, Lean label, and matrix checks."""
-        chem_tex.main()
-        runpy.run_path(str(CHEM_SCRIPTS / 'verify_chemistry_tex.py'), run_name='__main__')
+        with patch.dict(sys.modules, _fake_rdkit_modules()):
+            chem_tex.main()
+            runpy.run_path(str(CHEM_SCRIPTS / 'verify_chemistry_tex.py'), run_name='__main__')
 
     def test_verify_tex_constants_rejects_broken_inputs(self) -> None:
         """Forbidden tokens, missing labels, and mismatched counts exit cleanly."""
@@ -33,7 +192,7 @@ class ChemistryProofScriptTests(unittest.TestCase):
             chem_tex.check_substrate_table('no substrate table')
 
         tex = chem_tex.TEX_PATH.read_text(encoding='utf-8')
-        with tempfile.TemporaryDirectory() as tmp:
+        with tempfile.TemporaryDirectory() as tmp, patch.dict(sys.modules, _fake_rdkit_modules()):
             bad_tex = Path(tmp) / 'bad.tex'
             bad_tex.write_text('RDKit leaked here.\n', encoding='utf-8')
             with (
@@ -85,7 +244,7 @@ class ChemistryProofScriptTests(unittest.TestCase):
 
     def test_rust_atlas_sync_missing_and_mismatched(self) -> None:
         """Rust/Python atlas cross-check handles missing file and catches drift."""
-        with tempfile.TemporaryDirectory() as tmp:
+        with tempfile.TemporaryDirectory() as tmp, patch.dict(sys.modules, _fake_rdkit_modules()):
             missing = Path(tmp) / 'missing.rs'
             with patch.object(chem_tex, 'RUST_ATLAS_PATH', missing):
                 chem_tex.check_rust_python_atlas_sync()
