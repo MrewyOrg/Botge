@@ -17,7 +17,7 @@ control_docker() {
   stub docker << 'SH'
 case "$1 $2" in
   'compose config')
-    if [[ "${3:-}" = --services ]]; then
+    if [ "${3:-}" = --services ]; then
       printf '%s\n' ${COMPOSE_SERVICES:-nginx botge quantum}
     else
       printf '{"services":{"botge":{"image":"%s"},"quantum":{"image":"%s"}}}\n' \
@@ -34,7 +34,7 @@ case "$1 $2" in
     ;;
   'compose stop') exit "${STOP_FAIL:-0}" ;;
   'compose ps')
-    if [[ "${4:-}" = quantum ]]; then
+    if [ "${4:-}" = quantum ]; then
       printf '%s\n' "${QUANTUM_CONTAINER:-quantum-123}"
     else
       printf '%s\n' "${CONTAINER:-container-123}"
@@ -43,7 +43,7 @@ case "$1 $2" in
   'inspect --format')
     case "$3" in
       *Config.Image*)
-        if [[ "${4:-}" = quantum-123 ]]; then
+        if [ "${4:-}" = quantum-123 ]; then
           printf '%s\n' "${RUNNING_IMAGE:-${BOTGE_QUANTUM_IMAGE:-}}"
         else
           printf '%s\n' "${RUNNING_IMAGE:-${BOTGE_IMAGE:-}}"
