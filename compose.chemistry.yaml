@@ -1,0 +1,34 @@
+services:
+  chemistry:
+    image: ${BOTGE_CHEMISTRY_IMAGE:-mrewy/botge-chemistry}
+    mem_limit: 256m
+    restart: unless-stopped
+    init: true
+    read_only: true
+    tmpfs:
+      - /tmp:size=32m,mode=1777,noexec,nosuid
+    logging:
+      driver: local
+      options:
+        max-size: '10m'
+        max-file: '3'
+    environment:
+      - BOTGE_CHEMISTRY_SECRET=${BOTGE_CHEMISTRY_SECRET:-}
+    healthcheck:
+      test:
+        [
+          'CMD',
+          '/app/.venv/bin/python',
+          '-c',
+          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:3091/healthz', timeout=2)"
+        ]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+      start_period: 15s
+
+  botge:
+    environment:
+      # Optional sidecar URL; botge starts normally even if chemistry is offline.
+      - BOTGE_CHEMISTRY_URL=http://chemistry:3091
+      - BOTGE_CHEMISTRY_SECRET=${BOTGE_CHEMISTRY_SECRET:-}

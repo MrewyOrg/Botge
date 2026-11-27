@@ -1,0 +1,37 @@
+# Strict Lake configuration for Botge's organic chemistry proofs.
+name = 'botge_chem_lean'
+version = '0.1.0'
+keywords = ['math', 'chemistry']
+defaultTargets = ['BotgeChemLean', 'audit_axioms']
+lintDriver = 'batteries/runLinter'
+lintDriverArgs = ['BotgeChemLean']
+
+[leanOptions]
+autoImplicit = false
+relaxedAutoImplicit = false
+pp.unicode.fun = true
+maxSynthPendingDepth = 3
+warningAsError = true
+weak.linter.mathlibStandardSet = true
+weak.linter.style.header.license = 'Released under the MIT license as described in the file LICENSE.txt.'
+weak.linter.style.longLine = true
+weak.linter.style.longFile = 1500
+weak.linter.style.nameCheck = true
+weak.linter.unusedVariables = true
+weak.linter.unusedTactic = true
+weak.linter.dupNamespace = true
+weak.linter.unreachableTactic = false
+weak.linter.unnecessarySeqFocus = false
+
+[[require]]
+name = 'mathlib'
+scope = 'leanprover-community'
+rev = 'v4.36.0'
+
+[[lean_lib]]
+name = 'BotgeChemLean'
+
+[[lean_exe]]
+name = 'audit_axioms'
+root = 'BotgeChemLean.AuditAxioms'
+supportInterpreter = true

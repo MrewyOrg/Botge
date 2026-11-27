@@ -3,8 +3,8 @@ load helpers
 
 setup() {
   setup_stubs
-  mkdir -p "$REPO/quantum/docs"
-  touch "$REPO/.chktexrc" "$REPO/quantum/docs/botge-quantum.tex"
+  mkdir -p "$REPO/quantum/docs" "$REPO/chemistry/docs"
+  touch "$REPO/.chktexrc" "$REPO/quantum/docs/botge-quantum.tex" "$REPO/chemistry/docs/botge-chemistry.tex"
   record chktex
   stub lacheck << 'SH'
 if [ -n "${LACHECK_OUTPUT:-}" ]; then
@@ -14,18 +14,21 @@ SH
   stub latexmk << 'SH'
 auxdir=""
 outdir=""
+last_arg=""
 for arg in "$@"; do
+  last_arg="$arg"
   case "$arg" in
     -auxdir=*) auxdir=${arg#-auxdir=} ;;
     -outdir=*) outdir=${arg#-outdir=} ;;
   esac
 done
+stem=$(basename "$last_arg" .tex)
 mkdir -p "$auxdir" "$outdir"
-: > "$outdir/botge-quantum.pdf"
+: > "$outdir/${stem}.pdf"
 if [ -n "${BAD_LOG:-}" ] && [ "$auxdir" = "tmp/latex" ]; then
-  printf '%s\n' "$BAD_LOG" > "$auxdir/botge-quantum.log"
+  printf '%s\n' "$BAD_LOG" > "$auxdir/${stem}.log"
 else
-  printf 'Package nag Info: Loaded\nNo complaints by nag.\n' > "$auxdir/botge-quantum.log"
+  printf 'Package nag Info: Loaded\nNo complaints by nag.\n' > "$auxdir/${stem}.log"
 fi
 SH
 }
@@ -36,6 +39,9 @@ SH
   called 'chktex -eall -n22 -n30 -q quantum/docs/botge-quantum.tex'
   called 'lacheck quantum/docs/botge-quantum.tex'
   called '-auxdir=tmp/latex -outdir=quantum/docs'
+  called 'chktex -eall -n22 -n30 -q chemistry/docs/botge-chemistry.tex'
+  called 'lacheck chemistry/docs/botge-chemistry.tex'
+  called '-auxdir=tmp/latex -outdir=chemistry/docs'
   called '-usepretex=\def\BotgeDarkMode{0}'
   [ ! -d "$REPO/tmp/latex" ]
   [ ! -d "$REPO/tmp/latex_light" ]

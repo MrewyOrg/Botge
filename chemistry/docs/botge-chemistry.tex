@@ -1,0 +1,532 @@
+\RequirePackage[l2tabu, orthodox]{nag}
+\pdfinfoomitdate=1
+\pdfsuppressptexinfo=15
+\pdftrailerid{}
+\providecommand{\BotgeDarkMode}{1}
+\documentclass[11pt,a4paper]{article}
+
+\usepackage[T1]{fontenc}
+\usepackage{lmodern}
+\usepackage{microtype}
+\usepackage[margin=1in]{geometry}
+\usepackage{amsmath,amssymb,amsthm,mathtools}
+\usepackage{booktabs}
+\usepackage{xcolor}
+
+\definecolor{BotgeBg}{HTML}{0e1117}
+\definecolor{BotgeFg}{HTML}{e9edf4}
+\definecolor{BotgeAccent}{HTML}{58a6ff}
+\definecolor{BotgeLightAccent}{HTML}{0969da}
+
+\usepackage{darkmode}
+\ifnum\BotgeDarkMode=1\relax
+  \enabledarkmode
+  \pagecolor{BotgeBg}
+  \color{BotgeFg}
+  \colorlet{fgcolor}{BotgeFg}
+\else
+  \disabledarkmode
+\fi
+
+\usepackage{hyperref}
+\hypersetup{%
+  colorlinks=true,%
+  bookmarksnumbered=true,%
+  bookmarksopen=true,%
+  pdfdisplaydoctitle=true,%
+  pdfstartview=FitH,%
+  pdftitle={A Deterministic Bimolecular Reaction Atlas and Bounded Catalog Projection},%
+  pdfauthor={The Botge Project},%
+  pdfsubject={Stoichiometric Conservation, Order Invariance, and Reactant-Avoiding Projection},%
+  pdfkeywords={bimolecular organic reactions, SMARTS, InChIKey, stoichiometry, FNV-1a projection, formal verification}%
+}
+\IfDarkModeTF{%
+  \hypersetup{linkcolor=BotgeAccent, citecolor=BotgeAccent, urlcolor=BotgeAccent}%
+}{%
+  \hypersetup{linkcolor=BotgeLightAccent, citecolor=BotgeLightAccent, urlcolor=BotgeLightAccent}%
+}
+\usepackage{aliascnt}
+\usepackage[capitalise,noabbrev,nameinlink]{cleveref}
+
+\newcommand{\SharedTheorem}[3]{%
+  \newaliascnt{#1}{theorem}%
+  \newtheorem{#1}[#1]{#2}%
+  \aliascntresetthe{#1}%
+  \crefname{#1}{#2}{#3}%
+}
+\theoremstyle{plain}
+\newtheorem{theorem}{Theorem}[section]
+\crefname{theorem}{Theorem}{Theorems}
+\SharedTheorem{proposition}{Proposition}{Propositions}
+\theoremstyle{definition}
+\SharedTheorem{definition}{Definition}{Definitions}
+\theoremstyle{remark}
+\newtheorem*{remark*}{Remark}
+
+\newcommand{\N}{\mathbb{N}}
+\newcommand{\Z}{\mathbb{Z}}
+\newcommand{\Atlas}{\mathcal{M}}
+\newcommand{\Reacts}{\mathcal{R}}
+\newcommand{\Conds}{\mathcal{C}}
+\newcommand{\SNtwo}{S_{\mathrm{N}}2}
+\newcommand{\FNV}{\operatorname{FNV1a}_{64}}
+\newcommand{\mset}[1]{\lbrace#1\rbrace}
+\newcommand{\chem}[1]{\ensuremath{\mathrm{#1}}}
+\newcommand{\smiles}[1]{\texttt{#1}}
+
+\title{%
+  A Deterministic Bimolecular Reaction Atlas\\
+  and Bounded Catalog Projection%
+}
+\author{The Botge Project}
+\date{}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+  We specify a deterministic, rule-based bimolecular organic reaction system defined over a
+  curated atlas \( \Atlas \) of \( K = 32 \) neutral substrates, eight priority-ordered SMARTS
+  reaction transforms \( \Reacts \), and four explicit reagent regimes \( \Conds \) paired with an
+  automatic selector \( \Conds_* \). Every reactive transform conserves all non-hydrogen heavy
+  atoms modulo its declared stoichiometric byproduct, passes valence sanitization to a unique
+  canonical isomeric SMILES product invariant under reactant permutation, and maps the resulting
+  standard \(\text{InChIKey}\) into bounded base and overlay index sets \( \Z_{M_b} \) and
+  \( \Z_{M_o} \) (\( 2 \le M_b \le 1024 \), \( 2 \le M_o \le 128 \)) while strictly avoiding
+  both reactant base indices whenever \( M_b \ge 3 \). Structural invariants are mechanized in
+  Lean~4 with Mathlib, cross-checked symbolically in SymPy and Z3, and certified exhaustively
+  across all \( 32 \times 32 \times 5 = 5{,}120 \) ordered reactant-regime triples.
+\end{abstract}
+
+\noindent\textbf{Keywords:} bimolecular organic transforms, SMARTS atom mapping, stoichiometry,
+InChIKey, FNV-1a projection, order invariance, formal verification.
+
+\section{Introduction}\label{sec:introduction}
+
+Given two discrete catalog entries mapped onto a small molecular library and an operator-selected
+reaction regime, we seek a deterministic synthesis rule whose outcome is chemically conservative,
+independent of input ordering, and mapped back onto disjoint catalog indices without inventing
+spurious products when two functional groups are mutually incompatible. We size the index pools and
+substrate hash in~\cref{sec:pools}, define the eight bimolecular reaction templates and prove
+heavy-atom stoichiometric conservation in~\cref{sec:reactions}, establish order invariance and
+reactant-avoiding bounded projection in~\cref{sec:projection}, report exhaustive finite-atlas
+certification in~\cref{sec:certificate}, and state the chemical scope and limitations of the model
+in~\cref{sec:limitations}.
+
+\paragraph{Design choices.} Rather than sampling arbitrary molecular pairs or allowing unconstrained
+multi-component cascades, the system restricts every evaluation to two substrates drawn from a
+fixed \( 32 \)-member organic atlas and eight classical \chem{C\text{-}C}, \chem{C\text{-}N}, and
+\chem{C\text{-}O} bond-forming transforms executed under thermal, Br\o{}nsted acid, Br\o{}nsted base,
+or palladium-catalyzed conditions~\cite{Baumann1886,DielsAlder1928,FischerSpeier1895,Schiff1864,
+Schotten1884,Williamson1850,Michael1887,MiyauraSuzuki1995,Wurtz1872}. Leaving groups are
+explicitly accounted for at each
+template boundary, canonical product keys rely on standard InChIKey~\cite{Heller2015} and
+canonical isomeric SMILES~\cite{Weininger1988}, and incompatible pairs terminate cleanly with
+functional-group diagnostics rather than heuristic fallback substitutions.
+
+\paragraph{Verification.} Pool bounds, FNV-1a index totality, reactant-order invariance,
+bounded reactant-avoiding projection, and heavy-atom multiset conservation are formalized in
+Lean~4~\cite{deMouraUllrich2021} using Mathlib~\cite{Mathlib2020} with only the three standard
+Lean and Mathlib axioms (\texttt{propext}, \texttt{Classical.choice}, \texttt{Quot.sound}).
+Symbolic linear integer conservation and threshold minimality are cross-checked with SymPy
+and Z3, and exhaustive execution over all \( 5{,}120 \) ordered triples confirms zero valence
+sanitization failures, zero stoichiometric mismatches, and exact commutativity.
+
+\subsection{Notation}\label{sec:notation}
+
+\begin{itemize}
+  \item \textbf{Modular index sets.} For integers \( M \ge 2 \), write
+    \( \Z_M \coloneqq \{0, \dots, M - 1\} \). For \( a, b \in \Z_K \), let
+    \( \operatorname{canon}(a, b) \coloneqq (\min(a, b), \max(a, b)) \).
+  \item \textbf{Molecular graphs and heavy-atom multisets.} A neutral organic molecule is modeled
+    as a finite connected multigraph \( G = (V, E, \alpha, b, q, h) \), where each vertex
+    \( v \in V \) carries a non-hydrogen atomic symbol \( \alpha(v) \in \Sigma \) over the fixed
+    alphabet
+    \[
+      \Sigma \coloneqq \{\mathrm{B}, \mathrm{C}, \mathrm{N}, \mathrm{O}, \mathrm{Cl}, \mathrm{Br}\},
+    \]
+    rational bond orders \( b : E \to \{1, 1.5, 2, 3\} \), zero formal charge \( q(v) = 0 \), and
+    implicit hydrogen count \( h(v) \in \N \) satisfying standard covalent valence and
+    Kekul\'e-representation rules after
+    sanitization. Define the heavy-atom element multiset \( \nu(G) : \Sigma \to \N \) by
+    \[
+      \nu(G)(Z) \coloneqq \lvert \{ v \in V \mid \alpha(v) = Z \} \rvert, \qquad Z \in \Sigma.
+    \]
+    Multiset addition \( + \) and subtraction \( - \) are pointwise on \( \N^{\Sigma} \).
+  \item \textbf{Reaction nomenclature.} Eponymous binary names take en-dashes
+    (\emph{Diels--Alder}, \emph{Suzuki--Miyaura}, \emph{Schotten--Baumann}), brackets
+    \([4 + 2]\) denote ring-atom counts assembled into the cyclohexene product, and \( \SNtwo \)
+    denotes concerted bimolecular nucleophilic substitution with italic \(S\) and upright subscript
+    \(\mathrm{N}\).
+\end{itemize}
+
+\section{Bounded Pools and Curated Substrate Atlas}\label{sec:pools}
+
+\begin{proposition}[Pool Budget]\label{prop:chem-budget}
+  Let \( C_b, C_o \ge 2 \) be the available base and overlay catalog sizes, and define
+  the capped pool sizes
+  \begin{equation}\label{eq:chem-pool-cap}
+    M_b = \min(C_b, 1024), \qquad M_o = \min(C_o, 128).
+  \end{equation}
+  Then \( 2 \le M_b \le 1024 \) and \( 2 \le M_o \le 128 \), so both finite index sets
+  \( \Z_{M_b} \) and \( \Z_{M_o} \) are nonempty and have cardinality at least two.
+  Whenever \( M_b \ge 3 \) and \( E \subseteq \Z_{M_b} \) satisfies \( \lvert E \rvert \le 2 \),
+  the complement \( \Z_{M_b} \setminus E \) is nonempty.
+\end{proposition}
+\begin{proof}
+  Since \( C_b \ge 2 \) and \( 1024 \ge 2 \), \( M_b = \min(C_b, 1024) \) satisfies
+  \( 2 \le M_b \le 1024 \), and analogously \( 2 \le M_o \le 128 \). Hence
+  \( \lvert \Z_{M_b} \rvert = M_b \ge 2 \) and \( \lvert \Z_{M_o} \rvert = M_o \ge 2 \). When
+  \( M_b \ge 3 \) and \( \lvert E \rvert \le 2 \), cardinality monotonicity yields
+  \( \lvert \Z_{M_b} \setminus E \rvert \ge M_b - \lvert E \rvert \ge 3 - 2 = 1 \), so
+  \( \Z_{M_b} \setminus E \neq \emptyset \).
+\end{proof}
+
+\begin{definition}[Stable Substrate Map]\label{def:substrate-map}
+  Let \( \FNV : {(\{0,\dots,255\})}^* \to \{0, \dots, 2^{64} - 1\} \) denote the 64-bit FNV-1a
+  hash with offset basis \( \texttt{cbf29ce484222325}_{16} \) and prime
+  \( \texttt{100000001b3}_{16} \).
+  Each immutable identifier byte string \( s \) maps to a substrate index
+  \begin{equation}\label{eq:substrate-index}
+    \iota(s) = \FNV(s) \bmod K, \qquad K = 32,
+  \end{equation}
+  referencing the curated \( 32 \)-substrate organic atlas \( \Atlas \) in~\cref{tab:substrates}
+  independently of all other entries in the catalog.
+\end{definition}
+
+\begin{table}[t]
+  \centering
+  \caption{Curated \( 32 \)-substrate organic atlas \( \Atlas \) with Hill molecular formulas and canonical SMILES.\label{tab:substrates}}
+  \scriptsize
+  \setlength{\tabcolsep}{4pt}
+  \begin{tabular}{@{}rllll@{}}
+    \toprule
+    \(i\) & Substrate & Class & Formula & Canonical SMILES \\
+    \midrule
+    0 & 1,3-butadiene & conjugated diene & \chem{C_4H_6} & \smiles{C=CC=C} \\
+    1 & isoprene & conjugated diene & \chem{C_5H_8} & \smiles{C=CC(=C)C} \\
+    2 & 1,3-cyclohexadiene & cyclic diene & \chem{C_6H_8} & \smiles{C1=CCCC=C1} \\
+    3 & cyclopentadiene & cyclic diene & \chem{C_5H_6} & \smiles{C1=CCC=C1} \\
+    4 & maleic anhydride & cyclic dienophile & \chem{C_4H_2O_3} & \smiles{O=C1C=CC(=O)O1} \\
+    5 & methyl acrylate & enoate / Michael acceptor & \chem{C_4H_6O_2} & \smiles{C=CC(=O)OC} \\
+    6 & acrylonitrile & conjugated nitrile & \chem{C_3H_3N} & \smiles{C=CC\#N} \\
+    7 & methyl vinyl ketone & enone / Michael acceptor & \chem{C_4H_6O} & \smiles{C=CC(C)=O} \\
+    8 & acetic acid & carboxylic acid & \chem{C_2H_4O_2} & \smiles{CC(=O)O} \\
+    9 & propanoic acid & carboxylic acid & \chem{C_3H_6O_2} & \smiles{CCC(=O)O} \\
+    10 & benzoic acid & aryl carboxylic acid & \chem{C_7H_6O_2} & \smiles{O=C(O)c1ccccc1} \\
+    11 & methanol & primary alcohol & \chem{CH_4O} & \smiles{CO} \\
+    12 & ethanol & primary alcohol & \chem{C_2H_6O} & \smiles{CCO} \\
+    13 & benzyl alcohol & benzylic alcohol & \chem{C_7H_8O} & \smiles{OCc1ccccc1} \\
+    14 & methylamine & primary amine & \chem{CH_5N} & \smiles{CN} \\
+    15 & ethylamine & primary amine & \chem{C_2H_7N} & \smiles{CCN} \\
+    16 & aniline & arylamine & \chem{C_6H_7N} & \smiles{Nc1ccccc1} \\
+    17 & pyrrolidine & secondary amine & \chem{C_4H_9N} & \smiles{C1CCNC1} \\
+    18 & acetaldehyde & aldehyde & \chem{C_2H_4O} & \smiles{CC=O} \\
+    19 & propanal & aldehyde & \chem{C_3H_6O} & \smiles{CCC=O} \\
+    20 & benzaldehyde & aryl aldehyde & \chem{C_7H_6O} & \smiles{O=Cc1ccccc1} \\
+    21 & acetone & ketone & \chem{C_3H_6O} & \smiles{CC(C)=O} \\
+    22 & acetyl chloride & acyl chloride & \chem{C_2H_3ClO} & \smiles{CC(=O)Cl} \\
+    23 & benzoyl chloride & aroyl chloride & \chem{C_7H_5ClO} & \smiles{O=C(Cl)c1ccccc1} \\
+    24 & 1-bromobutane & primary alkyl bromide & \chem{C_4H_9Br} & \smiles{CCCCBr} \\
+    25 & benzyl bromide & benzylic bromide & \chem{C_7H_7Br} & \smiles{BrCc1ccccc1} \\
+    26 & bromobenzene & aryl bromide & \chem{C_6H_5Br} & \smiles{Brc1ccccc1} \\
+    27 & 4-bromoanisole & aryl bromide & \chem{C_7H_7BrO} & \smiles{COc1ccc(Br)cc1} \\
+    28 & phenylboronic acid & arylboronic acid & \chem{C_6H_7BO_2} & \smiles{OB(O)c1ccccc1} \\
+    29 & 4-tolylboronic acid & arylboronic acid & \chem{C_7H_9BO_2} & \smiles{Cc1ccc(B(O)O)cc1} \\
+    30 & acetylacetone & 1,3-diketone & \chem{C_5H_8O_2} & \smiles{CC(=O)CC(C)=O} \\
+    31 & dimethyl malonate & 1,3-diester & \chem{C_5H_8O_4} & \smiles{COC(=O)CC(=O)OC} \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\section{Bimolecular Reactions and Stoichiometric Conservation}\label{sec:reactions}
+
+Let \( \Conds = \{\text{heat}, \text{acid}, \text{base}, \text{palladium}\} \) denote the four
+mutually exclusive explicit reagent regimes, corresponding chemically to thermal activation
+(\( \Delta \)), Br\o{}nsted acid catalysis (\( \mathrm{H^+} \)), Br\o{}nsted base promotion
+(\( \mathrm{B^-} \)), and palladium-mediated basic cross-coupling (\( \mathrm{Pd^0}/\text{base} \)).
+Let \( \Conds_* = \Conds \cup \{\text{auto}\} \), where \(\text{auto}\) admits all transforms
+across \( \Conds \) in strict priority order.
+
+\begin{definition}[Curated Bimolecular Reaction Set]\label{def:reaction-set}
+  The reaction family \( \Reacts = \{r_1, \dots, r_8\} \) consists of eight priority-ordered,
+  bimolecular constitutional transforms summarized in~\cref{tab:templates}:
+  \( r_1 \) Diels--Alder \([4 + 2]\) cycloaddition (\(\text{heat}\), no leaving group,
+  \( \beta_1 = 0 \));
+  \( r_2 \) Fischer esterification (\(\text{acid}\), leaving species \chem{H_2O},
+  \( \beta_2 = \mset{\mathrm{O}} \));
+  \( r_3 \) Imine condensation (\(\text{acid}\), leaving species \chem{H_2O},
+  \( \beta_3 = \mset{\mathrm{O}} \));
+  \( r_4 \) Acylation / amide coupling (\(\text{base}\), leaving species \chem{HCl},
+  \( \beta_4 = \mset{\mathrm{Cl}} \));
+  \( r_5 \) Williamson \( \SNtwo \) substitution (\(\text{base}\), leaving species \chem{HBr},
+  \( \beta_5 = \mset{\mathrm{Br}} \));
+  \( r_6 \) Aldol condensation (\(\text{base}\), leaving species \chem{H_2O},
+  \( \beta_6 = \mset{\mathrm{O}} \));
+  \( r_7 \) Michael conjugate addition (\(\text{base}\), 100\% atom economy, \( \beta_7 = 0 \));
+  \( r_8 \) Suzuki--Miyaura cross-coupling (\(\text{palladium}\), leaving species
+  \chem{B(OH)_2Br}, \( \beta_8 = \mset{\mathrm{B}, 2\mathrm{O}, \mathrm{Br}} \)).
+\end{definition}
+
+\begin{table}[t]
+  \centering
+  \caption{Priority-ordered bimolecular reaction templates \( r_1 \dots r_8 \), balanced schemes, and heavy-atom leaving multisets \( \beta_k \).\label{tab:templates}}
+  \scriptsize
+  \setlength{\tabcolsep}{4pt}
+  \begin{tabular}{@{}rllll@{}}
+    \toprule
+    \(k\) & Reaction & Balanced scheme & Byproduct & \( \beta_k \) \\
+    \midrule
+    1 & Diels--Alder \([4 + 2]\) & \(\text{diene} + \text{dienophile} \xrightarrow{\Delta} \text{cyclohexene adduct}\) & none & \(0\) \\
+    2 & Fischer esterification & \(\mathrm{RCO_2H + R'OH} \xrightarrow{\mathrm{H^+}} \mathrm{RCO_2R' + H_2O}\) & \chem{H_2O} & \( \mset{\mathrm{O}} \) \\
+    3 & Imine condensation & \(\mathrm{RR'C{=}O + R''NH_2} \xrightarrow{\mathrm{H^+}} \mathrm{RR'C{=}NR'' + H_2O}\) & \chem{H_2O} & \( \mset{\mathrm{O}} \) \\
+    4 & Acylation / amide & \(\mathrm{RCOCl + R'R''NH} \xrightarrow{\mathrm{B^-}} \mathrm{RCONR'R'' + HCl}\) & \chem{HCl} & \( \mset{\mathrm{Cl}} \) \\
+    5 & Williamson \( \SNtwo \) & \(\mathrm{ROH + R'CH_2Br} \xrightarrow{\mathrm{B^-}} \mathrm{ROCH_2R' + HBr}\) & \chem{HBr} & \( \mset{\mathrm{Br}} \) \\
+    6 & Aldol condensation & \(\mathrm{RCOCH_2R' + R''CHO} \xrightarrow{\mathrm{B^-}} \mathrm{RCOC(R'){=}CHR'' + H_2O}\) & \chem{H_2O} & \( \mset{\mathrm{O}} \) \\
+    7 & Michael addition & \(\beta\text{-dicarbonyl} + \text{acceptor} \xrightarrow{\mathrm{B^-}} \text{1,5-adduct}\) & none & \(0\) \\
+    8 & Suzuki--Miyaura & \(\mathrm{Ar\text{-}Br + Ar'\text{-}B{(OH)}_2} \xrightarrow{\mathrm{Pd^0}/\text{base}} \mathrm{Ar\text{-}Ar' + B{(OH)}_2Br}\) & \chem{B(OH)_2Br} & \( \mset{\mathrm{B}, 2\mathrm{O}, \mathrm{Br}} \) \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\begin{theorem}[Stoichiometric Heavy-Atom Conservation]\label{thm:stoichiometry}
+  For every template \( r_k \in \Reacts \) with heavy-atom leaving multiset \( \beta_k \)
+  and every matched substrate pair \( (A, B) \in \Atlas^2 \) yielding sanitized product \( P \),
+  \begin{equation}\label{eq:stoichiometry}
+    \nu(A) + \nu(B) = \nu(P) + \beta_k.
+  \end{equation}
+  In particular, \( \nu(P) \) is determined elementwise by subtracting \( \beta_k \)
+  from \( \nu(A) + \nu(B) \), with zero net heavy-atom loss or creation.
+\end{theorem}
+\begin{proof}
+  Each template \( r_k \in \Reacts \) defines a deterministic SMARTS reaction transform on an
+  ordered pair of neutral connected molecular graphs \( (A, B) \) in which: (1)~every heavy
+  atom appearing in the reactant pattern outside the leaving group carries a bijective atom map
+  label preserved into the product pattern; (2)~every unmapped heavy atom in the reactant pattern
+  belongs to an explicitly excised leaving group whose element multiset equals \( \beta_k \)
+  (\( \mset{\mathrm{O}} \) for hydroxyl in \( r_2 \) and carbonyl oxygen in \( r_3, r_6 \);
+  \( \mset{\mathrm{Cl}} \) for acyl chloride in \( r_4 \); \( \mset{\mathrm{Br}} \) for alkyl or
+  aryl bromide in \( r_5, r_8 \); and \( \mset{\mathrm{B}, 2\mathrm{O}} \) for the boronic acid
+  group in \( r_8 \)); and (3)~unmapped spectator atoms outside the reaction center retain their
+  element identities identically from \( A \) and \( B \) into the single connected product graph
+  \( P \). Because graph valence sanitization only recomputes aromaticity, hybridization, and
+  implicit hydrogen counts without adding or deleting heavy vertices, summing vertex counts by
+  element over \( \Sigma \) yields \( \nu(P) = \nu(A) + \nu(B) - \beta_k \),
+  establishing~\eqref{eq:stoichiometry} whenever a sanitized unimolecular product \( P \) matches a
+  single transform application; an enforced multiset guard verifies~\eqref{eq:stoichiometry}
+  dynamically before admitting any candidate.
+\end{proof}
+
+\begin{remark*}
+  Hydrogen atoms are implicit in the graph vertex multiset \( \nu(G) \), and the \textsf{Byproduct}
+  column in~\cref{tab:templates} lists formal neutral stoichiometric equivalents
+  (\chem{H_2O}, \chem{HCl}, \chem{HBr}, \chem{B(OH)_2Br}) for heavy-atom mass balance; under
+  basic conditions, halide acids and bromoboronic acid neutralize to halide and borate salts. Two
+  additions (\( r_1, r_7 \)) have \( \beta_k = 0 \) and exhibit \( 100\% \) atom economy, whereas
+  all six condensations, substitutions, and couplings satisfy exact mass balance upon inclusion of
+  their formal byproducts. Template \( r_6 \) covers aldehyde, ketone, enone, and Knoevenagel
+  \( \beta \)-dicarbonyl \( \alpha \)-\chem{CH_{2,3}} donors while excluding carboxylic acids and
+  acyl chlorides.
+\end{remark*}
+
+\section{Order Invariance and Bounded Projection}\label{sec:projection}
+
+\begin{theorem}[Reactant-Order Invariance]\label{thm:commutativity}
+  For any \( a, b \in \Z_K \) and \( c \in \Conds_* \), define the canonical pair
+  \( \operatorname{canon}(a, b) = (\min(a, b), \max(a, b)) \). Evaluating both slot
+  orientations over \( \operatorname{canon}(a, b) \) and selecting the candidate minimizing
+  \( (\operatorname{priority}(r_k), \operatorname{SMILES}(P)) \) satisfies
+  \begin{equation}\label{eq:commutativity}
+    \operatorname{eval}(a, b, c) = \operatorname{eval}(b, a, c).
+  \end{equation}
+  When no candidate matches under \( c \), no random or fallback substitute is emitted.
+\end{theorem}
+\begin{proof}
+  Both \( \min \) and \( \max \) are symmetric on \( \Z_K \), so
+  \( (\ell, u) \coloneqq \operatorname{canon}(a, b) = \operatorname{canon}(b, a) \) for all
+  \( a, b \in \Z_K \). Evaluation inspects the fixed finite sequence of transforms
+  \( r_k \in \Reacts \) permitted by \( c \) against the identical ordered pair list
+  \( [(\ell, u)] \) when \( \ell = u \) and \( [(\ell, u), (u, \ell)] \) when
+  \( \ell \neq u \), generating an identical candidate set \( \mathcal{S}(a, b, c) \). If
+  \( \mathcal{S}(a, b, c) = \emptyset \), both evaluations return the compatibility failure record
+  without substitution. Otherwise, template priorities \( 1, \dots, 8 \) are pairwise distinct, and
+  canonical isomeric SMILES serialization assigns a unique string \( \operatorname{SMILES}(P) \)
+  to each molecular isomorphism class, so the lexicographic order on the sort key
+  \( (\operatorname{priority}(r_k), \operatorname{SMILES}(P)) \) uniquely identifies the winning
+  template and canonical product independently of input ordering, giving~\eqref{eq:commutativity}.
+\end{proof}
+
+\begin{theorem}[Bounded Projection and Reactant Avoidance]\label{thm:projection}
+  Given the standard InChIKey~\( \kappa \), let
+  \( h_b = \FNV(\text{\texttt{base:}} \Vert \kappa) \bmod M_b \) and
+  \( h_o = \FNV(\text{\texttt{overlay:}} \Vert \kappa) \bmod M_o \).
+  For an exclusion list \( E = [e_1, \dots, e_m] \) with \( m \le 2 \) and
+  \( e_j \in \Z_{M_b} \), define \( \pi_b(h_b, M_b, E) \) to be \( h_b \) when
+  \( M_b < 3 \), and otherwise the result of at most \( m \) unit shifts modulo \( M_b \)
+  stopping at the first index not in \( E \). Then:
+  \begin{enumerate}
+    \item \( 0 \le \pi_b(h_b, M_b, E) < M_b \) and \( 0 \le h_o < M_o \) for all
+      \( M_b \ge 2 \), \( M_o \ge 2 \);
+    \item whenever \( M_b \ge 3 \), \( \pi_b(h_b, M_b, E) \notin E \) and at most
+      two modular increments occur.
+  \end{enumerate}
+\end{theorem}
+\begin{proof}
+  For part~(1), reducing modulo \( M_b \ge 2 \) and \( M_o \ge 2 \) directly yields
+  \( h_b \in \Z_{M_b} \) and \( h_o \in \Z_{M_o} \). Because every shift step reduces modulo
+  \( M_b \), the final value \( \pi_b(h_b, M_b, E) \) always lies in \( \Z_{M_b} \).
+
+  For part~(2), assume \( M_b \ge 3 \) and consider the shifted sequence
+  \( x_t = (h_b + t) \bmod M_b \) for \( t \in \{0, 1, 2\} \). Since \( M_b \ge 3 \), the three
+  residues \( x_0, x_1, x_2 \) are pairwise distinct in \( \Z_{M_b} \). Because
+  \( \lvert E \rvert \le m \le 2 < 3 \), by the pigeonhole principle at least one index
+  \( t^* \in \{0, 1, \dots, m\} \) satisfies \( x_{t^*} \notin E \) (if \( m = 0 \) then
+  \( E = \emptyset \) and \( t^* = 0 \); if \( m = 1 \) then \( x_0 \neq x_1 \) guarantees
+  \( \{x_0, x_1\} \not\subseteq E \); if \( m = 2 \) then \( \{x_0, x_1, x_2\} \not\subseteq E \)).
+  Stopping at the least such \( t^* \) yields \( \pi_b(h_b, M_b, E) = x_{t^*} \notin E \) after
+  at most \( 2 \) modular increments.
+\end{proof}
+
+\section{Exhaustive Atlas Certification}\label{sec:certificate}
+
+\begin{proposition}[Atlas Reactivity Matrix]\label{prop:chem-certificate}
+  Evaluating all \( 32 \times 32 \times 5 = 5{,}120 \) ordered triples
+  \( (a, b, c) \in {\Z_K}^2 \times \Conds_* \) yields exactly \( 332 \) reactive triples
+  (\( 166 \) under \( \text{auto} \) and \( 166 \) partitioned disjointly across
+  \( \Conds \)) and \( 4{,}788 \) non-reactive triples, with \( 0 \) sanitization failures,
+  \( 0 \) stoichiometric violations, and \( 0 \) commutativity violations. Every template in
+  \( \Reacts \) matches at least eight ordered pairs (\cref{tab:reactions}). Under the pinned
+  two-dimensional vector-to-PNG renderer, every \( 320 \times 120 \) skeletal diagram encodes a
+  valid PNG of at most \( 8{,}743 \) bytes, strictly below the \( 131{,}072 \)-byte limit.
+\end{proposition}
+\begin{proof}
+  Exhaustive enumeration across all \( 32^2 = 1{,}024 \) substrate pairs and all \( 5 \) regimes
+  in \( \Conds_* \) computes every transform match, sanitization check,~\eqref{eq:stoichiometry},
+  symmetry check~\eqref{eq:commutativity}, and two-dimensional diagram encoding in finite time.
+  It also verifies directly that zero ordered pairs in \( \Atlas^2 \) react under more than one
+  explicit condition in \( \Conds \); because \( \Reacts \) partitions the active conditions
+  disjointly across \( \text{heat} \), \( \text{acid} \), \( \text{base} \), and
+  \( \text{palladium} \), every compatible pair therefore attains the identical winning
+  transform under both \( \text{auto} \) and its unique owning condition. Summing the explicit and
+  automatic columns of~\cref{tab:reactions} gives \( 166 + 166 = 332 \) reactive triples and
+  \( 3{,}930 + 858 = 4{,}788 \) non-reactive triples with zero failures.
+\end{proof}
+
+\begin{table}[t]
+  \centering
+  \caption{Exhaustive reaction counts across the \( 32 \times 32 \) atlas and \( \Conds_* \).\label{tab:reactions}}
+  \begin{tabular}{@{}llrr@{}}
+    \toprule
+    Template & Condition & Explicit pairs & Auto pairs \\
+    \midrule
+    Diels--Alder \([4 + 2]\) cycloaddition & heat & 32 & 32 \\
+    Fischer esterification & acid & 18 & 18 \\
+    Imine condensation & acid & 36 & 36 \\
+    Acylation / amide coupling & base & 16 & 16 \\
+    Williamson \( \SNtwo \) substitution & base & 12 & 12 \\
+    Aldol condensation & base & 32 & 32 \\
+    Michael conjugate addition & base & 12 & 12 \\
+    Suzuki--Miyaura cross-coupling & palladium & 8 & 8 \\
+    \midrule
+    Total reactive & & 166 & 166 \\
+    Total non-reactive & & 3{,}930 & 858 \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\section{Chemical Scope and Limitations}\label{sec:limitations}
+
+To keep the specification faithful to real organic chemistry without claiming predictive physics it
+does not implement, the following boundaries apply explicitly:
+
+\begin{enumerate}
+  \item \textbf{Rule-based constitutional level.} Reactivity is governed solely by curated 2D
+    SMARTS substructure matching and valence sanitization, not by quantum-chemical activation
+    barriers, thermodynamic equilibrium constants, solvent effects, or solution \(\mathrm{p}K_{\mathrm{a}}\).
+    In particular, aldol template \( r_6 \) accepts aldehyde, ketone, enone, and Knoevenagel
+    \( \beta \)-dicarbonyl \( \alpha \)-\chem{CH_{2,3}} donors (including crotonaldehyde-type
+    self-condensation of aldehydes) while explicitly excluding carboxylic acids and acyl chlorides.
+  \item \textbf{Deterministic tie-breaking for selectivity.} Asymmetric dienes, unsymmetrical
+    ketones, or multiple reactive sites can admit constitutional isomers or unannotated stereocenters
+    (\emph{endo}/\emph{exo}, \(E\)/\(Z\), \(R\)/\(S\));~\cref{thm:commutativity} resolves multiple
+    sanitized candidates strictly by transform priority and lexicographic canonical SMILES rather
+    than kinetic branching ratios.
+  \item \textbf{Single-step bimolecular stoichiometry.} No iterative polymerization, protecting-group
+    manipulation, or explicit counterion solvation is modeled; stoichiometric conservation holds at
+    the level of neutral molecular reactant graphs plus declared small-molecule byproducts.
+\end{enumerate}
+
+\section{Conclusion}\label{sec:conclusion}
+
+Restricting synthesis evaluation to a curated \( 32 \)-substrate organic atlas and eight balanced
+bimolecular reaction templates delivers strict heavy-atom stoichiometry, deterministic order
+invariance, and pigeonhole-guaranteed reactant-avoiding catalog projection whenever
+\( M_b \ge 3 \), while surfacing honest incompatibility diagnostics whenever two functional
+groups fail to match.
+
+\begin{thebibliography}{13}
+
+  \bibitem{Baumann1886}
+  E.~Baumann,
+  Ueber eine einfache Methode der Darstellung von Benzo\"es\"aure\"athern,
+  \emph{Ber.\ Dtsch.\ Chem.\ Ges.} \textbf{19} (1886), 3218--3222.
+
+  \bibitem{deMouraUllrich2021}
+  L.~de~Moura and S.~Ullrich,
+  The Lean~4 theorem prover and programming language, \emph{CADE~28}, LNCS \textbf{12699}
+  (2021), 625--635.
+
+  \bibitem{DielsAlder1928}
+  O.~Diels and K.~Alder,
+  Synthesen in der hydroaromatischen Reihe, \emph{Justus Liebigs Ann.\ Chem.} \textbf{460}
+  (1928), 98--122.
+
+  \bibitem{FischerSpeier1895}
+  E.~Fischer and A.~Speier,
+  Darstellung der Ester, \emph{Ber.\ Dtsch.\ Chem.\ Ges.} \textbf{28} (1895), 3252--3258.
+
+  \bibitem{Heller2015}
+  S.~R.~Heller, A.~McNaught, I.~Pletnev, S.~Stein, and D.~Tchekhovskoi,
+  InChI, the IUPAC International Chemical Identifier, \emph{J.\ Cheminform.} \textbf{7} (2015), 23.
+
+  \bibitem{Mathlib2020}
+  The mathlib Community,
+  The Lean mathematical library, \emph{CPP~2020}, ACM (2020), 367--381.
+
+  \bibitem{Michael1887}
+  A.~Michael,
+  Ueber die Addition von Natriumacetessig- und Natriummalons\"aure\"athern zu den Aethern
+  unges\"attigter S\"auren, \emph{J.\ Prakt.\ Chem.} \textbf{35} (1887), 349--356.
+
+  \bibitem{MiyauraSuzuki1995}
+  N.~Miyaura and A.~Suzuki,
+  Palladium-catalyzed cross-coupling reactions of organoboron compounds, \emph{Chem.\ Rev.}
+  \textbf{95} (1995), 2457--2483.
+
+  \bibitem{Schiff1864}
+  H.~Schiff,
+  Mittheilungen aus dem Universit\"atslaboratorium in Pisa: eine neue Reihe organischer Basen,
+  \emph{Justus Liebigs Ann.\ Chem.} \textbf{131} (1864), 118--119.
+
+  \bibitem{Schotten1884}
+  C.~Schotten,
+  Ueber die Oxydation des Piperidins,
+  \emph{Ber.\ Dtsch.\ Chem.\ Ges.} \textbf{17} (1884), 2544--2547.
+
+  \bibitem{Weininger1988}
+  D.~Weininger,
+  SMILES, a chemical language and information system.\ 1.\ Introduction to methodology and encoding
+  rules, \emph{J.\ Chem.\ Inf.\ Comput.\ Sci.} \textbf{28} (1988), 31--36.
+
+  \bibitem{Williamson1850}
+  A.~W.~Williamson,
+  Theory of \ae{}therification, \emph{Philos.\ Mag.} \textbf{37} (1850), 350--356.
+
+  \bibitem{Wurtz1872}
+  A.~Wurtz,
+  Sur un ald\'ehyde-alcool,
+  \emph{Bull.\ Soc.\ Chim.\ Fr.} \textbf{17} (1872), 436--442.
+
+\end{thebibliography}
+
+\end{document}
