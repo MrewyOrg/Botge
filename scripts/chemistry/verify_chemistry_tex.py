@@ -36,6 +36,8 @@ SUBSTRATE_ROW = re.compile(
     r'^(?P<index>\d+)\s*&\s*(?P<name>[^&\n]+?)\s*&\s*(?P<group>[^&\n]+?)\s*&\s*'
     r'\\chem\{(?P<formula>[^}]+)\}\s*&\s*\\smiles\{(?P<smiles>[^}]+)\}\s*\\\\$'
 )
+MAX_PNG_BOUND = re.compile(r'valid PNG of at most \\\(\s*([0-9{,}]+)\s*\\\)\s*bytes')
+MAX_PNG_LIMIT = 131_072
 TEX_TABLE_MAPPING = (
     ('Diels--Alder', 'diels_alder'),
     ('Fischer esterification', 'fischer_esterification'),
@@ -199,9 +201,14 @@ def main() -> None:
         f'Total non-reactive row mismatch: {rows.get("Total non-reactive")}',
     )
     max_png = summary['max_png_bytes']
+    png_match = MAX_PNG_BOUND.search(tex)
+    if png_match is None:
+        require(condition=False, message='Printed max PNG byte bound missing from .tex')
+        return
+    printed_bound = int(png_match.group(1).replace('{,}', ''))
     require(
-        isinstance(max_png, int) and str(max_png) in tex.replace('{,}', ''),
-        f'Printed max PNG byte bound {max_png} missing from .tex',
+        isinstance(max_png, int) and 0 < max_png <= printed_bound < MAX_PNG_LIMIT,
+        f'Observed max PNG {max_png} B exceeds printed bound {printed_bound} B',
     )
     check_substrate_table(tex)
     check_rust_python_atlas_sync()

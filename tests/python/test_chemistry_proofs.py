@@ -218,10 +218,20 @@ class ChemistryProofScriptTests(unittest.TestCase):
             ):
                 chem_tex.main()
 
-            bad_tex.write_text(tex.replace('8{,}743', '12{,}345'), encoding='utf-8')
+            bad_tex.write_text(
+                tex.replace('valid PNG of at most', 'valid PNG of'),
+                encoding='utf-8',
+            )
             with (
                 patch.object(chem_tex, 'TEX_PATH', bad_tex),
                 self.assertRaisesRegex(SystemExit, 'Printed max PNG byte bound'),
+            ):
+                chem_tex.main()
+
+            bad_tex.write_text(tex.replace('10{,}000', '1{,}000'), encoding='utf-8')
+            with (
+                patch.object(chem_tex, 'TEX_PATH', bad_tex),
+                self.assertRaisesRegex(SystemExit, 'exceeds printed bound'),
             ):
                 chem_tex.main()
 
