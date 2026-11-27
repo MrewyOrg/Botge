@@ -1,0 +1,222 @@
+name: Warm caches
+
+# BotgeQL runs only on pull requests, and Clean closed PR caches deletes each PR's caches when it
+# closes, so its build and tool caches never outlive one PR. Every branch can restore caches from
+# the default branch, so this workflow saves them on main under the exact keys BotgeQL uses. Each
+# job mirrors its BotgeQL job's runner, cache paths and commands, and skips the build when its
+# cache already exists; the weekly run then only touches the caches so GitHub does not evict them
+# after seven idle days.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'Cargo.toml'
+      - 'Cargo.lock'
+      - 'crates/**/Cargo.toml'
+      - 'quantum/proofs/certificate/Cargo.toml'
+      - 'rust-toolchain.toml'
+      - '.github/actions/rust-setup/**'
+      - 'scripts/rust/install-test-ffmpeg.sh'
+      - 'ios/Tools/Package.swift'
+      - 'ios/Tools/Package.resolved'
+      - 'scripts/ios/setup-ios-tools.sh'
+      - 'pyproject.toml'
+      - 'uv.lock'
+      - '.python-version'
+      - '.github/workflows/botgeql.yml'
+      - '.github/workflows/warm-caches.yml'
+  schedule:
+    - cron: '23 5 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  rust:
+    name: Rust ${{ matrix.cache-name }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - cache-name: static
+            cache-paths: |
+              target/debug
+              target/stable
+            components: clippy,rustfmt
+            tools: ''
+          - cache-name: coverage
+            cache-paths: target/llvm-cov-branch
+            components: llvm-tools-preview
+            tools: cargo-llvm-cov ffmpeg
+          - cache-name: miri
+            cache-paths: |
+              target/miri
+              ~/.cache/miri
+            components: miri,rust-src
+            tools: ''
+          - cache-name: dependencies
+            cache-paths: target/debug
+            components: ''
+            tools: cargo-hack cargo-udeps
+          - cache-name: quantum-proofs
+            cache-paths: |
+              target/debug
+              target/release
+            components: clippy,rustfmt
+            tools: ''
+    env:
+      CARGO_INCREMENTAL: '0'
+      OPUS_BUNDLED: '1'
+      CACHE_NAME: ${{ matrix.cache-name }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Rust
+        id: rust
+        uses: $/.github/actions/rust-setup
+        with:
+          cache-name: ${{ matrix.cache-name }}
+          cache-paths: ${{ matrix.cache-paths }}
+          components: ${{ matrix.components }}
+          tools: ${{ matrix.tools }}
+
+      - name: Set up Python
+        if: matrix.cache-name == 'quantum-proofs' && steps.rust.outputs.cache-hit != 'true'
+        uses: actions/setup-python@v7.1.0
+        with:
+          python-version-file: .python-version
+
+      # The same commands as the BotgeQL job, so the saved cache holds what that job builds.
+      - name: Build what the BotgeQL job builds
+        if: steps.rust.outputs.cache-hit != 'true'
+        run: |
+          case "$CACHE_NAME" in
+            static)
+              sh scripts/rust/check-rust.sh static
+              toolchain=$(sed -n "s/^rust-version = '\(.*\)'$/\1/p" Cargo.toml)
+              test -n "$toolchain"
+              rustup toolchain install "$toolchain" --no-self-update --profile minimal
+              cargo "+$toolchain" check --workspace --locked --target-dir target/stable
+              ;;
+            coverage | dependencies) sh scripts/rust/check-rust.sh "$CACHE_NAME" ;;
+            miri)
+              cargo miri setup
+              sh scripts/rust/check-rust.sh miri
+              ;;
+            quantum-proofs) python scripts/quantum/check_proofs.py --only rust ;;
+            *)
+              printf 'Unknown cache name: %s\n' "$CACHE_NAME" >&2
+              exit 1
+              ;;
+          esac
+
+  # The uv key includes the runner image: BotgeQL's uv jobs run on both of these.
+  python:
+    name: Python packages (${{ matrix.runner }})
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        runner: [ubuntu-latest, ubuntu-26.04]
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@v7.1.0
+        with:
+          python-version-file: .python-version
+
+      # One key serves every BotgeQL job, so the superset with the QDK extra is cached.
+      - name: Set up locked Python package manager
+        uses: astral-sh/setup-uv@v10.4.0
+        with:
+          version-file: pyproject.toml
+          enable-cache: true
+          cache-dependency-glob: |
+            pyproject.toml
+            uv.lock
+            .python-version
+
+      - name: Install the locked packages
+        run: uv sync --locked --extra quantum --no-python-downloads
+
+  actionlint:
+    name: actionlint
+    runs-on: ubuntu-26.04
+    timeout-minutes: 10
+    steps:
+      # The version and key match the Shell, Python, and workflow checks job.
+      - name: Restore actionlint
+        uses: actions/cache@v6.1.0
+        id: actionlint-cache
+        with:
+          path: ${{ runner.temp }}/botge-linters/actionlint
+          key: actionlint-${{ runner.os }}-${{ runner.arch }}-1.7.12
+
+      - name: Install actionlint
+        if: steps.actionlint-cache.outputs.cache-hit != 'true'
+        run: |
+          mkdir -p "$RUNNER_TEMP/botge-linters"
+          GOBIN="$RUNNER_TEMP/botge-linters" go install github.com/rhysd/actionlint/cmd/actionlint@v1.7.12
+
+  ios-tools:
+    name: iOS tools
+    runs-on: xcode-27
+    timeout-minutes: 30
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+
+      # The key includes the selected Xcode, exactly as in the iOS BotgeQL job.
+      - name: Select Xcode 27
+        id: xcode
+        run: |
+          xcode=$(find /Applications -maxdepth 1 -name 'Xcode_27*.app' | sort -V | tail -n 1)
+          test -n "$xcode"
+          sudo xcode-select --switch "$xcode"
+          version=$(xcodebuild -version)
+          printf '%s\n' "$version"
+          fingerprint=$(printf '%s\n' "$version" | shasum -a 256 | cut -d ' ' -f 1)
+          printf 'fingerprint=%s\n' "$fingerprint" >> "$GITHUB_OUTPUT"
+
+      - name: Restore pinned iOS tools
+        uses: actions/cache/restore@v6.1.0
+        id: ios-tools
+        with:
+          path: ios/Tools/.build
+          key:
+            ios-tools-${{ runner.os }}-${{ runner.arch }}-${{ steps.xcode.outputs.fingerprint }}-${{
+            hashFiles('ios/Tools/Package.swift', 'ios/Tools/Package.resolved',
+            'scripts/ios/setup-ios-tools.sh') }}
+
+      - name: Build pinned iOS tools
+        if: steps.ios-tools.outputs.cache-hit != 'true'
+        run: sh scripts/ios/setup-ios-tools.sh
+
+      - name: Save built iOS tools
+        if: steps.ios-tools.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v6.1.0
+        with:
+          path: ios/Tools/.build
+          key: ${{ steps.ios-tools.outputs.cache-primary-key }}

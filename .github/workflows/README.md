@@ -14,21 +14,27 @@ commit hashes that it cannot wrap, and merge commits never reuse PR titles.
 Its stages run as parallel jobs: documentation and TypeScript, Rust static checks (including the
 stable `rust-version` build), Rust tests and coverage, Miri, Rust feature and unused-dependency
 checks, and iOS lint, tests and coverage on the standard `xcode-27` macOS runner with the newest
-Xcode 27, Go Activity checks, and shell, workflow, Python, and Swift documentation checks. A final
-`BotgeQL` job passes when every applicable stage succeeds and change detection succeeds, so rulesets
-can keep requiring the same check name. The Rust jobs share the
-[`rust-setup`](../actions/rust-setup/action.yml) composite action, referenced as `$/` so the actions
-lockfile pins this repository's copy. It installs the nightly with each job's components, restores a
-build cache named per job, and provides only the pinned test tools that job needs.
+Xcode 27, Go Activity checks, shell, workflow, Python, and Swift documentation checks, and three
+quantum stages on standard Ubuntu runners: Quantum proofs (elan pinned by checksum, Mathlib's free
+prebuilt cache, then `check_proofs.py`), the Q# circuit and sidecar (QDK extra, Q# checks, Ruff,
+Pyright and 90% sidecar coverage), and the LaTeX specification (TeX Live from apt, then
+`check-latex.sh`). Only quantum inputs trigger those three, so other PRs never install Mathlib, the
+QDK or TeX Live, and none of them stores Mathlib in the Actions cache. A final `BotgeQL` job passes
+when every applicable stage succeeds and change detection succeeds, so rulesets can keep requiring
+the same check name. The Rust jobs share the [`rust-setup`](../actions/rust-setup/action.yml)
+composite action, referenced as `$/` so the actions lockfile pins this repository's copy. It
+installs the nightly with each job's components, restores a build cache named per job, and provides
+only the pinned test tools that job needs.
 
-Change detection compares the complete PR against its base. Commit checks run on each PR update.
-Other stages run when applicable or reuse a verified passing result. Editing BotgeQL exercises every
-stage. Failed change detection fails validation. Tests use temporary data, loopback fixtures, and
-mocks without deployment credentials.
+Change detection compares the complete PR against its base (using
+`predicate-quantifier: some-with-excludes` so `ios/AGENTS.md` is excluded from the `ios` filter and
+reuse inputs). Commit checks run on each PR update. Other stages run when applicable or reuse a
+verified passing result. Editing BotgeQL exercises every stage. Failed change detection fails
+validation. Tests use temporary data, loopback fixtures, and mocks without deployment credentials.
 
-Python checks run in the Shell and workflow lint job, using cached uv to install the locked tools;
-the [helper guide](../../scripts/README.md) owns them. Each Rust job adds only the components it
-needs to the nightly's minimal profile.
+Python checks run in the Shell, Python, and workflow checks job, using cached uv to install the
+locked tools; the [helper guide](../../scripts/README.md) owns them. Each Rust job adds only the
+components it needs to the nightly's minimal profile.
 
 The Linux tooling job also runs the Python Swift documentation check. The iOS job saves the tools
 cache after the pinned tools build, before running checks that may fail. The cache key includes the
@@ -57,6 +63,13 @@ follows GitHub's branch rules; cold runs still install and compile dependencies.
 [Closed PR cleanup](cleanup-caches.yml) removes merge-ref caches when a PR closes while preserving
 branch caches. It checks out no code and has only cache-management permission. BuildKit stores
 individual layers, so one image-building PR can create many cache entries.
+
+Because BotgeQL runs only on PRs and that cleanup deletes their caches,
+[Warm caches](warm-caches.yml) saves the Rust build and tool caches, the uv cache (for both Ubuntu
+images its key names), actionlint and the iOS tools on `main`, where every branch can restore them.
+Each job mirrors its BotgeQL job's runner, cache key and commands. It runs when a push to `main`
+changes a cache input, weekly so idle caches outlive GitHub's seven-day eviction, and on demand; a
+job whose cache already exists skips its build. `rust-setup` reports `cache-hit` for this.
 
 ## Security checks
 
@@ -135,7 +148,7 @@ approval but retain the running image without restarting it. See
 These settings live outside workflow files:
 
 - `main` requires a PR, up-to-date checks, and a successful `production` deployment before merge.
-- Required checks include `Validate / BotgeQL`, `Validate / Shell and workflow lint`,
+- Required checks include `Validate / BotgeQL`, `Validate / Shell, Python, and workflow checks`,
   `Validate / check-pr-target / Check PR target`, the three `Security / Dependency` checks, CodeQL's
   language analyses, `Regal lint`, and `Verify actions lockfile`. The matrix covers Actions, Go,
   Python, Rust and TypeScript. Add the Python analysis to any explicit required-check list once it
