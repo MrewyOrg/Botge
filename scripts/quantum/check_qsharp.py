@@ -156,7 +156,6 @@ class QdkContext(Protocol):
 
     def eval(self, source: str, *, save_events: bool = False) -> object:
         """Evaluate Q# source text inside this context."""
-        ...
 
     def run(
         self,
@@ -167,11 +166,10 @@ class QdkContext(Protocol):
         seed: int | None = None,
     ) -> list[dict[str, object]]:
         """Execute a Q# callable or entry expression."""
-        ...
+        raise NotImplementedError
 
     def compile(self, entry_expr: object, *args: object) -> object:
         """Compile a Q# callable to QIR for the context's target profile."""
-        ...
 
 
 class ContextFactory(Protocol):
@@ -184,7 +182,7 @@ class ContextFactory(Protocol):
         project_root: str | None = None,
     ) -> QdkContext:
         """Construct an isolated Q# interpreter context."""
-        ...
+        raise NotImplementedError
 
 
 class RunTestsCallable(Protocol):
@@ -199,7 +197,6 @@ class RunTestsCallable(Protocol):
         verbose: int = 1,
     ) -> None:
         """Discover and execute @Test() Q# callables."""
-        ...
 
 
 @dataclass(frozen=True, slots=True)

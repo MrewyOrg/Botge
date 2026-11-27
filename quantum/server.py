@@ -82,7 +82,7 @@ class ShotRunner(Protocol):
     @property
     def result_type(self) -> type:
         """The measurement result class the runner returns, such as `qsharp.Result`."""
-        ...
+        raise NotImplementedError
 
     def initialize(self) -> None:
         """Warm up the underlying simulator runtime before serving requests."""

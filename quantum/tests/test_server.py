@@ -33,7 +33,7 @@ class ApiResponse(Protocol):
 
     def json(self) -> dict[str, object]:
         """Decode the JSON response body."""
-        ...
+        raise NotImplementedError
 
 
 class ApiClient(Protocol):
@@ -41,7 +41,7 @@ class ApiClient(Protocol):
 
     def get(self, url: str) -> ApiResponse:
         """Send an HTTP GET request."""
-        ...
+        raise NotImplementedError
 
     def post(
         self,
@@ -51,7 +51,7 @@ class ApiClient(Protocol):
         headers: Mapping[str, str] | None = None,
     ) -> ApiResponse:
         """Send an HTTP POST request."""
-        ...
+        raise NotImplementedError
 
 
 @contextmanager

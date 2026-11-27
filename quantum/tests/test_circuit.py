@@ -36,7 +36,7 @@ class StateDump(Protocol):
 
     def as_dense_state(self) -> list[complex]:
         """Return every amplitude in big-endian basis order."""
-        ...
+        raise NotImplementedError
 
 
 class QdkContext(Protocol):
@@ -44,11 +44,10 @@ class QdkContext(Protocol):
 
     def eval(self, source: str) -> object:
         """Evaluate Q# statements, keeping their qubits allocated."""
-        ...
 
     def dump_machine(self) -> StateDump:
         """Return the simulator state."""
-        ...
+        raise NotImplementedError
 
 
 class ContextFactory(Protocol):
@@ -56,7 +55,7 @@ class ContextFactory(Protocol):
 
     def __call__(self, *, target_profile: object, project_root: str) -> QdkContext:
         """Compile the project into an isolated interpreter."""
-        ...
+        raise NotImplementedError
 
 
 def load_base_context_factory() -> tuple[ContextFactory, object]:
