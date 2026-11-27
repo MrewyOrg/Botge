@@ -66,7 +66,7 @@ impl Fixture {
       guild: Some(NonZeroU64::MIN),
       user: None,
       scale: None,
-      stretch: false,
+      fit: Fit::Natural,
       cache: Some(&self.server.origin),
     }
   }
@@ -131,7 +131,7 @@ async fn refreshes_legacy_variants_without_changing_saved_names_or_overlay_flags
         guild: Some(NonZeroU64::MIN),
         user: None,
         scale: Some(2),
-        stretch: false,
+        fit: Fit::Natural,
         cache: Some(&server.origin)
       })
       .await?,
@@ -143,7 +143,7 @@ async fn refreshes_legacy_variants_without_changing_saved_names_or_overlay_flags
   assert!(saved.overlaying);
   assert!(saved.sizes.is_empty());
   assert!(
-    matches!(application.compose(ComposeRequest {input:"",guild:None,user:None,scale:None,stretch:false,cache:None}).await?, Composition::Text(message) if message.contains("1 and 32"))
+    matches!(application.compose(ComposeRequest {input:"",guild:None,user:None,scale:None,fit:Fit::Natural,cache:None}).await?, Composition::Text(message) if message.contains("1 and 32"))
   );
   Ok(())
 }
@@ -315,5 +315,81 @@ async fn shares_admission_between_requests_and_resolves_distinct_stored_names() 
       .await?,
     Composition::Image(_)
   );
+  Ok(())
+}
+
+#[tokio::test]
+async fn renders_selected_records_without_resolving_names_again() -> Result<()> {
+  use std::assert_matches;
+  let fixture = Fixture::new().await?;
+  // Both records share a case-insensitive name, so name lookup would pick the first one.
+  let mut base = botge_test_support::example("wave", "base");
+  base.sizes.insert(2, base.image.clone());
+  let mut overlay = botge_test_support::example("Wave", "overlay");
+  overlay.sizes.insert(2, overlay.image.clone());
+  overlay.overlaying = true;
+  let mut blocked = botge_test_support::example("`Blocked`", "blocked");
+  blocked.added = false;
+  blocked.image = "https://untrusted.example/image.png".into();
+  let (pair, unusable) = ([&base, &overlay], [&base, &blocked]);
+  let selected = |emotes| SelectedRequest {
+    emotes,
+    user: None,
+    scale: 2,
+    cache: Some(&fixture.server.origin),
+  };
+  assert_matches!(
+    fixture
+      .application
+      .compose_selected(selected(&pair))
+      .await?,
+    Composition::Image(image) if image.filename == "emotes.png"
+  );
+  assert_matches!(
+    fixture
+      .application
+      .compose_selected(selected(&unusable))
+      .await?,
+    Composition::Text(message) if message == "No available emote matches `Blocked`."
+  );
+  let failing = botge_test_support::example("Unavailable", "bbbbbbbbbbbbbbbbbbbbbbbb");
+  let refresh = [&base, &failing];
+  assert_matches!(
+    fixture
+      .application
+      .compose_selected(selected(&refresh))
+      .await,
+    Err(_)
+  );
+  let many = vec![&base; MAX_LAYERS + 1];
+  for emotes in [&[][..], &*many] {
+    assert_matches!(
+      fixture.application.compose_selected(selected(emotes)).await?,
+      Composition::Text(message) if message.contains("1 and 32")
+    );
+  }
+  let all = fixture
+    .application
+    .render_slot
+    .acquire_many(u32::try_from(crate::RENDER_SLOTS)?)
+    .await?;
+  assert_matches!(
+    fixture
+      .application
+      .compose_selected(selected(&pair))
+      .await?,
+    Composition::Text(message) if message.contains("too many emotes")
+  );
+  drop(all);
+  let text = fixture.application.render_metrics();
+  for (outcome, count) in [
+    ("image", "1"),
+    ("rejected", "3"),
+    ("busy", "1"),
+    ("error", "1"),
+  ] {
+    let series = format!("botge_compositions_total{{outcome=\"{outcome}\"}} {count}");
+    assert!(text.lines().any(|line| line == series), "{series}\n{text}");
+  }
   Ok(())
 }

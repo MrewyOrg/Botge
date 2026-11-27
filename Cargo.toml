@@ -1,5 +1,5 @@
 [workspace]
-members = ['crates/*']
+members = ['crates/*', 'quantum/proofs/certificate']
 default-members = ['crates/botge']
 resolver = '3'
 
@@ -21,6 +21,7 @@ botge-app = { path = 'crates/botge-app', version = '6.1.0' }
 botge-discord = { path = 'crates/botge-discord', version = '6.1.0' }
 botge-domain = { path = 'crates/botge-domain', version = '6.1.0' }
 botge-emotes = { path = 'crates/botge-emotes', version = '6.1.0' }
+botge-quantum = { path = 'crates/botge-quantum', version = '6.1.0' }
 botge-storage = { path = 'crates/botge-storage', version = '6.1.0' }
 botge-test-support = { path = 'crates/botge-test-support', version = '6.1.0' }
 botge-voice = { path = 'crates/botge-voice', version = '6.1.0' }
@@ -227,8 +228,16 @@ all = { level = 'deny', priority = -1 }
 [profile.dev]
 debug = 0
 
+# The 414-configuration certificate simulates up to 65,536 amplitudes per configuration; optimize
+# this simulator in every test and coverage build so the full sweep never needs `#[ignore]`.
+[profile.dev.package.botge-quantum-certificate]
+opt-level = 3
+
 [profile.test]
 debug = 0
+
+[profile.test.package.botge-quantum-certificate]
+opt-level = 3
 
 # Profile Botge's hot paths without rebuilding all dependencies with debug symbols.
 

@@ -2,18 +2,21 @@
 
 The workspace builds one Botge executable. Private crates enforce responsibility and dependency
 direction; they are not separately published products. Package metadata, dependency versions and
-lint policy come from the root manifest. Every crate is a sibling under `crates/`; the root manifest
-is workspace-only. Its default member is `botge`, so root-level `cargo run` and `cargo build`
-continue to select the executable. Use `--workspace` to check every crate.
+lint policy come from the root manifest. Every crate is a sibling under `crates/`, except the
+quantum certificate simulator in `quantum/proofs/certificate`, which lives with the other proofs;
+the root manifest is workspace-only. Its default member is `botge`, so root-level `cargo run` and
+`cargo build` continue to select the executable. Use `--workspace` to check every crate.
 
 ```text
 botge — configuration, startup, health and dependency wiring
 ├── botge-app — authorized operations and composition admission
 │   ├── botge-storage → botge-domain
 │   └── botge-emotes → botge-domain
-├── botge-discord → botge-app, botge-domain
+├── botge-discord → botge-app, botge-domain, botge-quantum
 ├── botge-activity → botge-app, botge-domain
-└── botge-voice → botge-app, botge-domain
+├── botge-voice → botge-app, botge-domain
+└── botge-quantum → botge-domain
+botge-quantum-certificate — proof tooling; tests against botge-quantum (dev-dependency only)
 ```
 
 - **Domain:** shared records, canonical IDs, settings validation, matching and catalog precedence.
@@ -33,6 +36,13 @@ botge — configuration, startup, health and dependency wiring
 - **Voice:** Songbird/Discord voice state and reconciliation. It consumes `VoiceSettingsSource`
   rather than importing storage. Tokio notification is the existing notification capability; another
   forwarding-only interface is unnecessary.
+- **Quantum:** the rules behind `/quantum-emote`: the Proposition 2.1 register budget, the
+  deterministic base and overlay pool slice, the request planner and caption, all Miri-checked, plus
+  one bounded `reqwest` client for the Q# sidecar (3 s timeout, no retries, no classical fallback).
+  It depends only on the domain and has no Discord, Axum or database dependency; the executable
+  builds the client when `BOTGE_QUANTUM_URL` is set. `botge-quantum-certificate` simulates all 414
+  admissible circuit configurations in interval arithmetic, proving the specification's certificate
+  bounds, and checks that they match the budget's widths.
 
 The executable supplies concrete implementations. Discord and Activity do not depend on each other.
 The application has no Axum, Serenity, Songbird, redb or network-client dependency.

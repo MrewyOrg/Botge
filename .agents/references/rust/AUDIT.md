@@ -132,7 +132,9 @@ four library subguides. Evidence for measured resource choices is in
 - **M-DOCUMENTED-MAGIC.** Documented the provider wait for autocomplete. Existing rendering, socket,
   ticket and game limits have names or nearby explanations.
 - **M-LINT-OVERRIDE-EXPECT.** Reviewed reasoned exceptions for shutdown, reconnect loops, bounded
-  casts and fixtures. Workspace Clippy denies `allow` attributes.
+  casts and fixtures, plus the scoped `indexing_slicing` and `cast_precision_loss` exceptions in
+  `botge-quantum-certificate`'s statevector, collision-entropy and metrics kernels. Workspace Clippy
+  denies `allow` attributes.
 - **M-LOG-STRUCTURED.** Runtime diagnostics use tracing. Fixed the catalog watcher to retain the
   error field and a single stable message.
 - **M-PUBLIC-DEBUG.** The compiler requires Debug. OAuth and credential debug output omits token

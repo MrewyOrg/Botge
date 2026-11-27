@@ -32,11 +32,12 @@ RUN toolchain=$(sed -n "s/^rust-version = '\(.*\)'$/\1/p" Cargo.toml) \
   && printf '[build]\ntarget = "%s"\n[target.%s]\nlinker = "musl-gcc"\n' "$target" "$target" > .cargo/config.toml \
   && printf '%s' "$target" > /rust-target
 
-COPY --parents Cargo.toml Cargo.lock crates/*/Cargo.toml ./
+COPY --parents Cargo.toml Cargo.lock crates/*/Cargo.toml quantum/proofs/certificate/Cargo.toml ./
 
 # Cache dependencies in image layers: external caches do not preserve cache-mount contents.
-# The placeholder keeps this layer independent of application source changes.
-RUN for manifest in crates/*/Cargo.toml; do \
+# The placeholder keeps this layer independent of application source changes. The certificate
+# simulator stays a placeholder: the executable never builds it.
+RUN for manifest in crates/*/Cargo.toml quantum/proofs/certificate/Cargo.toml; do \
     directory=${manifest%/Cargo.toml}; \
     mkdir -p "$directory/src"; \
     case "$directory" in \

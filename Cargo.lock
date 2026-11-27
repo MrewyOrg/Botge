@@ -255,6 +255,7 @@ dependencies = [
  "botge-discord",
  "botge-domain",
  "botge-emotes",
+ "botge-quantum",
  "botge-storage",
  "botge-test-support",
  "botge-voice",
@@ -333,6 +334,7 @@ dependencies = [
  "axum",
  "botge-app",
  "botge-domain",
+ "botge-quantum",
  "botge-storage",
  "botge-test-support",
  "futures-util",
@@ -376,6 +378,29 @@ dependencies = [
  "tokio",
  "tokio-tungstenite 0.30.0",
  "tracing",
+]
+
+[[package]]
+name = "botge-quantum"
+version = "6.1.0"
+dependencies = [
+ "anyhow",
+ "axum",
+ "botge-domain",
+ "botge-test-support",
+ "mimalloc",
+ "reqwest 0.13.5",
+ "serde",
+ "serde_json",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
+name = "botge-quantum-certificate"
+version = "6.1.0"
+dependencies = [
+ "botge-quantum",
 ]
 
 [[package]]

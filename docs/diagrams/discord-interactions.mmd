@@ -9,6 +9,10 @@ flowchart LR
     known -->|"/emote-compose,<br/>/emote-shortcuts"| defer["Defer reply"]
     defer --> answer["Resolve names through botge-app;<br/>render or find shortcuts"]
     answer --> edit(["Edit reply: text or attachment;<br/>text when over the upload limit"])
+    known -->|"/quantum-emote<br/>(sidecar configured)"| deferQuantum["Defer reply"]
+    deferQuantum --> sample["Sort and slice pools, one<br/>sidecar draw (3 s), render<br/>the pair through botge-app"]
+    sample -->|drawn| caption(["Edit reply: attachment<br/>and circuit caption"])
+    sample -->|failed| ephemeral(["Delete reply, explain<br/>in an ephemeral followup"])
 
     handler -->|autocomplete| choices["Rank catalog names and scales<br/>2 s catalog wait, 25 choices"]
     choices --> respond(["Return choices"])
@@ -29,9 +33,9 @@ flowchart LR
     classDef base fill:#161b24,stroke:#7d8ba3,color:#e9edf4,stroke-width:2px,rx:10,ry:10
     classDef gate fill:#1b212c,stroke:#f0b54a,color:#fff5e3,stroke-width:2px,rx:10,ry:10
     classDef deny fill:#2a1720,stroke:#ff7a90,color:#ffeef1,stroke-width:2px,rx:10,ry:10
-    class event,edit,respond,report,replyMsg entry
+    class event,edit,respond,report,replyMsg,caption,ephemeral entry
     class handler core
     class known,filter gate
-    class defer,openModal,confirm,choices base
-    class answer,prefix media
+    class defer,deferQuantum,openModal,confirm,choices base
+    class answer,prefix,sample media
     class ignore deny

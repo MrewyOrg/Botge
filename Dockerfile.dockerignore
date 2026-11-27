@@ -5,6 +5,7 @@
 !rust-toolchain.toml
 !crates/
 !crates/**
+!quantum/proofs/certificate/Cargo.toml
 # Rust unit tests live alongside production code and run separately in BotgeQL.
 crates/**/tests.rs
 crates/**/tests/

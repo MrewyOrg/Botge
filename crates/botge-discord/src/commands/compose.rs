@@ -16,7 +16,7 @@ impl Commands {
     guild: Option<NonZeroU64>,
     user: Option<NonZeroU64>,
     scale: Option<u16>,
-    stretch: bool,
+    fit: botge_app::Fit,
   ) -> Result<Answer> {
     self
       .application
@@ -25,16 +25,25 @@ impl Commands {
         guild,
         user,
         scale,
-        stretch,
+        fit,
         cache: self.cache.as_ref(),
       })
       .await
   }
 }
 
+/// Longest time an emote reply may take before it is answered with [`TIMED_OUT`].
+pub(super) const DEADLINE: Duration = Duration::from_secs(40);
+
+/// Reply for work that exceeded [`DEADLINE`] or an inner timeout.
+pub(super) const TIMED_OUT: &str = "The emote request timed out. Try again.";
+
+/// Reply for lookup, download or rendering failures, without their details.
+pub(super) const FAILED: &str = "Could not load or render those emotes.";
+
 /// Applies the reply deadline and converts failures to user-facing messages.
 pub(super) async fn render_reply(answer: impl Future<Output = Result<Answer>>) -> Answer {
-  render_result(tokio::time::timeout(Duration::from_secs(40), answer).await)
+  render_result(tokio::time::timeout(DEADLINE, answer).await)
 }
 
 /// Converts completed or timed-out work into a client-safe reply without exposing error details.
@@ -44,12 +53,12 @@ fn render_result(result: Result<Result<Answer>, tokio::time::error::Elapsed>) ->
     Ok(Err(error)) => {
       tracing::warn!(%error, message = "emote request failed");
       if error.is::<tokio::time::error::Elapsed>() {
-        Answer::Text("The emote request timed out. Try again.".into())
+        Answer::Text(TIMED_OUT.into())
       } else {
-        Answer::Text("Could not load or render those emotes.".into())
+        Answer::Text(FAILED.into())
       }
     }
-    Err(_) => Answer::Text("The emote request timed out. Try again.".into()),
+    Err(_) => Answer::Text(TIMED_OUT.into()),
   }
 }
 

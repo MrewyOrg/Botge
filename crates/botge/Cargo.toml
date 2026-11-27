@@ -15,6 +15,7 @@ botge-activity.workspace = true
 botge-app.workspace = true
 botge-discord.workspace = true
 botge-domain.workspace = true
+botge-quantum.workspace = true
 botge-storage.workspace = true
 botge-voice.workspace = true
 jsonc-parser.workspace = true

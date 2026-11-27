@@ -19,16 +19,21 @@ flowchart TB
         emotes["<b>botge-emotes</b><br/>7TV snapshots and events,<br/>bounded FFmpeg rendering"]
     end
 
+    quantum["<b>botge-quantum</b><br/>Register budget, pool planner,<br/>Q# sidecar client"]
+
     domain["<b>botge-domain</b><br/>Shared records, canonical IDs,<br/>validation, matching rules"]
 
     bot -. wires .-> adapters
     discord -->|implements GuildAccess| app
+    discord -->|/quantum-emote| quantum
+    bot -. optional sidecar URL .-> quantum
     activity --> app
     voice -->|VoiceSettingsSource| app
     app --> storage
     app --> emotes
     storage --> domain
     emotes --> domain
+    quantum --> domain
 
     rule["Adapters never open redb.<br/>Emotes never reads storage.<br/>Discord and Activity stay independent.<br/>tests/architecture.rs enforces these edges."]
     domain ~~~ rule
@@ -43,6 +48,6 @@ flowchart TB
     class discord,activity,voice base
     class app core
     class storage data
-    class emotes media
+    class emotes,quantum media
     class domain base
     class rule muted

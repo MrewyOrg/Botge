@@ -40,7 +40,7 @@ use botge_app::access::{
 };
 use futures_util::{StreamExt as _, TryStreamExt as _};
 
-use crate::commands::{self, Commands};
+use crate::commands::Commands;
 use botge_domain::settings::discord_id;
 
 /// OAuth application identity configured together to avoid mismatched constructor arguments.
@@ -661,7 +661,7 @@ impl EventHandler for Events {
     if self.register_commands
       && let Err(error) = self
         .registration
-        .get_or_try_init(|| commands::register(&ctx.http))
+        .get_or_try_init(|| self.commands.register(&ctx.http))
         .await
     {
       tracing::error!(%error, message = "could not register Discord commands");

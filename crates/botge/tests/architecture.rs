@@ -22,16 +22,22 @@ fn dependency_policy() -> BTreeMap<&'static str, &'static [&'static str]> {
         "botge-discord",
         "botge-activity",
         "botge-voice",
+        "botge-quantum",
       ][..],
     ),
     ("botge-domain", &[][..]),
+    ("botge-quantum", &["botge-domain"][..]),
+    ("botge-quantum-certificate", &[][..]),
     ("botge-storage", &["botge-domain"][..]),
     ("botge-emotes", &["botge-domain"][..]),
     (
       "botge-app",
       &["botge-domain", "botge-storage", "botge-emotes"][..],
     ),
-    ("botge-discord", &["botge-app", "botge-domain"][..]),
+    (
+      "botge-discord",
+      &["botge-app", "botge-domain", "botge-quantum"][..],
+    ),
     ("botge-activity", &["botge-app", "botge-domain"][..]),
     ("botge-voice", &["botge-app", "botge-domain"][..]),
     ("botge-test-support", &["botge-domain"][..]),
@@ -86,15 +92,20 @@ fn production_features(package: &Value, owner: &str) -> Result<()> {
 }
 
 /// Requires every package, including the executable, to live in the flat crates directory.
+///
+/// The certificate simulator is the one exception: it lives beside the other proofs of the quantum
+/// specification.
 fn sibling_manifest(metadata: &Value, package: &Value, name: &str) -> Result<()> {
   let workspace = metadata
     .get("workspace_root")
     .and_then(Value::as_str)
     .context("missing workspace root")?;
-  let expected = std::path::Path::new(workspace)
-    .join("crates")
-    .join(name)
-    .join("Cargo.toml");
+  let directory = if name == "botge-quantum-certificate" {
+    std::path::Path::new(workspace).join("quantum/proofs/certificate")
+  } else {
+    std::path::Path::new(workspace).join("crates").join(name)
+  };
+  let expected = directory.join("Cargo.toml");
   assert_eq!(
     package.get("manifest_path").and_then(Value::as_str),
     expected.to_str(),
@@ -184,6 +195,7 @@ fn production_dependencies_follow_application_boundaries() -> Result<()> {
         "botge-activity" => &["redb", "serenity", "songbird", "reqwest"],
         "botge-discord" => &["axum", "redb", "songbird"],
         "botge-voice" => &["axum", "redb", "reqwest"],
+        "botge-quantum" => &["axum", "redb", "serenity", "songbird", "tokio-tungstenite"],
         "botge" => &["redb"],
         _ => &[],
       };

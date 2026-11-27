@@ -1,10 +1,26 @@
 //! Application composition workflow: resolution, saved preferences and render admission.
 use super::{Application, Catalog, metrics::Outcome};
 use anyhow::Result;
-use botge_domain::emotes::{find_emote, valid_seven_id};
+use botge_domain::emotes::{Emote, find_emote, valid_seven_id};
 use botge_emotes::rendering::{self, Layer, RenderOptions};
 use std::{num::NonZeroU64, time::Instant};
 use url::Url;
+
+/// Provider variant scale used when a request does not choose one.
+pub const DEFAULT_SCALE: u16 = 2;
+
+/// Longest input name, in characters, that an unavailable-emote reply repeats.
+const MAX_REPLY_NAME_CHARS: usize = 100;
+
+/// How overlays fit the column of the base emote they draw over.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum Fit {
+  /// Overlays keep their aspect ratio.
+  #[default]
+  Natural,
+  /// Overlays stretch to fill the column height.
+  Stretch,
+}
 
 /// Validated command intent, independent of Discord interaction types.
 #[derive(Clone, Copy, Debug)]
@@ -15,13 +31,29 @@ pub struct ComposeRequest<'a> {
   pub guild: Option<NonZeroU64>,
   /// Authenticated command author whose saved border applies.
   pub user: Option<NonZeroU64>,
-  /// Provider variant scale, defaulting to two.
+  /// Provider variant scale, defaulting to [`DEFAULT_SCALE`].
   pub scale: Option<u16>,
-  /// Whether layers stretch to the selected column height.
-  pub stretch: bool,
+  /// How overlays fit their column.
+  pub fit: Fit,
   /// Optional operator-configured media cache URL.
   pub cache: Option<&'a Url>,
 }
+/// Already chosen catalog records to render in display order, without resolving names again.
+#[derive(Clone, Copy, Debug)]
+pub struct SelectedRequest<'a> {
+  /// Catalog records in display order; each overlay draws over the preceding base emote.
+  pub emotes: &'a [&'a Emote],
+  /// Authenticated command author whose saved border applies.
+  pub user: Option<NonZeroU64>,
+  /// Provider variant scale.
+  pub scale: u16,
+  /// Optional operator-configured media cache URL.
+  pub cache: Option<&'a Url>,
+}
+
+/// Most layers one composition renders.
+const MAX_LAYERS: usize = 32;
+
 /// A composition outcome for an adapter to format or upload.
 #[derive(Debug)]
 pub enum Composition {
@@ -72,6 +104,19 @@ impl Application {
     let Some(emote) = find_emote(catalog, token) else {
       return Ok(Layer::discord(token));
     };
+    self.layer_for(emote, scale).await
+  }
+
+  /// Builds the layer for one catalog record at `scale`.
+  ///
+  /// Named additions saved without variants are refreshed for this render, retaining their saved
+  /// overlay flag.
+  ///
+  /// # Errors
+  ///
+  /// Returns an error if refreshing an individual 7TV addition fails. A record without a usable
+  /// image produces `Ok(None)`.
+  async fn layer_for(&self, emote: &Emote, scale: u16) -> Result<Option<Layer>> {
     if emote.sizes.is_empty() && emote.added && valid_seven_id(&emote.id) {
       return Ok(
         self
@@ -103,20 +148,66 @@ impl Application {
   /// Every outcome is counted in [`Self::metrics`]; images also record their duration.
   pub async fn compose(&self, request: ComposeRequest<'_>) -> Result<Composition> {
     let started = Instant::now();
-    let tokens: Vec<_> = request.input.split_whitespace().take(33).collect();
-    if tokens.is_empty() || tokens.len() > 32 {
-      self
-        .metrics
-        .composition(Outcome::Rejected, started.elapsed());
-      return Ok(Composition::Text("Enter between 1 and 32 emotes.".into()));
+    let tokens: Vec<_> = request
+      .input
+      .split_whitespace()
+      .take(MAX_LAYERS + 1)
+      .collect();
+    if tokens.is_empty() || tokens.len() > MAX_LAYERS {
+      return Ok(self.reject_count(started));
     }
+    self
+      .admit(started, self.compose_admitted(request, tokens))
+      .await
+  }
+
+  /// Renders already chosen catalog records under the same admission and metrics as
+  /// [`Self::compose`].
+  ///
+  /// Records are not looked up by name again, so case-insensitive duplicates and names with
+  /// spaces render exactly the chosen entries. Sizeless additions are refreshed as in
+  /// [`Self::compose`]; a single record without a border keeps its original attachment, and
+  /// overlays keep their aspect ratio ([`Fit::Natural`]).
+  ///
+  /// # Errors
+  ///
+  /// Returns preference, provider lookup, download, or rendering failures. An empty or oversized
+  /// selection, a record without an image and admission rejection are returned as text answers.
+  pub async fn compose_selected(&self, request: SelectedRequest<'_>) -> Result<Composition> {
+    let started = Instant::now();
+    if request.emotes.is_empty() || request.emotes.len() > MAX_LAYERS {
+      return Ok(self.reject_count(started));
+    }
+    self
+      .admit(started, self.compose_selected_admitted(request))
+      .await
+  }
+
+  /// Counts and explains a request with no layers or more than [`MAX_LAYERS`].
+  fn reject_count(&self, started: Instant) -> Composition {
+    self
+      .metrics
+      .composition(Outcome::Rejected, started.elapsed());
+    Composition::Text(format!("Enter between 1 and {MAX_LAYERS} emotes."))
+  }
+
+  /// Runs `work` while holding a render permit and counts its outcome.
+  ///
+  /// # Errors
+  ///
+  /// Propagates the failure of `work`; an unavailable permit is a text answer.
+  async fn admit(
+    &self,
+    started: Instant,
+    work: impl Future<Output = Result<Composition>>,
+  ) -> Result<Composition> {
     let Ok(_permit) = self.render_slot.try_acquire() else {
       self.metrics.composition(Outcome::Busy, started.elapsed());
       return Ok(Composition::Text(
         "Botge is rendering too many emotes right now. Try again shortly.".into(),
       ));
     };
-    let result = self.compose_admitted(request, tokens).await;
+    let result = work.await;
     let outcome = match &result {
       Ok(Composition::Image(_)) => Outcome::Image,
       Ok(Composition::Text(_)) => Outcome::Rejected,
@@ -124,6 +215,24 @@ impl Application {
     };
     self.metrics.composition(outcome, started.elapsed());
     result
+  }
+
+  /// Builds layers for admitted records while the caller holds the render permit.
+  ///
+  /// # Errors
+  ///
+  /// Returns preference, provider lookup, download, or rendering failures.
+  async fn compose_selected_admitted(&self, request: SelectedRequest<'_>) -> Result<Composition> {
+    let mut layers = Vec::with_capacity(request.emotes.len());
+    for emote in request.emotes {
+      let Some(layer) = self.layer_for(emote, request.scale).await? else {
+        return Ok(unavailable(&emote.name));
+      };
+      layers.push(layer);
+    }
+    self
+      .render_layers(&layers, request.user, Fit::Natural, request.cache)
+      .await
   }
 
   /// Resolves and renders admitted input while the caller holds the render permit.
@@ -141,7 +250,7 @@ impl Application {
       guild,
       user,
       scale,
-      stretch,
+      fit,
       cache,
     } = request;
     let catalog = self.catalog(guild).await?;
@@ -154,7 +263,7 @@ impl Application {
       tokens = vec![input.trim()];
     }
 
-    let scale = scale.unwrap_or(2);
+    let scale = scale.unwrap_or(DEFAULT_SCALE);
     let mut layers = Vec::with_capacity(tokens.len());
     for batch in tokens.chunks(4) {
       let catalog = &catalog;
@@ -166,18 +275,29 @@ impl Application {
       for result in found {
         let (name, layer) = result?;
         let Some(layer) = layer else {
-          return Ok(Composition::Text(format!(
-            "No available emote matches `{}`.",
-            name.replace('`', "").chars().take(100).collect::<String>()
-          )));
+          return Ok(unavailable(name));
         };
         layers.push(layer);
       }
     }
+    self.render_layers(&layers, user, fit, cache).await
+  }
 
+  /// Applies the user's border and renders the layers, keeping a lone unbordered original.
+  ///
+  /// # Errors
+  ///
+  /// Returns preference, download, or rendering failures.
+  async fn render_layers(
+    &self,
+    layers: &[Layer],
+    user: Option<NonZeroU64>,
+    fit: Fit,
+    cache: Option<&Url>,
+  ) -> Result<Composition> {
     let border = self.border(user).await?;
     // A single unmodified image can retain its original bytes and timing.
-    if let [layer] = layers.as_slice()
+    if let [layer] = layers
       && border.is_none()
     {
       return Ok(Composition::Image(
@@ -186,17 +306,29 @@ impl Application {
     }
     let image = rendering::compose(
       self.client.http(),
-      &layers,
+      layers,
       cache,
       RenderOptions {
         size_pixels: None,
-        stretch,
+        stretch: fit == Fit::Stretch,
         border,
       },
     )
     .await?;
     Ok(Composition::Image(image))
   }
+}
+
+/// Names an input that has no available emote, without breaking its inline code span.
+fn unavailable(name: &str) -> Composition {
+  Composition::Text(format!(
+    "No available emote matches `{}`.",
+    name
+      .replace('`', "")
+      .chars()
+      .take(MAX_REPLY_NAME_CHARS)
+      .collect::<String>()
+  ))
 }
 
 #[cfg(test)]
