@@ -29,12 +29,13 @@ The private listener defaults to `127.0.0.1:3081` and starts without Activity cr
 | `/metrics` | Prometheus text counters since the process started.                              |
 
 `/metrics` reports Discord commands by name, compositions by outcome (`image`, `rejected`, `busy`,
-`error`), quantum emote sidecar sample outcomes (`botge_quantum_samples_total{outcome}`), a
-render-time histogram for successful compositions, Activity API responses by route and status, 7TV
-event stream reconnects, gateway readiness, and the running version. Labels come from fixed sets, so
-the series count stays bounded. Counters reset on restart. No metrics service is required; read it
-from the host with `docker compose exec botge wget -qO- http://127.0.0.1:3081/metrics`, or point a
-self-hosted Prometheus at it on a private network.
+`error`), quantum emote sidecar sample outcomes (`botge_quantum_samples_total{outcome}`), chemistry
+sidecar reaction outcomes (`botge_chemistry_reactions_total{outcome}`), a render-time histogram for
+successful compositions, Activity API responses by route and status, 7TV event stream reconnects,
+gateway readiness, and the running version. Labels come from fixed sets, so the series count stays
+bounded. Counters reset on restart. No metrics service is required; read it from the host with
+`docker compose exec botge wget -qO- http://127.0.0.1:3081/metrics`, or point a self-hosted
+Prometheus at it on a private network.
 
 Compose runs `--healthcheck` against `/readyz` every ten seconds, with a two-second request timeout,
 a 30-second startup grace period, and six consecutive failures before marking the container

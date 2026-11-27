@@ -2,10 +2,12 @@
 //!
 //! `compose` resolves and renders inputs, `prefix` handles attached `+emote` messages,
 //! `autocomplete` and `shortcuts` perform name matching, and `registration` owns the
-//! command definitions. `clear` contains the separate message-cleanup workflow, and `quantum`
-//! the `/quantum-emote` command that exists only with a configured sidecar.
+//! command definitions. `clear` contains the separate message-cleanup workflow, `quantum`
+//! the `/quantum-emote` command, and `chemistry` the `/react-emote` command that exist only when
+//! their respective sidecars are configured.
 
 mod autocomplete;
+mod chemistry;
 mod clear;
 mod compose;
 mod prefix;
@@ -24,6 +26,7 @@ use serenity::{
 };
 
 use botge_app::Application;
+use botge_chemistry::ChemistryClient;
 use botge_quantum::QuantumClient;
 
 use compose::render_reply;
@@ -38,6 +41,7 @@ pub struct Commands {
   application: Arc<Application>,
   cache: Option<Url>,
   quantum: Option<QuantumClient>,
+  chemistry: Option<ChemistryClient>,
 }
 
 use botge_app::Composition as Answer;
@@ -50,6 +54,7 @@ impl Commands {
       application,
       cache,
       quantum: None,
+      chemistry: None,
     }
   }
 
@@ -60,11 +65,19 @@ impl Commands {
     self
   }
 
+  /// Enables `/react-emote`, which runs organic reactions through `client`'s sidecar.
+  #[must_use]
+  pub fn with_chemistry(mut self, client: ChemistryClient) -> Self {
+    self.chemistry = Some(client);
+    self
+  }
+
   /// Names of the commands this process registers and answers, in registration order.
   fn names(&self) -> impl Iterator<Item = &'static str> {
     NAMES
       .into_iter()
       .chain(self.quantum.as_ref().map(|_| quantum::NAME))
+      .chain(self.chemistry.as_ref().map(|_| chemistry::NAME))
   }
 
   /// Updates Botge's global commands, including `/quantum-emote` only when it is configured.
@@ -96,6 +109,11 @@ impl Commands {
       && command.data.name == quantum::NAME
     {
       return self.respond_quantum(http, &command, client).await;
+    }
+    if let Some(client) = &self.chemistry
+      && command.data.name == chemistry::NAME
+    {
+      return self.respond_chemistry(http, &command, client).await;
     }
     let guild = command
       .guild_id

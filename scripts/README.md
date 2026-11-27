@@ -4,6 +4,8 @@ Shared checks live here; agent-only reference and benchmark helpers remain in `.
 Rust check scopes and prerequisites are described in the [test guide](../tests/README.md).
 
 - **`activity/`.** Activity origin asset staging and Go checks
+- **`chemistry/`.** Organic chemistry proof checks: Lean, SymPy/Z3, the exhaustive RDKit
+  certificate, `botge-chemistry` checks and `.tex` traceability
 - **`ios/`.** Xcode checks, simulator tests, Swift documentation, and Swift tool setup
 - **`operations/`.** Compose and GitHub backups, the deploy client, and the backup LaunchAgent
   template

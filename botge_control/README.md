@@ -59,10 +59,12 @@ deploy, configuration updates, and log commands. The control handler serializes 
 up to 120 seconds for Compose services. Digest deployments verify the running image and gateway
 readiness before replying `OK`. A failed digest deployment restarts the last verified image and
 replies `ERROR`; previous images are retained for rollback. Digest deployments persist the approved
-image in `/home/<control-name>/botge/.botge-image` (and `.botge-quantum-image` when using
-`deploy-quantum` with [compose.quantum.yaml](../compose.quantum.yaml)); remove those files to return
-manual `deploy` or `deploy-quantum` requests to unpinned `latest`. See
-[production contracts](../docs/PRODUCTION.md) for host upgrades, backups, and recovery.
+image in `/home/<control-name>/botge/.botge-image` (`.botge-quantum-image` when using
+`deploy-quantum` with [compose.quantum.yaml](../compose.quantum.yaml), and `.botge-chemistry-image`
+when using `deploy-chemistry` with [compose.chemistry.yaml](../compose.chemistry.yaml)); remove
+those files to return manual `deploy`, `deploy-quantum`, or `deploy-chemistry` requests to unpinned
+`latest`. See [production contracts](../docs/PRODUCTION.md) for host upgrades, backups, and
+recovery.
 
 ## Import an existing data folder
 

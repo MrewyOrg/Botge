@@ -25,6 +25,7 @@ flowchart TB
                 botge["<b>botge</b><br/>Rust binary and FFmpeg<br/>read-only root, /tmp tmpfs"]
                 nginx["<b>nginx</b><br/>7TV media cache"]
                 quantum["<b>quantum</b> (optional overlay)<br/>CPU-only Q# sidecar :3090"]
+                chemistry["<b>chemistry</b> (optional overlay)<br/>CPU-only RDKit sidecar :3091"]
             end
             volume[("botge-data volume<br/>botge.redb")]
             cache[("nginx/cache<br/>on the host")]
@@ -35,7 +36,7 @@ flowchart TB
     subgraph external["Upstream services"]
         direction LR
         seventv["<b>7TV</b><br/>7tv.io API and events,<br/>cdn.7tv.app"]
-        dockerHub[("Docker Hub<br/>mrewy/botge digests")]
+        dockerHub[("Docker Hub<br/>mrewy/botge* digests")]
         registry[("Artifact Registry<br/>Activity image digests")]
     end
 
@@ -48,6 +49,7 @@ flowchart TB
     botge <-->|gateway and REST| gatewayApi
     botge --> nginx
     botge -.->|"/quantum-emote"| quantum
+    botge -.->|"/react-emote"| chemistry
     nginx --> seventv
     botge -->|catalog and events| seventv
     botge --- volume
@@ -64,7 +66,7 @@ flowchart TB
     classDef base fill:#161b24,stroke:#7d8ba3,color:#e9edf4,stroke-width:2px,rx:10,ry:10
     class discordApp,iphone,proxy,gatewayApi entry
     class botge core
-    class nginx,seventv,quantum media
+    class nginx,seventv,quantum,chemistry media
     class volume,cache,registry,dockerHub data
     class cloudRun,funnel cloud
     class control base

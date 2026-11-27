@@ -77,6 +77,7 @@ Discord Activity, play a guessing game, and manage each server's catalog from th
 | :dart: **Guess**                 | Multiplayer emote guessing in the Activity and the iOS app |
 | :iphone: **iOS app**             | Native SwiftUI app with a Lock Screen Live Activity        |
 | :atom_symbol: **Quantum emotes** | `/quantum-emote` draws a pair from a simulated Q# circuit  |
+| :test_tube: **Chemistry emotes** | `/react-emote` reacts two emotes in an RDKit sidecar       |
 | :wrench: **Server tools**        | Voice status, `/emote-shortcuts` and `/clear-messages`     |
 
 ## Documentation
@@ -97,6 +98,7 @@ The [Botge wiki](https://github.com/MrewyOrg/Botge/wiki) is the main documentati
 | [`activity/`](activity/)           | TypeScript Discord Activity and its signed Go origin     |
 | [`ios/`](ios/)                     | SwiftUI iOS app, `BotgeKit` and the Live Activity widget |
 | [`quantum/`](quantum/)             | Q# circuit, FastAPI sidecar, specification and proofs    |
+| [`chemistry/`](chemistry/)         | RDKit sidecar, 2D diagrams, spec and proofs              |
 | [`botge_control/`](botge_control/) | Debian installation and control scripts                  |
 | [`scripts/`](scripts/)             | Python and shell helpers                                 |
 | [`tests/`](tests/)                 | Cross-language tests and coverage gates                  |
@@ -104,8 +106,8 @@ The [Botge wiki](https://github.com/MrewyOrg/Botge/wiki) is the main documentati
 Implementation details stay versioned with the code:
 
 - [Architecture](docs/ARCHITECTURE.md) and the [Rust workspace guide](crates/README.md)
-- [Activity guide](activity/README.md), [iOS guide](ios/README.md) and
-  [quantum setup and VS Code guide](quantum/README.md)
+- [Activity guide](activity/README.md), [iOS guide](ios/README.md),
+  [quantum setup and VS Code guide](quantum/README.md) and [chemistry guide](chemistry/README.md)
 - [Tests and coverage](tests/README.md) and [helper scripts](scripts/README.md)
 - [GitHub workflows](.github/workflows/README.md) for validation and approved deployment
 - [Production contracts](docs/PRODUCTION.md) for readiness, image verification and recovery

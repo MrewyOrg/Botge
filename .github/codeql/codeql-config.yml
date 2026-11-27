@@ -8,6 +8,7 @@ paths-ignore:
   - coverage
   - .venv
   - quantum/proofs/lean/.lake
+  - chemistry/proofs/lean/.lake
   - ios/Tools/.build
   - .ruff_cache
   - .agents/references/cache

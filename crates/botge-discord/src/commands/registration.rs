@@ -9,11 +9,51 @@ use serenity::{
   http::Http,
 };
 
-use super::{NAMES, clear, quantum};
+use super::{NAMES, chemistry, clear, quantum};
 
 /// Creates a Discord text option with the common input length limit.
 fn input(name: &str, description: &str) -> CreateCommandOption {
   CreateCommandOption::new(CommandOptionType::String, name, description).max_length(1000)
+}
+
+/// Creates a Discord boolean option.
+fn toggle(name: &str, description: &str) -> CreateCommandOption {
+  CreateCommandOption::new(CommandOptionType::Boolean, name, description)
+}
+
+/// Creates a Discord bounded positive integer option (`1..=max`).
+fn integer(name: &str, description: &str, max: u64) -> CreateCommandOption {
+  CreateCommandOption::new(CommandOptionType::Integer, name, description)
+    .min_int_value(1)
+    .max_int_value(max)
+}
+
+/// Builds the `/react-emote` slash command definition.
+fn react_command(command: CreateCommand) -> CreateCommand {
+  command
+    .add_option(
+      input("reactant_a", "First emote reactant")
+        .required(true)
+        .set_autocomplete(true),
+    )
+    .add_option(
+      input("reactant_b", "Second emote reactant")
+        .required(true)
+        .set_autocomplete(true),
+    )
+    .add_option(
+      CreateCommandOption::new(
+        CommandOptionType::String,
+        "condition",
+        "Reaction condition (default auto)",
+      )
+      .set_autocomplete(true),
+    )
+    .add_option(integer("size", "Provider image scale (1–4, default 2)", 4))
+    .add_option(toggle(
+      "diagram",
+      "Attach a dark-mode 2D skeletal reaction diagram (default true)",
+    ))
 }
 
 /// Returns the definitions of the commands in `names`, in registration order.
@@ -26,13 +66,6 @@ fn definitions(names: &[&str]) -> Vec<CreateCommand> {
         InteractionContext::PrivateChannel,
         InteractionContext::BotDm,
       ])
-  };
-  let toggle =
-    |name, description| CreateCommandOption::new(CommandOptionType::Boolean, name, description);
-  let integer = |name, description, max| {
-    CreateCommandOption::new(CommandOptionType::Integer, name, description)
-      .min_int_value(1)
-      .max_int_value(max)
   };
   [
     (
@@ -93,6 +126,13 @@ fn definitions(names: &[&str]) -> Vec<CreateCommand> {
         6,
       ))
       .add_option(integer("size", "Provider image scale (1–4, default 2)", 4)),
+    ),
+    (
+      chemistry::NAME,
+      react_command(command(
+        chemistry::NAME,
+        "React two catalog emotes under organic chemistry rules",
+      )),
     ),
   ]
   .into_iter()

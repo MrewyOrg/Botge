@@ -45,6 +45,10 @@ anything.
 - **`.venv/bin/python scripts/quantum/check_proofs.py`.** Lean build, lint and axiom audit,
   SymPy/Z3, the 414-configuration certificate and `.tex` traceability (requires elan; see the
   [quantum guide](../quantum/README.md#proof-checks))
+- **`.venv/bin/python scripts/chemistry/check_chemistry_proofs.py`.** Chemistry Lean build, lint and
+  axiom audit, SymPy/Z3, the 5,120-triple RDKit certificate, `botge-chemistry` checks and `.tex`
+  traceability (requires elan and `--extra chemistry`; see the
+  [chemistry guide](../chemistry/README.md#checks-and-proofs))
 - **`npm run check:ios`.** SwiftFormat lint and strict SwiftLint
 - **`npm run check:ios:analyze`.** SwiftLint analyzer: unused declarations and imports
 - **`npm run test:ios`.** iOS unit and UI tests, Swift coverage gate
@@ -141,6 +145,10 @@ and coverage gates when asked; CI runs them on every PR.
   to the stages a change touches; add `sh scripts/quality/check-latex.sh` for `.tex` changes, and
   the circuit tests in the [quantum guide](../quantum/README.md#setup-and-checks), which compare the
   Q# simulation with the printed Table 1 and Proposition 5.2 numbers.
+- **`chemistry/` or `crates/botge-chemistry`:** Ruff, Pyright, and pytest with 90% branch coverage
+  on `chemistry/` (`--extra chemistry`), Rust checks (`static`, `coverage`, `miri`) on
+  `botge-chemistry`, `.venv/bin/python scripts/chemistry/check_chemistry_proofs.py`, and
+  `sh scripts/quality/check-latex.sh` for `chemistry/docs/*.tex`.
 
 ## Shell tests
 
@@ -216,10 +224,10 @@ layout, fixtures and the dependency-policy test. `crates/botge/tests/rust_cli.rs
 compiled binary. A subprocess test checks the production panic hook, which exits with status 101.
 
 Miri interprets the pure tests selected in `scripts/rust/check-rust-miri.sh`: Discord ID and voice
-setting validation, Unicode shortcuts, layout arithmetic, WebP timing, and the quantum register
-budget, pool slice, planner, caption and option bounds. Network (including the quantum sidecar
-client), database, audio and FFmpeg paths stay in the coverage suite. Extend the filters when adding
-pure Rust tests.
+setting validation, Unicode shortcuts, layout arithmetic, WebP timing, the quantum register budget,
+pool slice, planner, caption and option bounds, and the chemistry atlas, budget, planner, caption,
+and option bounds. Network (including the sidecar clients), database, audio and FFmpeg paths stay in
+the coverage suite. Extend the filters when adding pure Rust tests.
 
 `cargo-hack` checks feature combinations with development dependencies enabled, so `--locked` keeps
 the committed graph. Optional `test-util` features must stay off in production dependencies.

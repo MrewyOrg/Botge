@@ -76,6 +76,12 @@ jobs:
               target/release
             components: clippy,rustfmt
             tools: ''
+          - cache-name: chemistry-proofs
+            cache-paths: |
+              target/debug
+              target/release
+            components: clippy,rustfmt
+            tools: ''
     env:
       CARGO_INCREMENTAL: '0'
       OPUS_BUNDLED: '1'
@@ -96,7 +102,9 @@ jobs:
           tools: ${{ matrix.tools }}
 
       - name: Set up Python
-        if: matrix.cache-name == 'quantum-proofs' && steps.rust.outputs.cache-hit != 'true'
+        if:
+          (matrix.cache-name == 'quantum-proofs' || matrix.cache-name == 'chemistry-proofs') &&
+          steps.rust.outputs.cache-hit != 'true'
         uses: actions/setup-python@v7.1.0
         with:
           python-version-file: .python-version
@@ -119,6 +127,7 @@ jobs:
               sh scripts/rust/check-rust.sh miri
               ;;
             quantum-proofs) python scripts/quantum/check_proofs.py --only rust ;;
+            chemistry-proofs) python scripts/chemistry/check_chemistry_proofs.py --only rust ;;
             *)
               printf 'Unknown cache name: %s\n' "$CACHE_NAME" >&2
               exit 1
@@ -145,7 +154,7 @@ jobs:
         with:
           python-version-file: .python-version
 
-      # One key serves every BotgeQL job, so the superset with the QDK extra is cached.
+      # One key serves every BotgeQL job, so the superset with the QDK and chemistry extras is cached.
       - name: Set up locked Python package manager
         uses: astral-sh/setup-uv@v10.4.0
         with:
@@ -157,7 +166,7 @@ jobs:
             .python-version
 
       - name: Install the locked packages
-        run: uv sync --locked --extra quantum --no-python-downloads
+        run: uv sync --locked --extra quantum --extra chemistry --no-python-downloads
 
   actionlint:
     name: actionlint

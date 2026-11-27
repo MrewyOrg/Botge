@@ -45,7 +45,10 @@ The [test guide](tests/README.md) owns check commands, coverage gates, prerequis
 checks a change needs. Run targeted tests for the changed code; run whole suites or coverage gates
 only when asked, since CI runs them. Report failures and checks you could not run. Python helpers
 follow the [helper guide](scripts/README.md); run `.venv/bin/python scripts/setup/doctor.py` after
-environment changes.
+environment changes. Local CodeQL runs use VS Code's CodeQL extension CLI (`~/Library/Application`
+`Support/Code/User/globalStorage/github.vscode-codeql/distribution*/codeql/codeql` on macOS) when
+`codeql` is not on `PATH`; see
+[local workflow checks](.github/workflows/README.md#local-workflow-checks).
 
 ## Pull requests and issues
 
@@ -73,6 +76,8 @@ Auto-assign sets assignees.
 - `crates/botge-activity`: Axum routes, signed proxy input and HTTP response mapping.
 - `crates/botge-voice`: Songbird reconciliation through the application settings source.
 - `crates/botge-quantum`: quantum emote register budget, pool planner and Q# sidecar client.
+- `crates/botge-chemistry`: 32-substrate organic atlas, compatibility bitmasks, pool planner and
+  RDKit sidecar client.
 - `crates/botge-test-support`: development-only loopback, media and log fixtures; keep its features
   off production dependencies.
 - Rust rules for every crate above: [crates/AGENTS.md](crates/AGENTS.md).
@@ -90,7 +95,14 @@ Auto-assign sets assignees.
   workspace crate outside `crates/`); `scripts/quantum/` holds `check_qsharp.py`, the `.tex`
   constant verifier and `check_proofs.py`, which runs the Lean, symbolic, certificate and `.tex`
   checks ([guide](quantum/README.md)).
+- `chemistry/`: CPU-only RDKit organic chemistry sidecar ([guide](chemistry/README.md),
+  [mathematical specification](chemistry/docs/botge-chemistry.tex)).
+- `chemistry/proofs/`: proofs of the chemistry specification: `lean/` (Lean 4,
+  `lake exe audit_axioms`), `symbolic/` (SymPy/Z3) and `certificate/` (`verify_matrix.py`,
+  5,120-triple RDKit check); `scripts/chemistry/` holds `verify_chemistry_tex.py` and
+  `check_chemistry_proofs.py`.
 - `scripts/` and `.agents/scripts/`: Python and shell helpers ([helper guide](scripts/README.md)).
 - `Dockerfile`, `compose.yaml` (bot and nginx), `compose.build.yaml` (local build),
-  `compose.activity.yaml` (loopback API) and `compose.quantum.yaml` (quantum sidecar); read the
-  [control guide](botge_control/README.md) before changing deployment tooling.
+  `compose.activity.yaml` (loopback API), `compose.quantum.yaml` (quantum sidecar) and
+  `compose.chemistry.yaml` (chemistry sidecar); read the [control guide](botge_control/README.md)
+  before changing deployment tooling.

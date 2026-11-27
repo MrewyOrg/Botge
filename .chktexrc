@@ -19,6 +19,14 @@ Linker
 DashExcpt
 {
     Lindemann--Weierstrass
+    Diels--Alder
+    Suzuki--Miyaura
+    Schotten--Baumann
+}
+
+WipeArg
+{
+    \chem:{} \smiles:{}
 }
 
 UserWarnRegex

@@ -15,6 +15,7 @@ test-util = ['dep:axum', 'dep:botge-test-support']
 anyhow.workspace = true
 axum = { workspace = true, optional = true }
 botge-app.workspace = true
+botge-chemistry.workspace = true
 botge-domain.workspace = true
 botge-quantum.workspace = true
 botge-test-support = { workspace = true, optional = true }

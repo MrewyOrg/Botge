@@ -9,6 +9,8 @@ cd "$(dirname "$0")/../.."
 cargo miri test --locked -p botge-domain --lib -- settings::tests::
 cargo miri test --locked -p botge-quantum --lib -- \
   budget::tests:: caption::tests:: catalog::tests:: planner::tests:: types::tests::
+cargo miri test --locked -p botge-chemistry --lib -- \
+  atlas::tests:: budget::tests:: caption::tests:: catalog::tests:: planner::tests:: types::tests::
 cargo miri test --locked -p botge-discord --lib -- \
   commands::shortcuts::tests::shortcuts_preserve_exact_matches_aliases_and_unicode_boundaries
 cargo miri test --locked -p botge-emotes --lib -- \

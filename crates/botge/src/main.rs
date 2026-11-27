@@ -71,6 +71,7 @@ use tokio::{
 use tracing_subscriber::EnvFilter;
 
 use botge_app::Application;
+use botge_chemistry::{ChemistryClient, Secret as ChemistrySecret};
 use botge_quantum::{QuantumClient, Secret};
 
 use crate::{
@@ -87,6 +88,8 @@ struct Options {
   cache: Option<Url>,
   /// Client for the optional Q# sidecar that enables `/quantum-emote`.
   quantum: Option<QuantumClient>,
+  /// Client for the optional `RDKit` sidecar that enables `/react-emote`.
+  chemistry: Option<ChemistryClient>,
   register_commands: bool,
   prefix_compose: bool,
   health_address: SocketAddr,
@@ -160,6 +163,7 @@ impl Options {
         .transpose()
         .context("invalid LOCAL_CACHE_BASE")?,
       quantum: quantum_client(get)?,
+      chemistry: chemistry_client(get)?,
       register_commands: get("BOTGE_REGISTER_COMMANDS").as_deref() == Some("true"),
       prefix_compose: get("BOTGE_ENABLE_PREFIX_COMPOSE").as_deref() == Some("true"),
       health_address: SocketAddr::new(
@@ -194,6 +198,31 @@ fn quantum_client(get: &dyn Fn(&str) -> Option<String>) -> Result<Option<Quantum
   let url = Url::parse(url.trim()).context("invalid BOTGE_QUANTUM_URL")?;
   Ok(Some(
     QuantumClient::new(&url, secret).context("invalid BOTGE_QUANTUM_URL")?,
+  ))
+}
+
+/// Builds the chemistry sidecar client when `BOTGE_CHEMISTRY_URL` is set and not blank.
+///
+/// The sidecar is optional at runtime: an offline sidecar only fails `/react-emote` requests.
+///
+/// # Errors
+///
+/// Returns an error for an unparsable or non-HTTP sidecar URL, a non-blank
+/// `BOTGE_CHEMISTRY_SECRET` without a URL, or a client that cannot be built.
+fn chemistry_client(get: &dyn Fn(&str) -> Option<String>) -> Result<Option<ChemistryClient>> {
+  let secret = get("BOTGE_CHEMISTRY_SECRET")
+    .as_deref()
+    .and_then(ChemistrySecret::new);
+  let Some(url) = get("BOTGE_CHEMISTRY_URL").filter(|url| !url.trim().is_empty()) else {
+    anyhow::ensure!(
+      secret.is_none(),
+      "BOTGE_CHEMISTRY_SECRET requires BOTGE_CHEMISTRY_URL"
+    );
+    return Ok(None);
+  };
+  let url = Url::parse(url.trim()).context("invalid BOTGE_CHEMISTRY_URL")?;
+  Ok(Some(
+    ChemistryClient::new(&url, secret).context("invalid BOTGE_CHEMISTRY_URL")?,
   ))
 }
 
@@ -294,11 +323,15 @@ async fn run(
   let mut application = Application::new(config.general, Arc::clone(&store))?;
   application.set_game_cache(options.cache.clone());
   let application = Arc::new(application);
-  // Without a sidecar URL, `/quantum-emote` is neither registered nor answered.
+  // Without sidecar URLs, `/quantum-emote` and `/react-emote` are neither registered nor answered.
   let commands = options.quantum.into_iter().fold(
     commands::Commands::new(Arc::clone(&application), options.cache),
     commands::Commands::with_quantum,
   );
+  let commands = options
+    .chemistry
+    .into_iter()
+    .fold(commands, commands::Commands::with_chemistry);
   let watch_sets = config.general.watches_seven_tv_sets();
   let voice_changed = Arc::new(Notify::new());
   let (ready, voice_ready) = watch::channel(false);

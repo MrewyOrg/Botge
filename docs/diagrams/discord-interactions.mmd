@@ -13,8 +13,12 @@ flowchart LR
     deferQuantum --> sample["Sort and slice pools, one<br/>sidecar draw (3 s), render<br/>the pair through botge-app"]
     sample -->|drawn| caption(["Edit reply: attachment<br/>and circuit caption"])
     sample -->|failed| ephemeral(["Delete reply, explain<br/>in an ephemeral followup"])
+    known -->|"/react-emote<br/>(sidecar configured)"| deferChem["Defer reply"]
+    deferChem --> react["Query RDKit sidecar, render<br/>projected pair through botge-app"]
+    react -->|reacted| chemReply(["Edit reply: emote + caption;<br/>follow-up reply with 2D PNG"])
+    react -->|no reaction / failed| ephemeral
 
-    handler -->|autocomplete| choices["Rank catalog names and scales<br/>2 s catalog wait, 25 choices"]
+    handler -->|autocomplete| choices["Rank catalog names, scales, and<br/>compatible reaction pairs (25 choices)"]
     choices --> respond(["Return choices"])
 
     handler -->|modal submit| confirm["Verify confirmation,<br/>delete unpinned messages"]
@@ -33,9 +37,9 @@ flowchart LR
     classDef base fill:#161b24,stroke:#7d8ba3,color:#e9edf4,stroke-width:2px,rx:10,ry:10
     classDef gate fill:#1b212c,stroke:#f0b54a,color:#fff5e3,stroke-width:2px,rx:10,ry:10
     classDef deny fill:#2a1720,stroke:#ff7a90,color:#ffeef1,stroke-width:2px,rx:10,ry:10
-    class event,edit,respond,report,replyMsg,caption,ephemeral entry
+    class event,edit,respond,report,replyMsg,caption,chemReply,ephemeral entry
     class handler core
     class known,filter gate
-    class defer,deferQuantum,openModal,confirm,choices base
-    class answer,prefix,sample media
+    class defer,deferQuantum,deferChem,openModal,confirm,choices base
+    class answer,prefix,sample,react media
     class ignore deny

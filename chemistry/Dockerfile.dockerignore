@@ -1,0 +1,11 @@
+**
+!.python-version
+!LICENSE.txt
+!pyproject.toml
+!uv.lock
+!chemistry/atlas.py
+!chemistry/depict.py
+!chemistry/engine.py
+!chemistry/server.py
+**/__pycache__/
+**/.env*

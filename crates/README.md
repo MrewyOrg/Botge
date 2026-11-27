@@ -12,9 +12,10 @@ botge — configuration, startup, health and dependency wiring
 ├── botge-app — authorized operations and composition admission
 │   ├── botge-storage → botge-domain
 │   └── botge-emotes → botge-domain
-├── botge-discord → botge-app, botge-domain, botge-quantum
+├── botge-discord → botge-app, botge-chemistry, botge-domain, botge-quantum
 ├── botge-activity → botge-app, botge-domain
 ├── botge-voice → botge-app, botge-domain
+├── botge-chemistry → botge-domain
 └── botge-quantum → botge-domain
 botge-quantum-certificate — proof tooling; tests against botge-quantum (dev-dependency only)
 ```

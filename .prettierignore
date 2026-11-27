@@ -10,6 +10,8 @@
 # Lake writes its manifest; build output and packages are generated.
 /quantum/proofs/lean/.lake/
 /quantum/proofs/lean/lake-manifest.json
+/chemistry/proofs/lean/.lake/
+/chemistry/proofs/lean/lake-manifest.json
 # Preserve the vendored reference and license verbatim.
 # Preserve Discord's original icon assets.
 /assets/vsicons-custom-icons/*.svg

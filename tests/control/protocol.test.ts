@@ -475,3 +475,147 @@ esac
     )
   );
 });
+
+const previousChemistry = `mrewy/botge-chemistry@sha256:${'d'.repeat(64)}`;
+
+test('client forwards deploy-chemistry with and without a digest', () => {
+  const withDigest = spawnSync(
+    'bash',
+    [resolve('scripts/operations/botge-control.sh'), 'deploy-chemistry', digest],
+    { encoding: 'utf8', env: environment }
+  );
+  assert.equal(withDigest.status, 0);
+  assert.equal(readFileSync(commands, 'utf8'), `DEPLOY_CHEMISTRY ${digest}\n`);
+
+  const withoutDigest = spawnSync(
+    'bash',
+    [resolve('scripts/operations/botge-control.sh'), 'deploy-chemistry'],
+    { encoding: 'utf8', env: environment }
+  );
+  assert.equal(withoutDigest.status, 0);
+  assert.equal(readFileSync(commands, 'utf8'), 'DEPLOY_CHEMISTRY\n');
+});
+
+test('chemistry digest deployment skips cleanly when chemistry service is not configured', () => {
+  stub(
+    'docker',
+    `
+printf '%s\\n' "$*" >> "$TEST_COMMANDS"
+case "$*" in
+  'compose config --services') printf 'nginx\\nbotge\\n' ;;
+esac
+`
+  );
+  const result = spawnSync('bash', [resolve('botge_control/bin/botge_control.sh')], {
+    input: `DEPLOY_CHEMISTRY ${digest}\n`,
+    encoding: 'utf8',
+    env: environment
+  });
+  assert.equal(result.status, 0, result.stderr);
+  assert.equal(result.stdout, 'OK\n');
+  assert.ok(result.stderr.includes('Chemistry sidecar is not configured in Compose; skipping.'));
+  assert.throws(() => readFileSync(join(directory, '.botge-chemistry-image')));
+});
+
+test('chemistry digest deployment verifies readiness and persists .botge-chemistry-image', () => {
+  stub(
+    'docker',
+    `
+printf '%s\\n' "$*" >> "$TEST_COMMANDS"
+case "$*" in
+  'compose config --services') printf 'nginx\\nbotge\\nchemistry\\n' ;;
+  'compose config --format json') printf '{"services":{"chemistry":{"image":"%s"}}}' "$BOTGE_CHEMISTRY_IMAGE" ;;
+  'compose ps -q chemistry') echo ccontainer ;;
+  'inspect --format {{.Config.Image}} ccontainer') echo "$BOTGE_CHEMISTRY_IMAGE" ;;
+  'inspect --format {{.State.Health.Status}} ccontainer') echo healthy ;;
+esac
+`
+  );
+  const result = spawnSync('bash', [resolve('botge_control/bin/botge_control.sh')], {
+    input: `DEPLOY_CHEMISTRY ${digest}\n`,
+    encoding: 'utf8',
+    env: environment
+  });
+  assert.equal(result.status, 0, result.stderr);
+  assert.equal(result.stdout, 'OK\n');
+  assert.equal(
+    readFileSync(join(directory, '.botge-chemistry-image'), 'utf8'),
+    `mrewy/botge-chemistry@${digest}\n`
+  );
+});
+
+test('chemistry digest deployment refuses Compose without BOTGE_CHEMISTRY_IMAGE', () => {
+  stub(
+    'docker',
+    `
+case "$*" in
+  'compose config --services') printf 'nginx\\nbotge\\nchemistry\\n' ;;
+  'compose config --format json') echo '{"services":{"chemistry":{"image":"mrewy/botge-chemistry:latest"}}}' ;;
+esac
+`
+  );
+  const result = spawnSync('bash', [resolve('botge_control/bin/botge_control.sh')], {
+    input: `DEPLOY_CHEMISTRY ${digest}\n`,
+    encoding: 'utf8',
+    env: environment
+  });
+  assert.equal(result.status, 1);
+  assert.equal(result.stdout, 'ERROR\n');
+});
+
+test('failed chemistry digest deployment rolls back to previous .botge-chemistry-image', () => {
+  writeFileSync(join(directory, '.botge-chemistry-image'), previousChemistry + '\n');
+  stub(
+    'docker',
+    `
+printf '%s %s\\n' "$*" "$BOTGE_CHEMISTRY_IMAGE" >> "$TEST_COMMANDS"
+case "$*" in
+  'compose config --services') printf 'nginx\\nbotge\\nchemistry\\n' ;;
+  'compose config --format json') printf '{"services":{"chemistry":{"image":"%s"}}}' "$BOTGE_CHEMISTRY_IMAGE" ;;
+  'compose up -d --no-deps --pull always --wait --wait-timeout 120 chemistry') exit 1 ;;
+esac
+`
+  );
+  const result = spawnSync('bash', [resolve('botge_control/bin/botge_control.sh')], {
+    input: `DEPLOY_CHEMISTRY ${digest}\n`,
+    encoding: 'utf8',
+    env: environment
+  });
+  assert.equal(result.status, 1);
+  assert.equal(result.stdout, 'ERROR\n');
+  assert.ok(result.stderr.includes(`Restored the previous chemistry image ${previousChemistry}.`));
+  assert.equal(
+    readFileSync(join(directory, '.botge-chemistry-image'), 'utf8'),
+    previousChemistry + '\n'
+  );
+});
+
+test('manual DEPLOY_CHEMISTRY without a digest logs and uses .botge-chemistry-image', () => {
+  writeFileSync(join(directory, '.botge-chemistry-image'), previousChemistry + '\n');
+  stub(
+    'docker',
+    `
+printf '%s %s\\n' "$*" "\${BOTGE_CHEMISTRY_IMAGE:-}" >> "$TEST_COMMANDS"
+case "$*" in
+  'compose config --services') printf 'nginx\\nbotge\\nchemistry\\n' ;;
+esac
+`
+  );
+  const result = spawnSync('bash', [resolve('botge_control/bin/botge_control.sh')], {
+    input: 'DEPLOY_CHEMISTRY\n',
+    encoding: 'utf8',
+    env: environment
+  });
+  assert.equal(result.status, 0);
+  assert.equal(result.stdout, 'OK\n');
+  assert.ok(
+    result.stderr.includes(
+      `Deploying pinned chemistry image from .botge-chemistry-image: ${previousChemistry}.`
+    )
+  );
+  assert.ok(
+    readFileSync(commands, 'utf8').includes(
+      `compose up -d --no-deps --pull always --wait --wait-timeout 120 chemistry ${previousChemistry}\n`
+    )
+  );
+});

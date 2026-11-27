@@ -23,6 +23,7 @@ SOURCES = (
     '.agents/scripts',
     '.agents/tests',
     'quantum/proofs/symbolic',
+    'chemistry/proofs/symbolic',
 )
 
 

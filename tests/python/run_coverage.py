@@ -26,6 +26,7 @@ def main() -> None:
             *ROOT.glob('scripts/**/*.py'),
             *ROOT.glob('.agents/scripts/*.py'),
             *ROOT.glob('quantum/proofs/symbolic/*.py'),
+            *ROOT.glob('chemistry/proofs/symbolic/*.py'),
         )
     )
     sys.path[:0] = sorted({str(path.parent) for path in sources})
@@ -45,7 +46,12 @@ def main() -> None:
         measured.start()
         suites = [
             unittest.TestLoader().discover(str(ROOT / path))
-            for path in ('tests/python', '.agents/tests', 'quantum/proofs/symbolic/tests')
+            for path in (
+                'tests/python',
+                '.agents/tests',
+                'quantum/proofs/symbolic/tests',
+                'chemistry/proofs/symbolic/tests',
+            )
         ]
         result = unittest.TextTestRunner(verbosity=2).run(unittest.TestSuite(suites))
         measured.stop()
