@@ -17,7 +17,13 @@ from pathlib import Path
 from typing import cast
 
 ROOT = Path(__file__).resolve().parents[2]
-SOURCES = ('scripts', 'tests/python', '.agents/scripts', '.agents/tests')
+SOURCES = (
+    'scripts',
+    'tests/python',
+    '.agents/scripts',
+    '.agents/tests',
+    'quantum/proofs/symbolic',
+)
 
 
 def typecheck_config(directory: Path) -> Path:

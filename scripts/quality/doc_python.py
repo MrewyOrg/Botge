@@ -34,7 +34,11 @@ def build(root: Path, output: Path) -> tuple[Path, ...]:
         subprocess.TimeoutExpired: Documentation does not finish within 60 seconds.
 
     """
-    files = (*root.glob('scripts/**/*.py'), *root.glob('.agents/scripts/*.py'))
+    files = (
+        *root.glob('scripts/**/*.py'),
+        *root.glob('.agents/scripts/*.py'),
+        *root.glob('quantum/proofs/symbolic/*.py'),
+    )
     directories = sorted({path.parent for path in files})
     modules = sorted(path.stem for path in files)
     if not modules or len(modules) != len(set(modules)) or not all(map(str.isidentifier, modules)):

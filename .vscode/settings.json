@@ -11,7 +11,7 @@
 
   // Files
   "files.associations": {
-    ".dockerignore": "ignore",
+    "*.dockerignore": "ignore",
     "*.service": "ini",
     "*.socket": "ini",
     "**/.husky/commit-msg": "shellscript",
@@ -41,6 +41,8 @@
     "nginx/cache/**/*": true,
     "node_modules/**/*": true,
     "package-lock.json": true,
+    "quantum/proofs/lean/.lake/**/*": true,
+    "quantum/proofs/lean/lake-manifest.json": true,
     "uv.lock": true,
     "target/**/*": true,
     "tmp/**/*": true
@@ -50,6 +52,7 @@
   // Avoid watching generated files and runtime data; retain VS Code’s default exclusions.
   "files.watcherExclude": {
     "**/.build/**": true,
+    "**/.lake/**": true,
     "**/DerivedData/**": true,
     "**/*.xcodeproj/**": true,
     "**/.venv/**": true,
@@ -69,6 +72,7 @@
   // Search
   "search.exclude": {
     "**/.build/**": true,
+    "**/.lake/**": true,
     "**/DerivedData/**": true,
     "**/*.xcodeproj/**": true,
     "**/.venv/**": true,
@@ -168,6 +172,80 @@
   "swift.disableAutoResolve": true,
   "swift.disableSwiftPackageManagerIntegration": true,
 
+  // Q# (target profile and strict lint levels live in quantum/qsharp.json)
+  "Q#.azure.uploadSupplementalData": false,
+  "Q#.circuits.config": {
+    "generationMethod": "static",
+    "groupByScope": true,
+    "maxLoopIterations": 100,
+    "maxOperations": 10001,
+    "sourceLocations": true
+  },
+  "Q#.notifications.suppressUpdateNotifications": true,
+
+  // LaTeX (output PDF beside .tex; keep auxiliary files in ignored tmp/latex)
+  "latex-workshop.formatting.latex": "none",
+  "latex-workshop.latex.autoBuild.run": "onSave",
+  "latex-workshop.latex.autoClean.run": "onBuilt",
+  "latex-workshop.latex.auxDir": "%WORKSPACE_FOLDER%/tmp/latex",
+  "latex-workshop.latex.clean.subfolder.enabled": true,
+  "latex-workshop.latex.outDir": "%DIR%",
+  "latex-workshop.latex.recipes": [
+    { "name": "latexmk (dark)", "tools": ["latexmk-dark"] },
+    { "name": "latexmk (light)", "tools": ["latexmk-light"] }
+  ],
+  "latex-workshop.latex.tools": [
+    {
+      "name": "latexmk-dark",
+      "command": "latexmk",
+      "args": [
+        "-synctex=0",
+        "-interaction=nonstopmode",
+        "-halt-on-error",
+        "-file-line-error",
+        "-pdf",
+        "-emulate-aux-dir",
+        "-outdir=%OUTDIR%",
+        "-auxdir=%AUXDIR%",
+        "%DOC%"
+      ]
+    },
+    {
+      "name": "latexmk-light",
+      "command": "latexmk",
+      "args": [
+        "-synctex=0",
+        "-interaction=nonstopmode",
+        "-halt-on-error",
+        "-file-line-error",
+        "-pdf",
+        "-emulate-aux-dir",
+        "-outdir=%OUTDIR%",
+        "-auxdir=%AUXDIR%",
+        "-usepretex=\\def\\BotgeDarkMode{0}",
+        "%DOC%"
+      ]
+    }
+  ],
+  "latex-workshop.linting.chktex.enabled": true,
+  "latex-workshop.linting.chktex.exec.args": ["-eall", "-n22", "-n30", "-q"],
+  "latex-workshop.linting.lacheck.enabled": true,
+  "latex-workshop.linting.run": "onSave",
+  "latex-workshop.message.information.show": false,
+  "latex-workshop.view.pdf.color.dark.backgroundColor": "#0e1117",
+  "latex-workshop.view.pdf.color.dark.pageBorderColor": "#3b4558",
+  "latex-workshop.view.pdf.invertMode.enabled": "never",
+  "latex-workshop.view.pdf.viewer": "tab",
+
+  // Lean 4 (strict options live in quantum/proofs/lean/lakefile.toml; no Lean formatter exists)
+  "lean4.alwaysAskBeforeInstallingLeanVersions": true,
+  "lean4.autofocusOutput": false,
+  "lean4.infoview.autoOpen": true,
+  "lean4.infoview.autoOpenShowsGoal": true,
+  "lean4.input.eagerReplacementEnabled": true,
+  "lean4.input.enabled": true,
+  "lean4.showSetupWarnings": true,
+
   // npm
   "npm.packageManager": "npm",
   "npm.scriptRunner": "npm",
@@ -262,11 +340,25 @@
   "chat.disableAIFeatures": false,
   "telemetry.editStats.enabled": false,
   "telemetry.feedback.enabled": false,
+  "telemetry.telemetryLevel": "off",
 
   // Language overrides
   "[dockerfile][dotenv][ini][npmrc]": {
     "editor.formatOnPaste": false,
     "editor.formatOnSave": false
+  },
+  "[latex]": {
+    "editor.formatOnPaste": false,
+    "editor.formatOnSave": false,
+    "editor.rulers": [100],
+    "editor.tabSize": 2
+  },
+  "[lean4]": {
+    "editor.formatOnPaste": false,
+    "editor.formatOnSave": false,
+    "editor.rulers": [100],
+    "editor.tabSize": 2,
+    "editor.wordWrap": "off"
   },
   "[markdown]": {
     "editor.defaultFormatter": "esbenp.prettier-vscode",
@@ -280,6 +372,12 @@
       "source.fixAll.ruff": "explicit",
       "source.organizeImports.ruff": "explicit"
     }
+  },
+  "[qsharp]": {
+    "editor.formatOnPaste": false,
+    "editor.formatOnSave": false,
+    "editor.rulers": [100],
+    "editor.tabSize": 4
   },
   "[rego]": {
     "editor.defaultFormatter": "tsandall.opa",

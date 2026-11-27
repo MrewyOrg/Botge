@@ -17,7 +17,7 @@ runs in every build, so even temporary code must pass it.
 
 SwiftLint and the compiler cannot judge these. Each names its source in the cached guides listed in
 the [Swift reference index](../.agents/references/swift/README.md); read that one section when a
-case is unclear (`python3 .agents/scripts/cache_references.py` fetches a missing cache).
+case is unclear (`.venv/bin/python .agents/scripts/cache_references.py` fetches a missing cache).
 
 - **Clarity at the point of use:** names describe roles, not types; call sites read as English
   phrases; omit needless words but never at the cost of clarity (API Design Guidelines:

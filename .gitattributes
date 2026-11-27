@@ -1,7 +1,16 @@
 * text=auto eol=lf
 
+*.bash diff=bash
+*.go diff=golang
+*.html diff=html
 *.md diff=markdown
+*.py diff=python
+*.rs diff=rust
+*.scss diff=css
+*.sh diff=bash
+*.tex diff=tex
 
+*.pdf binary
 *.png binary
 *.webp binary
 

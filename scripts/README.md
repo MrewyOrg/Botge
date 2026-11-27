@@ -8,6 +8,8 @@ Rust check scopes and prerequisites are described in the [test guide](../tests/R
 - **`operations/`.** Compose and GitHub backups, the deploy client, and the backup LaunchAgent
   template
 - **`quality/`.** Repository-wide shell, workflow, Python, and documentation checks
+- **`quantum/`.** Q# lint, test and coverage checks, and quantum emote proof checks: Lean, SymPy/Z3,
+  the `botge-quantum` certificate and `.tex` traceability
 - **`rust/`.** Cargo checks, coverage, Miri, and the test FFmpeg installer
 - **`setup/`.** Dev Container bootstrap and local prerequisite checks
 

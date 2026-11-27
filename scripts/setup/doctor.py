@@ -3,7 +3,8 @@
 Run with the root virtual environment from any directory. Pins come from
 rust-toolchain.toml, .nvmrc, .python-version, pyproject.toml and the Activity
 server's .go-version. Rust and Go probes disable automatic toolchain installation.
-Docker probes are optional and read-only.
+Docker probes are optional and read-only. `--proofs` also requires the Lean toolchain pinned
+by quantum/proofs/lean/lean-toolchain.
 iOS probes run when Xcode is installed and are optional: only the iOS app needs them.
 """
 
@@ -120,6 +121,19 @@ def diagnose_go(root: Path, runner: Runner) -> bool:
     return all(checks)
 
 
+def diagnose_proofs(root: Path, runner: Runner) -> bool:
+    """Check elan, Lake and the Lean toolchain pinned for the quantum emote proofs."""
+    try:
+        pin = (root / 'quantum' / 'proofs' / 'lean' / 'lean-toolchain').read_text().strip()
+    except (OSError, ValueError) as error:
+        print(f'FAIL Lean prerequisite configuration: {error}')
+        return False
+    toolchains = runner(('elan', 'toolchain', 'list'))
+    checks = [report(f'Lean {pin}', toolchains, valid=pin in toolchains.output.split())]
+    checks.append(report('Lake', runner(('lake', '--version'))))
+    return all(checks)
+
+
 def diagnose(root: Path, runner: Runner, *, docker: bool, ios: bool = False) -> bool:
     """Print required prerequisite results and return whether all of them pass.
 
@@ -208,6 +222,7 @@ def main() -> None:
     """Check the repository owning this file, regardless of the caller's directory."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--go', action='store_true', help='also require Activity server Go tools')
+    parser.add_argument('--proofs', action='store_true', help='also require the Lean toolchain')
     args = parser.parse_args()
     healthy = diagnose(
         ROOT,
@@ -217,6 +232,8 @@ def main() -> None:
     )
     if args.go:
         healthy = diagnose_go(ROOT, run) and healthy
+    if args.proofs:
+        healthy = diagnose_proofs(ROOT, run) and healthy
     raise SystemExit(0 if healthy else 1)
 
 

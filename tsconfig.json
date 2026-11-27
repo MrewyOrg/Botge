@@ -8,7 +8,7 @@
     "stylelint.config.ts",
     "vitest.config.ts"
   ],
-  "include": ["tests/control/**/*.ts", "tests/tooling/**/*.ts"],
+  "include": ["scripts/**/*.ts", "tests/control/**/*.ts", "tests/tooling/**/*.ts"],
   "compilerOptions": {
     // Emit
     "noEmit": true,

@@ -37,10 +37,28 @@ test('staged Rust and Go format only the selected files', () => {
     '*.rs': ['rustfmt --config skip_children=true'],
     '*.ts': expect.arrayContaining(['prettier --write']) as unknown,
     '*.go': 'gofmt -w',
-    '!(*.ts|*.html|*.scss|*.md|*.rs|*.go|*.py|*.swift|*.webp|*.png)': expect.arrayContaining([
-      'prettier --write --ignore-unknown'
-    ]) as unknown
+    '!(*.ts|*.html|*.scss|*.md|*.sh|*.rs|*.go|*.py|*.swift|*.rego|*.qs|*.tex|*.lean|*.webp|*.png|*.pdf)':
+      expect.arrayContaining(['prettier --write --ignore-unknown']) as unknown
   });
+});
+
+test('staged Shell, Rego, Q#, LaTeX, and Lean files run their dedicated checks', () => {
+  expect(staged).toMatchObject({
+    '*.sh': ['prettier --write', 'shellcheck'],
+    '*.rego': 'regal lint',
+    '*.tex': 'chktex -eall -n22 -n30 -q',
+    '*.lean': '.venv/bin/python scripts/quantum/check_proofs.py --scan-lean'
+  });
+  expect(typeof staged).toBe('object');
+  if (typeof staged !== 'function') {
+    const qsharpTask = staged['*.qs'];
+    expect(typeof qsharpTask).toBe('function');
+    if (typeof qsharpTask === 'function') {
+      expect(qsharpTask(['quantum/src/BotgeQuantum.qs'])).toBe(
+        'node scripts/quantum/lint-qsharp.ts'
+      );
+    }
+  }
 });
 
 test('staged Swift is formatted and linted with the pinned iOS tools', () => {

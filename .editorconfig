@@ -8,6 +8,11 @@ indent_style = space
 insert_final_newline = true
 trim_trailing_whitespace = true
 
+# Mathlib style: two-space indentation and 100 columns; see .agents/references/lean/AUDIT.md.
+[*.lean]
+indent_size = 2
+max_line_length = 100
+
 [*.md]
 trim_trailing_whitespace = false
 
@@ -17,6 +22,11 @@ indent_size = 4
 
 [*.py]
 indent_size = 4
+
+# Microsoft's Q# style: four-space indentation and 100 columns, as in .vscode/settings.json.
+[*.qs]
+indent_size = 4
+max_line_length = 100
 
 # SwiftFormat follows the repository's two-space, 100-column style; see ios/.swiftformat.
 [*.swift]

@@ -1,0 +1,10 @@
+**
+!.python-version
+!LICENSE.txt
+!pyproject.toml
+!uv.lock
+!quantum/qsharp.json
+!quantum/server.py
+!quantum/src/BotgeQuantum.qs
+**/__pycache__/
+**/.env*
