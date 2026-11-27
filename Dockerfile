@@ -72,7 +72,7 @@ LABEL org.opencontainers.image.authors="Mrewy" \
 
 # Alpine edge keeps only its newest build, so this pin fails the build when edge moves on.
 # Update it deliberately, then rerun the animated WebP smoke check below.
-ARG FFMPEG_VERSION=9.0.2-r3
+ARG FFMPEG_VERSION=9.1-r0
 # Install packages without adding APK itself to the runtime image.
 RUN --mount=from=runtime-tools,source=/sbin/apk.static,target=/sbin/apk.static \
   apk.static upgrade --no-cache \
